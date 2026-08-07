@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchCalendarEvents, fetchCertCalendarEvents } from '../../lib/googleCalendar';
+import CertDetailsModal from '../../components/CertDetailsModal';
 import {
   Calendar,
   Users,
@@ -19,6 +20,7 @@ import {
   ExternalLink,
   RefreshCw,
   Award,
+  Info,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken }) {
@@ -26,7 +28,8 @@ export default function AdminDashboard({ activeTab, providerToken }) {
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventsError, setEventsError] = useState(null);
 
-  // Certifications Calendar state
+  // Certifications state
+  const [selectedCert, setSelectedCert] = useState(null);
   const [certEvents, setCertEvents] = useState([]);
   const [loadingCertEvents, setLoadingCertEvents] = useState(false);
   const [certEventsError, setCertEventsError] = useState(null);
@@ -584,6 +587,7 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                   return (
                     <div
                       key={c.id}
+                      onClick={() => setSelectedCert(c)}
                       style={{
                         padding: '20px',
                         borderRadius: 'var(--border-radius-md)',
@@ -593,7 +597,10 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                         flexDirection: 'column',
                         justifyContent: 'space-between',
                         gap: '12px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
                       }}
+                      className="hover-glow"
                     >
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -603,7 +610,9 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                           </span>
                         </div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600 }}>{c.name}</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {c.name} <Info size={14} color="var(--accent-cyan)" />
+                        </div>
                       </div>
 
                       <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
@@ -616,6 +625,17 @@ export default function AdminDashboard({ activeTab, providerToken }) {
               </div>
             </div>
           </div>
+
+          {/* Cert Details Modal */}
+          {selectedCert && (
+            <CertDetailsModal
+              certName={selectedCert.name}
+              memberName={selectedCert.member}
+              cohort={selectedCert.cohort}
+              date={selectedCert.date}
+              onClose={() => setSelectedCert(null)}
+            />
+          )}
         </div>
       );
 
