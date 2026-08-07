@@ -332,6 +332,32 @@ export default function AdminDashboard({ activeTab, providerToken }) {
             <p style={{ color: 'var(--text-secondary)' }}>Live Google Calendar sync and student coaching roadmap progress.</p>
           </div>
 
+          {/* Mentor Appointment Booking Links */}
+          <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--accent-cyan)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Calendar size={20} color="var(--accent-cyan)" />
+                <h3 style={{ margin: 0 }}>Mentor Appointment Links</h3>
+              </div>
+              <span className="badge badge-success">Live Google Appointment Slots</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
+              <div>
+                <strong>[REDACTED] (Lead Mentor & Founder)</strong>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Direct Booking Page: https://calendar.app.google/eKVRpXkHCKKcnhYT6</div>
+              </div>
+              <a
+                href="https://calendar.app.google/eKVRpXkHCKKcnhYT6"
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-primary"
+                style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+              >
+                Open Google Calendar <ExternalLink size={14} />
+              </a>
+            </div>
+          </div>
+
           {/* Live Google Calendar Feed */}
           <div className="glass-card" style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
