@@ -590,6 +590,13 @@ export default function MemberPortal({ activeTab }) {
       );
 
     default:
-      return null;
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>My Cybersecurity Roadmap</h1>
+            <p>Welcome back! Track your learning path, upcoming 1on1 sessions, and community events.</p>
+          </div>
+        </div>
+      );
   }
 }
