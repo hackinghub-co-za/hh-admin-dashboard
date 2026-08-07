@@ -40,6 +40,83 @@ export default function MemberPortal({ activeTab }) {
   const completedCount = tasks.filter(t => t.completed).length;
   const progressPercent = Math.round((completedCount / tasks.length) * 100);
 
+  // Membership Tier Definitions
+  const ALL_TIERS = [
+    {
+      rank: 1,
+      name: 'Basic Access',
+      priceDisplay: 'R 200.00',
+      period: '/ month',
+      amount: 200,
+      badgeClass: 'badge-warning',
+      badgeText: 'BASIC ACCESS',
+      benefits: [
+        'Community Discord access',
+        'CV & LinkedIn profile reviews',
+        'Basic member directory access',
+      ],
+    },
+    {
+      rank: 2,
+      name: 'Monthly Operative',
+      priceDisplay: 'R 600.00',
+      period: '/ month',
+      amount: 600,
+      badgeClass: 'badge-success',
+      badgeText: 'MONTHLY OPERATIVE',
+      borderStyle: '1px solid var(--accent-cyan)',
+      benefits: [
+        'Everything in Basic Access',
+        'Daily Accountability programme',
+        '1-on-1 strategy & coaching sessions',
+        'CV review & mock interview prep',
+        'Private member channels & labs',
+        'CompTIA exam discounts',
+      ],
+    },
+    {
+      rank: 3,
+      name: 'Permanent Access',
+      priceDisplay: 'R 1,000.00',
+      period: '/ 6 months',
+      amount: 1000,
+      badgeClass: 'badge-success',
+      badgeStyle: { background: 'rgba(192, 132, 252, 0.2)', color: 'var(--accent-purple)' },
+      btnStyle: { background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))' },
+      badgeText: 'PERMANENT ACCESS',
+      benefits: [
+        'Everything in Monthly Operative',
+        'Lifetime community access',
+        'All future programme updates',
+        'Priority support & coaching',
+        'Founding member status & badge',
+        'Free Azure exams (upon milestone completion)',
+      ],
+    },
+    {
+      rank: 4,
+      name: 'Elite Operative',
+      priceDisplay: 'Apply Only',
+      period: '',
+      amount: 0,
+      badgeClass: 'badge-danger',
+      badgeText: 'ELITE OPERATIVE',
+      isApplyOnly: true,
+      benefits: [
+        'Everything in Permanent Access',
+        'Fully Sponsored Certifications (OSCP/CompTIA)',
+        'All course & training costs covered',
+        '12-Month Job Placement Guarantee (or 100% refund)',
+        'Direct founder 1on1 access',
+      ],
+    },
+  ];
+
+  // Current active plan state (Default: Rank 1 - Basic Access)
+  const [currentPlanRank, setCurrentPlanRank] = useState(1);
+  const currentPlan = ALL_TIERS.find(t => t.rank === currentPlanRank) || ALL_TIERS[0];
+  const upgradeTiers = ALL_TIERS.filter(t => t.rank >= currentPlanRank);
+
   // Router for Member Dashboard
   switch (activeTab) {
     case 'dashboard':
@@ -125,7 +202,7 @@ export default function MemberPortal({ activeTab }) {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Subscription Plan:</span>
-                  <strong>Core Member</strong>
+                  <strong>{currentPlan.name}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Next Payment Date:</span>
@@ -133,7 +210,7 @@ export default function MemberPortal({ activeTab }) {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '16px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Monthly Fee:</span>
-                  <strong style={{ color: 'var(--accent-cyan)' }}>R 650.00</strong>
+                  <strong style={{ color: 'var(--accent-cyan)' }}>{currentPlan.priceDisplay}</strong>
                 </div>
                 <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem' }}>
                   Manage Payments
@@ -216,26 +293,45 @@ export default function MemberPortal({ activeTab }) {
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>My Subscription & PayFast Billing</h1>
-            <p>Manage active subscriptions and upgrade your Hacking Hub clearance level.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>My Subscription & Upgrades</h1>
+            <p>View your active clearance level and upgrade options.</p>
           </div>
 
+          {/* Current Active Plan Overview */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
             <div className="glass-card">
-              <h3 style={{ marginBottom: '16px' }}>Current Active Subscription</h3>
+              <h3 style={{ marginBottom: '16px' }}>Current Active Clearance</h3>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Plan Name</span>
-                <strong>Monthly Operative</strong>
+                <strong>{currentPlan.name}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Price</span>
-                <strong>R 600.00 / month</strong>
+                <span style={{ color: 'var(--text-secondary)' }}>Rate</span>
+                <strong>{currentPlan.priceDisplay} {currentPlan.period}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Payment Gateway</span>
-                <span className="badge badge-success">PayFast (ZAR)</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Status</span>
+                <span className="badge badge-success">active</span>
               </div>
-              <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>Manage PayFast Subscription</button>
+
+              {/* Developer Tier Selector */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '12px' }}>
+                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  Simulate Current Membership Level:
+                </label>
+                <select
+                  value={currentPlanRank}
+                  onChange={(e) => setCurrentPlanRank(Number(e.target.value))}
+                  className="form-input"
+                  style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                >
+                  {ALL_TIERS.map(t => (
+                    <option key={t.rank} value={t.rank}>
+                      Level {t.rank}: {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="glass-card">
@@ -248,60 +344,85 @@ export default function MemberPortal({ activeTab }) {
                 </div>
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Subscriptions automatically sync with your profile upon Instant Payment Notification (ITN).
+                Upgrades instantly unlock additional benefits upon PayFast ITN verification.
               </p>
             </div>
           </div>
 
-          <h3 style={{ marginBottom: '20px' }}>Upgrade / Pay via PayFast</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
-            {/* Basic Access */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <span className="badge badge-warning" style={{ marginBottom: '12px' }}>BASIC ACCESS</span>
-                <h4 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>R 200.00 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ month</span></h4>
-                <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>Discord community access, CV & LinkedIn reviews.</p>
-              </div>
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center' }}
-                onClick={() => handlePayfastPay('Basic Access', 200)}
-              >
-                Pay R200 via PayFast <ExternalLink size={14} />
-              </button>
-            </div>
+          <h3 style={{ marginBottom: '20px' }}>Your Plan & Upgrade Options</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+            {upgradeTiers.map((tier) => {
+              const isCurrent = tier.rank === currentPlanRank;
+              return (
+                <div
+                  key={tier.rank}
+                  className="glass-card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    border: isCurrent ? '2px solid var(--accent-cyan)' : (tier.borderStyle || 'var(--glass-border)'),
+                    position: 'relative',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <span className={`badge ${tier.badgeClass}`} style={tier.badgeStyle}>
+                        {tier.badgeText}
+                      </span>
+                      {isCurrent && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>CURRENT PLAN</span>}
+                    </div>
 
-            {/* Monthly Operative */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--accent-cyan)' }}>
-              <div>
-                <span className="badge badge-success" style={{ marginBottom: '12px' }}>MONTHLY OPERATIVE</span>
-                <h4 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>R 600.00 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ month</span></h4>
-                <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>Accountability, 1on1 sessions, private channels, CompTIA discounts.</p>
-              </div>
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center' }}
-                onClick={() => handlePayfastPay('Monthly Operative', 600)}
-              >
-                Pay R600 via PayFast <ExternalLink size={14} />
-              </button>
-            </div>
+                    <h4 style={{ fontSize: '1.3rem', marginBottom: '4px', fontWeight: 700 }}>
+                      {tier.priceDisplay} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 400 }}>{tier.period}</span>
+                    </h4>
 
-            {/* Permanent Access */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <span className="badge badge-success" style={{ marginBottom: '12px', background: 'rgba(192, 132, 252, 0.2)', color: 'var(--accent-purple)' }}>PERMANENT ACCESS</span>
-                <h4 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>R 1,000.00 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ 6 months</span></h4>
-                <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>Lifetime access via 6 monthly installments, free Azure exams, priority support.</p>
-              </div>
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))' }}
-                onClick={() => handlePayfastPay('Permanent Access', 1000)}
-              >
-                Pay R1,000 via PayFast <ExternalLink size={14} />
-              </button>
-            </div>
+                    <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '16px 0' }} />
+
+                    {/* Bulleted Benefits List */}
+                    <div style={{ marginBottom: '20px' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Specific Tier Benefits:
+                      </div>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {tier.benefits.map((b, idx) => (
+                          <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                            <ShieldCheck size={16} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <span>{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div>
+                    {isCurrent ? (
+                      <button className="btn btn-secondary" disabled style={{ width: '100%', justifyContent: 'center', opacity: 0.7 }}>
+                        Current Active Plan
+                      </button>
+                    ) : tier.isApplyOnly ? (
+                      <a
+                        href="https://calendar.app.google/VAt3wTxF53hmYw73A"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, var(--danger), var(--accent-purple))' }}
+                      >
+                        Apply for Placement <ExternalLink size={14} />
+                      </a>
+                    ) : (
+                      <button
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', ...(tier.btnStyle || {}) }}
+                        onClick={() => handlePayfastPay(tier.name, tier.amount)}
+                      >
+                        Upgrade to {tier.name} <ExternalLink size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       );
