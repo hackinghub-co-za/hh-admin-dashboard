@@ -307,40 +307,62 @@ export default function MemberPortal({ activeTab }) {
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Book a 1on1 Session</h1>
-            <p>Connect with your assigned mentor for technical review or roadmap check-in.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Book a 1on1 Strategy Session</h1>
+            <p>Select your mentor to open their live Google Calendar and reserve your 1on1 coaching slot.</p>
           </div>
 
-          <div className="glass-card" style={{ maxWidth: '600px' }}>
-            <h3 style={{ marginBottom: '20px' }}>Schedule Session</h3>
-            <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={e => e.preventDefault()}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', maxWidth: '900px' }}>
+            {/* Siya - Lead Mentor Booking Card */}
+            <div className="glass-card" style={{ border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Mentor</label>
-                <input type="text" className="form-input" value="Jaco du Toit (Assigned)" disabled />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Preferred Date</label>
-                  <input type="date" className="form-input" />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span className="badge badge-success">LEAD MENTOR & FOUNDER</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>Available Slots</span>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Preferred Time Slot</label>
-                  <select className="form-input">
-                    <option>09:00 - 10:00</option>
-                    <option>10:30 - 11:30</option>
-                    <option>14:00 - 15:00</option>
-                    <option>16:00 - 17:00</option>
-                  </select>
-                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '4px' }}>Siyambonga Gladile</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                  Cybersecurity Strategy, Career Roadmaps, OSCP Coaching & Technical Code Reviews.
+                </p>
               </div>
+
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                <a
+                  href="https://calendar.app.google/eKVRpXkHCKKcnhYT6"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-primary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  <Calendar size={16} /> Book 1on1 on Google Calendar <ExternalLink size={14} />
+                </a>
+              </div>
+            </div>
+
+            {/* Jaco du Toit - Senior Mentor */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Focus Topic</label>
-                <textarea className="form-input" placeholder="Explain what you want to cover..." style={{ height: '80px', resize: 'vertical' }}></textarea>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span className="badge badge-warning">SENIOR PENTESTER</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Synced via Siya</span>
+                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '4px' }}>Jaco du Toit</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                  Active Directory Exploitation, Network Penetration Testing & CTF Walkthroughs.
+                </p>
               </div>
-              <button className="btn btn-primary" style={{ alignSelf: 'flex-start', marginTop: '8px' }}>
-                Submit Booking Request
-              </button>
-            </form>
+
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                <a
+                  href="https://calendar.app.google/eKVRpXkHCKKcnhYT6"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  <Calendar size={16} /> Schedule Slot <ExternalLink size={14} />
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       );
