@@ -67,9 +67,54 @@ export default function AdminDashboard({ activeTab, providerToken }) {
   const [payments, setPayments] = useState(payfastTransactionsData);
 
   const [oneOnOnes, setOneOnOnes] = useState([
-    { id: 1, member: 'Sanele Khumalo', mentor: 'Siyambonga Gladile', time: 'Today, 14:00', topic: 'OSCP Prep Roadmap', status: 'scheduled' },
-    { id: 2, member: 'Liam O\'Connor', mentor: 'Siyambonga Gladile', time: 'Tomorrow, 10:00', topic: 'Web Security Portfolio Review', status: 'scheduled' },
-    { id: 3, member: 'Fatima Patel', mentor: 'Jaco du Toit', time: 'Yesterday, 16:30', topic: 'Malware Analysis Basics', status: 'completed' },
+    {
+      id: 1,
+      member: 'Sanele Khumalo',
+      mentor: 'Siyambonga Gladile',
+      nextMeetingDate: '2026-08-10 14:00',
+      daysUntil: 3,
+      previousMeetingDate: '2026-07-27',
+      isRecurring: true,
+      frequency: 'Weekly (Mon)',
+      topic: 'OSCP Prep Roadmap & Buffer Overflows',
+      status: 'scheduled',
+    },
+    {
+      id: 2,
+      member: 'Liam O\'Connor',
+      mentor: 'Siyambonga Gladile',
+      nextMeetingDate: '2026-08-08 10:00',
+      daysUntil: 1,
+      previousMeetingDate: '2026-07-25',
+      isRecurring: true,
+      frequency: 'Bi-weekly (Sat)',
+      topic: 'Web Security & PortSwigger Labs Review',
+      status: 'scheduled',
+    },
+    {
+      id: 3,
+      member: 'Fatima Patel',
+      mentor: 'Jaco du Toit',
+      nextMeetingDate: '2026-08-14 16:30',
+      daysUntil: 7,
+      previousMeetingDate: '2026-07-31',
+      isRecurring: false,
+      frequency: 'One-off Session',
+      topic: 'Malware Analysis & Ghidra Basics',
+      status: 'scheduled',
+    },
+    {
+      id: 4,
+      member: 'Zoe van der Merwe',
+      mentor: 'Siyambonga Gladile',
+      nextMeetingDate: '2026-08-12 11:00',
+      daysUntil: 5,
+      previousMeetingDate: '2026-07-15',
+      isRecurring: true,
+      frequency: 'Monthly Sync',
+      topic: 'Career Transition & Salary Negotiation',
+      status: 'scheduled',
+    },
   ]);
 
   const handleSimulatePayfastPayment = () => {
@@ -469,9 +514,10 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Assigned Mentor</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Date/Time</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Discussion Topic</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Status</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Next Meeting & Countdown</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Previous Meeting Date</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Recurring Setup</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Focus Topic</th>
                 </tr>
               </thead>
               <tbody>
@@ -479,13 +525,27 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                   <tr key={session.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
                     <td style={{ padding: '16px 12px', fontWeight: 600 }}>{session.member}</td>
                     <td style={{ padding: '16px 12px' }}>{session.mentor}</td>
-                    <td style={{ padding: '16px 12px', color: 'var(--accent-cyan)' }}>{session.time}</td>
-                    <td style={{ padding: '16px 12px' }}>{session.topic}</td>
                     <td style={{ padding: '16px 12px' }}>
-                      <span className={`badge ${session.status === 'scheduled' ? 'badge-warning' : 'badge-success'}`}>
-                        {session.status}
+                      <div style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontSize: '0.85rem' }}>{session.nextMeetingDate}</div>
+                      <span className={`badge ${session.daysUntil <= 1 ? 'badge-danger' : session.daysUntil <= 3 ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem', marginTop: '4px' }}>
+                        {session.daysUntil === 0 ? 'Today!' : session.daysUntil === 1 ? 'Tomorrow' : `In ${session.daysUntil} days`}
                       </span>
                     </td>
+                    <td style={{ padding: '16px 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {session.previousMeetingDate ? session.previousMeetingDate : 'None (First Session)'}
+                    </td>
+                    <td style={{ padding: '16px 12px' }}>
+                      {session.isRecurring ? (
+                        <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                          Yes ({session.frequency})
+                        </span>
+                      ) : (
+                        <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
+                          No (One-off)
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '16px 12px', fontSize: '0.85rem' }}>{session.topic}</td>
                   </tr>
                 ))}
               </tbody>
