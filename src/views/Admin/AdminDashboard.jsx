@@ -104,10 +104,43 @@ export default function AdminDashboard({ activeTab, providerToken }) {
   };
 
   const [payments, setPayments] = useState([
-    { id: 1, member: 'Kabelo Modise', plan: 'Core Member (Monthly)', amount: 'R 650', date: '2026-08-07', status: 'paid' },
-    { id: 2, member: 'Zoe van der Merwe', plan: 'Elite Member (Annual)', amount: 'R 6,500', date: '2026-08-06', status: 'paid' },
-    { id: 3, member: 'Devon Smith', plan: 'Core Member (Monthly)', amount: 'R 650', date: '2026-08-04', status: 'unpaid' },
+    { id: 1, pfId: 'PF-18467178-901', member: 'Kabelo Modise', email: 'kabelo@hh.co.za', plan: 'Monthly Operative', amount: 600, date: '2026-08-07 14:22', status: 'COMPLETE', gateway: 'PayFast' },
+    { id: 2, pfId: 'PF-18467178-902', member: 'Zoe van der Merwe', email: 'zoe@hh.co.za', plan: 'Permanent Access', amount: 1000, date: '2026-08-06 09:15', status: 'COMPLETE', gateway: 'PayFast' },
+    { id: 3, pfId: 'PF-18467178-903', member: 'Devon Smith', email: 'devon@hh.co.za', plan: 'Basic Access', amount: 200, date: '2026-08-04 18:40', status: 'COMPLETE', gateway: 'PayFast' },
+    { id: 4, pfId: 'PF-18467178-904', member: 'Sanele Khumalo', email: 'sanele@hh.co.za', plan: 'Monthly Operative', amount: 600, date: '2026-08-02 11:05', status: 'COMPLETE', gateway: 'PayFast' },
+    { id: 5, pfId: 'PF-18467178-905', member: '[REDACTED]', email: 'nonhlanhla@hh.co.za', plan: 'Monthly Operative', amount: 600, date: '2026-08-01 16:30', status: 'COMPLETE', gateway: 'PayFast' },
   ]);
+
+  const handleSimulatePayfastPayment = () => {
+    const plans = [
+      { name: 'Basic Access', amount: 200 },
+      { name: 'Monthly Operative', amount: 600 },
+      { name: 'Permanent Access', amount: 1000 },
+    ];
+    const randomPlan = plans[Math.floor(Math.random() * plans.length)];
+    const names = ['Thabo Mokoena', 'Anika Reddy', 'Bongani Sithole', 'Chantel Marais', 'David Botha'];
+    const randomName = names[Math.floor(Math.random() * names.length)];
+    const randomEmail = `${randomName.toLowerCase().replace(' ', '.')}@gmail.com`;
+
+    const newPayment = {
+      id: payments.length + 1,
+      pfId: `PF-18467178-${Math.floor(100 + Math.random() * 900)}`,
+      member: randomName,
+      email: randomEmail,
+      plan: randomPlan.name,
+      amount: randomPlan.amount,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'COMPLETE',
+      gateway: 'PayFast',
+    };
+
+    setPayments([newPayment, ...payments]);
+  };
+
+  // Calculate PayFast financial metrics
+  const totalPayfastRevenue = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
+  const monthlyRecurringRevenue = payments.filter(p => p.plan === 'Monthly Operative' || p.plan === 'Basic Access').reduce((acc, p) => acc + p.amount, 0);
+  const totalTransactions = payments.length;
 
   const [newMeetup, setNewMeetup] = useState({ title: '', date: '', time: '', location: '' });
 
@@ -656,7 +689,7 @@ export default function AdminDashboard({ activeTab, providerToken }) {
           {selectedCert && (
             <CertDetailsModal
               certName={selectedCert.name}
-              memberName={selectedCert.member}
+                memberName={selectedCert.member}
               cohort={selectedCert.cohort}
               date={selectedCert.date}
               onClose={() => setSelectedCert(null)}
@@ -665,56 +698,139 @@ export default function AdminDashboard({ activeTab, providerToken }) {
         </div>
       );
 
+    case 'payments':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>PayFast Subscriptions & Payments</h1>
+            <p>Track membership billing statuses, PayFast ITN logs, and transaction history.</p>
+          </div>
+
+          {/* PayFast Gateway Status Banner */}
+          <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--success)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                  <CreditCard size={22} color="var(--success)" />
+                  <h3 style={{ margin: 0 }}>PayFast Gateway Status</h3>
+                  <span className="badge badge-success">ACTIVE & ENCRYPTED</span>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Merchant ID: <strong style={{ color: '#fff' }}>18467178</strong> | Merchant Key: <strong style={{ color: '#fff' }}>oxw2qojk30pkj</strong> | Passphrase: <strong style={{ color: '#fff' }}>••••••••</strong>
+                </div>
+              </div>
+              <button className="btn btn-primary" onClick={handleSimulatePayfastPayment}>
+                <Plus size={16} /> Simulate PayFast ITN Payment
+              </button>
+            </div>
+          </div>
+
+          {/* PayFast Transactions Table */}
+          <div className="glass-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center' }}>
+              <h3>PayFast Transaction Logs</h3>
+              <span className="badge badge-success">{payments.length} Transactions Logged</span>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>PayFast Ref ID</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member Name & Email</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Purchased Plan</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Timestamp</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Amount (ZAR)</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                    <td style={{ padding: '16px 12px', fontFamily: 'monospace', color: 'var(--accent-cyan)' }}>{p.pfId}</td>
+                    <td style={{ padding: '16px 12px' }}>
+                      <div style={{ fontWeight: 600 }}>{p.member}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{p.email}</div>
+                    </td>
+                    <td style={{ padding: '16px 12px' }}>
+                      <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>{p.plan}</span>
+                    </td>
+                    <td style={{ padding: '16px 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{p.date}</td>
+                    <td style={{ padding: '16px 12px', fontWeight: 700, color: 'var(--success)' }}>R {p.amount.toFixed(2)}</td>
+                    <td style={{ padding: '16px 12px' }}>
+                      <span className="badge badge-success">{p.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+
     case 'finances':
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Financial Ledger</h1>
-            <p>Hacking Hub gross income, expenses, and cash reserves.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Financial Ledger & PayFast Analytics</h1>
+            <p>Live gross income, Monthly Recurring Revenue (MRR), and budget allocations.</p>
           </div>
 
-          {/* Finances Metric Cards */}
+          {/* PayFast Live Financial Metrics Cards */}
           <div className="metrics-row" style={{ marginBottom: '32px' }}>
             <div className="glass-card">
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Total Gross Cash Reserves</span>
-              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--success)' }}>R 482,900.00</h2>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>PayFast Total Processed</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--success)' }}>
+                R {totalPayfastRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+              </h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>From {totalTransactions} verified ITN payments</div>
             </div>
+
             <div className="glass-card">
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Net Monthly Revenue</span>
-              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-cyan)' }}>R 78,800.00</h2>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Monthly Recurring Revenue (MRR)</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-cyan)' }}>
+                R {monthlyRecurringRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+              </h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Active membership subscriptions</div>
             </div>
+
             <div className="glass-card">
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Operational Costs (Monthly)</span>
-              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--danger)' }}>R 12,400.00</h2>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Net Cash Reserves</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-purple)' }}>
+                R {(totalPayfastRevenue + 480000).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+              </h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Includes cash float & reserves</div>
             </div>
           </div>
 
-          {/* Financial Breakdown Table */}
+          {/* Financial Allocation Table */}
           <div className="glass-card">
-            <h3 style={{ marginBottom: '20px' }}>Budget Allocations</h3>
+            <h3 style={{ marginBottom: '20px' }}>Budget Allocations & Operating Expenses</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Ledger Category</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Gateway Provider</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Status</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Monthly Allocation</th>
                 </tr>
               </thead>
               <tbody>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>Mentorship Stipends</td>
+                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>Mentorship Stipends & Coaching</td>
+                  <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>Hacking Hub HQ</td>
                   <td style={{ padding: '16px 12px' }}><span className="badge badge-success">active</span></td>
-                  <td style={{ padding: '16px 12px' }}>R 8,500.00</td>
+                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>R 8,500.00</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>Infra Hosting (AWS/Vercel/Supabase)</td>
+                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>Infra Hosting & API Services</td>
+                  <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>Supabase & Vercel</td>
                   <td style={{ padding: '16px 12px' }}><span className="badge badge-success">active</span></td>
-                  <td style={{ padding: '16px 12px' }}>R 1,200.00</td>
+                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>R 1,200.00</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>Domain Renewal & Admin Tools</td>
-                  <td style={{ padding: '16px 12px' }}><span className="badge badge-success">active</span></td>
-                  <td style={{ padding: '16px 12px' }}>R 350.00</td>
+                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>PayFast Gateway Processing Fees</td>
+                  <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>PayFast Merchant 18467178</td>
+                  <td style={{ padding: '16px 12px' }}><span className="badge badge-success">3.5% + R2.00</span></td>
+                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>R {(totalPayfastRevenue * 0.035).toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
