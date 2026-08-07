@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
+import CertDetailsModal from '../../components/CertDetailsModal';
 import {
   Calendar,
   CheckSquare,
@@ -17,9 +18,11 @@ import {
   Flame,
   Bell,
   Sparkles,
+  Info,
 } from 'lucide-react';
 
 export default function MemberPortal({ activeTab }) {
+  const [selectedCert, setSelectedCert] = useState(null);
   // Mock roadmap tasks
   const [tasks, setTasks] = useState([
     { id: 1, text: 'Complete PortSwigger Web Security Academy: Directory Traversal', completed: true },
@@ -375,6 +378,7 @@ export default function MemberPortal({ activeTab }) {
                 return (
                   <div
                     key={c.id}
+                    onClick={() => setSelectedCert(c)}
                     style={{
                       padding: '20px',
                       borderRadius: 'var(--border-radius-md)',
@@ -384,7 +388,10 @@ export default function MemberPortal({ activeTab }) {
                       flexDirection: 'column',
                       justifyContent: 'space-between',
                       gap: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
                     }}
+                    className="hover-glow"
                   >
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -394,7 +401,9 @@ export default function MemberPortal({ activeTab }) {
                         </span>
                       </div>
                       <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600 }}>{c.cert}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {c.cert} <Info size={14} color="var(--accent-cyan)" />
+                      </div>
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
@@ -406,6 +415,17 @@ export default function MemberPortal({ activeTab }) {
               })}
             </div>
           </div>
+
+          {/* Certification Details Breakdown Modal */}
+          {selectedCert && (
+            <CertDetailsModal
+              certName={selectedCert.cert}
+              memberName={selectedCert.member}
+              cohort={selectedCert.cohort}
+              date={selectedCert.date}
+              onClose={() => setSelectedCert(null)}
+            />
+          )}
         </div>
       );
 
