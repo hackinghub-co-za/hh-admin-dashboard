@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCalendarEvents } from '../../lib/googleCalendar';
+import { fetchCalendarEvents, fetchCertCalendarEvents } from '../../lib/googleCalendar';
 import {
   Calendar,
   Users,
@@ -18,12 +18,18 @@ import {
   Video,
   ExternalLink,
   RefreshCw,
+  Award,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken }) {
   const [googleEvents, setGoogleEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventsError, setEventsError] = useState(null);
+
+  // Certifications Calendar state
+  const [certEvents, setCertEvents] = useState([]);
+  const [loadingCertEvents, setLoadingCertEvents] = useState(false);
+  const [certEventsError, setCertEventsError] = useState(null);
 
   useEffect(() => {
     if (activeTab === '1on1s' && providerToken) {
@@ -38,6 +44,21 @@ export default function AdminDashboard({ activeTab, providerToken }) {
           console.error('Calendar error:', err);
           setEventsError(err.message);
           setLoadingEvents(false);
+        });
+    }
+
+    if (activeTab === 'certifications' && providerToken) {
+      setLoadingCertEvents(true);
+      setCertEventsError(null);
+      fetchCertCalendarEvents(providerToken)
+        .then((events) => {
+          setCertEvents(events);
+          setLoadingCertEvents(false);
+        })
+        .catch((err) => {
+          console.error('Cert calendar error:', err);
+          setCertEventsError(err.message);
+          setLoadingCertEvents(false);
         });
     }
   }, [activeTab, providerToken]);
@@ -471,7 +492,99 @@ export default function AdminDashboard({ activeTab, providerToken }) {
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Certification Calendar</h1>
-            <p>Track student target exam dates and review cohorts.</p>
+            <p>Track student target exam dates and review cohorts synced from <strong>HH Certifications</strong> Google Calendar.</p>
+          </div>
+
+          {/* Live Google Calendar Feed for HH Certifications */}
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <GraduationCap size={22} color="var(--accent-purple)" />
+                <h3 style={{ margin: 0 }}>Live "HH Certifications" Google Calendar</h3>
+              </div>
+              {providerToken && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                  onClick={() => {
+                    setLoadingCertEvents(true);
+                    fetchCertCalendarEvents(providerToken)
+                      .then(setCertEvents)
+                      .catch(err => setCertEventsError(err.message))
+                      .finally(() => setLoadingCertEvents(false));
+                  }}
+                >
+                  <RefreshCw size={14} className={loadingCertEvents ? 'animate-spin' : ''} />
+                  Refresh Certs
+                </button>
+              )}
+            </div>
+
+            {!providerToken ? (
+              <div style={{ padding: '24px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-md)', border: '1px dashed var(--border-color)' }}>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                  Log in using <strong>Sign in with Google</strong> to grant Google Calendar permission and auto-sync events from the <code>HH Certifications</code> calendar under <code>siya@hackinghub.co.za</code>.
+                </p>
+              </div>
+            ) : loadingCertEvents ? (
+              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                Fetching <strong>HH Certifications</strong> calendar events...
+              </div>
+            ) : certEventsError ? (
+              <div style={{ padding: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                Failed to load HH Certifications Calendar: {certEventsError}
+              </div>
+            ) : certEvents.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                No upcoming certification events found under the <code>HH Certifications</code> calendar.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                {certEvents.map((evt) => (
+                  <div
+                    key={evt.id}
+                    style={{
+                      padding: '16px',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(192, 132, 252, 0.03)',
+                      border: '1px solid rgba(192, 132, 252, 0.2)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--accent-purple)', fontWeight: 600, marginBottom: '4px' }}>
+                        {evt.startFormatted}
+                      </div>
+                      <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '6px' }}>{evt.title}</h4>
+                      {evt.description && (
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          {evt.description}
+                        </p>
+                      )}
+                      {evt.location && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          📍 {evt.location}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                      <a
+                        href={evt.htmlLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '6px 12px', width: '100%', justifyContent: 'center' }}
+                      >
+                        View in Google Calendar <ExternalLink size={14} />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="glass-card">

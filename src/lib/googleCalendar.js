@@ -50,6 +50,50 @@ export async function fetchCalendarEvents(accessToken, options = {}) {
 }
 
 /**
+ * Fetch all calendars owned or subscribed by the user.
+ */
+export async function fetchUserCalendars(accessToken) {
+  const url = `${CALENDAR_API_BASE}/users/me/calendarList`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `Failed to fetch user calendars: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.items || [];
+}
+
+/**
+ * Fetch events specifically from the "HH Certifications" Google Calendar.
+ * Falls back to searching the primary calendar for "Cert" if no dedicated calendar is found.
+ */
+export async function fetchCertCalendarEvents(accessToken) {
+  try {
+    const calendars = await fetchUserCalendars(accessToken);
+    // Find calendar named "HH Certifications" or similar
+    const hhCertCalendar = calendars.find(
+      c => c.summary && c.summary.toLowerCase().trim() === 'hh certifications'
+    ) || calendars.find(
+      c => c.summary && c.summary.toLowerCase().includes('certification')
+    );
+
+    const calendarId = hhCertCalendar ? hhCertCalendar.id : 'primary';
+    const query = hhCertCalendar ? '' : 'Cert';
+
+    return await fetchCalendarEvents(accessToken, { calendarId, query });
+  } catch (err) {
+    console.warn('Falling back to primary calendar search for Certifications:', err);
+    return await fetchCalendarEvents(accessToken, { calendarId: 'primary', query: 'Cert' });
+  }
+}
+
+/**
  * Format a raw Google Calendar event into a cleaner structure.
  */
 function formatEvent(event) {
