@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import {
   Calendar,
   CheckSquare,
@@ -9,6 +10,8 @@ import {
   TrendingUp,
   CreditCard,
   Video,
+  ShieldCheck,
+  ExternalLink,
 } from 'lucide-react';
 
 export default function MemberPortal({ activeTab }) {
@@ -22,6 +25,16 @@ export default function MemberPortal({ activeTab }) {
 
   const toggleTask = (id) => {
     setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
+
+  const handlePayfastPay = (planName, amount, isSubscription = true) => {
+    const checkoutUrl = createPayfastCheckoutUrl({
+      itemName: `Hacking Hub - ${planName}`,
+      amount: amount,
+      subscriptionType: isSubscription ? 1 : 0,
+      frequency: 3, // monthly
+    });
+    window.location.href = checkoutUrl;
   };
 
   const completedCount = tasks.filter(t => t.completed).length;
@@ -203,38 +216,91 @@ export default function MemberPortal({ activeTab }) {
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>My Subscription & Billing</h1>
-            <p>Manage billing details, payment methods, and invoices.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>My Subscription & PayFast Billing</h1>
+            <p>Manage active subscriptions and upgrade your Hacking Hub clearance level.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', maxWidth: '800px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
             <div className="glass-card">
-              <h3 style={{ marginBottom: '16px' }}>Current Plan</h3>
+              <h3 style={{ marginBottom: '16px' }}>Current Active Subscription</h3>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Plan Name</span>
-                <strong>Core Membership</strong>
+                <strong>Monthly Operative</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Price</span>
-                <strong>R 650.00 / month</strong>
+                <strong>R 600.00 / month</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Status</span>
-                <span className="badge badge-success">active</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Payment Gateway</span>
+                <span className="badge badge-success">PayFast (ZAR)</span>
               </div>
-              <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>Cancel Subscription</button>
+              <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>Manage PayFast Subscription</button>
             </div>
 
             <div className="glass-card">
-              <h3 style={{ marginBottom: '16px' }}>Payment Method</h3>
+              <h3 style={{ marginBottom: '16px' }}>PayFast Security Guarantee</h3>
               <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <CreditCard size={24} color="var(--accent-cyan)" />
+                <ShieldCheck size={28} color="var(--accent-cyan)" />
                 <div>
-                  <div style={{ fontWeight: 600 }}>Visa ending in 4242</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Expires 12/28</div>
+                  <div style={{ fontWeight: 600 }}>100% Encrypted Payments</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Processed securely via PayFast SA</div>
                 </div>
               </div>
-              <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>Update Payment Method</button>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Subscriptions automatically sync with your profile upon Instant Payment Notification (ITN).
+              </p>
+            </div>
+          </div>
+
+          <h3 style={{ marginBottom: '20px' }}>Upgrade / Pay via PayFast</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+            {/* Basic Access */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <span className="badge badge-warning" style={{ marginBottom: '12px' }}>BASIC ACCESS</span>
+                <h4 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>R 200.00 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ month</span></h4>
+                <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>Discord community access, CV & LinkedIn reviews.</p>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => handlePayfastPay('Basic Access', 200)}
+              >
+                Pay R200 via PayFast <ExternalLink size={14} />
+              </button>
+            </div>
+
+            {/* Monthly Operative */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--accent-cyan)' }}>
+              <div>
+                <span className="badge badge-success" style={{ marginBottom: '12px' }}>MONTHLY OPERATIVE</span>
+                <h4 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>R 600.00 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ month</span></h4>
+                <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>Accountability, 1on1 sessions, private channels, CompTIA discounts.</p>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => handlePayfastPay('Monthly Operative', 600)}
+              >
+                Pay R600 via PayFast <ExternalLink size={14} />
+              </button>
+            </div>
+
+            {/* Permanent Access */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <span className="badge badge-success" style={{ marginBottom: '12px', background: 'rgba(192, 132, 252, 0.2)', color: 'var(--accent-purple)' }}>PERMANENT ACCESS</span>
+                <h4 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>R 1,000.00 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ 6 months</span></h4>
+                <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>Lifetime access via 6 monthly installments, free Azure exams, priority support.</p>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))' }}
+                onClick={() => handlePayfastPay('Permanent Access', 1000)}
+              >
+                Pay R1,000 via PayFast <ExternalLink size={14} />
+              </button>
             </div>
           </div>
         </div>
