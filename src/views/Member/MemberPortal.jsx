@@ -12,6 +12,11 @@ import {
   Video,
   ShieldCheck,
   ExternalLink,
+  Megaphone,
+  Award,
+  Flame,
+  Bell,
+  Sparkles,
 } from 'lucide-react';
 
 export default function MemberPortal({ activeTab }) {
@@ -22,6 +27,21 @@ export default function MemberPortal({ activeTab }) {
     { id: 3, text: 'Review Windows Active Directory privilege escalation notes', completed: false },
     { id: 4, text: 'Schedule mock OSCP exam run with Jaco (Mentor)', completed: false },
   ]);
+
+  // Mock Community News & Certification Victories Data
+  const communityVictories = [
+    { id: 1, member: 'Nonhlanhla S.', cert: 'CompTIA Security+', date: 'Yesterday', avatarColor: 'var(--accent-cyan)' },
+    { id: 2, member: 'Khody N.', cert: 'OSCP Penetration Tester', date: '2 days ago', avatarColor: 'var(--accent-purple)' },
+    { id: 3, member: 'Joshua H.', cert: 'SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)' },
+    { id: 4, member: 'Lindokuhle D.', cert: 'Certified IT Auditor', date: '5 days ago', avatarColor: 'var(--warning)' },
+  ];
+
+  const upcomingEvent = {
+    title: 'Intro to Zero-Knowledge Proofs & Wargaming CTF',
+    date: 'Aug 15, 2026 at 18:30 SAST',
+    location: 'HH Discord & Hybrid JHB',
+    rsvps: 42,
+  };
 
   const toggleTask = (id) => {
     setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
@@ -125,6 +145,65 @@ export default function MemberPortal({ activeTab }) {
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome back, Sanele!</h1>
             <p>Here is your current cybersecurity progression overview.</p>
+          </div>
+
+          {/* TOP PANEL: Community Feed, Upcoming Events & Certification Victories */}
+          <div className="dashboard-grid" style={{ marginBottom: '32px' }}>
+            {/* Upcoming Event Alert */}
+            <div className="glass-card" style={{ border: '1px solid var(--accent-cyan)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calendar size={18} color="var(--accent-cyan)" />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>Upcoming Event</span>
+                </div>
+                <span className="badge badge-success">{upcomingEvent.rsvps} RSVPs</span>
+              </div>
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '6px' }}>{upcomingEvent.title}</h4>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                {upcomingEvent.date} | <strong>{upcomingEvent.location}</strong>
+              </p>
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '8px' }}>
+                RSVP for Event <Sparkles size={14} />
+              </button>
+            </div>
+
+            {/* Community Intelligence & News Broadcast */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <Megaphone size={18} color="var(--warning)" />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--warning)', textTransform: 'uppercase' }}>Community Broadcast</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
+                <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>📢 Sprint 4 Active:</span>
+                  <span style={{ color: 'var(--text-secondary)', marginLeft: '6px' }}>TryHackMe challenge rooms open for monthly bounty.</span>
+                </div>
+                <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>⚡ Azure Vouchers:</span>
+                  <span style={{ color: 'var(--text-secondary)', marginLeft: '6px' }}>Submit completed TryHackMe path by Friday.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Certification Victories & Member Achievements Feed */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <Award size={18} color="var(--accent-purple)" />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>Recent Certification Victories</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {communityVictories.map((v) => (
+                  <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: v.avatarColor }}></div>
+                      <strong style={{ color: 'var(--text-primary)' }}>{v.member}</strong>
+                      <span style={{ color: 'var(--text-secondary)' }}>earned {v.cert}</span>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{v.date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
