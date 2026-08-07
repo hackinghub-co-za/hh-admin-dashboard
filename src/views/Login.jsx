@@ -14,6 +14,11 @@ export default function Login({ onLoginSuccess }) {
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
+          scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
       if (error) throw error;
