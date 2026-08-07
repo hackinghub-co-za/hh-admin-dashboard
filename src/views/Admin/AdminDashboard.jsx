@@ -776,73 +776,214 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       );
 
     case 'finances':
+      // Calculate Year (2026), Month (Aug 2026), and Week (Past 7 days) Gross Revenue
+      const yearlyRevenue = payments.reduce((acc, p) => acc + p.amount, 0);
+
+      const monthlyRevenue = payments
+        .filter(p => p.date.startsWith('2026-08'))
+        .reduce((acc, p) => acc + p.amount, 0);
+
+      const past7DaysCutoff = new Date(new Date('2026-08-07').getTime() - 7 * 24 * 60 * 60 * 1000);
+      const weeklyRevenue = payments
+        .filter(p => new Date(p.date) >= past7DaysCutoff)
+        .reduce((acc, p) => acc + p.amount, 0);
+
+      // Last 5 PayFast Transactions
+      const last5Transactions = payments.slice(0, 5);
+
+      // Next 5 Upcoming Recurring Payments (Calculated 30 days after last payment date)
+      const upcomingPayments = payments
+        .filter(p => p.plan !== 'One-off' && p.type === 'Funds Received')
+        .map(p => {
+          const lastDate = new Date(p.date);
+          const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+          const nextDateStr = nextDate.toISOString().split('T')[0];
+          const today = new Date('2026-08-07');
+          const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
+          return {
+            id: p.id,
+            member: p.member,
+            email: p.email,
+            plan: p.plan,
+            amount: p.amount,
+            nextDateStr,
+            daysUntil,
+          };
+        })
+        .sort((a, b) => new Date(a.nextDateStr) - new Date(b.nextDateStr))
+        .slice(0, 5);
+
+      // Revenue Distribution by Plan
+      const planBreakdown = payments.reduce((acc, p) => {
+        acc[p.plan] = (acc[p.plan] || 0) + p.amount;
+        return acc;
+      }, {});
+
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Financial Ledger & PayFast Analytics</h1>
-            <p>Live gross revenue, Net settlements, PayFast fee metrics, and budget allocations.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Financial Ledger & PayFast Intelligence</h1>
+            <p>Live gross income breakdowns (Yearly, Monthly, Weekly), transaction history, and upcoming recurring subscription renewals.</p>
           </div>
 
-          {/* PayFast Live Financial Metrics Cards */}
-          <div className="metrics-row" style={{ marginBottom: '32px' }}>
-            <div className="glass-card">
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>PayFast Gross Processed</span>
-              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--success)' }}>
-                R {totalGrossRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+          {/* Gross Revenue Timeframe Metrics */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+            <div className="glass-card" style={{ border: '1px solid var(--success)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Yearly Gross Revenue (2026)</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--success)', fontWeight: 700 }}>
+                R {yearlyRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
               </h2>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>From {totalTransactions} verified PayFast transactions</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Jan 1 – Aug 7, 2026</div>
+            </div>
+
+            <div className="glass-card" style={{ border: '1px solid var(--accent-cyan)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monthly Gross Revenue (Aug)</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                R {monthlyRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+              </h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>August 2026 to date</div>
+            </div>
+
+            <div className="glass-card" style={{ border: '1px solid var(--accent-purple)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Weekly Gross Revenue</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-purple)', fontWeight: 700 }}>
+                R {weeklyRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+              </h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Past 7 Days</div>
             </div>
 
             <div className="glass-card">
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Net Bank Payouts Received</span>
-              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-cyan)' }}>
-                R {totalNetRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
-              </h2>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Net settlement after R{(totalFeesPaid).toFixed(2)} in PayFast fees</div>
-            </div>
-
-            <div className="glass-card">
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Monthly Recurring Revenue (MRR)</span>
-              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-purple)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monthly Recurring (MRR)</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: '#fff', fontWeight: 700 }}>
                 R {monthlyRecurringRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
               </h2>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Active membership subscriptions</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Active Membership Run-Rate</div>
             </div>
           </div>
 
-          {/* Financial Allocation Table */}
-          <div className="glass-card">
-            <h3 style={{ marginBottom: '20px' }}>Budget Allocations & Operating Expenses</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Ledger Category</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Gateway Provider</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Status</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Monthly Allocation</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>Mentorship Stipends & Coaching</td>
-                  <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>Hacking Hub HQ</td>
-                  <td style={{ padding: '16px 12px' }}><span className="badge badge-success">active</span></td>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>R 8,500.00</td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>Infra Hosting & API Services</td>
-                  <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>Supabase & Vercel</td>
-                  <td style={{ padding: '16px 12px' }}><span className="badge badge-success">active</span></td>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>R 1,200.00</td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                  <td style={{ padding: '16px 12px', fontWeight: 600 }}>PayFast Gateway Processing Fees (Total Paid)</td>
-                  <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>PayFast Merchant 18467178</td>
-                  <td style={{ padding: '16px 12px' }}><span className="badge badge-success">3.5% + R2.00</span></td>
-                  <td style={{ padding: '16px 12px', fontWeight: 600, color: 'var(--warning)' }}>R {totalFeesPaid.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
+          {/* Last 5 Transactions & Next 5 Upcoming Renewals */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+            {/* Last 5 PayFast Transactions */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CreditCard size={20} color="var(--success)" />
+                  <h3 style={{ margin: 0 }}>Last 5 PayFast Transactions</h3>
+                </div>
+                <span className="badge badge-success">Processed</span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Member</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Plan</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Date</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {last5Transactions.map((t) => (
+                    <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                      <td style={{ padding: '12px 8px' }}>
+                        <div style={{ fontWeight: 600 }}>{t.member}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{t.email}</div>
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{t.plan}</span>
+                      </td>
+                      <td style={{ padding: '12px 8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t.date.split(' ')[0]}</td>
+                      <td style={{ padding: '12px 8px', fontWeight: 700, color: 'var(--success)' }}>R {t.amount.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Next 5 Upcoming Recurring Payments */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={20} color="var(--accent-cyan)" />
+                  <h3 style={{ margin: 0 }}>Next 5 Upcoming Renewals</h3>
+                </div>
+                <span className="badge badge-warning">Recurring Subscriptions</span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Member</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Plan</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Next Billing</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Expected Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {upcomingPayments.map((u) => (
+                    <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                      <td style={{ padding: '12px 8px' }}>
+                        <div style={{ fontWeight: 600 }}>{u.member}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{u.email}</div>
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{u.plan}</span>
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontSize: '0.82rem' }}>{u.nextDateStr}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>In {u.daysUntil} days</div>
+                      </td>
+                      <td style={{ padding: '12px 8px', fontWeight: 700, color: '#fff' }}>R {u.amount.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Revenue Distribution & Net Profit Analytics */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            {/* Revenue Distribution by Membership Tier */}
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px' }}>Revenue Distribution by Clearance Tier</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {Object.entries(planBreakdown).map(([planName, amount]) => {
+                  const percent = Math.round((amount / yearlyRevenue) * 100);
+                  return (
+                    <div key={planName}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: 600 }}>{planName}</span>
+                        <strong style={{ color: 'var(--accent-cyan)' }}>R {amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })} ({percent}%)</strong>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${percent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px' }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Net Settlement vs Gateway Fees Summary */}
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px' }}>PayFast Settlement & Net Margin</h3>
+              <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Gross Volume Processed:</span>
+                  <strong>R {totalGrossRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>PayFast Processing Fees Paid:</span>
+                  <strong style={{ color: 'var(--warning)' }}>-R {totalFeesPaid.toFixed(2)}</strong>
+                </div>
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '12px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: 700 }}>
+                  <span style={{ color: '#fff' }}>Net Bank Settlement:</span>
+                  <strong style={{ color: 'var(--success)' }}>R {totalNetRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</strong>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Net Retention Rate: <strong style={{ color: 'var(--success)' }}>{((totalNetRevenue / totalGrossRevenue) * 100).toFixed(1)}%</strong> of gross revenue retained after card processing fees.
+              </div>
+            </div>
           </div>
         </div>
       );
