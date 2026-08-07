@@ -66,6 +66,12 @@ export default function AdminDashboard({ activeTab, providerToken }) {
   // PayFast Transactions initialized from exported CSV
   const [payments, setPayments] = useState(payfastTransactionsData);
 
+  const [oneOnOnes, setOneOnOnes] = useState([
+    { id: 1, member: 'Sanele Khumalo', mentor: '[REDACTED]', time: 'Today, 14:00', topic: 'OSCP Prep Roadmap', status: 'scheduled' },
+    { id: 2, member: 'Liam O\'Connor', mentor: '[REDACTED]', time: 'Tomorrow, 10:00', topic: 'Web Security Portfolio Review', status: 'scheduled' },
+    { id: 3, member: 'Fatima Patel', mentor: 'Jaco du Toit', time: 'Yesterday, 16:30', topic: 'Malware Analysis Basics', status: 'completed' },
+  ]);
+
   const handleSimulatePayfastPayment = () => {
     const plans = [
       { name: 'Basic Access', amount: 200, fee: 9.66, net: 190.34 },
@@ -478,52 +484,6 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                     <td style={{ padding: '16px 12px' }}>
                       <span className={`badge ${session.status === 'scheduled' ? 'badge-warning' : 'badge-success'}`}>
                         {session.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      );
-
-    case 'payments':
-      return (
-        <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Subscriptions & Payments</h1>
-            <p>Track membership billing statuses and logs.</p>
-          </div>
-
-          <div className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <h3>Recent Transactions</h3>
-              <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '6px 12px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
-                <Search size={16} style={{ marginTop: '2px' }} />
-                <input type="text" placeholder="Search billing..." style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.85rem', outline: 'none' }} />
-              </div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Plan Type</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Invoice Date</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Amount</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((p) => (
-                  <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                    <td style={{ padding: '16px 12px', fontWeight: 600 }}>{p.member}</td>
-                    <td style={{ padding: '16px 12px' }}>{p.plan}</td>
-                    <td style={{ padding: '16px 12px' }}>{p.date}</td>
-                    <td style={{ padding: '16px 12px', fontWeight: 600 }}>{p.amount}</td>
-                    <td style={{ padding: '16px 12px' }}>
-                      <span className={`badge ${p.status === 'paid' ? 'badge-success' : 'badge-danger'}`}>
-                        {p.status}
                       </span>
                     </td>
                   </tr>
@@ -989,6 +949,27 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       );
 
     default:
-      return null;
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Executive Control Center</h1>
+            <p>Real-time overview of community growth, finances, 1on1 coaching, and platform metrics.</p>
+          </div>
+          <div className="metrics-row" style={{ marginBottom: '32px' }}>
+            <div className="glass-card">
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Total Members</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px' }}>148</h2>
+            </div>
+            <div className="glass-card">
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Active Monthly Subscriptions</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-cyan)' }}>94</h2>
+            </div>
+            <div className="glass-card">
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Gross Revenue (YTD)</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--success)' }}>R {totalGrossRevenue.toLocaleString()}</h2>
+            </div>
+          </div>
+        </div>
+      );
   }
 }
