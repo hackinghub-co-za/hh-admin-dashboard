@@ -76,10 +76,29 @@ export default function AdminDashboard({ activeTab, providerToken }) {
   ]);
 
   const [certs, setCerts] = useState([
-    { id: 1, name: 'Offensive Security Certified Professional (OSCP)', date: '2026-09-12', candidates: 5, cohort: 'OSCP-26B' },
-    { id: 2, name: 'Certified Information Systems Security Professional (CISSP)', date: '2026-09-28', candidates: 3, cohort: 'CISSP-Autumn' },
-    { id: 3, name: 'eLearnSecurity Certified Professional Penetration Tester (eCPPT)', date: '2026-10-05', candidates: 8, cohort: 'eCPPT-Intro' },
+    { id: 1, member: 'Sanele Khumalo', name: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B' },
+    { id: 2, member: '[REDACTED]', name: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug' },
+    { id: 3, member: 'Khody Netshifhefhe', name: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro' },
+    { id: 4, member: 'Joshua Harrop', name: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3' },
   ]);
+
+  const [newCert, setNewCert] = useState({ member: '', name: '', date: '', cohort: '' });
+
+  const handleAddCert = (e) => {
+    e.preventDefault();
+    if (!newCert.member || !newCert.name || !newCert.date) return;
+    setCerts([
+      ...certs,
+      {
+        id: certs.length + 1,
+        member: newCert.member,
+        name: newCert.name,
+        date: newCert.date,
+        cohort: newCert.cohort || 'General',
+      },
+    ]);
+    setNewCert({ member: '', name: '', date: '', cohort: '' });
+  };
 
   const [payments, setPayments] = useState([
     { id: 1, member: 'Kabelo Modise', plan: 'Core Member (Monthly)', amount: 'R 650', date: '2026-08-07', status: 'paid' },
@@ -491,134 +510,110 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Certification Calendar</h1>
-            <p>Track student target exam dates and review cohorts synced from <strong>HH Certifications</strong> Google Calendar.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Member Certification Tracker</h1>
+            <p>Monitor member target exam dates, active certification cohorts, and days remaining until exam day.</p>
           </div>
 
-          {/* Live Google Calendar Feed for HH Certifications */}
-          <div className="glass-card" style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <GraduationCap size={22} color="var(--accent-purple)" />
-                <h3 style={{ margin: 0 }}>Live "HH Certifications" Google Calendar</h3>
-              </div>
-              {providerToken && (
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  onClick={() => {
-                    setLoadingCertEvents(true);
-                    fetchCertCalendarEvents(providerToken)
-                      .then(setCertEvents)
-                      .catch(err => setCertEventsError(err.message))
-                      .finally(() => setLoadingCertEvents(false));
-                  }}
-                >
-                  <RefreshCw size={14} className={loadingCertEvents ? 'animate-spin' : ''} />
-                  Refresh Certs
-                </button>
-              )}
-            </div>
-
-            {!providerToken ? (
-              <div style={{ padding: '24px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-md)', border: '1px dashed var(--border-color)' }}>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                  Log in using <strong>Sign in with Google</strong> to grant Google Calendar permission and auto-sync events from the <code>HH Certifications</code> calendar under <code>siya@hackinghub.co.za</code>.
-                </p>
-              </div>
-            ) : loadingCertEvents ? (
-              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                Fetching <strong>HH Certifications</strong> calendar events...
-              </div>
-            ) : certEventsError ? (
-              <div style={{ padding: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                Failed to load HH Certifications Calendar: {certEventsError}
-              </div>
-            ) : certEvents.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                No upcoming certification events found under the <code>HH Certifications</code> calendar.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
-                {certEvents.map((evt) => (
-                  <div
-                    key={evt.id}
-                    style={{
-                      padding: '16px',
-                      borderRadius: 'var(--border-radius-md)',
-                      background: 'rgba(192, 132, 252, 0.03)',
-                      border: '1px solid rgba(192, 132, 252, 0.2)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '12px',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--accent-purple)', fontWeight: 600, marginBottom: '4px' }}>
-                        {evt.startFormatted}
-                      </div>
-                      <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '6px' }}>{evt.title}</h4>
-                      {evt.description && (
-                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          {evt.description}
-                        </p>
-                      )}
-                      {evt.location && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          📍 {evt.location}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
-                      <a
-                        href={evt.htmlLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '6px 12px', width: '100%', justifyContent: 'center' }}
-                      >
-                        View in Google Calendar <ExternalLink size={14} />
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="glass-card">
-            <h3 style={{ marginBottom: '20px' }}>Exam Cohort Deadlines</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-              {certs.map((c) => (
-                <div
-                  key={c.id}
-                  style={{
-                    padding: '20px',
-                    borderRadius: 'var(--border-radius-md)',
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                  }}
-                >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
+            {/* Add Member Exam Form */}
+            <div className="glass-card" style={{ height: 'fit-content' }}>
+              <h3 style={{ marginBottom: '20px' }}>Add Member Exam</h3>
+              <form onSubmit={handleAddCert} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Member Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Sanele Khumalo"
+                    value={newCert.member}
+                    onChange={(e) => setNewCert({ ...newCert, member: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification Title</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. OSCP Penetration Tester"
+                    value={newCert.name}
+                    onChange={(e) => setNewCert({ ...newCert, name: e.target.value })}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <span className="badge badge-warning" style={{ fontSize: '0.65rem', marginBottom: '12px' }}>
-                      {c.cohort}
-                    </span>
-                    <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', lineHeight: '1.4' }}>{c.name}</h4>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Target Exam Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={newCert.date}
+                      onChange={(e) => setNewCert({ ...newCert, date: e.target.value })}
+                    />
                   </div>
-                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '16px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
-                    <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>{c.date}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginTop: '4px' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Candidates:</span>
-                    <strong>{c.candidates} Active</strong>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Cohort Tag</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. OSCP-26B"
+                      value={newCert.cohort}
+                      onChange={(e) => setNewCert({ ...newCert, cohort: e.target.value })}
+                    />
                   </div>
                 </div>
-              ))}
+                <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', marginTop: '8px' }}>
+                  <Plus size={16} /> Save Member Exam Target
+                </button>
+              </form>
+            </div>
+
+            {/* Member Cert Countdown Cards */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3>Upcoming Member Exams</h3>
+                <span className="badge badge-success">{certs.length} Members Scheduled</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                {certs.map((c) => {
+                  const targetDate = new Date(c.date);
+                  const today = new Date();
+                  const diffTime = targetDate - today;
+                  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  const isUrgent = daysLeft <= 14;
+
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        padding: '20px',
+                        borderRadius: 'var(--border-radius-md)',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: isUrgent ? '1px solid var(--warning)' : '1px solid var(--border-color)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
+                          <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
+                            {daysLeft > 0 ? `${daysLeft} Days Left` : daysLeft === 0 ? 'Exam Today!' : 'Exam Passed'}
+                          </span>
+                        </div>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600 }}>{c.name}</div>
+                      </div>
+
+                      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
+                        <strong style={{ color: 'var(--accent-cyan)' }}>{c.date}</strong>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
