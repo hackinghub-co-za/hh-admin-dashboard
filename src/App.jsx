@@ -8,6 +8,7 @@ import { Compass } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [providerToken, setProviderToken] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
 
@@ -15,14 +16,15 @@ export default function App() {
     // Check initial active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        // Build user object from session. Since role is custom in database, we assign 'member' as default for standard signups.
         setUser({
           email: session.user.email,
           user_metadata: session.user.user_metadata,
           role: session.user.email.endsWith('@hackinghub.co.za') ? 'admin' : 'member',
         });
+        setProviderToken(session.provider_token || null);
       } else {
         setUser(null);
+        setProviderToken(null);
       }
       setLoading(false);
     });
@@ -35,8 +37,10 @@ export default function App() {
           user_metadata: session.user.user_metadata,
           role: session.user.email.endsWith('@hackinghub.co.za') ? 'admin' : 'member',
         });
+        setProviderToken(session.provider_token || null);
       } else {
         setUser(null);
+        setProviderToken(null);
       }
       setLoading(false);
     });
@@ -49,12 +53,14 @@ export default function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setProviderToken(null);
     setActiveTab('dashboard');
   };
 
   // Callback to handle quick mock dev login
   const handleMockLogin = (mockUser) => {
     setUser(mockUser);
+    setProviderToken(null);
     setActiveTab('dashboard');
   };
 
@@ -119,7 +125,7 @@ export default function App() {
 
         {/* Dynamic Dashboard views */}
         {isAdmin ? (
-          <AdminDashboard activeTab={activeTab} />
+          <AdminDashboard activeTab={activeTab} providerToken={providerToken} />
         ) : (
           <MemberPortal activeTab={activeTab} />
         )}

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchCalendarEvents } from '../../lib/googleCalendar';
 import {
   Calendar,
   Users,
@@ -14,9 +15,32 @@ import {
   Clock,
   ArrowUpRight,
   ArrowDownRight,
+  Video,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 
-export default function AdminDashboard({ activeTab }) {
+export default function AdminDashboard({ activeTab, providerToken }) {
+  const [googleEvents, setGoogleEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [eventsError, setEventsError] = useState(null);
+
+  useEffect(() => {
+    if (activeTab === '1on1s' && providerToken) {
+      setLoadingEvents(true);
+      setEventsError(null);
+      fetchCalendarEvents(providerToken)
+        .then((events) => {
+          setGoogleEvents(events);
+          setLoadingEvents(false);
+        })
+        .catch((err) => {
+          console.error('Calendar error:', err);
+          setEventsError(err.message);
+          setLoadingEvents(false);
+        });
+    }
+  }, [activeTab, providerToken]);
   // Mock State for dynamic interactions
   const [meetups, setMeetups] = useState([
     { id: 1, title: 'Intro to Zero-Knowledge Proofs', date: '2026-08-15', time: '18:30', location: 'HH Discord & Hybrid JHB', rsvps: 42, status: 'upcoming' },
@@ -262,11 +286,110 @@ export default function AdminDashboard({ activeTab }) {
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>1on1 Session Facilitator</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>Manage student coaching scheduling and roadmap progress.</p>
+            <p style={{ color: 'var(--text-secondary)' }}>Live Google Calendar sync and student coaching roadmap progress.</p>
           </div>
 
+          {/* Live Google Calendar Feed */}
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Calendar size={22} color="var(--accent-cyan)" />
+                <h3 style={{ margin: 0 }}>Live Google Calendar 1on1s</h3>
+              </div>
+              {providerToken && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                  onClick={() => {
+                    setLoadingEvents(true);
+                    fetchCalendarEvents(providerToken)
+                      .then(setGoogleEvents)
+                      .catch(err => setEventsError(err.message))
+                      .finally(() => setLoadingEvents(false));
+                  }}
+                >
+                  <RefreshCw size={14} className={loadingEvents ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              )}
+            </div>
+
+            {!providerToken ? (
+              <div style={{ padding: '24px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-md)', border: '1px dashed var(--border-color)' }}>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                  Log in using <strong>Sign in with Google</strong> to grant Google Calendar permission and auto-sync your 1on1s live from <code>siya@hackinghub.co.za</code>.
+                </p>
+              </div>
+            ) : loadingEvents ? (
+              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                Fetching your Google Calendar 1on1 sessions...
+              </div>
+            ) : eventsError ? (
+              <div style={{ padding: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                Failed to load Google Calendar: {eventsError}
+              </div>
+            ) : googleEvents.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                No upcoming Google Calendar events found for <code>siya@hackinghub.co.za</code>.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+                {googleEvents.map((evt) => (
+                  <div
+                    key={evt.id}
+                    style={{
+                      padding: '16px',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--border-color)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600, marginBottom: '4px' }}>
+                        {evt.startFormatted}
+                      </div>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '6px' }}>{evt.title}</h4>
+                      {evt.attendees.length > 0 && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <strong>Attendees:</strong> {evt.attendees.map(a => a.name || a.email).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                      {evt.meetLink && (
+                        <a
+                          href={evt.meetLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                        >
+                          <Video size={14} /> Join Call
+                        </a>
+                      )}
+                      <a
+                        href={evt.htmlLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                      >
+                        <ExternalLink size={14} /> Google Calendar
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Active Bookings Table */}
           <div className="glass-card">
-            <h3 style={{ marginBottom: '20px' }}>Active Bookings</h3>
+            <h3 style={{ marginBottom: '20px' }}>Dashboard Bookings List</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
