@@ -343,25 +343,61 @@ export default function MemberPortal({ activeTab }) {
       );
 
     case 'certs':
+      const targetExamDate = '2026-09-12';
+      const targetDate = new Date(targetExamDate);
+      const today = new Date();
+      const diffDays = Math.ceil((targetDate - today) / (1000 * 60 * 60 * 24));
+
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Target Certifications</h1>
-            <p>Track targets and calendars for security certifications.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Target Certification Calendar</h1>
+            <p>Track your target exam date, study roadmap timeline, and countdown.</p>
           </div>
 
-          <div className="glass-card" style={{ maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h3>My Cohorts</h3>
-            <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span className="badge badge-warning">OSCP-26B</span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Cohort Target</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', maxWidth: '900px' }}>
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <span className="badge badge-warning">COHORT: OSCP-26B</span>
+                  <span className="badge badge-success" style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+                    {diffDays > 0 ? `${diffDays} Days Remaining` : 'Exam Day!'}
+                  </span>
+                </div>
+
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>OSCP Certification Exam</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                  Offensive Security Certified Professional 24-Hour Hands-on Practical Examination.
+                </p>
               </div>
-              <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>OSCP Certification Exam</h4>
-              <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>A 24-hour practical penetration testing examination compiled by Offensive Security.</p>
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Target Date:</span>
-                <strong style={{ color: 'var(--accent-cyan)' }}>2026-09-12</strong>
+
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
+                  <strong style={{ color: 'var(--accent-cyan)' }}>{targetExamDate}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Assigned Mentor:</span>
+                  <strong>Jaco du Toit</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px' }}>Exam Preparation Milestones</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
+                <div style={{ padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>1. PEN-200 Lab Exercises</span>
+                  <strong style={{ color: 'var(--success)' }}>100% Completed</strong>
+                </div>
+                <div style={{ padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(0, 242, 254, 0.05)', border: '1px solid rgba(0, 242, 254, 0.2)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>2. Proving Grounds Practice Labs</span>
+                  <strong style={{ color: 'var(--accent-cyan)' }}>In Progress</strong>
+                </div>
+                <div style={{ padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>3. 24-Hour Mock Exam Run</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Scheduled Aug 25</span>
+                </div>
               </div>
             </div>
           </div>
