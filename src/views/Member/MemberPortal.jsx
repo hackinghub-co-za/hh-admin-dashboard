@@ -343,62 +343,67 @@ export default function MemberPortal({ activeTab }) {
       );
 
     case 'certs':
-      const targetExamDate = '2026-09-12';
-      const targetDate = new Date(targetExamDate);
-      const today = new Date();
-      const diffDays = Math.ceil((targetDate - today) / (1000 * 60 * 60 * 24));
+      const communityCerts = [
+        { id: 1, member: 'Sanele Khumalo', cert: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B' },
+        { id: 2, member: '[REDACTED]', cert: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug' },
+        { id: 3, member: 'Khody Netshifhefhe', cert: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro' },
+        { id: 4, member: 'Joshua Harrop', cert: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3' },
+        { id: 5, member: 'Thando Mandondo', cert: 'CompTIA Network+', date: '2026-09-20', cohort: 'NetPlus-Q3' },
+      ];
 
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Target Certification Calendar</h1>
-            <p>Track your target exam date, study roadmap timeline, and countdown.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Community Certification Calendar</h1>
+            <p>Hacking Hub community-wide target exam dates, active cohorts, and member countdowns.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', maxWidth: '900px' }}>
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <span className="badge badge-warning">COHORT: OSCP-26B</span>
-                  <span className="badge badge-success" style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
-                    {diffDays > 0 ? `${diffDays} Days Remaining` : 'Exam Day!'}
-                  </span>
-                </div>
-
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>OSCP Certification Exam</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                  Offensive Security Certified Professional 24-Hour Hands-on Practical Examination.
-                </p>
-              </div>
-
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '8px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
-                  <strong style={{ color: 'var(--accent-cyan)' }}>{targetExamDate}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Assigned Mentor:</span>
-                  <strong>Jaco du Toit</strong>
-                </div>
-              </div>
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3>Community Operatives Exam Countdown</h3>
+              <span className="badge badge-success">{communityCerts.length} Active Targets</span>
             </div>
 
-            <div className="glass-card">
-              <h3 style={{ marginBottom: '16px' }}>Exam Preparation Milestones</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
-                <div style={{ padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>1. PEN-200 Lab Exercises</span>
-                  <strong style={{ color: 'var(--success)' }}>100% Completed</strong>
-                </div>
-                <div style={{ padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(0, 242, 254, 0.05)', border: '1px solid rgba(0, 242, 254, 0.2)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>2. Proving Grounds Practice Labs</span>
-                  <strong style={{ color: 'var(--accent-cyan)' }}>In Progress</strong>
-                </div>
-                <div style={{ padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>3. 24-Hour Mock Exam Run</span>
-                  <span style={{ color: 'var(--text-muted)' }}>Scheduled Aug 25</span>
-                </div>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              {communityCerts.map((c) => {
+                const targetDate = new Date(c.date);
+                const today = new Date();
+                const diffTime = targetDate - today;
+                const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const isUrgent = daysLeft <= 14;
+
+                return (
+                  <div
+                    key={c.id}
+                    style={{
+                      padding: '20px',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: isUrgent ? '1px solid var(--warning)' : '1px solid var(--border-color)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
+                        <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
+                          {daysLeft > 0 ? `${daysLeft} Days Remaining` : daysLeft === 0 ? 'Exam Day!' : 'Exam Passed'}
+                        </span>
+                      </div>
+                      <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600 }}>{c.cert}</div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
+                      <strong style={{ color: 'var(--accent-cyan)' }}>{c.date}</strong>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
