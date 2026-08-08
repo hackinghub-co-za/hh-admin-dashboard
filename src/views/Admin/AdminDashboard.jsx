@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCalendarEvents, fetchCertCalendarEvents } from '../../lib/googleCalendar';
+import { fetchCalendarEvents, fetchCertCalendarEvents, fetchPastCalendarEvents } from '../../lib/googleCalendar';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import MemberProfileModal from '../../components/MemberProfileModal';
+import AddMemberModal from '../../components/AddMemberModal';
+import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../../lib/memberOptions';
 import {
   Calendar,
   Users,
@@ -27,6 +30,10 @@ import {
   Link,
   Phone,
   MapPin,
+  UserPlus,
+  Landmark,
+  Building2,
+  Flag,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken }) {
@@ -48,9 +55,58 @@ export default function AdminDashboard({ activeTab, providerToken }) {
   const [memberProfiles, setMemberProfiles] = useState({});
   const [selectedMemberEmail, setSelectedMemberEmail] = useState(null);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [memberStatusFilter, setMemberStatusFilter] = useState('all');
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+
+  // Members added by hand (no PayFast payment yet) - kept separate from the
+  // payment-derived roster and merged in for display.
+  const [manualMembers, setManualMembers] = useState([]);
+
+  // Last 1on1 date per member, matched by email against Google Calendar attendees.
+  // Pulled on demand (not automatically) since it's one real API call per sync.
+  const [lastMeetingByEmail, setLastMeetingByEmail] = useState({});
+  const [loadingMeetingSync, setLoadingMeetingSync] = useState(false);
+  const [meetingSyncError, setMeetingSyncError] = useState(null);
+
+  const handleSyncLastMeetings = () => {
+    setLoadingMeetingSync(true);
+    setMeetingSyncError(null);
+    fetchPastCalendarEvents(providerToken, { sinceDate: '2026-01-01T00:00:00Z' })
+      .then((events) => {
+        const map = {};
+        events.forEach((evt) => {
+          evt.attendees.forEach((a) => {
+            const key = a.email.toLowerCase();
+            if (!map[key] || new Date(evt.start) > new Date(map[key])) {
+              map[key] = evt.start;
+            }
+          });
+        });
+        setLastMeetingByEmail(map);
+      })
+      .catch((err) => setMeetingSyncError(err.message))
+      .finally(() => setLoadingMeetingSync(false));
+  };
 
   const handleSaveMemberProfile = (email, profileData) => {
     setMemberProfiles((prev) => ({ ...prev, [email.toLowerCase()]: profileData }));
+  };
+
+  const handleAddManualMember = (form) => {
+    const { member, email, startDate, lastPlan, totalSpent, ...profileFields } = form;
+    setManualMembers((prev) => [
+      ...prev,
+      {
+        email,
+        member,
+        firstPaymentDate: startDate,
+        lastPaymentDate: startDate,
+        lastPlan,
+        totalSpent: Number(totalSpent) || 0,
+        paymentCount: 0,
+      },
+    ]);
+    handleSaveMemberProfile(email, { ...profileFields, moneyOwed: Number(profileFields.moneyOwed) || 0 });
   };
 
   const [certs, setCerts] = useState([
@@ -157,6 +213,31 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       status: 'COMPLETE',
     };
 
+    setPayments([newPayment, ...payments]);
+  };
+
+  const [showEftModal, setShowEftModal] = useState(false);
+
+  // EFT payments land straight in the same `payments` list as PayFast transactions,
+  // tagged with fundingType 'EFT' - so revenue totals, the audit table, and each
+  // member's spend all pick them up automatically, no separate accounting needed.
+  const handleRecordEftPayment = (form) => {
+    const amount = Number(form.amount) || 0;
+    const newPayment = {
+      id: payments.length + 1,
+      pfId: `EFT-${form.bankReference.trim() || Date.now()}`,
+      member: form.member.trim(),
+      email: form.email.trim(),
+      type: 'Funds Received',
+      plan: form.plan,
+      amount,
+      fee: 0,
+      net: amount,
+      fundingType: 'EFT',
+      date: `${form.date} 00:00`,
+      status: 'COMPLETE',
+      notes: form.notes || undefined,
+    };
     setPayments([newPayment, ...payments]);
   };
 
@@ -268,18 +349,40 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       memberRosterMap.set(key, entry);
     });
 
+  // Manually-added members fill in anyone with no PayFast payment yet. If an email
+  // already exists from real transactions, the real data wins.
+  manualMembers.forEach(m => {
+    const key = m.email.toLowerCase();
+    if (!memberRosterMap.has(key)) memberRosterMap.set(key, m);
+  });
+
   const memberRoster = [...memberRosterMap.values()]
-    .map(m => ({
-      ...m,
-      monthsInHH: Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))),
-      profile: memberProfiles[m.email.toLowerCase()] || null,
-    }))
+    .map(m => {
+      const profile = memberProfiles[m.email.toLowerCase()] || null;
+      const daysSinceLastPayment = Math.floor((today - new Date(m.lastPaymentDate)) / (1000 * 60 * 60 * 24));
+      const status = profile?.status === 'Left'
+        ? 'Left'
+        : daysSinceLastPayment > LAPSED_AFTER_DAYS ? 'Lapsed' : 'Active';
+      return {
+        ...m,
+        monthsInHH: Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))),
+        profile,
+        status,
+        lastMeetingDate: lastMeetingByEmail[m.email.toLowerCase()] || null,
+      };
+    })
     .sort((a, b) => new Date(b.lastPaymentDate) - new Date(a.lastPaymentDate));
 
   const filteredMemberRoster = memberRoster.filter(m =>
-    m.member.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
-    m.email.toLowerCase().includes(memberSearchQuery.toLowerCase())
+    (m.member.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+      m.email.toLowerCase().includes(memberSearchQuery.toLowerCase())) &&
+    (memberStatusFilter === 'all' || m.status === memberStatusFilter)
   );
+
+  const memberStatusCounts = memberRoster.reduce((acc, m) => {
+    acc[m.status] = (acc[m.status] || 0) + 1;
+    return acc;
+  }, {});
 
   const selectedMember = selectedMemberEmail
     ? memberRoster.find(m => m.email.toLowerCase() === selectedMemberEmail.toLowerCase())
@@ -403,22 +506,65 @@ export default function AdminDashboard({ activeTab, providerToken }) {
     case 'members':
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Members</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              {memberRoster.length} paying members, built from the PayFast transaction history. Click a card to view or fill in the rest of their profile.
-            </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px', flexWrap: 'wrap' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Members</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                {memberRoster.length} members, built from the PayFast transaction history. Click a card to view or fill in the rest of their profile.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              {providerToken ? (
+                <button className="btn btn-secondary" onClick={handleSyncLastMeetings} disabled={loadingMeetingSync}>
+                  <RefreshCw size={16} className={loadingMeetingSync ? 'animate-spin' : ''} />
+                  {loadingMeetingSync ? 'Syncing...' : 'Sync Last 1on1 Dates'}
+                </button>
+              ) : (
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                  Sign in with Google to sync last 1on1 dates
+                </span>
+              )}
+              <button className="btn btn-primary" onClick={() => setShowAddMemberModal(true)}>
+                <UserPlus size={16} /> Add Member Manually
+              </button>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', marginBottom: '24px' }}>
-            <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
-            <input
-              type="text"
-              placeholder="Search members by name or email..."
-              value={memberSearchQuery}
-              onChange={(e) => setMemberSearchQuery(e.target.value)}
-              style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%' }}
-            />
+          {meetingSyncError && (
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              Couldn't sync from Google Calendar: {meetingSyncError}
+            </div>
+          )}
+          {Object.keys(lastMeetingByEmail).length > 0 && !meetingSyncError && (
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '20px', marginTop: '-16px' }}>
+              Last 1on1 dates matched by attendee email against your Google Calendar since Jan 2026 — a member booked under a different email won't be caught.
+            </p>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', flexGrow: 1 }}>
+              <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
+              <input
+                type="text"
+                placeholder="Search members by name or email..."
+                value={memberSearchQuery}
+                onChange={(e) => setMemberSearchQuery(e.target.value)}
+                style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {['all', 'Active', 'Lapsed', 'Left'].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setMemberStatusFilter(status)}
+                  className={`btn ${memberStatusFilter === status ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                >
+                  {status === 'all' ? 'All' : status} ({status === 'all' ? memberRoster.length : (memberStatusCounts[status] || 0)})
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
@@ -472,15 +618,33 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                   </div>
 
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className={`badge ${m.status === 'Left' ? 'badge-danger' : m.status === 'Lapsed' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>{m.status}</span>
                     <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.lastPlan}</span>
                     <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{m.profile?.specialty && m.profile.specialty !== 'Not Set' ? m.profile.specialty : 'Specialty not set'}</span>
+                    {m.profile?.employmentStatus && m.profile.employmentStatus !== 'Not Set' && (
+                      <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.profile.employmentStatus}</span>
+                    )}
                   </div>
 
-                  {(m.profile?.location || m.profile?.linkedin || m.profile?.phone) && (
+                  {(m.profile?.location || m.profile?.linkedin || m.profile?.phone || m.lastMeetingDate || (m.profile?.employmentStatus === 'Employed' && m.profile?.jobTitle)) && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      {m.profile?.employmentStatus === 'Employed' && m.profile?.jobTitle && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Building2 size={12} /> {m.profile.jobTitle}</span>
+                      )}
                       {m.profile?.location && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> {m.profile.location}</span>}
                       {m.profile?.phone && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={12} /> {m.profile.phone}</span>}
                       {m.profile?.linkedin && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Link size={12} /> LinkedIn on file</span>}
+                      {m.lastMeetingDate && (() => {
+                        const daysSinceMeeting = Math.floor((today - new Date(m.lastMeetingDate)) / (1000 * 60 * 60 * 24));
+                        const overdue = daysSinceMeeting > MEETING_OVERDUE_AFTER_DAYS;
+                        return (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: overdue ? 'var(--danger)' : 'inherit', fontWeight: overdue ? 600 : 400 }}>
+                            {overdue ? <Flag size={12} color="var(--danger)" /> : <Calendar size={12} />}
+                            Last 1on1: {new Date(m.lastMeetingDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            {overdue && ` (${daysSinceMeeting}d ago)`}
+                          </span>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -511,6 +675,14 @@ export default function AdminDashboard({ activeTab, providerToken }) {
               profile={selectedMember.profile}
               onSave={handleSaveMemberProfile}
               onClose={() => setSelectedMemberEmail(null)}
+              today={today}
+            />
+          )}
+
+          {showAddMemberModal && (
+            <AddMemberModal
+              onSave={handleAddManualMember}
+              onClose={() => setShowAddMemberModal(false)}
             />
           )}
         </div>
@@ -972,12 +1144,17 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                   <span className="badge badge-success">MERCHANT ID: 18467178 (ACTIVE)</span>
                 </div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Data Source: <strong style={{ color: '#fff' }}>payfast_transactions_2026.csv</strong> (Processed Jan 1 - Aug 7, 2026)
+                  Data Source: <strong style={{ color: '#fff' }}>payfast_transactions_2026.csv</strong> (Processed Jan 1 - Aug 7, 2026) + manually recorded EFT payments
                 </div>
               </div>
-              <button className="btn btn-primary" onClick={handleSimulatePayfastPayment}>
-                <Plus size={16} /> Simulate PayFast ITN Transaction
-              </button>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <button className="btn btn-secondary" onClick={() => setShowEftModal(true)}>
+                  <Landmark size={16} /> Record EFT Payment
+                </button>
+                <button className="btn btn-primary" onClick={handleSimulatePayfastPayment}>
+                  <Plus size={16} /> Simulate PayFast ITN Transaction
+                </button>
+              </div>
             </div>
           </div>
 
@@ -993,7 +1170,7 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                 <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
                 <input
                   type="text"
-                  placeholder="Search member, email, or PF Ref ID..."
+                  placeholder="Search member, email, or reference ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.85rem', outline: 'none', width: '100%' }}
@@ -1005,7 +1182,7 @@ export default function AdminDashboard({ activeTab, providerToken }) {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Date & Time</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>PayFast Ref ID</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Reference ID</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member & Email</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Plan Type</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Funding</th>
@@ -1026,7 +1203,13 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                     <td style={{ padding: '16px 12px' }}>
                       <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>{p.plan}</span>
                     </td>
-                    <td style={{ padding: '16px 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.fundingType || 'Credit Card'}</td>
+                    <td style={{ padding: '16px 12px', fontSize: '0.8rem' }}>
+                      {p.fundingType === 'EFT' ? (
+                        <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>EFT · Manually Recorded</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>{p.fundingType || 'Credit Card'}</span>
+                      )}
+                    </td>
                     <td style={{ padding: '16px 12px', fontWeight: 700, color: '#fff' }}>R {p.amount.toFixed(2)}</td>
                     <td style={{ padding: '16px 12px', color: 'var(--warning)', fontSize: '0.85rem' }}>-R {(p.fee || 0).toFixed(2)}</td>
                     <td style={{ padding: '16px 12px', fontWeight: 700, color: 'var(--success)' }}>R {(p.net || (p.amount - (p.fee || 0))).toFixed(2)}</td>
@@ -1035,6 +1218,14 @@ export default function AdminDashboard({ activeTab, providerToken }) {
               </tbody>
             </table>
           </div>
+
+          {showEftModal && (
+            <RecordEftPaymentModal
+              activeMembers={memberRoster.filter(m => m.status === 'Active')}
+              onSave={handleRecordEftPayment}
+              onClose={() => setShowEftModal(false)}
+            />
+          )}
         </div>
       );
 

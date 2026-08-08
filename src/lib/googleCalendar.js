@@ -50,6 +50,52 @@ export async function fetchCalendarEvents(accessToken, options = {}) {
 }
 
 /**
+ * Fetch past calendar events (up to now) so each event's attendees can be matched
+ * against a member's email to find their most recent meeting date. Google's Calendar
+ * API has no "most recent per attendee" query, so this pulls the whole window once
+ * and the caller reduces it client-side.
+ * @param {string} accessToken - Google OAuth access token from Supabase session.
+ * @param {object} options - Query options.
+ * @param {string} options.sinceDate - ISO date to search from (default: 1 year ago).
+ * @param {number} options.maxResults - Maximum number of events to return (default: 250).
+ * @param {string} options.calendarId - Calendar ID (default: 'primary').
+ * @returns {Promise<Array>} - Array of calendar event objects, oldest first.
+ */
+export async function fetchPastCalendarEvents(accessToken, options = {}) {
+  const {
+    sinceDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+    maxResults = 250,
+    calendarId = 'primary',
+  } = options;
+
+  const params = new URLSearchParams({
+    timeMin: sinceDate,
+    timeMax: new Date().toISOString(),
+    maxResults: String(maxResults),
+    singleEvents: 'true',
+    orderBy: 'startTime',
+  });
+
+  const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events?${params}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `Calendar API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return (data.items || [])
+    .map(formatEvent)
+    .filter(evt => evt.status !== 'cancelled');
+}
+
+/**
  * Fetch all calendars owned or subscribed by the user.
  */
 export async function fetchUserCalendars(accessToken) {
