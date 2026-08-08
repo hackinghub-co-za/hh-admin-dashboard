@@ -97,7 +97,10 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
             <span className="badge badge-success">{member.lastPlan}</span>
             <span className="badge badge-warning">{form.jobReadiness}</span>
             <span className={`badge ${form.status === 'Left' ? 'badge-danger' : isLapsed ? 'badge-warning' : 'badge-success'}`}>
-              {form.status === 'Left' ? 'Left' : isLapsed ? `Lapsed · ${daysSinceLastPayment}d since last payment` : 'Active'}
+              {form.status === 'Left' ? 'Left'
+                : form.status === 'Active (Permanent)' ? 'Active · Permanent'
+                : isLapsed ? `Lapsed · ${daysSinceLastPayment}d since last payment`
+                : 'Active'}
             </span>
           </div>
           <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{member.member}</h2>
@@ -246,7 +249,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
             </select>
             {isLapsed && (
               <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: '6px' }}>
-                No payment in {daysSinceLastPayment} days. Still shown as Active until you confirm — set to "Left" once you know they're gone.
+                No payment in {daysSinceLastPayment} days. If they've paid in full or don't owe recurring dues (e.g. Permanent Access), set this to <strong>"Active (Permanent)"</strong> so it stops flagging. Set to <strong>"Left"</strong> once you know they're actually gone.
               </p>
             )}
           </div>

@@ -10,7 +10,10 @@ export const LOCATIONS = [
   'Other (Rest of the World)',
 ];
 export const AGES = ['16-18', '18-21', '21-24', '24-27', '27-30', '30-35', '35-40', '40+'];
-export const MEMBERSHIP_STATUSES = ['Active', 'Left'];
+// 'Active' is auto-flagged "Lapsed" after LAPSED_AFTER_DAYS with no payment.
+// 'Active (Permanent)' is exempt from that check entirely - for members who've paid
+// in full or are otherwise not expected to pay again.
+export const MEMBERSHIP_STATUSES = ['Active', 'Active (Permanent)', 'Left'];
 export const EMPLOYMENT_STATUSES = ['Not Set', 'Employed', 'Unemployed', 'Student'];
 export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Permanent Access', 'Custom Plan', 'Maintenance Fee'];
 

@@ -362,6 +362,8 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       const daysSinceLastPayment = Math.floor((today - new Date(m.lastPaymentDate)) / (1000 * 60 * 60 * 24));
       const status = profile?.status === 'Left'
         ? 'Left'
+        : profile?.status === 'Active (Permanent)'
+        ? 'Active'
         : daysSinceLastPayment > LAPSED_AFTER_DAYS ? 'Lapsed' : 'Active';
       return {
         ...m,
