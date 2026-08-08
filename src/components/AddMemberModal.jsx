@@ -1,40 +1,50 @@
 import React, { useState } from 'react';
-import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag } from 'lucide-react';
-import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../lib/memberOptions';
+import { X, Mail, Phone, MapPin, Link, Calendar, CreditCard, Briefcase, UserCheck, UserPlus, Building2, Banknote } from 'lucide-react';
+import {
+  SPECIALTIES,
+  JOB_READINESS_STAGES,
+  GENDERS,
+  LOCATIONS,
+  AGES,
+  MEMBERSHIP_STATUSES,
+  MEMBERSHIP_TIERS,
+  EMPLOYMENT_STATUSES,
+} from '../lib/memberOptions';
 
-export default function MemberProfileModal({ member, profile, onSave, onClose, today }) {
-  const [form, setForm] = useState({
-    age: profile?.age || '',
-    gender: profile?.gender || '',
-    location: profile?.location || '',
-    specialty: profile?.specialty || 'Not Set',
-    linkedin: profile?.linkedin || '',
-    phone: profile?.phone || '',
-    moneyOwed: profile?.moneyOwed ?? 0,
-    jobReadiness: profile?.jobReadiness || 'Not Started',
-    status: profile?.status || 'Active',
-    employmentStatus: profile?.employmentStatus || 'Not Set',
-    jobTitle: profile?.jobTitle || '',
-    monthlyRemuneration: profile?.monthlyRemuneration ?? '',
-  });
+const emptyForm = {
+  member: '',
+  email: '',
+  startDate: '',
+  lastPlan: MEMBERSHIP_TIERS[0],
+  totalSpent: '',
+  age: '',
+  gender: '',
+  location: '',
+  specialty: 'Not Set',
+  linkedin: '',
+  phone: '',
+  moneyOwed: 0,
+  jobReadiness: 'Not Started',
+  status: 'Active',
+  employmentStatus: 'Not Set',
+  jobTitle: '',
+  monthlyRemuneration: '',
+};
 
-  if (!member) return null;
-
-  const daysSinceLastPayment = Math.floor((today - new Date(member.lastPaymentDate)) / (1000 * 60 * 60 * 24));
-  const isLapsed = form.status === 'Active' && daysSinceLastPayment > LAPSED_AFTER_DAYS;
-
-  const daysSinceLastMeeting = member.lastMeetingDate
-    ? Math.floor((today - new Date(member.lastMeetingDate)) / (1000 * 60 * 60 * 24))
-    : null;
-  const isMeetingOverdue = daysSinceLastMeeting !== null && daysSinceLastMeeting > MEETING_OVERDUE_AFTER_DAYS;
+export default function AddMemberModal({ onSave, onClose }) {
+  const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState(null);
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(member.email, {
+    if (!form.member.trim() || !form.email.trim() || !form.startDate) {
+      setError('Name, email, and start date are required.');
+      return;
+    }
+    onSave({
       ...form,
-      moneyOwed: Number(form.moneyOwed) || 0,
       monthlyRemuneration: form.employmentStatus === 'Employed' ? (Number(form.monthlyRemuneration) || 0) : 0,
       jobTitle: form.employmentStatus === 'Employed' ? form.jobTitle : '',
     });
@@ -91,82 +101,56 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
           <X size={18} />
         </button>
 
-        {/* Header */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
-            <span className="badge badge-success">{member.lastPlan}</span>
-            <span className="badge badge-warning">{form.jobReadiness}</span>
-            <span className={`badge ${form.status === 'Left' ? 'badge-danger' : isLapsed ? 'badge-warning' : 'badge-success'}`}>
-              {form.status === 'Left' ? 'Left' : isLapsed ? `Lapsed · ${daysSinceLastPayment}d since last payment` : 'Active'}
-            </span>
-          </div>
-          <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{member.member}</h2>
-          <p style={{ color: 'var(--accent-cyan)', fontSize: '0.9rem', marginTop: '6px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Mail size={14} /> {member.email}
-          </p>
+        <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <UserPlus size={22} color="var(--accent-cyan)" />
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff' }}>Add Member Manually</h2>
         </div>
-
-        {/* Derived-from-payments facts (read-only) */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px',
-            marginBottom: '24px',
-            background: 'rgba(255, 255, 255, 0.02)',
-            padding: '16px',
-            borderRadius: 'var(--border-radius-md)',
-            border: '1px solid var(--border-color)',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Calendar size={12} /> Start Date
-            </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.firstPaymentDate.split(' ')[0]}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Shield size={12} /> Months in HH
-            </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.monthsInHH}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <CreditCard size={12} /> Total Spent on HH
-            </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--success)' }}>R {member.totalSpent.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Wallet size={12} /> Payments Made
-            </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.paymentCount}</div>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <CalendarClock size={12} /> Last 1on1 Meeting
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.9rem', color: isMeetingOverdue ? 'var(--danger)' : 'inherit' }}>
-              {member.lastMeetingDate ? (
-                <>
-                  {isMeetingOverdue && <Flag size={14} color="var(--danger)" />}
-                  {new Date(member.lastMeetingDate).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-                  {isMeetingOverdue && <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>· {daysSinceLastMeeting} days ago</span>}
-                </>
-              ) : (
-                <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>Not synced from Google Calendar yet</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-          The fields below aren't in the PayFast export — fill them in and they'll be remembered for this member.
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+          For members who haven't paid through PayFast yet (e.g. added before you had a gateway, or on a manual arrangement).
         </p>
 
-        {/* Editable profile fields */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {error && (
+            <div style={{ padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'var(--danger)', fontSize: '0.85rem' }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Full Name *</label>
+              <input type="text" className="form-input" placeholder="e.g. Thabo Mokoena" value={form.member} onChange={update('member')} />
+            </div>
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                <Mail size={13} /> Email *
+              </label>
+              <input type="email" className="form-input" placeholder="e.g. thabo@gmail.com" value={form.email} onChange={update('email')} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                <Calendar size={13} /> Start Date *
+              </label>
+              <input type="date" className="form-input" value={form.startDate} onChange={update('startDate')} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Membership Tier</label>
+              <select className="form-input" value={form.lastPlan} onChange={update('lastPlan')}>
+                {MEMBERSHIP_TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <CreditCard size={13} /> Total Spent on HH so far (R)
+            </label>
+            <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={form.totalSpent} onChange={update('totalSpent')} />
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Age</label>
@@ -237,20 +221,6 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
             </div>
           )}
 
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-              <UserCheck size={13} /> Membership Status
-            </label>
-            <select className="form-input" value={form.status} onChange={update('status')}>
-              {MEMBERSHIP_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            {isLapsed && (
-              <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: '6px' }}>
-                No payment in {daysSinceLastPayment} days. Still shown as Active until you confirm — set to "Left" once you know they're gone.
-              </p>
-            )}
-          </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
@@ -266,14 +236,24 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Money Owed (R)</label>
-            <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={form.moneyOwed} onChange={update('moneyOwed')} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Money Owed (R)</label>
+              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={form.moneyOwed} onChange={update('moneyOwed')} />
+            </div>
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                <UserCheck size={13} /> Membership Status
+              </label>
+              <select className="form-input" value={form.status} onChange={update('status')}>
+                {MEMBERSHIP_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save Profile</button>
+            <button type="submit" className="btn btn-primary">Add Member</button>
           </div>
         </form>
       </div>
