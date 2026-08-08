@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchCalendarEvents, fetchCertCalendarEvents } from '../../lib/googleCalendar';
 import CertDetailsModal from '../../components/CertDetailsModal';
+import MemberProfileModal from '../../components/MemberProfileModal';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
 import {
   Calendar,
@@ -23,6 +24,9 @@ import {
   Award,
   Info,
   Download,
+  Link,
+  Phone,
+  MapPin,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken }) {
@@ -37,6 +41,17 @@ export default function AdminDashboard({ activeTab, providerToken }) {
   const [certEventsError, setCertEventsError] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Member profile fields with no source in the PayFast export (age, location, gender,
+  // specialty, LinkedIn, phone, money owed, job readiness) are admin-entered and kept
+  // here rather than invented for real, named members. Keyed by lowercased email.
+  const [memberProfiles, setMemberProfiles] = useState({});
+  const [selectedMemberEmail, setSelectedMemberEmail] = useState(null);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+
+  const handleSaveMemberProfile = (email, profileData) => {
+    setMemberProfiles((prev) => ({ ...prev, [email.toLowerCase()]: profileData }));
+  };
 
   const [certs, setCerts] = useState([
     { id: 1, member: 'Sanele Khumalo', name: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B' },
@@ -145,12 +160,75 @@ export default function AdminDashboard({ activeTab, providerToken }) {
     setPayments([newPayment, ...payments]);
   };
 
+  // Anchored to the PayFast export's "as-of" date, so trend/renewal math stays
+  // consistent with the transaction data rather than drifting with wall-clock time.
+  const today = new Date('2026-08-07');
+
   // PayFast Financial Metrics
   const totalGrossRevenue = payments.reduce((acc, p) => acc + p.amount, 0);
   const totalFeesPaid = payments.reduce((acc, p) => acc + (p.fee || 0), 0);
   const totalNetRevenue = payments.reduce((acc, p) => acc + (p.net || (p.amount - (p.fee || 0))), 0);
-  const monthlyRecurringRevenue = payments.filter(p => p.plan === 'Monthly Operative' || p.plan === 'Basic Access').reduce((acc, p) => acc + p.amount, 0);
   const totalTransactions = payments.length;
+
+  const emailsPaidBetween = (start, end) => new Set(
+    payments
+      .filter(p => p.type === 'Funds Received' && new Date(p.date) >= start && new Date(p.date) < end)
+      .map(p => p.email.toLowerCase())
+  );
+
+  // Recurring revenue run-rate: Basic Access + Monthly Operative payments in the trailing 30 days
+  const last30DaysStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const monthlyRecurringRevenue = payments
+    .filter(p => (p.plan === 'Monthly Operative' || p.plan === 'Basic Access') && new Date(p.date) >= last30DaysStart)
+    .reduce((acc, p) => acc + p.amount, 0);
+
+  // Active members = distinct payers within one trailing 35-day billing window
+  const last35DaysStart = new Date(today.getTime() - 35 * 24 * 60 * 60 * 1000);
+  const prev35DaysStart = new Date(today.getTime() - 70 * 24 * 60 * 60 * 1000);
+  const activeMemberEmails = emailsPaidBetween(last35DaysStart, today);
+  const previousActiveMemberEmails = emailsPaidBetween(prev35DaysStart, last35DaysStart);
+  const activeMemberGrowthPct = previousActiveMemberEmails.size
+    ? ((activeMemberEmails.size - previousActiveMemberEmails.size) / previousActiveMemberEmails.size) * 100
+    : 0;
+
+  // Monthly churn = last full month's payers who didn't pay again the following month
+  const lastFullMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const twoMonthsAgoStart = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+  const priorMonthPayers = emailsPaidBetween(twoMonthsAgoStart, lastFullMonthStart);
+  const lastMonthPayers = emailsPaidBetween(lastFullMonthStart, today);
+  const churnedCount = [...priorMonthPayers].filter(email => !lastMonthPayers.has(email)).length;
+  const monthlyChurnRate = priorMonthPayers.size ? (churnedCount / priorMonthPayers.size) * 100 : 0;
+  const churnMonthLabel = `${twoMonthsAgoStart.toLocaleDateString('en-ZA', { month: 'short' })} → ${lastFullMonthStart.toLocaleDateString('en-ZA', { month: 'short' })}`;
+
+  // All-time paying members & average revenue per member
+  const allTimeMemberEmails = new Set(
+    payments.filter(p => p.type === 'Funds Received').map(p => p.email.toLowerCase())
+  );
+  const avgRevenuePerMember = allTimeMemberEmails.size ? totalGrossRevenue / allTimeMemberEmails.size : 0;
+
+  // Repeat payment rate: share of members who have paid more than once
+  const paymentCountsByEmail = payments
+    .filter(p => p.type === 'Funds Received')
+    .reduce((acc, p) => {
+      const key = p.email.toLowerCase();
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  const repeatPayerCount = Object.values(paymentCountsByEmail).filter(n => n > 1).length;
+  const repeatPaymentRate = allTimeMemberEmails.size ? (repeatPayerCount / allTimeMemberEmails.size) * 100 : 0;
+
+  // Refunded transactions (Funds Received Reversals)
+  const refundCount = payments.filter(p => p.type === 'Funds Received (Reversal)').length;
+
+  // Monthly gross revenue trend, computed directly from the transaction history
+  const mrrTrendMonths = ['2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'];
+  const mrrTrend = mrrTrendMonths.map(month => ({
+    label: new Date(`${month}-01`).toLocaleDateString('en-ZA', { month: 'short' }),
+    value: payments
+      .filter(p => p.type === 'Funds Received' && p.date.startsWith(month))
+      .reduce((acc, p) => acc + p.amount, 0),
+  }));
+  const mrrTrendMax = Math.max(...mrrTrend.map(m => m.value), 1);
 
   const filteredPayments = payments.filter(p =>
     p.member.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -158,6 +236,54 @@ export default function AdminDashboard({ activeTab, providerToken }) {
     p.pfId.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.plan.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Member roster: one row per distinct payer, aggregated from the real transaction
+  // history (name, email, tenure, plan, and total spend). Demographic/profile fields
+  // (age, location, specialty, etc.) come from `memberProfiles` if the admin has filled
+  // them in, since they have no source in the PayFast data.
+  const memberRosterMap = new Map();
+  payments
+    .filter(p => p.type === 'Funds Received' || p.type === 'Funds Received (Reversal)')
+    .forEach(p => {
+      const key = p.email.toLowerCase();
+      const entry = memberRosterMap.get(key) || {
+        email: p.email,
+        member: p.member,
+        firstPaymentDate: p.date,
+        lastPaymentDate: p.date,
+        lastPlan: p.plan,
+        totalSpent: 0,
+        paymentCount: 0,
+      };
+      if (new Date(p.date) < new Date(entry.firstPaymentDate)) {
+        entry.firstPaymentDate = p.date;
+      }
+      if (new Date(p.date) >= new Date(entry.lastPaymentDate)) {
+        entry.lastPaymentDate = p.date;
+        entry.lastPlan = p.plan;
+        entry.member = p.member;
+      }
+      entry.totalSpent += p.amount;
+      if (p.type === 'Funds Received') entry.paymentCount += 1;
+      memberRosterMap.set(key, entry);
+    });
+
+  const memberRoster = [...memberRosterMap.values()]
+    .map(m => ({
+      ...m,
+      monthsInHH: Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))),
+      profile: memberProfiles[m.email.toLowerCase()] || null,
+    }))
+    .sort((a, b) => new Date(b.lastPaymentDate) - new Date(a.lastPaymentDate));
+
+  const filteredMemberRoster = memberRoster.filter(m =>
+    m.member.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+    m.email.toLowerCase().includes(memberSearchQuery.toLowerCase())
+  );
+
+  const selectedMember = selectedMemberEmail
+    ? memberRoster.find(m => m.email.toLowerCase() === selectedMemberEmail.toLowerCase())
+    : null;
 
   const [newMeetup, setNewMeetup] = useState({ title: '', date: '', time: '', location: '' });
 
@@ -196,9 +322,10 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Active Members</span>
                 <Users size={20} color="var(--accent-cyan)" />
               </div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>1,248</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--success)' }}>
-                <ArrowUpRight size={16} /> <span>+4.2% this month</span>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{activeMemberEmails.size}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: activeMemberGrowthPct >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {activeMemberGrowthPct >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                <span>{activeMemberGrowthPct >= 0 ? '+' : ''}{activeMemberGrowthPct.toFixed(1)}% vs prior 35 days</span>
               </div>
             </div>
 
@@ -207,20 +334,20 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Monthly Churn Rate</span>
                 <TrendingUp size={20} color="var(--danger)" />
               </div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>2.1%</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--success)' }}>
-                <ArrowDownRight size={16} /> <span>-0.4% improvement</span>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{monthlyChurnRate.toFixed(1)}%</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span>{churnMonthLabel} payers who didn't return</span>
               </div>
             </div>
 
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Average Stay (Length)</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Repeat Payment Rate</span>
                 <Clock size={20} color="var(--warning)" />
               </div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>14.8 m</h2>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{repeatPaymentRate.toFixed(0)}%</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                <span>Average membership duration</span>
+                <span>{repeatPayerCount} of {allTimeMemberEmails.size} members have paid more than once</span>
               </div>
             </div>
 
@@ -229,9 +356,9 @@ export default function AdminDashboard({ activeTab, providerToken }) {
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Avg Revenue per Member</span>
                 <DollarSign size={20} color="var(--accent-purple)" />
               </div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>R 632</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--success)' }}>
-                <ArrowUpRight size={16} /> <span>+R 14 from cross-sells</span>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>R {avgRevenuePerMember.toFixed(0)}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span>Since Jan 2026, across {allTimeMemberEmails.size} paying members</span>
               </div>
             </div>
           </div>
@@ -240,12 +367,12 @@ export default function AdminDashboard({ activeTab, providerToken }) {
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginTop: '32px' }}>
             {/* Quick Chart */}
             <div className="glass-card">
-              <h3 style={{ marginBottom: '24px' }}>MRR Growth Trend (ZAR)</h3>
+              <h3 style={{ marginBottom: '24px' }}>Gross Revenue Trend (ZAR)</h3>
               <div style={{ height: '200px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px', padding: '10px 0' }}>
-                {[380, 420, 480, 520, 610, 680, 788].map((val, idx) => (
+                {mrrTrend.map((m, idx) => (
                   <div key={idx} style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '100%', height: `${(val / 800) * 160}px`, background: 'linear-gradient(to top, var(--accent-purple), var(--accent-cyan))', borderRadius: '4px' }}></div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>M{idx + 1}</span>
+                    <div style={{ width: '100%', height: `${(m.value / mrrTrendMax) * 160}px`, background: 'linear-gradient(to top, var(--accent-purple), var(--accent-cyan))', borderRadius: '4px' }}></div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{m.label}</span>
                   </div>
                 ))}
               </div>
@@ -257,8 +384,8 @@ export default function AdminDashboard({ activeTab, providerToken }) {
               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                 <AlertTriangle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Unpaid Invoices</div>
-                  <p style={{ fontSize: '0.8rem' }}>14 memberships have failing subscription charges.</p>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Refunded Transactions</div>
+                  <p style={{ fontSize: '0.8rem' }}>{refundCount} refund{refundCount === 1 ? '' : 's'} recorded since Jan 2026.</p>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
@@ -270,6 +397,122 @@ export default function AdminDashboard({ activeTab, providerToken }) {
               </div>
             </div>
           </div>
+        </div>
+      );
+
+    case 'members':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Members</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              {memberRoster.length} paying members, built from the PayFast transaction history. Click a card to view or fill in the rest of their profile.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', marginBottom: '24px' }}>
+            <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
+            <input
+              type="text"
+              placeholder="Search members by name or email..."
+              value={memberSearchQuery}
+              onChange={(e) => setMemberSearchQuery(e.target.value)}
+              style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%' }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+            {filteredMemberRoster.map((m) => {
+              const initials = m.member
+                .split(' ')
+                .map((part) => part[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
+
+              return (
+                <div
+                  key={m.email}
+                  onClick={() => setSelectedMemberEmail(m.email)}
+                  className="hover-glow"
+                  style={{
+                    padding: '20px',
+                    borderRadius: 'var(--border-radius-md)',
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--border-color)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '0.9rem',
+                        color: '#0b0c10',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {initials}
+                    </div>
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.member}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.lastPlan}</span>
+                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{m.profile?.specialty && m.profile.specialty !== 'Not Set' ? m.profile.specialty : 'Specialty not set'}</span>
+                  </div>
+
+                  {(m.profile?.location || m.profile?.linkedin || m.profile?.phone) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      {m.profile?.location && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> {m.profile.location}</span>}
+                      {m.profile?.phone && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={12} /> {m.profile.phone}</span>}
+                      {m.profile?.linkedin && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Link size={12} /> LinkedIn on file</span>}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '12px', fontSize: '0.8rem' }}>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)' }}>Months in HH</div>
+                      <strong>{m.monthsInHH}</strong>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)' }}>Total Spent</div>
+                      <strong style={{ color: 'var(--success)' }}>R {m.totalSpent.toLocaleString('en-ZA', { minimumFractionDigits: 0 })}</strong>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)' }}>Owed</div>
+                      <strong style={{ color: m.profile?.moneyOwed ? 'var(--warning)' : 'var(--text-secondary)' }}>
+                        R {(m.profile?.moneyOwed || 0).toLocaleString('en-ZA', { minimumFractionDigits: 0 })}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {selectedMember && (
+            <MemberProfileModal
+              member={selectedMember}
+              profile={selectedMember.profile}
+              onSave={handleSaveMemberProfile}
+              onClose={() => setSelectedMemberEmail(null)}
+            />
+          )}
         </div>
       );
 
@@ -803,7 +1046,7 @@ export default function AdminDashboard({ activeTab, providerToken }) {
         .filter(p => p.date.startsWith('2026-08'))
         .reduce((acc, p) => acc + p.amount, 0);
 
-      const past7DaysCutoff = new Date(new Date('2026-08-07').getTime() - 7 * 24 * 60 * 60 * 1000);
+      const past7DaysCutoff = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       const weeklyRevenue = payments
         .filter(p => new Date(p.date) >= past7DaysCutoff)
         .reduce((acc, p) => acc + p.amount, 0);
@@ -811,14 +1054,27 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       // Last 5 PayFast Transactions
       const last5Transactions = payments.slice(0, 5);
 
-      // Next 5 Upcoming Recurring Payments (Calculated 30 days after last payment date)
-      const upcomingPayments = payments
-        .filter(p => p.plan !== 'One-off' && p.type === 'Funds Received')
+      // Next 5 Upcoming Recurring Payments (Calculated 30 days after each member's MOST
+      // RECENT payment date). Only plans that actually renew monthly qualify - Permanent
+      // Access, Maintenance Fees, and Refunds don't have a "next renewal". Renewals already
+      // in the past (member likely churned) are excluded rather than shown as overdue.
+      const recurringPlans = ['Basic Access', 'Monthly Operative', 'Custom Plan'];
+      const latestRecurringPaymentByEmail = new Map();
+      payments
+        .filter(p => p.type === 'Funds Received' && recurringPlans.includes(p.plan))
+        .forEach(p => {
+          const key = p.email.toLowerCase();
+          const existing = latestRecurringPaymentByEmail.get(key);
+          if (!existing || new Date(p.date) > new Date(existing.date)) {
+            latestRecurringPaymentByEmail.set(key, p);
+          }
+        });
+
+      const upcomingPayments = [...latestRecurringPaymentByEmail.values()]
         .map(p => {
           const lastDate = new Date(p.date);
           const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
           const nextDateStr = nextDate.toISOString().split('T')[0];
-          const today = new Date('2026-08-07');
           const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
           return {
             id: p.id,
@@ -830,6 +1086,7 @@ export default function AdminDashboard({ activeTab, providerToken }) {
             daysUntil,
           };
         })
+        .filter(u => u.daysUntil >= 0)
         .sort((a, b) => new Date(a.nextDateStr) - new Date(b.nextDateStr))
         .slice(0, 5);
 
