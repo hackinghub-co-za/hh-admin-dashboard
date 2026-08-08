@@ -9,6 +9,7 @@ import {
   LogOut,
   ShieldAlert,
   User,
+  Contact,
 } from 'lucide-react';
 
 export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
@@ -17,6 +18,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
   const menuItems = isAdmin
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'members', label: 'Members', icon: Contact },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
         { id: '1on1s', label: '1on1 Sessions', icon: Users },
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
