@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Key, AlertCircle } from 'lucide-react';
+import { Key, AlertCircle, LogOut } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 
 export default function Login({ onLoginSuccess, accessDeniedMessage }) {
@@ -34,13 +34,15 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
   // Gated behind import.meta.env.DEV below so Vite strips it out of production
   // builds entirely - it never ships to portal.hackinghub.co.za.
   const handleMockLogin = (role) => {
+    const isLeaving = role === 'member-leaving';
     onLoginSuccess({
       email: role === 'admin' ? 'admin@hackinghub.co.za' : 'member@hackinghub.co.za',
       user_metadata: {
-        full_name: role === 'admin' ? 'Hacking Hub Admin' : 'Sanele Khumalo',
+        full_name: role === 'admin' ? 'Hacking Hub Admin' : isLeaving ? 'Departing Member' : 'Sanele Khumalo',
         avatar_url: null,
       },
-      role: role,
+      role: role === 'admin' ? 'admin' : 'member',
+      mockLeaving: isLeaving,
     });
   };
 
@@ -140,6 +142,13 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
                 <Key size={14} /> Mock Member
               </button>
             </div>
+            <button
+              className="btn btn-secondary"
+              onClick={() => handleMockLogin('member-leaving')}
+              style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px', width: '100%', marginTop: '12px' }}
+            >
+              <LogOut size={14} /> Mock Member (Leaving)
+            </button>
           </>
         )}
       </div>

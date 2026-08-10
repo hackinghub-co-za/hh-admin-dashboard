@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
+import { fetchReviews, submitReview } from '../../lib/reviewsData';
+import { fetchMemberDirectory, updateMyDirectoryProfile } from '../../lib/memberDirectoryData';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
 import {
   Calendar,
   CalendarDays,
@@ -34,10 +37,234 @@ import {
   Library,
   Download,
   FileText,
+  Star,
+  Search,
+  Pencil,
+  Link,
+  User,
 } from 'lucide-react';
 
-export default function MemberPortal({ activeTab }) {
+const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
+
+const MOCK_REVIEWS = [
+  {
+    id: 'mock-1',
+    email: 'nonhlanhla@example.com',
+    memberName: '[REDACTED]',
+    rating: 5,
+    category: 'Praise',
+    title: 'The 1on1 coaching changed my trajectory',
+    body: "Six months ago I didn't know what OSCP even stood for. Jaco's coaching sessions made the roadmap actually feel achievable.",
+    visibility: 'Public',
+    createdAt: '2026-07-28T10:00:00Z',
+  },
+  {
+    id: 'mock-2',
+    email: 'you@example.com',
+    memberName: 'You',
+    rating: 3,
+    category: 'Recommendation',
+    title: 'More beginner-friendly cloud content',
+    body: 'Most of the cloud security resources assume AWS/Azure familiarity already. Would love a true zero-to-hero track.',
+    visibility: 'Private',
+    createdAt: '2026-08-02T14:30:00Z',
+  },
+];
+
+// Mentor photos live in public/mentors/ (not src/assets/) so they can be dropped
+// in or swapped at any time without a rebuild-breaking import - a missing file
+// (or no `photo` at all, e.g. Momelezi) just falls back to a plain avatar icon
+// (see mentorPhotoErrors state in the component below).
+const MENTORS = [
+  {
+    id: 'siya',
+    name: '[REDACTED]',
+    photo: '/mentors/siya-headshot.jpeg',
+    badge: 'LEAD MENTOR & FOUNDER',
+    badgeClass: 'badge-success',
+    sideNote: 'Available Slots',
+    bio: 'Cybersecurity Strategy, Career Roadmaps, OSCP Coaching, SOC, Cloud Security, DevSecOps & Technical Code Reviews.',
+    primary: true,
+  },
+  {
+    id: 'nonhlanhla',
+    name: 'Nonhlanhla',
+    photo: '/mentors/nonhlanhla-zwane-headshot.jpeg',
+    badge: 'COMMUNITY MENTOR',
+    badgeClass: 'badge-warning',
+    sideNote: 'Synced via Siya',
+    bio: 'Data Security & AI.',
+  },
+  {
+    id: 'nokulunga',
+    name: 'Nokulunga',
+    photo: '/mentors/nokulunga-headshot.jpeg',
+    badge: 'COMMUNITY MENTOR',
+    badgeClass: 'badge-warning',
+    sideNote: 'Synced via Siya',
+    bio: 'Digital Forensics (DFIR).',
+  },
+  {
+    id: 'momelezi',
+    name: 'Momelezi 👻',
+    photo: null,
+    badge: 'COMMUNITY MENTOR',
+    badgeClass: 'badge-warning',
+    sideNote: 'Synced via Siya',
+    bio: 'Red Teaming / Ethical Hacking.',
+  },
+];
+const MENTOR_CALENDAR_URL = 'https://calendar.app.google/eKVRpXkHCKKcnhYT6';
+
+const MOCK_DIRECTORY = [
+  {
+    email: 'nonhlanhla@example.com',
+    fullName: '[REDACTED]',
+    about: 'Blue team enthusiast grinding toward Security+. Always down to pair on a SOC lab.',
+    location: 'Johannesburg',
+    linkedin: 'https://linkedin.com/in/example',
+    specialty: 'Blue Team',
+    jobReadiness: 'Interview Ready',
+    employmentStatus: 'Unemployed',
+    jobTitle: '',
+  },
+  {
+    email: 'khody@example.com',
+    fullName: 'Khody Netshifhefhe',
+    about: 'OSCP-focused. Happy to walk through HackTheBox boxes with anyone stuck.',
+    location: 'Pretoria',
+    linkedin: '',
+    specialty: 'Red Team',
+    jobReadiness: 'In Progress',
+    employmentStatus: 'Student',
+    jobTitle: '',
+  },
+];
+
+export default function MemberPortal({ activeTab, user, isMockSession }) {
   const [selectedCert, setSelectedCert] = useState(null);
+  // Tracks which mentor photos have failed to load (e.g. not uploaded to
+  // public/mentors/ yet) so those cards fall back to a plain avatar icon.
+  const [mentorPhotoErrors, setMentorPhotoErrors] = useState({});
+
+  // Reviews / feedback - real Supabase data for a real session (RLS scopes what
+  // comes back: public reviews + this member's own private ones), local mock data
+  // under Mock Member since there's no real session for RLS to key off.
+  const [reviews, setReviews] = useState(isMockSession ? MOCK_REVIEWS : []);
+  const [loadingReviews, setLoadingReviews] = useState(!isMockSession);
+  const [reviewsError, setReviewsError] = useState(null);
+  const [reviewForm, setReviewForm] = useState({ rating: '', category: 'General', title: '', body: '', visibility: 'Private' });
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchReviews()
+      .then((data) => !cancelled && setReviews(data))
+      .catch((err) => !cancelled && setReviewsError(err.message))
+      .finally(() => !cancelled && setLoadingReviews(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!reviewForm.body.trim()) return;
+
+    const payload = {
+      email: user?.email || 'unknown@example.com',
+      memberName: user?.user_metadata?.full_name || 'Member',
+      rating: reviewForm.rating ? Number(reviewForm.rating) : null,
+      category: reviewForm.category,
+      title: reviewForm.title,
+      body: reviewForm.body,
+      visibility: reviewForm.visibility,
+    };
+
+    setSubmittingReview(true);
+    setReviewsError(null);
+    try {
+      if (isMockSession) {
+        setReviews([{ ...payload, id: `mock-${Date.now()}`, memberName: 'You', createdAt: new Date().toISOString() }, ...reviews]);
+      } else {
+        const saved = await submitReview(payload);
+        setReviews([saved, ...reviews]);
+      }
+      setReviewForm({ rating: '', category: 'General', title: '', body: '', visibility: 'Private' });
+    } catch (err) {
+      setReviewsError(err.message);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+  // Member directory - real Supabase data (via get_member_directory, which only
+  // ever returns a hand-picked safe column set) for a real session, local mock
+  // roster under Mock Member since there's no real session to call the RPC with.
+  const [directory, setDirectory] = useState(isMockSession ? MOCK_DIRECTORY : []);
+  const [loadingDirectory, setLoadingDirectory] = useState(!isMockSession);
+  const [directoryError, setDirectoryError] = useState(null);
+  const [directorySearch, setDirectorySearch] = useState('');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const emptyProfileForm = {
+    fullName: user?.user_metadata?.full_name || '',
+    about: '',
+    location: '',
+    linkedin: '',
+    specialty: 'Not Set',
+    employmentStatus: 'Not Set',
+    jobTitle: '',
+  };
+  const [profileForm, setProfileForm] = useState(emptyProfileForm);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMemberDirectory()
+      .then((data) => !cancelled && setDirectory(data))
+      .catch((err) => !cancelled && setDirectoryError(err.message))
+      .finally(() => !cancelled && setLoadingDirectory(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const myDirectoryEntry = directory.find((m) => m.email === user?.email);
+
+  const openEditProfile = () => {
+    setProfileForm(myDirectoryEntry ? { ...emptyProfileForm, ...myDirectoryEntry } : emptyProfileForm);
+    setEditingProfile(true);
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    setDirectoryError(null);
+    try {
+      if (isMockSession) {
+        setDirectory((prev) => {
+          const others = prev.filter((m) => m.email !== user.email);
+          return [{ ...profileForm, email: user.email }, ...others];
+        });
+      } else {
+        await updateMyDirectoryProfile(profileForm);
+        const updated = await fetchMemberDirectory();
+        setDirectory(updated);
+      }
+      setEditingProfile(false);
+    } catch (err) {
+      setDirectoryError(err.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const filteredDirectory = directory.filter((m) => {
+    const q = directorySearch.toLowerCase();
+    return (
+      m.fullName.toLowerCase().includes(q) ||
+      m.specialty.toLowerCase().includes(q) ||
+      m.location.toLowerCase().includes(q)
+    );
+  });
+
   // Mock roadmap tasks
   const [tasks, setTasks] = useState([
     { id: 1, text: 'Complete PortSwigger Web Security Academy: Directory Traversal', completed: true },
@@ -355,6 +582,153 @@ export default function MemberPortal({ activeTab }) {
 
   // Router for Member Dashboard
   switch (activeTab) {
+    case 'members':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Members</h1>
+              <p>Everyone else in the Hacking Hub community — see who's around and what they're working on.</p>
+            </div>
+            <button className="btn btn-primary" onClick={openEditProfile}>
+              <Pencil size={16} /> Edit My Profile
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', marginBottom: '24px' }}>
+            <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
+            <input
+              type="text"
+              placeholder="Search by name, specialty, or location..."
+              value={directorySearch}
+              onChange={(e) => setDirectorySearch(e.target.value)}
+              style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%' }}
+            />
+          </div>
+
+          {loadingDirectory && <p style={{ color: 'var(--text-muted)' }}>Loading members...</p>}
+          {directoryError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{directoryError}</p>}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+            {filteredDirectory.map((m) => (
+              <div key={m.email} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+                    {m.fullName || 'Unnamed member'}
+                    {m.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.8rem' }}> (You)</span>}
+                  </h4>
+                  {m.linkedin && (
+                    <a href={m.linkedin} target="_blank" rel="noreferrer" title="LinkedIn Profile">
+                      <Link size={16} color="var(--accent-cyan)" />
+                    </a>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{m.specialty}</span>
+                  <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.jobReadiness}</span>
+                </div>
+
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: m.about ? 'normal' : 'italic', flexGrow: 1 }}>
+                  {m.about || 'No bio yet.'}
+                </p>
+
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  {m.location && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={13} /> {m.location}</span>
+                  )}
+                  {m.employmentStatus === 'Employed' && m.jobTitle && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Building2 size={13} /> {m.jobTitle}</span>
+                  )}
+                  {m.employmentStatus && m.employmentStatus !== 'Not Set' && m.employmentStatus !== 'Employed' && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Building2 size={13} /> {m.employmentStatus}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {!loadingDirectory && filteredDirectory.length === 0 && (
+            <p style={{ color: 'var(--text-muted)' }}>No members match that search.</p>
+          )}
+
+          {editingProfile && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setEditingProfile(false)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>Edit My Profile</h2>
+                <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Display Name</label>
+                    <input type="text" className="form-input" value={profileForm.fullName} onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>About</label>
+                    <textarea
+                      className="form-input"
+                      rows={3}
+                      placeholder="A short bio other members will see..."
+                      value={profileForm.about}
+                      onChange={(e) => setProfileForm({ ...profileForm, about: e.target.value })}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Location</label>
+                      <select className="form-input" value={profileForm.location} onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })}>
+                        <option value="">Not set</option>
+                        {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Specialty</label>
+                      <select className="form-input" value={profileForm.specialty} onChange={(e) => setProfileForm({ ...profileForm, specialty: e.target.value })}>
+                        {SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>LinkedIn Profile</label>
+                    <input type="url" className="form-input" placeholder="https://linkedin.com/in/..." value={profileForm.linkedin} onChange={(e) => setProfileForm({ ...profileForm, linkedin: e.target.value })} />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Employment Status</label>
+                      <select className="form-input" value={profileForm.employmentStatus} onChange={(e) => setProfileForm({ ...profileForm, employmentStatus: e.target.value })}>
+                        {EMPLOYMENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    {profileForm.employmentStatus === 'Employed' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Job Title</label>
+                        <input type="text" className="form-input" placeholder="e.g. SOC Analyst" value={profileForm.jobTitle} onChange={(e) => setProfileForm({ ...profileForm, jobTitle: e.target.value })} />
+                      </div>
+                    )}
+                  </div>
+
+                  {directoryError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{directoryError}</p>}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setEditingProfile(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={savingProfile}>{savingProfile ? 'Saving...' : 'Save Profile'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
     case 'dashboard':
       return (
         <div>
@@ -524,58 +898,66 @@ export default function MemberPortal({ activeTab }) {
             <p>Select your mentor to open their live Google Calendar and reserve your 1on1 coaching slot.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', maxWidth: '900px' }}>
-            {/* Siya - Lead Mentor Booking Card */}
-            <div className="glass-card" style={{ border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span className="badge badge-success">LEAD MENTOR & FOUNDER</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>Available Slots</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+            {MENTORS.map((m) => (
+              <div
+                key={m.id}
+                className="glass-card"
+                style={{
+                  border: m.primary ? '1px solid var(--accent-cyan)' : undefined,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <span className={`badge ${m.badgeClass}`}>{m.badge}</span>
+                    <span style={{ fontSize: '0.8rem', color: m.primary ? 'var(--accent-cyan)' : 'var(--text-secondary)', fontWeight: m.primary ? 600 : 400 }}>
+                      {m.sideNote}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    {!m.photo || mentorPhotoErrors[m.id] ? (
+                      <div
+                        style={{
+                          width: '48px', height: '48px', borderRadius: '50%', flexShrink: 0,
+                          background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <User size={22} color="var(--text-secondary)" />
+                      </div>
+                    ) : (
+                      <img
+                        src={m.photo}
+                        alt={m.name}
+                        onError={() => setMentorPhotoErrors((prev) => ({ ...prev, [m.id]: true }))}
+                        style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-color)' }}
+                      />
+                    )}
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 700 }}>{m.name}</h3>
+                  </div>
+
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                    {m.bio}
+                  </p>
                 </div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '4px' }}>[REDACTED]</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  Cybersecurity Strategy, Career Roadmaps, OSCP Coaching & Technical Code Reviews.
-                </p>
-              </div>
 
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                <a
-                  href="https://calendar.app.google/eKVRpXkHCKKcnhYT6"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-primary"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                >
-                  <Calendar size={16} /> Book 1on1 on Google Calendar <ExternalLink size={14} />
-                </a>
-              </div>
-            </div>
-
-            {/* Jaco du Toit - Senior Mentor */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span className="badge badge-warning">SENIOR PENTESTER</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Synced via Siya</span>
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <a
+                    href={MENTOR_CALENDAR_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`btn ${m.primary ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    <Calendar size={16} /> {m.primary ? 'Book 1on1 on Google Calendar' : 'Schedule Slot'} <ExternalLink size={14} />
+                  </a>
                 </div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '4px' }}>Jaco du Toit</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  Active Directory Exploitation, Network Penetration Testing & CTF Walkthroughs.
-                </p>
               </div>
-
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                <a
-                  href="https://calendar.app.google/eKVRpXkHCKKcnhYT6"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-secondary"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                >
-                  <Calendar size={16} /> Schedule Slot <ExternalLink size={14} />
-                </a>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       );
@@ -897,6 +1279,138 @@ export default function MemberPortal({ activeTab }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      );
+
+    case 'reviews':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Star size={28} color="var(--accent-cyan)" /> Reviews & Feedback
+            </h1>
+            <p>Praise, criticism, recommendations — whatever's on your mind. Choose whether to share it with the community or keep it private to admins.</p>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              You're using Mock Member — reviews here are local only and won't be saved. Sign in with Google to submit for real.
+            </div>
+          )}
+          {!isMockSession && reviewsError && (
+            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              {reviewsError}
+            </div>
+          )}
+
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <h3 style={{ marginBottom: '20px' }}>Leave a Review</h3>
+            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Rating (optional)</label>
+                  <select className="form-input" value={reviewForm.rating} onChange={(e) => setReviewForm({ ...reviewForm, rating: e.target.value })}>
+                    <option value="">No rating</option>
+                    {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} {n === 1 ? 'star' : 'stars'}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Category</label>
+                  <select className="form-input" value={reviewForm.category} onChange={(e) => setReviewForm({ ...reviewForm, category: e.target.value })}>
+                    {REVIEW_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Title (optional)</label>
+                <input type="text" className="form-input" placeholder="Sum it up in a few words" value={reviewForm.title} onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Your feedback *</label>
+                <textarea
+                  className="form-input"
+                  rows={4}
+                  placeholder="What's working, what isn't, what you'd like to see..."
+                  value={reviewForm.body}
+                  onChange={(e) => setReviewForm({ ...reviewForm, body: e.target.value })}
+                  style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Who can see this?</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setReviewForm({ ...reviewForm, visibility: 'Private' })}
+                    className={`btn ${reviewForm.visibility === 'Private' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem' }}
+                  >
+                    Private to admins only
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewForm({ ...reviewForm, visibility: 'Public' })}
+                    className={`btn ${reviewForm.visibility === 'Public' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem' }}
+                  >
+                    Share with the community
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-primary" disabled={submittingReview || !reviewForm.body.trim()} style={{ justifyContent: 'center', marginTop: '4px' }}>
+                {submittingReview ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </form>
+          </div>
+
+          <h3 style={{ marginBottom: '16px' }}>
+            {loadingReviews ? 'Loading reviews...' : `${reviews.length} Review${reviews.length === 1 ? '' : 's'} Visible to You`}
+          </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {reviews.map((r) => {
+              const isOwn = user?.email && r.email?.toLowerCase() === user.email.toLowerCase();
+              return (
+                <div key={r.id} className="glass-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{r.category}</span>
+                      <span
+                        className={`badge ${r.visibility === 'Public' ? 'badge-success' : 'badge-warning'}`}
+                        style={{ fontSize: '0.65rem' }}
+                      >
+                        {r.visibility === 'Public' ? 'Public' : 'Private'}
+                      </span>
+                      {r.rating && (
+                        <span style={{ display: 'flex', gap: '2px' }}>
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} size={13} fill={i < r.rating ? 'var(--warning)' : 'none'} color="var(--warning)" />
+                          ))}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {new Date(r.createdAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                  {r.title && <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px' }}>{r.title}</h4>}
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>{r.body}</p>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                    {isOwn ? 'You' : r.memberName}
+                  </div>
+                </div>
+              );
+            })}
+            {!loadingReviews && reviews.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                No reviews yet — be the first to share your thoughts.
+              </div>
+            )}
           </div>
         </div>
       );

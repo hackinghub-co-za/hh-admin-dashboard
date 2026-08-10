@@ -4,6 +4,11 @@ import Sidebar from './components/Sidebar';
 import Login from './views/Login';
 import AdminDashboard from './views/Admin/AdminDashboard';
 import MemberPortal from './views/Member/MemberPortal';
+import OnboardingSequence from './components/OnboardingSequence';
+import OffboardingSequence from './components/OffboardingSequence';
+import GemmaWidget from './components/GemmaWidget';
+import { checkOnboardingStatus, markOnboardingComplete } from './lib/onboardingData';
+import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
 import { Compass } from 'lucide-react';
 
 export default function App() {
@@ -18,6 +23,13 @@ export default function App() {
   // Set when a real (non-mock) sign-in is rejected because the email isn't a
   // recognized active member - shown on the login screen.
   const [accessDeniedMessage, setAccessDeniedMessage] = useState(null);
+  // Gates the member layout behind the first-login onboarding sequence. Admins
+  // never see this. Doubles as the "Replay Intro" trigger from the sidebar.
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  // Gates the member layout behind the farewell/exit-feedback screen when an
+  // admin has set this member's status to 'Leaving'. Takes priority over the
+  // onboarding gate - a departing member doesn't need the welcome animation.
+  const [needsOffboarding, setNeedsOffboarding] = useState(false);
 
   useEffect(() => {
     // Members are only let in if `is_member_allowed` (Supabase RPC) says so - it
@@ -58,6 +70,35 @@ export default function App() {
           setProviderToken(null);
           setLoading(false);
           return;
+        }
+      }
+
+      if (isAdminEmail) {
+        setNeedsOnboarding(false);
+        setNeedsOffboarding(false);
+      } else {
+        let offboarding = false;
+        try {
+          offboarding = await checkOffboardingPending(email);
+        } catch (err) {
+          // If the check itself fails, don't force a farewell screen on a member
+          // who isn't actually leaving.
+          console.error('Offboarding status check failed:', err.message);
+        }
+        setNeedsOffboarding(offboarding);
+
+        if (offboarding) {
+          setNeedsOnboarding(false);
+        } else {
+          try {
+            const completed = await checkOnboardingStatus(email);
+            setNeedsOnboarding(!completed);
+          } catch (err) {
+            // If the check itself fails, don't block a legitimate member from
+            // getting into the portal over a one-time welcome animation.
+            console.error('Onboarding status check failed:', err.message);
+            setNeedsOnboarding(false);
+          }
         }
       }
 
@@ -103,6 +144,41 @@ export default function App() {
     setIsMockSession(true);
     setAccessDeniedMessage(null);
     setActiveTab('dashboard');
+    // No real Supabase session to check `onboarded_at` against - just show the
+    // sequence once per mock session for members, same as every other
+    // mock-gated feature in this app. "Mock Member (Leaving)" instead shows the
+    // farewell screen, and skips onboarding entirely (same priority as real
+    // sessions above).
+    setNeedsOffboarding(!!mockUser.mockLeaving);
+    setNeedsOnboarding(mockUser.role !== 'admin' && !mockUser.mockLeaving);
+  };
+
+  // Fires from the sequence's "Enter the Hub" button and its skip control.
+  const handleOnboardingDone = async () => {
+    if (!isMockSession) {
+      try {
+        await markOnboardingComplete();
+      } catch (err) {
+        console.error('Failed to persist onboarding completion:', err.message);
+      }
+    }
+    setNeedsOnboarding(false);
+  };
+
+  // "Replay Intro" from the sidebar - re-shows the sequence without touching
+  // the persisted `onboarded_at` flag.
+  const handleReplayIntro = () => setNeedsOnboarding(true);
+
+  // Fires from OffboardingSequence's "Submit & Disconnect" / "Just Disconnect".
+  // Finalizes the member's own row to status = 'Left' (or no-ops under a mock
+  // session), then signs them out - access is already revoked from this point,
+  // so there's nothing left for them to do in the portal.
+  const handleExitDone = async ({ rating, feedback }) => {
+    if (!isMockSession) {
+      await submitExitFeedback({ rating, feedback });
+    }
+    await handleLogout();
+    setNeedsOffboarding(false);
   };
 
   if (loading) {
@@ -129,6 +205,14 @@ export default function App() {
 
   const isAdmin = user.role === 'admin';
 
+  if (!isAdmin && needsOffboarding) {
+    return <OffboardingSequence user={user} onDone={handleExitDone} />;
+  }
+
+  if (!isAdmin && needsOnboarding) {
+    return <OnboardingSequence user={user} onComplete={handleOnboardingDone} />;
+  }
+
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
@@ -137,6 +221,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
+        onReplayIntro={!isAdmin ? handleReplayIntro : undefined}
       />
 
       {/* Main Panel View Area */}
@@ -145,9 +230,13 @@ export default function App() {
         {isAdmin ? (
           <AdminDashboard activeTab={activeTab} providerToken={providerToken} isMockSession={isMockSession} />
         ) : (
-          <MemberPortal activeTab={activeTab} />
+          <MemberPortal activeTab={activeTab} user={user} isMockSession={isMockSession} />
         )}
       </main>
+
+      {/* Gemma - member-only floating assistant, not shown during onboarding/
+          offboarding takeovers (this only renders once those gates have passed) */}
+      {!isAdmin && <GemmaWidget user={user} isMockSession={isMockSession} />}
     </div>
   );
 }

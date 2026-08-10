@@ -12,8 +12,21 @@ export const LOCATIONS = [
 export const AGES = ['16-18', '18-21', '21-24', '24-27', '27-30', '30-35', '35-40', '40+'];
 // 'Active' is auto-flagged "Lapsed" after LAPSED_AFTER_DAYS with no payment.
 // 'Active (Permanent)' is exempt from that check entirely - for members who've paid
-// in full or are otherwise not expected to pay again.
-export const MEMBERSHIP_STATUSES = ['Active', 'Active (Permanent)', 'Left'];
+// in full or are otherwise not expected to pay again. 'Leaving' is a grace period -
+// access control still lets them sign in (only 'Left' actually blocks), but they see
+// a farewell/exit-feedback screen instead of the normal portal; submitting or
+// skipping that finalizes them to 'Left'. 'Left' can also be set directly for an
+// immediate cutoff with no grace period.
+export const MEMBERSHIP_STATUSES = ['Active', 'Active (Permanent)', 'Leaving', 'Left'];
+
+export const OFFBOARDING_REASONS = [
+  'Financial constraints',
+  'Time constraints',
+  'Achieved goals / graduated',
+  'Not engaging',
+  'Found opportunities elsewhere',
+  'Other',
+];
 export const EMPLOYMENT_STATUSES = ['Not Set', 'Employed', 'Unemployed', 'Student'];
 export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Permanent Access', 'Custom Plan', 'Maintenance Fee'];
 

@@ -14,6 +14,7 @@ import {
   fetchEftPayments,
   insertEftPayment,
 } from '../../lib/memberData';
+import { fetchReviews } from '../../lib/reviewsData';
 import {
   Calendar,
   Users,
@@ -42,6 +43,7 @@ import {
   Landmark,
   Building2,
   Flag,
+  Star,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession }) {
@@ -175,6 +177,23 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       })
       .catch((err) => !cancelled && setSavedMemberDataError(err.message))
       .finally(() => !cancelled && setLoadingSavedMemberData(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  // Reviews/feedback - admins see everything (RLS grants full access), including
+  // reviews members marked private, which is the whole point of that option existing.
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(!isMockSession);
+  const [reviewsError, setReviewsError] = useState(null);
+  const [reviewCategoryFilter, setReviewCategoryFilter] = useState('All');
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchReviews()
+      .then((data) => !cancelled && setReviews(data))
+      .catch((err) => !cancelled && setReviewsError(err.message))
+      .finally(() => !cancelled && setLoadingReviews(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
 
@@ -419,6 +438,8 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       const daysSinceLastPayment = Math.floor((today - new Date(m.lastPaymentDate)) / (1000 * 60 * 60 * 24));
       const status = profile?.status === 'Left'
         ? 'Left'
+        : profile?.status === 'Leaving'
+        ? 'Leaving'
         : profile?.status === 'Active (Permanent)'
         ? 'Active'
         : daysSinceLastPayment > LAPSED_AFTER_DAYS ? 'Lapsed' : 'Active';
@@ -653,7 +674,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {['all', 'Active', 'Lapsed', 'Left'].map((status) => (
+              {['all', 'Active', 'Lapsed', 'Leaving', 'Left'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setMemberStatusFilter(status)}
@@ -717,7 +738,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   </div>
 
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    <span className={`badge ${m.status === 'Left' ? 'badge-danger' : m.status === 'Lapsed' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>{m.status}</span>
+                    <span className={`badge ${m.status === 'Left' ? 'badge-danger' : (m.status === 'Lapsed' || m.status === 'Leaving') ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>{m.status}</span>
                     <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.lastPlan}</span>
                     <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{m.profile?.specialty && m.profile.specialty !== 'Not Set' ? m.profile.specialty : 'Specialty not set'}</span>
                     {m.profile?.employmentStatus && m.profile.employmentStatus !== 'Not Set' && (
@@ -1599,6 +1620,87 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
         </div>
       );
+
+    case 'reviews': {
+      const reviewCategories = ['All', 'Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
+      const filteredReviews = reviewCategoryFilter === 'All'
+        ? reviews
+        : reviews.filter(r => r.category === reviewCategoryFilter);
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Star size={28} color="var(--accent-cyan)" /> Member Reviews & Feedback
+            </h1>
+            <p>Everything members have submitted, including reviews they've kept private to admins only.</p>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — real member reviews only load for a real signed-in session.
+            </div>
+          )}
+          {!isMockSession && reviewsError && (
+            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              Couldn't load reviews: {reviewsError}
+            </div>
+          )}
+          {!isMockSession && loadingReviews && (
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '20px' }}>Loading reviews...</div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            {reviewCategories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setReviewCategoryFilter(cat)}
+                className={`btn ${reviewCategoryFilter === cat ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {filteredReviews.map((r) => (
+              <div key={r.id} className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{r.category}</span>
+                    <span className={`badge ${r.visibility === 'Public' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
+                      {r.visibility === 'Public' ? 'Public' : 'Private'}
+                    </span>
+                    {r.rating && (
+                      <span style={{ display: 'flex', gap: '2px' }}>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star key={i} size={13} fill={i < r.rating ? 'var(--warning)' : 'none'} color="var(--warning)" />
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {new Date(r.createdAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+                {r.title && <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px' }}>{r.title}</h4>}
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>{r.body}</p>
+                <div style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                  {r.memberName} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>· {r.email}</span>
+                </div>
+              </div>
+            ))}
+            {!loadingReviews && filteredReviews.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                No reviews {reviewCategoryFilter === 'All' ? 'yet' : `in "${reviewCategoryFilter}"`}.
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     default:
       return (
