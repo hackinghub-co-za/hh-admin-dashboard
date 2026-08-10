@@ -30,6 +30,10 @@ export default function App() {
   // admin has set this member's status to 'Leaving'. Takes priority over the
   // onboarding gate - a departing member doesn't need the welcome animation.
   const [needsOffboarding, setNeedsOffboarding] = useState(false);
+  // One-shot signal: set when a member picks "Set Up My Profile" at the end of
+  // onboarding, so the Members tab opens with the edit form already up instead
+  // of just landing on the tab. MemberPortal clears it once handled.
+  const [autoOpenProfileEdit, setAutoOpenProfileEdit] = useState(false);
 
   useEffect(() => {
     // Members are only let in if `is_member_allowed` (Supabase RPC) says so - it
@@ -153,8 +157,10 @@ export default function App() {
     setNeedsOnboarding(mockUser.role !== 'admin' && !mockUser.mockLeaving);
   };
 
-  // Fires from the sequence's "Enter the Hub" button and its skip control.
-  const handleOnboardingDone = async () => {
+  // Fires from the sequence's "Set Up My Profile" / "Enter the Hub" buttons.
+  // `shouldEditProfile` is true only for the former - routes straight to the
+  // Members tab with the edit form already open instead of the dashboard.
+  const handleOnboardingDone = async (shouldEditProfile) => {
     if (!isMockSession) {
       try {
         await markOnboardingComplete();
@@ -163,6 +169,10 @@ export default function App() {
       }
     }
     setNeedsOnboarding(false);
+    if (shouldEditProfile) {
+      setActiveTab('members');
+      setAutoOpenProfileEdit(true);
+    }
   };
 
   // "Replay Intro" from the sidebar - re-shows the sequence without touching
@@ -230,7 +240,12 @@ export default function App() {
         {isAdmin ? (
           <AdminDashboard activeTab={activeTab} providerToken={providerToken} isMockSession={isMockSession} />
         ) : (
-          <MemberPortal activeTab={activeTab} user={user} isMockSession={isMockSession} />
+          <MemberPortal
+            activeTab={activeTab}
+            user={user}
+            isMockSession={isMockSession}
+            autoOpenProfileEdit={autoOpenProfileEdit}
+          />
         )}
       </main>
 
