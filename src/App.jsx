@@ -11,6 +11,10 @@ export default function App() {
   const [providerToken, setProviderToken] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
+  // True only for the Mock Admin/Member dev bypass, which has no real Supabase
+  // session - `providerToken` alone isn't reliable for this since Supabase only
+  // returns it right after the OAuth redirect, not on session restore.
+  const [isMockSession, setIsMockSession] = useState(false);
 
   useEffect(() => {
     // Check initial active session
@@ -22,6 +26,7 @@ export default function App() {
           role: session.user.email.endsWith('@hackinghub.co.za') ? 'admin' : 'member',
         });
         setProviderToken(session.provider_token || null);
+        setIsMockSession(false);
       } else {
         setUser(null);
         setProviderToken(null);
@@ -38,6 +43,7 @@ export default function App() {
           role: session.user.email.endsWith('@hackinghub.co.za') ? 'admin' : 'member',
         });
         setProviderToken(session.provider_token || null);
+        setIsMockSession(false);
       } else {
         setUser(null);
         setProviderToken(null);
@@ -54,6 +60,7 @@ export default function App() {
     await supabase.auth.signOut();
     setUser(null);
     setProviderToken(null);
+    setIsMockSession(false);
     setActiveTab('dashboard');
   };
 
@@ -61,6 +68,7 @@ export default function App() {
   const handleMockLogin = (mockUser) => {
     setUser(mockUser);
     setProviderToken(null);
+    setIsMockSession(true);
     setActiveTab('dashboard');
   };
 
@@ -125,7 +133,7 @@ export default function App() {
 
         {/* Dynamic Dashboard views */}
         {isAdmin ? (
-          <AdminDashboard activeTab={activeTab} providerToken={providerToken} />
+          <AdminDashboard activeTab={activeTab} providerToken={providerToken} isMockSession={isMockSession} />
         ) : (
           <MemberPortal activeTab={activeTab} />
         )}

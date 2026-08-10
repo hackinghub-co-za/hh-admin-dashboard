@@ -7,6 +7,14 @@ import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
 import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../../lib/memberOptions';
 import {
+  fetchMemberProfiles,
+  upsertMemberProfile,
+  fetchManualMembers,
+  insertManualMember,
+  fetchEftPayments,
+  insertEftPayment,
+} from '../../lib/memberData';
+import {
   Calendar,
   Users,
   CreditCard,
@@ -36,7 +44,7 @@ import {
   Flag,
 } from 'lucide-react';
 
-export default function AdminDashboard({ activeTab, providerToken }) {
+export default function AdminDashboard({ activeTab, providerToken, isMockSession }) {
   const [googleEvents, setGoogleEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventsError, setEventsError] = useState(null);
@@ -90,6 +98,9 @@ export default function AdminDashboard({ activeTab, providerToken }) {
 
   const handleSaveMemberProfile = (email, profileData) => {
     setMemberProfiles((prev) => ({ ...prev, [email.toLowerCase()]: profileData }));
+    if (!isMockSession) {
+      upsertMemberProfile(email, profileData).catch((err) => setSavedMemberDataError(err.message));
+    }
   };
 
   const handleAddManualMember = (form) => {
@@ -107,6 +118,9 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       },
     ]);
     handleSaveMemberProfile(email, { ...profileFields, moneyOwed: Number(profileFields.moneyOwed) || 0 });
+    if (!isMockSession) {
+      insertManualMember({ member, email, startDate, lastPlan, totalSpent }).catch((err) => setSavedMemberDataError(err.message));
+    }
   };
 
   const [certs, setCerts] = useState([
@@ -136,6 +150,26 @@ export default function AdminDashboard({ activeTab, providerToken }) {
 
   // PayFast Transactions initialized from exported CSV
   const [payments, setPayments] = useState(payfastTransactionsData);
+
+  // Loaded once for real admin sessions - Mock Admin has no Supabase session, so
+  // these calls would just be rejected by RLS, and edits stay local-only for it.
+  const [loadingSavedMemberData, setLoadingSavedMemberData] = useState(!isMockSession);
+  const [savedMemberDataError, setSavedMemberDataError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return; // loadingSavedMemberData already starts false in this case
+    let cancelled = false;
+    Promise.all([fetchMemberProfiles(), fetchManualMembers(), fetchEftPayments()])
+      .then(([profiles, manual, eft]) => {
+        if (cancelled) return;
+        setMemberProfiles(profiles);
+        setManualMembers(manual);
+        if (eft.length) setPayments((prev) => [...eft, ...prev]);
+      })
+      .catch((err) => !cancelled && setSavedMemberDataError(err.message))
+      .finally(() => !cancelled && setLoadingSavedMemberData(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
 
   const [oneOnOnes, setOneOnOnes] = useState([
     {
@@ -236,9 +270,13 @@ export default function AdminDashboard({ activeTab, providerToken }) {
       fundingType: 'EFT',
       date: `${form.date} 00:00`,
       status: 'COMPLETE',
+      bankReference: form.bankReference || undefined,
       notes: form.notes || undefined,
     };
     setPayments([newPayment, ...payments]);
+    if (!isMockSession) {
+      insertEftPayment(newPayment).catch((err) => setSavedMemberDataError(err.message));
+    }
   };
 
   // Anchored to the PayFast export's "as-of" date, so trend/renewal math stays
@@ -531,6 +569,21 @@ export default function AdminDashboard({ activeTab, providerToken }) {
               </button>
             </div>
           </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — changes here are local only and will be lost on your next login. Sign in with Google to save for real.
+            </div>
+          )}
+          {!isMockSession && savedMemberDataError && (
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              Couldn't save/load member data from Supabase: {savedMemberDataError}
+            </div>
+          )}
+          {!isMockSession && loadingSavedMemberData && (
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '20px' }}>Loading saved member data...</div>
+          )}
 
           {meetingSyncError && (
             <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
@@ -1108,6 +1161,18 @@ export default function AdminDashboard({ activeTab, providerToken }) {
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>PayFast Subscriptions & Audit Log</h1>
             <p>Official statement of Hacking Hub transactions processed via PayFast SA since Jan 1, 2026.</p>
           </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — any EFT payment you record here is local only and will be lost on your next login. Sign in with Google to save for real.
+            </div>
+          )}
+          {!isMockSession && savedMemberDataError && (
+            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              Couldn't save/load payment data from Supabase: {savedMemberDataError}
+            </div>
+          )}
 
           {/* PayFast Gateway Status & Realtime Metrics */}
           <div className="metrics-row" style={{ marginBottom: '32px' }}>
