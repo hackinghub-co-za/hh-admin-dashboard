@@ -311,24 +311,44 @@ export default function OnboardingSequence({ user, onComplete }) {
 
           {done && (
             <div className="onboarding-cta" style={{ marginTop: '32px', textAlign: 'center' }}>
-              <button
-                onClick={onComplete}
-                style={{
-                  padding: '14px 32px',
-                  fontFamily: 'inherit',
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.05em',
-                  color: '#050607',
-                  background: 'linear-gradient(135deg, #5ee37a, #17a856)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  boxShadow: '0 0 30px rgba(94,227,122,0.35)',
-                }}
-              >
-                [ ENTER THE HUB ]
-              </button>
+              <p style={{ color: '#7f879b', fontSize: '0.85rem', marginBottom: '18px' }}>
+                One last thing: your fellow members can't find you in the directory yet.
+              </p>
+              <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => onComplete(true)}
+                  style={{
+                    padding: '14px 32px',
+                    fontFamily: 'inherit',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                    color: '#050607',
+                    background: 'linear-gradient(135deg, #5ee37a, #17a856)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    boxShadow: '0 0 30px rgba(94,227,122,0.35)',
+                  }}
+                >
+                  [ SET UP MY PROFILE ]
+                </button>
+                <button
+                  onClick={() => onComplete(false)}
+                  style={{
+                    padding: '14px 24px',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    color: '#7f879b',
+                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Enter the Hub, I'll do it later
+                </button>
+              </div>
             </div>
           )}
         </div>

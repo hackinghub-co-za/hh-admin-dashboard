@@ -123,6 +123,7 @@ const MOCK_DIRECTORY = [
     about: 'Blue team enthusiast grinding toward Security+. Always down to pair on a SOC lab.',
     location: 'Johannesburg',
     linkedin: 'https://linkedin.com/in/example',
+    tryhackmeUsername: 'nonhlanhla-s',
     specialty: 'Blue Team',
     jobReadiness: 'Interview Ready',
     employmentStatus: 'Unemployed',
@@ -134,6 +135,7 @@ const MOCK_DIRECTORY = [
     about: 'OSCP-focused. Happy to walk through HackTheBox boxes with anyone stuck.',
     location: 'Pretoria',
     linkedin: '',
+    tryhackmeUsername: 'khodyn',
     specialty: 'Red Team',
     jobReadiness: 'In Progress',
     employmentStatus: 'Student',
@@ -145,6 +147,7 @@ const MOCK_DIRECTORY = [
     about: 'Landed a Cloud Security role straight out of the program. Happy to review CVs or mock-interview anyone prepping for cloud roles.',
     location: 'Cape Town',
     linkedin: 'https://linkedin.com/in/example',
+    tryhackmeUsername: '',
     specialty: 'Cloud Security',
     jobReadiness: 'Job Placed',
     employmentStatus: 'Employed',
@@ -196,7 +199,7 @@ const MOCK_DIRECTORY = [
   },
 ];
 
-export default function MemberPortal({ activeTab, user, isMockSession }) {
+export default function MemberPortal({ activeTab, user, isMockSession, autoOpenProfileEdit }) {
   const [selectedCert, setSelectedCert] = useState(null);
   // Tracks which mentor photos have failed to load (e.g. not uploaded to
   // public/mentors/ yet) so those cards fall back to a plain avatar icon.
@@ -258,13 +261,19 @@ export default function MemberPortal({ activeTab, user, isMockSession }) {
   const [loadingDirectory, setLoadingDirectory] = useState(!isMockSession);
   const [directoryError, setDirectoryError] = useState(null);
   const [directorySearch, setDirectorySearch] = useState('');
-  const [editingProfile, setEditingProfile] = useState(false);
+  // Starts pre-opened when routed here straight from onboarding's "Set Up My
+  // Profile" choice (App.jsx) - MemberPortal only ever mounts fresh at that
+  // exact moment (onboarding renders a separate component tree entirely), so
+  // reading the flag once at mount via this initializer is enough; no effect
+  // needed to react to it changing later.
+  const [editingProfile, setEditingProfile] = useState(!!autoOpenProfileEdit);
   const [savingProfile, setSavingProfile] = useState(false);
   const emptyProfileForm = {
     fullName: user?.user_metadata?.full_name || '',
     about: '',
     location: '',
     linkedin: '',
+    tryhackmeUsername: '',
     specialty: 'Not Set',
     employmentStatus: 'Not Set',
     jobTitle: '',
@@ -672,11 +681,23 @@ export default function MemberPortal({ activeTab, user, isMockSession }) {
                     {m.fullName || 'Unnamed member'}
                     {m.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.8rem' }}> (You)</span>}
                   </h4>
-                  {m.linkedin && (
-                    <a href={m.linkedin} target="_blank" rel="noreferrer" title="LinkedIn Profile">
-                      <Link size={16} color="var(--accent-cyan)" />
-                    </a>
-                  )}
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                    {m.tryhackmeUsername && (
+                      <a
+                        href={`https://tryhackme.com/p/${encodeURIComponent(m.tryhackmeUsername)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`TryHackMe: ${m.tryhackmeUsername}`}
+                      >
+                        <Target size={16} color="var(--accent-cyan)" />
+                      </a>
+                    )}
+                    {m.linkedin && (
+                      <a href={m.linkedin} target="_blank" rel="noreferrer" title="LinkedIn Profile">
+                        <Link size={16} color="var(--accent-cyan)" />
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -754,6 +775,13 @@ export default function MemberPortal({ activeTab, user, isMockSession }) {
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>LinkedIn Profile</label>
                     <input type="url" className="form-input" placeholder="https://linkedin.com/in/..." value={profileForm.linkedin} onChange={(e) => setProfileForm({ ...profileForm, linkedin: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Target size={13} /> TryHackMe Username
+                    </label>
+                    <input type="text" className="form-input" placeholder="e.g. yourusername" value={profileForm.tryhackmeUsername} onChange={(e) => setProfileForm({ ...profileForm, tryhackmeUsername: e.target.value })} />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
