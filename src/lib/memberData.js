@@ -28,6 +28,7 @@ export async function fetchMemberProfiles() {
       employmentStatus: row.employment_status || 'Not Set',
       jobTitle: row.job_title || '',
       monthlyRemuneration: Number(row.monthly_remuneration) || 0,
+      jobPlacedDate: row.job_placed_date || '',
     };
   });
   return byEmail;
@@ -49,6 +50,7 @@ export async function upsertMemberProfile(email, profile) {
     employment_status: profile.employmentStatus || null,
     job_title: profile.jobTitle || null,
     monthly_remuneration: profile.monthlyRemuneration || 0,
+    job_placed_date: profile.jobPlacedDate || null,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

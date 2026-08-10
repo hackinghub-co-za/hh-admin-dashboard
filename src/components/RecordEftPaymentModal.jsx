@@ -61,7 +61,7 @@ export default function RecordEftPaymentModal({ activeMembers = [], onSave, onCl
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(0, 242, 254, 0.2)',
+          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}

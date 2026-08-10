@@ -2,15 +2,19 @@ import React from 'react';
 import {
   LayoutDashboard,
   Calendar,
+  CalendarDays,
   Users,
   CreditCard,
   GraduationCap,
   DollarSign,
   LogOut,
-  ShieldAlert,
   User,
   Contact,
+  Trophy,
+  Briefcase,
+  Library,
 } from 'lucide-react';
+import logo from '../assets/hacking-hub-logo-sm.png';
 
 export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
   const isAdmin = user?.role === 'admin';
@@ -28,7 +32,11 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
     : [
         { id: 'dashboard', label: 'My Roadmap', icon: LayoutDashboard },
         { id: 'meetings', label: '1on1 Meetings', icon: Users },
+        { id: 'events', label: 'Events', icon: CalendarDays },
+        { id: 'jobs', label: 'Job Board', icon: Briefcase },
+        { id: 'resources', label: 'Resources', icon: Library },
         { id: 'certs', label: 'Cert Calendar', icon: GraduationCap },
+        { id: 'competitions', label: 'Competitions', icon: Trophy },
         { id: 'billing', label: 'My Subscription', icon: CreditCard },
       ];
 
@@ -59,18 +67,17 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
           borderBottom: 'var(--glass-border)',
         }}
       >
-        <div
+        <img
+          src={logo}
+          alt="Hacking Hub"
           style={{
-            background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 100%)',
-            padding: '8px',
+            width: '38px',
+            height: '38px',
+            objectFit: 'cover',
             borderRadius: 'var(--border-radius-sm)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            flexShrink: 0,
           }}
-        >
-          <ShieldAlert size={20} color="#0b0c10" />
-        </div>
+        />
         <span style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '0.05em' }}>
           HACKING HUB
         </span>
@@ -92,7 +99,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
                 width: '100%',
                 padding: '12px 16px',
                 borderRadius: 'var(--border-radius-sm)',
-                background: isActive ? 'rgba(0, 242, 254, 0.08)' : 'transparent',
+                background: isActive ? 'rgba(94, 227, 122, 0.08)' : 'transparent',
                 border: 'none',
                 color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
                 cursor: 'pointer',
