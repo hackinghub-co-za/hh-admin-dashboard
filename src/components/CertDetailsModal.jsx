@@ -147,7 +147,7 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(0, 242, 254, 0.2)',
+          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -259,8 +259,8 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
                   fontSize: '0.88rem',
                   padding: '8px 12px',
                   borderRadius: 'var(--border-radius-sm)',
-                  background: 'rgba(0, 242, 254, 0.04)',
-                  border: '1px solid rgba(0, 242, 254, 0.1)',
+                  background: 'rgba(94, 227, 122, 0.04)',
+                  border: '1px solid rgba(94, 227, 122, 0.1)',
                 }}
               >
                 <ShieldCheck size={16} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />

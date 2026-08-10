@@ -29,6 +29,7 @@ const emptyForm = {
   employmentStatus: 'Not Set',
   jobTitle: '',
   monthlyRemuneration: '',
+  jobPlacedDate: '',
 };
 
 export default function AddMemberModal({ onSave, onClose }) {
@@ -36,6 +37,18 @@ export default function AddMemberModal({ onSave, onClose }) {
   const [error, setError] = useState(null);
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+
+  const updateJobReadiness = (e) => {
+    const value = e.target.value;
+    const isNowPlaced = value === 'Job Placed';
+    setForm({
+      ...form,
+      jobReadiness: value,
+      jobPlacedDate: isNowPlaced && !form.jobPlacedDate
+        ? new Date().toISOString().split('T')[0]
+        : form.jobPlacedDate,
+    });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -47,6 +60,7 @@ export default function AddMemberModal({ onSave, onClose }) {
       ...form,
       monthlyRemuneration: form.employmentStatus === 'Employed' ? (Number(form.monthlyRemuneration) || 0) : 0,
       jobTitle: form.employmentStatus === 'Employed' ? form.jobTitle : '',
+      jobPlacedDate: form.jobReadiness === 'Job Placed' ? form.jobPlacedDate : '',
     });
     onClose();
   };
@@ -75,7 +89,7 @@ export default function AddMemberModal({ onSave, onClose }) {
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(0, 242, 254, 0.2)',
+          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -189,11 +203,20 @@ export default function AddMemberModal({ onSave, onClose }) {
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
                 <Briefcase size={13} /> Job Readiness
               </label>
-              <select className="form-input" value={form.jobReadiness} onChange={update('jobReadiness')}>
+              <select className="form-input" value={form.jobReadiness} onChange={updateJobReadiness}>
                 {JOB_READINESS_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
+
+          {form.jobReadiness === 'Job Placed' && (
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                <Calendar size={13} /> Date Placed
+              </label>
+              <input type="date" className="form-input" value={form.jobPlacedDate} onChange={update('jobPlacedDate')} />
+            </div>
+          )}
 
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>

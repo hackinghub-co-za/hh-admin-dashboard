@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Shield, Key, AlertCircle } from 'lucide-react';
+import { Key, AlertCircle } from 'lucide-react';
+import logo from '../assets/hacking-hub-logo-sm.png';
 
-export default function Login({ onLoginSuccess }) {
+export default function Login({ onLoginSuccess, accessDeniedMessage }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const displayMessage = error || accessDeniedMessage;
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -49,7 +51,7 @@ export default function Login({ onLoginSuccess }) {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
-        background: 'radial-gradient(circle at center, #111827 0%, #030712 100%)',
+        background: 'radial-gradient(circle at center, #1c1e42 0%, #0a0b1c 100%)',
         padding: '20px',
       }}
     >
@@ -60,13 +62,22 @@ export default function Login({ onLoginSuccess }) {
           maxWidth: '440px',
           padding: '40px 32px',
           textAlign: 'center',
-          border: '1px solid rgba(0, 242, 254, 0.15)',
+          border: '1px solid rgba(94, 227, 122, 0.15)',
         }}
       >
-        <div style={{ marginBottom: '24px', display: 'inline-flex', padding: '16px', borderRadius: '50%', background: 'rgba(0, 242, 254, 0.1)' }}>
-          <Shield size={44} color="#00f2fe" />
-        </div>
-        
+        <img
+          src={logo}
+          alt="Hacking Hub"
+          style={{
+            width: '120px',
+            height: '120px',
+            objectFit: 'cover',
+            borderRadius: 'var(--border-radius-lg)',
+            marginBottom: '24px',
+            boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+          }}
+        />
+
         <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>
           HACKING HUB
         </h2>
@@ -74,7 +85,7 @@ export default function Login({ onLoginSuccess }) {
           Web Portal & Admin Dashboard
         </p>
 
-        {error && (
+        {displayMessage && (
           <div
             style={{
               display: 'flex',
@@ -91,7 +102,7 @@ export default function Login({ onLoginSuccess }) {
             }}
           >
             <AlertCircle size={18} style={{ flexShrink: 0 }} />
-            <span>{error}</span>
+            <span>{displayMessage}</span>
           </div>
         )}
 
@@ -107,7 +118,7 @@ export default function Login({ onLoginSuccess }) {
         {import.meta.env.DEV && (
           <>
             <div style={{ position: 'relative', margin: '24px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ position: 'absolute', background: '#0b0c10', padding: '0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <span style={{ position: 'absolute', background: '#12132b', padding: '0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 DEVELOPER MOCK BYPASS (LOCAL DEV ONLY)
               </span>
               <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border-color)' }} />

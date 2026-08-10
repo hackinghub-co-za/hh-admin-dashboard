@@ -124,10 +124,12 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   };
 
   const [certs, setCerts] = useState([
-    { id: 1, member: 'Sanele Khumalo', name: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B' },
-    { id: 2, member: '[REDACTED]', name: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug' },
-    { id: 3, member: 'Khody Netshifhefhe', name: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro' },
-    { id: 4, member: 'Joshua Harrop', name: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3' },
+    { id: 1, member: 'Sanele Khumalo', name: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B', result: 'Pending' },
+    { id: 2, member: '[REDACTED]', name: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug', result: 'Pending' },
+    { id: 3, member: 'Khody Netshifhefhe', name: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro', result: 'Pending' },
+    { id: 4, member: 'Joshua Harrop', name: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3', result: 'Pending' },
+    { id: 5, member: 'Thabo Ndlovu', name: 'OSCP Penetration Tester', date: '2026-08-02', cohort: 'OSCP-26A', result: 'Passed' },
+    { id: 6, member: 'Palesa Dlamini', name: 'CompTIA Security+', date: '2026-07-15', cohort: 'SecPlus-Jul', result: 'Passed' },
   ]);
 
   const [newCert, setNewCert] = useState({ member: '', name: '', date: '', cohort: '' });
@@ -143,9 +145,14 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         name: newCert.name,
         date: newCert.date,
         cohort: newCert.cohort || 'General',
+        result: 'Pending',
       },
     ]);
     setNewCert({ member: '', name: '', date: '', cohort: '' });
+  };
+
+  const handleUpdateCertResult = (id, result) => {
+    setCerts(certs.map(c => c.id === id ? { ...c, result } : c));
   };
 
   // PayFast Transactions initialized from exported CSV
@@ -282,6 +289,18 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // Anchored to the PayFast export's "as-of" date, so trend/renewal math stays
   // consistent with the transaction data rather than drifting with wall-clock time.
   const today = new Date('2026-08-07');
+
+  // "Passed" is only counted once someone has explicitly marked the result - an
+  // exam date simply being in the past doesn't mean it was taken, let alone passed.
+  const certsPassedThisMonth = certs.filter(c => {
+    if (c.result !== 'Passed') return false;
+    const d = new Date(c.date);
+    return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+  }).length;
+  const certsPassedThisYear = certs.filter(c => {
+    if (c.result !== 'Passed') return false;
+    return new Date(c.date).getFullYear() === today.getFullYear();
+  }).length;
 
   // PayFast Financial Metrics
   const totalGrossRevenue = payments.reduce((acc, p) => acc + p.amount, 0);
@@ -424,9 +443,23 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     return acc;
   }, {});
 
+  // Counted from an explicit "Date Placed" field, not just who's currently marked
+  // Job Placed - that would answer "how many are placed right now", not "this year".
+  const jobPlacementsThisYear = memberRoster.filter(m =>
+    m.profile?.jobReadiness === 'Job Placed' &&
+    m.profile?.jobPlacedDate &&
+    new Date(m.profile.jobPlacedDate).getFullYear() === today.getFullYear()
+  ).length;
+
   const selectedMember = selectedMemberEmail
     ? memberRoster.find(m => m.email.toLowerCase() === selectedMemberEmail.toLowerCase())
     : null;
+
+  const [meetups, setMeetups] = useState([
+    { id: 1, title: 'Cyber War Games: Capture The Flag', date: '2026-08-16', time: '18:00', location: 'Discord', rsvps: 34, status: 'upcoming' },
+    { id: 2, title: 'OSINT Fundamentals Workshop', date: '2026-08-23', time: '17:30', location: 'Online (Zoom)', rsvps: 21, status: 'upcoming' },
+    { id: 3, title: 'July Community Meetup', date: '2026-07-19', time: '18:00', location: 'Discord', rsvps: 58, status: 'completed' },
+  ]);
 
   const [newMeetup, setNewMeetup] = useState({ title: '', date: '', time: '', location: '' });
 
@@ -502,6 +535,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>R {avgRevenuePerMember.toFixed(0)}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 <span>Since Jan 2026, across {allTimeMemberEmails.size} paying members</span>
+              </div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Job Placements This Year</span>
+                <Award size={20} color="var(--success)" />
+              </div>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{jobPlacementsThisYear}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span>Members marked "Job Placed" with a {today.getFullYear()} placement date</span>
               </div>
             </div>
           </div>
@@ -660,7 +704,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         justifyContent: 'center',
                         fontWeight: 700,
                         fontSize: '0.9rem',
-                        color: '#0b0c10',
+                        color: '#12132b',
                         flexShrink: 0,
                       }}
                     >
@@ -1032,6 +1076,19 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             <p>Monitor member target exam dates, active certification cohorts, and days remaining until exam day.</p>
           </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+            <div className="glass-card" style={{ border: '1px solid var(--success)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Certifications Passed This Month</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--success)', fontWeight: 700 }}>{certsPassedThisMonth}</h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>{today.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}</div>
+            </div>
+            <div className="glass-card" style={{ border: '1px solid var(--accent-cyan)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Certifications Passed This Year</span>
+              <h2 style={{ fontSize: '1.75rem', marginTop: '8px', color: 'var(--accent-cyan)', fontWeight: 700 }}>{certsPassedThisYear}</h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>{today.getFullYear()} to date</div>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
             {/* Add Member Exam Form */}
             <div className="glass-card" style={{ height: 'fit-content' }}>
@@ -1120,9 +1177,15 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                           <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
-                          <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
-                            {daysLeft > 0 ? `${daysLeft} Days Left` : daysLeft === 0 ? 'Exam Today!' : 'Exam Passed'}
-                          </span>
+                          {c.result === 'Passed' ? (
+                            <span className="badge badge-success">Passed</span>
+                          ) : c.result === 'Failed' ? (
+                            <span className="badge badge-danger">Failed</span>
+                          ) : (
+                            <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
+                              {daysLeft > 0 ? `${daysLeft} Days Left` : daysLeft === 0 ? 'Exam Today!' : 'Awaiting Result'}
+                            </span>
+                          )}
                         </div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
                         <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1133,6 +1196,20 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
                         <strong style={{ color: 'var(--accent-cyan)' }}>{c.date}</strong>
+                      </div>
+
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Result</label>
+                        <select
+                          className="form-input"
+                          style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                          value={c.result || 'Pending'}
+                          onChange={(e) => handleUpdateCertResult(c.id, e.target.value)}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Passed">Passed</option>
+                          <option value="Failed">Failed</option>
+                        </select>
                       </div>
                     </div>
                   );

@@ -3,6 +3,7 @@ import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import {
   Calendar,
+  CalendarDays,
   CheckSquare,
   Square,
   Clock,
@@ -19,6 +20,20 @@ import {
   Bell,
   Sparkles,
   Info,
+  MapPin,
+  Users,
+  Trophy,
+  Target,
+  Briefcase,
+  Building2,
+  Banknote,
+  Headphones,
+  Map,
+  MessageSquare,
+  NotebookPen,
+  Library,
+  Download,
+  FileText,
 } from 'lucide-react';
 
 export default function MemberPortal({ activeTab }) {
@@ -45,6 +60,204 @@ export default function MemberPortal({ activeTab }) {
     location: 'HH Discord & Hybrid JHB',
     rsvps: 42,
   };
+
+  // All upcoming events members can attend, across every category
+  const [eventTypeFilter, setEventTypeFilter] = useState('All');
+  const communityEvents = [
+    {
+      id: 1,
+      type: 'HH Meetup',
+      title: 'Cyber War Games: Capture The Flag',
+      date: '2026-08-16',
+      time: '18:00',
+      location: 'HH Discord & Hybrid JHB',
+      description: 'Team-based CTF night with prizes for the top 3 teams.',
+      rsvps: 42,
+    },
+    {
+      id: 2,
+      type: 'Sunday Catchup',
+      title: 'Sunday Coffee & Code Catchup',
+      date: '2026-08-17',
+      time: '10:00',
+      location: 'Google Meet',
+      description: 'Casual weekly hangout — share wins, ask questions, no agenda.',
+      rsvps: 18,
+    },
+    {
+      id: 3,
+      type: 'HH Meetup',
+      title: 'OSINT Fundamentals Workshop',
+      date: '2026-08-23',
+      time: '17:30',
+      location: 'Online (Zoom)',
+      description: 'Hands-on open-source recon workshop led by Jaco.',
+      rsvps: 21,
+    },
+    {
+      id: 4,
+      type: 'Industry Event',
+      title: 'ITWeb Security Summit 2026',
+      date: '2026-08-25',
+      time: '08:00',
+      location: 'Sandton Convention Centre',
+      description: 'Industry conference — HH is attending as a group, ask in the community for details.',
+      rsvps: 9,
+    },
+    {
+      id: 5,
+      type: 'Sunday Catchup',
+      title: 'Sunday Coffee & Code Catchup',
+      date: '2026-08-24',
+      time: '10:00',
+      location: 'Google Meet',
+      description: 'Casual weekly hangout — share wins, ask questions, no agenda.',
+      rsvps: 15,
+    },
+    {
+      id: 6,
+      type: 'Industry Event',
+      title: 'BSides Cape Town',
+      date: '2026-09-05',
+      time: '09:00',
+      location: 'Cape Town',
+      description: 'Community-run infosec conference — group discount code shared in the community.',
+      rsvps: 6,
+    },
+  ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const EVENT_TYPE_STYLES = {
+    'HH Meetup': { className: 'badge-success' },
+    'Industry Event': { className: 'badge-warning' },
+    'Sunday Catchup': { style: { background: 'rgba(192, 132, 252, 0.15)', color: 'var(--accent-purple)', border: '1px solid rgba(192, 132, 252, 0.25)' } },
+  };
+
+  const filteredEvents = eventTypeFilter === 'All'
+    ? communityEvents
+    : communityEvents.filter(e => e.type === eventTypeFilter);
+
+  // Quarterly TryHackMe competition
+  const currentCompetition = {
+    title: 'Q3 2026 Community CTF Sprint',
+    platform: 'TryHackMe',
+    status: 'Active',
+    startDate: '2026-07-01',
+    endDate: '2026-09-30',
+    description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Points are tallied from room completions — top 3 finishers win prizes.',
+    prize: 'R1,500 voucher (1st) · OSCP exam voucher (2nd) · HH hoodie (3rd)',
+  };
+
+  const competitionLeaderboard = [
+    { rank: 1, member: 'Khody Netshifhefhe', rooms: 12, points: 3840 },
+    { rank: 2, member: 'Sanele Khumalo', rooms: 11, points: 3510 },
+    { rank: 3, member: '[REDACTED]', rooms: 9, points: 2980 },
+    { rank: 4, member: 'Joshua Harrop', rooms: 8, points: 2600 },
+    { rank: 5, member: 'Thando Mandondo', rooms: 7, points: 2210 },
+  ];
+
+  // Job Board — roles sourced from HH's employer network and job placement partners
+  const [jobTypeFilter, setJobTypeFilter] = useState('All');
+  const jobListings = [
+    {
+      id: 1,
+      title: 'SOC Analyst (Junior)',
+      company: 'Nclose',
+      location: 'Johannesburg (Hybrid)',
+      type: 'Full-Time',
+      posted: '2026-08-01',
+      salary: 'R18,000 – R25,000 / month',
+      description: 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who\'ve completed Security+.',
+      tags: ['Blue Team', 'Security+', 'Entry Level'],
+    },
+    {
+      id: 2,
+      title: 'Junior Penetration Tester',
+      company: 'Telspace Systems',
+      location: 'Cape Town (Onsite)',
+      type: 'Full-Time',
+      posted: '2026-07-28',
+      salary: 'R22,000 – R30,000 / month',
+      description: 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.',
+      tags: ['Red Team', 'OSCP', 'Junior'],
+    },
+    {
+      id: 3,
+      title: 'GRC Analyst Intern',
+      company: 'Standard Bank',
+      location: 'Johannesburg (Onsite)',
+      type: 'Internship',
+      posted: '2026-08-05',
+      salary: 'R8,000 / month stipend',
+      description: '6-month internship supporting risk assessments and compliance documentation within the group security office.',
+      tags: ['GRC', 'Internship'],
+    },
+    {
+      id: 4,
+      title: 'Cloud Security Engineer',
+      company: 'Entelect',
+      location: 'Remote (SA)',
+      type: 'Full-Time',
+      posted: '2026-07-20',
+      salary: 'R45,000 – R60,000 / month',
+      description: 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.',
+      tags: ['Cloud Security', 'AZ-500', 'Mid-Level'],
+    },
+    {
+      id: 5,
+      title: 'Vulnerability Assessment Contractor',
+      company: 'Private Client (via HH Network)',
+      location: 'Remote',
+      type: 'Contract',
+      posted: '2026-08-06',
+      salary: 'Project-based',
+      description: 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.',
+      tags: ['Red Team', 'Contract'],
+    },
+  ].sort((a, b) => new Date(b.posted) - new Date(a.posted));
+
+  const JOB_TYPE_BADGE = {
+    'Full-Time': 'badge-success',
+    'Contract': 'badge-warning',
+    'Internship': 'badge-danger',
+  };
+
+  const filteredJobs = jobTypeFilter === 'All'
+    ? jobListings
+    : jobListings.filter(j => j.type === jobTypeFilter);
+
+  // Resources — cert prep, role roadmaps, podcasts, books, interview prep, CV templates
+  const [resourceCategoryFilter, setResourceCategoryFilter] = useState('All');
+  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates'];
+  const RESOURCE_ICON = {
+    'Cert Prep': FileText,
+    'Role Roadmaps': Map,
+    'Podcasts': Headphones,
+    'Books': BookOpen,
+    'Interview Playbooks': MessageSquare,
+    'CV Templates': NotebookPen,
+  };
+
+  const resources = [
+    { id: 1, category: 'Cert Prep', title: 'OSCP Study Notes & Buffer Overflow Cheatsheet', format: 'HH Guide', description: 'Community-maintained notes covering AD attacks, privilege escalation, and manual buffer overflow steps.' },
+    { id: 2, category: 'Cert Prep', title: 'CompTIA Security+ Exam Objectives Breakdown', format: 'HH Guide', description: 'Domain-by-domain summary of the SY0-701 objectives with practice question links.' },
+    { id: 3, category: 'Cert Prep', title: 'eCPPT Prep Checklist', format: 'HH Guide', description: 'What to review before booking your eCPPT practical exam window.' },
+    { id: 4, category: 'Role Roadmaps', title: 'SOC Analyst Roadmap (0–2 Years)', format: 'Roadmap', description: 'Skills, certs, and projects to go from no experience to a confident junior SOC analyst.' },
+    { id: 5, category: 'Role Roadmaps', title: 'Penetration Tester Roadmap', format: 'Roadmap', description: 'Junior to senior progression for offensive security, with recommended certs at each stage.' },
+    { id: 6, category: 'Role Roadmaps', title: 'Cloud Security Engineer Roadmap', format: 'Roadmap', description: 'AWS and Azure security fundamentals through to AZ-500 and beyond.' },
+    { id: 7, category: 'Role Roadmaps', title: 'GRC Analyst Roadmap', format: 'Roadmap', description: 'Building a governance, risk, and compliance career — frameworks worth knowing and where to start.' },
+    { id: 8, category: 'Podcasts', title: 'Darknet Diaries', format: 'Podcast', description: 'True stories from the dark side of the internet — great for building intuition on real attacks.' },
+    { id: 9, category: 'Podcasts', title: 'Risky Business', format: 'Podcast', description: 'Weekly news roundup on the security industry — good for staying current for interviews.' },
+    { id: 10, category: 'Books', title: "The Web Application Hacker's Handbook", format: 'Book', description: 'Still one of the best deep dives into web app exploitation techniques.' },
+    { id: 11, category: 'Books', title: 'Practical Malware Analysis', format: 'Book', description: 'Hands-on introduction to analysing malicious software in a lab environment.' },
+    { id: 12, category: 'Interview Playbooks', title: 'Cybersecurity Interview Question Bank', format: 'Playbook', description: '80+ real questions asked at SA employers, grouped by role (SOC, pentest, GRC, cloud).' },
+    { id: 13, category: 'Interview Playbooks', title: 'Mock Interview Prep Guide', format: 'Playbook', description: 'How to structure answers with the STAR method for technical and behavioural rounds.' },
+    { id: 14, category: 'CV Templates', title: 'Entry-Level Security CV Template', format: 'Template', description: 'Formatted for ATS systems, built for members with certs but limited work experience.' },
+    { id: 15, category: 'CV Templates', title: 'Pentester / Red Team CV Template', format: 'Template', description: 'Structured to highlight CTF placements, bug bounty finds, and lab write-ups.' },
+  ];
+
+  const filteredResources = resourceCategoryFilter === 'All'
+    ? resources
+    : resources.filter(r => r.category === resourceCategoryFilter);
 
   const toggleTask = (id) => {
     setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
@@ -272,7 +485,7 @@ export default function MemberPortal({ activeTab }) {
                   <div style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>Today at 14:00 (SAST)</div>
                 </div>
                 <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                  <Video size={16} /> Join Discord Call
+                  <Video size={16} /> Join Google Meet
                 </button>
               </div>
 
@@ -367,6 +580,164 @@ export default function MemberPortal({ activeTab }) {
         </div>
       );
 
+    case 'events':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Events</h1>
+            <p>Everything happening across Hacking Hub — meetups, industry events, and casual catchups.</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            {['All', 'HH Meetup', 'Industry Event', 'Sunday Catchup'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setEventTypeFilter(type)}
+                className={`btn ${eventTypeFilter === type ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+            {filteredEvents.map((e) => {
+              const typeStyle = EVENT_TYPE_STYLES[e.type] || {};
+              return (
+                <div key={e.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className={`badge ${typeStyle.className || ''}`} style={typeStyle.style}>{e.type}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      <Users size={13} /> {e.rsvps} RSVPs
+                    </span>
+                  </div>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{e.title}</h4>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{e.description}</p>
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                      <CalendarDays size={14} /> {e.date} at {e.time} SAST
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
+                      <MapPin size={14} /> {e.location}
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" style={{ justifyContent: 'center', marginTop: '4px' }}>
+                    <Sparkles size={14} /> RSVP
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+
+    case 'jobs':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Job Board</h1>
+            <p>Roles sourced from Hacking Hub's employer network and job placement partners.</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            {['All', 'Full-Time', 'Contract', 'Internship'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setJobTypeFilter(type)}
+                className={`btn ${jobTypeFilter === type ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {filteredJobs.map((job) => (
+              <div key={job.id} className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <span className={`badge ${JOB_TYPE_BADGE[job.type] || 'badge-success'}`}>{job.type}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Posted {job.posted}</span>
+                    </div>
+                    <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{job.title}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                      <Building2 size={14} /> {job.company}
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
+                    <Briefcase size={14} /> Apply
+                  </button>
+                </div>
+
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>{job.description}</p>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={13} /> {job.location}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Banknote size={13} /> {job.salary}</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {job.tags.map((tag) => (
+                    <span key={tag} style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: '9999px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'resources':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Library size={28} color="var(--accent-cyan)" /> Resources
+            </h1>
+            <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, and CV templates.</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            {RESOURCE_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setResourceCategoryFilter(cat)}
+                className={`btn ${resourceCategoryFilter === cat ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+            {filteredResources.map((res) => {
+              const Icon = RESOURCE_ICON[res.category] || FileText;
+              return (
+                <div key={res.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{res.category}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      <Icon size={13} /> {res.format}
+                    </span>
+                  </div>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{res.title}</h4>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }}>{res.description}</p>
+                  <button className="btn btn-secondary" style={{ justifyContent: 'center', fontSize: '0.85rem' }}>
+                    <Download size={14} /> Open Resource
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+
     case 'certs':
       const communityCerts = [
         { id: 1, member: 'Sanele Khumalo', cert: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B' },
@@ -448,6 +819,85 @@ export default function MemberPortal({ activeTab }) {
               onClose={() => setSelectedCert(null)}
             />
           )}
+        </div>
+      );
+
+    case 'competitions':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Competitions</h1>
+            <p>Our quarterly TryHackMe competition — standings and how to get involved.</p>
+          </div>
+
+          <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--accent-cyan)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Trophy size={24} color="var(--accent-cyan)" />
+                <div>
+                  <h3 style={{ margin: 0 }}>{currentCompetition.title}</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>{currentCompetition.platform}</p>
+                </div>
+              </div>
+              <span className="badge badge-success">{currentCompetition.status}</span>
+            </div>
+
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              {currentCompetition.description}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Runs</div>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{currentCompetition.startDate} – {currentCompetition.endDate}</div>
+              </div>
+              <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Prizes</div>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{currentCompetition.prize}</div>
+              </div>
+            </div>
+
+            <button className="btn btn-primary" style={{ justifyContent: 'center' }}>
+              <ExternalLink size={14} /> Join on TryHackMe
+            </button>
+          </div>
+
+          <div className="glass-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0 }}>Current Standings</h3>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Updated weekly</span>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Rank</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Target size={13} /> Rooms Completed</span>
+                  </th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {competitionLeaderboard.map((row) => (
+                  <tr key={row.rank} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                    <td style={{ padding: '14px 12px' }}>
+                      {row.rank === 1 ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                          <Trophy size={15} /> #1
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{row.rank}</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}</td>
+                    <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.rooms}</td>
+                    <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>{row.points.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       );
 

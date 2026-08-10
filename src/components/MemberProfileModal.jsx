@@ -16,6 +16,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
     employmentStatus: profile?.employmentStatus || 'Not Set',
     jobTitle: profile?.jobTitle || '',
     monthlyRemuneration: profile?.monthlyRemuneration ?? '',
+    jobPlacedDate: profile?.jobPlacedDate || '',
   });
 
   if (!member) return null;
@@ -30,6 +31,20 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
+  const updateJobReadiness = (e) => {
+    const value = e.target.value;
+    const isNowPlaced = value === 'Job Placed';
+    setForm({
+      ...form,
+      jobReadiness: value,
+      // Default to today so a fresh placement doesn't sit with a blank date -
+      // still fully editable below.
+      jobPlacedDate: isNowPlaced && !form.jobPlacedDate
+        ? today.toISOString().split('T')[0]
+        : form.jobPlacedDate,
+    });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(member.email, {
@@ -37,6 +52,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
       moneyOwed: Number(form.moneyOwed) || 0,
       monthlyRemuneration: form.employmentStatus === 'Employed' ? (Number(form.monthlyRemuneration) || 0) : 0,
       jobTitle: form.employmentStatus === 'Employed' ? form.jobTitle : '',
+      jobPlacedDate: form.jobReadiness === 'Job Placed' ? form.jobPlacedDate : '',
     });
     onClose();
   };
@@ -65,7 +81,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(0, 242, 254, 0.2)',
+          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -208,11 +224,23 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
                 <Briefcase size={13} /> Job Readiness
               </label>
-              <select className="form-input" value={form.jobReadiness} onChange={update('jobReadiness')}>
+              <select className="form-input" value={form.jobReadiness} onChange={updateJobReadiness}>
                 {JOB_READINESS_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
+
+          {form.jobReadiness === 'Job Placed' && (
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                <Calendar size={13} /> Date Placed
+              </label>
+              <input type="date" className="form-input" value={form.jobPlacedDate} onChange={update('jobPlacedDate')} />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Powers the "job placements this year" count on the dashboard.
+              </p>
+            </div>
+          )}
 
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
