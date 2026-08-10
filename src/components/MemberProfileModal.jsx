@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag } from 'lucide-react';
-import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../lib/memberOptions';
+import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star } from 'lucide-react';
+import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../lib/memberOptions';
 
 export default function MemberProfileModal({ member, profile, onSave, onClose, today }) {
   const [form, setForm] = useState({
@@ -17,6 +17,9 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
     jobTitle: profile?.jobTitle || '',
     monthlyRemuneration: profile?.monthlyRemuneration ?? '',
     jobPlacedDate: profile?.jobPlacedDate || '',
+    offboardingReason: profile?.offboardingReason || '',
+    offboardingNotes: profile?.offboardingNotes || '',
+    offboardingStartedAt: profile?.offboardingStartedAt || '',
   });
 
   if (!member) return null;
@@ -30,6 +33,19 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
   const isMeetingOverdue = daysSinceLastMeeting !== null && daysSinceLastMeeting > MEETING_OVERDUE_AFTER_DAYS;
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+
+  const updateStatus = (e) => {
+    const value = e.target.value;
+    setForm({
+      ...form,
+      status: value,
+      // Stamp the start of the grace period once, the first time - editing other
+      // fields while still 'Leaving' shouldn't keep resetting it.
+      offboardingStartedAt: value === 'Leaving' && !form.offboardingStartedAt
+        ? today.toISOString().split('T')[0]
+        : form.offboardingStartedAt,
+    });
+  };
 
   const updateJobReadiness = (e) => {
     const value = e.target.value;
@@ -53,6 +69,15 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
       monthlyRemuneration: form.employmentStatus === 'Employed' ? (Number(form.monthlyRemuneration) || 0) : 0,
       jobTitle: form.employmentStatus === 'Employed' ? form.jobTitle : '',
       jobPlacedDate: form.jobReadiness === 'Job Placed' ? form.jobPlacedDate : '',
+      offboardingReason: (form.status === 'Leaving' || form.status === 'Left') ? form.offboardingReason : '',
+      offboardingNotes: (form.status === 'Leaving' || form.status === 'Left') ? form.offboardingNotes : '',
+      offboardingStartedAt: (form.status === 'Leaving' || form.status === 'Left') ? form.offboardingStartedAt : '',
+      // Not part of this form - only ever written by the member's own exit feedback
+      // submission. Carried forward from the existing profile so a routine admin
+      // edit doesn't make it vanish from the UI until the next refetch.
+      exitFeedbackRating: profile?.exitFeedbackRating ?? null,
+      exitFeedbackText: profile?.exitFeedbackText || '',
+      leftAt: profile?.leftAt || '',
     });
     onClose();
   };
@@ -112,8 +137,9 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
             <span className="badge badge-success">{member.lastPlan}</span>
             <span className="badge badge-warning">{form.jobReadiness}</span>
-            <span className={`badge ${form.status === 'Left' ? 'badge-danger' : isLapsed ? 'badge-warning' : 'badge-success'}`}>
+            <span className={`badge ${form.status === 'Left' ? 'badge-danger' : form.status === 'Leaving' ? 'badge-warning' : isLapsed ? 'badge-warning' : 'badge-success'}`}>
               {form.status === 'Left' ? 'Left'
+                : form.status === 'Leaving' ? 'Leaving · pending exit'
                 : form.status === 'Active (Permanent)' ? 'Active · Permanent'
                 : isLapsed ? `Lapsed · ${daysSinceLastPayment}d since last payment`
                 : 'Active'}
@@ -272,15 +298,74 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
               <UserCheck size={13} /> Membership Status
             </label>
-            <select className="form-input" value={form.status} onChange={update('status')}>
+            <select className="form-input" value={form.status} onChange={updateStatus}>
               {MEMBERSHIP_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             {isLapsed && (
               <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: '6px' }}>
-                No payment in {daysSinceLastPayment} days. If they've paid in full or don't owe recurring dues (e.g. Permanent Access), set this to <strong>"Active (Permanent)"</strong> so it stops flagging. Set to <strong>"Left"</strong> once you know they're actually gone.
+                No payment in {daysSinceLastPayment} days. If they've paid in full or don't owe recurring dues (e.g. Permanent Access), set this to <strong>"Active (Permanent)"</strong> so it stops flagging. Set to <strong>"Leaving"</strong> to start their exit, or <strong>"Left"</strong> for an immediate cutoff.
+              </p>
+            )}
+            {form.status === 'Leaving' && (
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                They can still sign in one more time - they'll see a farewell screen with optional exit feedback instead of the normal portal. Submitting (or skipping) it finalizes them to "Left" and cuts off access.
               </p>
             )}
           </div>
+
+          {(form.status === 'Leaving' || form.status === 'Left') && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px', background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: 'var(--border-radius-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--danger)' }}>
+                <LogOut size={14} /> Offboarding
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Reason</label>
+                  <select className="form-input" value={form.offboardingReason} onChange={update('offboardingReason')}>
+                    <option value="">Not set</option>
+                    {OFFBOARDING_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Started</label>
+                  <input type="date" className="form-input" value={form.offboardingStartedAt} onChange={update('offboardingStartedAt')} />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Internal Notes</label>
+                <textarea
+                  className="form-input"
+                  rows={2}
+                  placeholder="Context for other admins - not visible to the member."
+                  value={form.offboardingNotes}
+                  onChange={update('offboardingNotes')}
+                />
+              </div>
+              {Number(form.moneyOwed) > 0 && (
+                <p style={{ fontSize: '0.78rem', color: 'var(--warning)' }}>
+                  Still shows R {Number(form.moneyOwed).toLocaleString('en-ZA', { minimumFractionDigits: 2 })} owed - worth reconciling before they're gone.
+                </p>
+              )}
+              {profile?.exitFeedbackText || profile?.exitFeedbackRating ? (
+                <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    <Star size={13} /> Exit feedback from the member
+                    {profile.exitFeedbackRating && <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{profile.exitFeedbackRating}/5</span>}
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: profile.exitFeedbackText ? 'normal' : 'italic' }}>
+                    {profile.exitFeedbackText || 'No written feedback left.'}
+                  </p>
+                  {profile.leftAt && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                      Finalized {new Date(profile.leftAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+              ) : form.status === 'Leaving' ? (
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Waiting on their next sign-in to see if they leave feedback.</p>
+              ) : null}
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>

@@ -13,10 +13,12 @@ import {
   Trophy,
   Briefcase,
   Library,
+  Star,
+  Terminal,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 
-export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
+export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro }) {
   const isAdmin = user?.role === 'admin';
 
   const menuItems = isAdmin
@@ -28,15 +30,18 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
         { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'finances', label: 'Finances', icon: DollarSign },
+        { id: 'reviews', label: 'Reviews', icon: Star },
       ]
     : [
         { id: 'dashboard', label: 'My Roadmap', icon: LayoutDashboard },
+        { id: 'members', label: 'Members', icon: Users },
         { id: 'meetings', label: '1on1 Meetings', icon: Users },
         { id: 'events', label: 'Events', icon: CalendarDays },
         { id: 'jobs', label: 'Job Board', icon: Briefcase },
         { id: 'resources', label: 'Resources', icon: Library },
         { id: 'certs', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'competitions', label: 'Competitions', icon: Trophy },
+        { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'billing', label: 'My Subscription', icon: CreditCard },
       ];
 
@@ -173,6 +178,33 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
             </span>
           </div>
         </div>
+
+        {onReplayIntro && (
+          <button
+            onClick={onReplayIntro}
+            title="Replay the welcome intro"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '10px',
+              borderRadius: 'var(--border-radius-sm)',
+              background: 'rgba(94, 227, 122, 0.06)',
+              border: '1px solid rgba(94, 227, 122, 0.15)',
+              color: 'var(--accent-cyan)',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Terminal size={14} />
+            Replay Intro
+          </button>
+        )}
 
         <button
           onClick={onLogout}
