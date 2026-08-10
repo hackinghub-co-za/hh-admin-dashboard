@@ -28,7 +28,9 @@ export default function Login({ onLoginSuccess }) {
     }
   };
 
-  // Developer bypass for quick testing of views without credentials
+  // Developer bypass for quick local testing without real Google credentials.
+  // Gated behind import.meta.env.DEV below so Vite strips it out of production
+  // builds entirely - it never ships to portal.hackinghub.co.za.
   const handleMockLogin = (role) => {
     onLoginSuccess({
       email: role === 'admin' ? 'admin@hackinghub.co.za' : 'member@hackinghub.co.za',
@@ -102,29 +104,33 @@ export default function Login({ onLoginSuccess }) {
           {loading ? 'Connecting...' : 'Sign in with Google'}
         </button>
 
-        <div style={{ position: 'relative', margin: '24px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ position: 'absolute', background: '#0b0c10', padding: '0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            DEVELOPER MOCK BYPASS
-          </span>
-          <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border-color)' }} />
-        </div>
+        {import.meta.env.DEV && (
+          <>
+            <div style={{ position: 'relative', margin: '24px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ position: 'absolute', background: '#0b0c10', padding: '0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                DEVELOPER MOCK BYPASS (LOCAL DEV ONLY)
+              </span>
+              <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border-color)' }} />
+            </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={() => handleMockLogin('admin')}
-            style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px' }}
-          >
-            <Key size={14} /> Mock Admin
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => handleMockLogin('member')}
-            style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px' }}
-          >
-            <Key size={14} /> Mock Member
-          </button>
-        </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => handleMockLogin('admin')}
+                style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px' }}
+              >
+                <Key size={14} /> Mock Admin
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => handleMockLogin('member')}
+                style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px' }}
+              >
+                <Key size={14} /> Mock Member
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
