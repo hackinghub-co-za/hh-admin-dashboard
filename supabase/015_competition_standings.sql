@@ -1,5 +1,7 @@
 -- Hacking Hub Admin Dashboard - Competition Standings (persisted RSVP + leaderboard)
--- Run this in the Supabase SQL Editor after 002-014 have already been applied.
+-- Run this in the Supabase SQL Editor after 002-012 have already been applied.
+-- (013, 014, 017, 018 no longer exist as separate files - each was later
+-- consolidated into an earlier migration, not skipped.)
 --
 -- Backs the Competitions tab's "Yes I'm In" RSVP and Current Standings leaderboard,
 -- which were previously local-only React state that reset on every page reload.
