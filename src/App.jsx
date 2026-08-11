@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import Sidebar from './components/Sidebar';
 import Login from './views/Login';
+import LegalPage from './views/LegalPage';
 import AdminDashboard from './views/Admin/AdminDashboard';
 import MemberPortal from './views/Member/MemberPortal';
 import OnboardingSequence from './components/OnboardingSequence';
@@ -190,6 +191,16 @@ export default function App() {
     await handleLogout();
     setNeedsOffboarding(false);
   };
+
+  // Public, unauthenticated legal pages required for Google OAuth verification -
+  // rendered ahead of the session/loading check so they don't wait on Supabase
+  // and are reachable with zero auth, for both real visitors and Google's review.
+  if (window.location.pathname === '/privacy') {
+    return <LegalPage page="privacy" />;
+  }
+  if (window.location.pathname === '/terms') {
+    return <LegalPage page="terms" />;
+  }
 
   if (loading) {
     return (
