@@ -1,5 +1,8 @@
 -- Hacking Hub Admin Dashboard - Events & RSVPs (member-submitted events + persisted attendance)
 -- Run this in the Supabase SQL Editor after 002-016 have already been applied.
+-- Safe to re-run: every statement is idempotent, in case an earlier partial run
+-- (e.g. event_rsvps created by an older pre-consolidation version of this
+-- script) left the database in a mixed state.
 --
 -- Events were previously hardcoded in MemberPortal.jsx (communityEvents) - now a
 -- real table so members can add their own, not just view a fixed admin-set
@@ -16,11 +19,12 @@
 -- deliberately no member-facing edit/delete yet, only add.
 --
 -- community_events is seeded with the 7 events that were previously hardcoded
--- in MemberPortal.jsx, using the exact same ids, so event_rsvps (created right
--- after, in this same script) can reference them with a real foreign key from
--- the start - no "add the constraint after the fact" step needed.
+-- in MemberPortal.jsx, using the exact same ids, so event_rsvps rows already
+-- collected against those ids stay correctly linked. The FK from event_rsvps to
+-- community_events is added via a separate ALTER TABLE (rather than inline on
+-- CREATE TABLE) so this script works regardless of which table already exists.
 
-CREATE TABLE public.community_events (
+CREATE TABLE IF NOT EXISTS public.community_events (
   id BIGSERIAL PRIMARY KEY,
   type TEXT NOT NULL CHECK (type IN ('HH Meetup', 'Industry Event', 'Sunday Catchup')),
   title TEXT NOT NULL,
@@ -35,6 +39,7 @@ CREATE TABLE public.community_events (
 
 ALTER TABLE public.community_events ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "members read community events" ON public.community_events;
 CREATE POLICY "members read community events"
   ON public.community_events FOR SELECT
   TO authenticated
@@ -43,6 +48,7 @@ CREATE POLICY "members read community events"
 -- Self-service creation, same pattern as reviews: a member can only ever
 -- attribute a new event to their own verified sign-in email, never someone
 -- else's, and only if they're an actual approved member.
+DROP POLICY IF EXISTS "members add community events" ON public.community_events;
 CREATE POLICY "members add community events"
   ON public.community_events FOR INSERT
   TO authenticated
@@ -53,6 +59,7 @@ CREATE POLICY "members add community events"
 
 -- Admins manage everything directly (editing/removing any event), same
 -- is_admin() pattern as every other table.
+DROP POLICY IF EXISTS "admins manage community events" ON public.community_events;
 CREATE POLICY "admins manage community events"
   ON public.community_events FOR ALL
   USING (public.is_admin(auth.uid()));
@@ -71,24 +78,30 @@ ON CONFLICT (id) DO NOTHING;
 -- the first member-created event gets id 8, not a collision with 1-7.
 SELECT setval(pg_get_serial_sequence('public.community_events', 'id'), 7, true);
 
-CREATE TABLE public.event_rsvps (
-  event_id INTEGER NOT NULL REFERENCES public.community_events(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.event_rsvps (
+  event_id INTEGER NOT NULL,
   email TEXT NOT NULL,
   rsvped_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
   PRIMARY KEY (event_id, email)
 );
+
+ALTER TABLE public.event_rsvps DROP CONSTRAINT IF EXISTS event_rsvps_event_id_fkey;
+ALTER TABLE public.event_rsvps
+  ADD CONSTRAINT event_rsvps_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.community_events(id) ON DELETE CASCADE;
 
 ALTER TABLE public.event_rsvps ENABLE ROW LEVEL SECURITY;
 
 -- Every approved member can see all RSVPs - needed to compute real attendance
 -- counts and to know which events they've personally RSVP'd to. No sensitive
 -- data here, just an event id + email + timestamp.
+DROP POLICY IF EXISTS "members read event rsvps" ON public.event_rsvps;
 CREATE POLICY "members read event rsvps"
   ON public.event_rsvps FOR SELECT
   TO authenticated
   USING (public.is_member_allowed(auth.jwt() ->> 'email'));
 
 -- Admins manage everything directly, same is_admin() pattern as every other table.
+DROP POLICY IF EXISTS "admins manage event rsvps" ON public.event_rsvps;
 CREATE POLICY "admins manage event rsvps"
   ON public.event_rsvps FOR ALL
   USING (public.is_admin(auth.uid()));
