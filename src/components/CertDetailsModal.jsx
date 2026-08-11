@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Award, DollarSign, BookOpen, ShieldCheck, Clock, FileText, ExternalLink } from 'lucide-react';
+import { formatDate } from '../lib/dateFormat';
 
 const CERT_KNOWLEDGE_BASE = {
   oscp: {
@@ -186,7 +187,7 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
           </h2>
           {memberName && (
             <p style={{ color: 'var(--accent-cyan)', fontSize: '0.9rem', marginTop: '6px', fontWeight: 600 }}>
-              Operative Target: {memberName} {date ? `(Target Exam: ${date})` : ''}
+              Operative Target: {memberName} {date ? `(Target Exam: ${formatDate(date)})` : ''}
             </p>
           )}
         </div>

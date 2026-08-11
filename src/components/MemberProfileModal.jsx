@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star } from 'lucide-react';
 import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../lib/memberOptions';
+import { formatDate } from '../lib/dateFormat';
 
 export default function MemberProfileModal({ member, profile, onSave, onClose, today }) {
   const [form, setForm] = useState({
@@ -168,7 +169,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Calendar size={12} /> Start Date
             </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.firstPaymentDate.split(' ')[0]}</div>
+            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatDate(member.firstPaymentDate.split(' ')[0])}</div>
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -196,7 +197,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
               {member.lastMeetingDate ? (
                 <>
                   {isMeetingOverdue && <Flag size={14} color="var(--danger)" />}
-                  {new Date(member.lastMeetingDate).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                  {new Date(member.lastMeetingDate).toLocaleDateString('en-ZA', { weekday: 'short' })}, {formatDate(member.lastMeetingDate)}
                   {isMeetingOverdue && <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>· {daysSinceLastMeeting} days ago</span>}
                 </>
               ) : (
@@ -357,7 +358,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
                   </p>
                   {profile.leftAt && (
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                      Finalized {new Date(profile.leftAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      Finalized {formatDate(profile.leftAt)}
                     </p>
                   )}
                 </div>

@@ -6,6 +6,7 @@ import AddMemberModal from '../../components/AddMemberModal';
 import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
 import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../../lib/memberOptions';
+import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
   upsertMemberProfile,
@@ -760,7 +761,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         return (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: overdue ? 'var(--danger)' : 'inherit', fontWeight: overdue ? 600 : 400 }}>
                             {overdue ? <Flag size={12} color="var(--danger)" /> : <Calendar size={12} />}
-                            Last 1on1: {new Date(m.lastMeetingDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            Last 1on1: {formatDate(m.lastMeetingDate)}
                             {overdue && ` (${daysSinceMeeting}d ago)`}
                           </span>
                         );
@@ -890,7 +891,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     <div>
                       <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '4px' }}>{m.title}</h4>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {m.date} at {m.time} | <strong>{m.location}</strong>
+                        {formatDate(m.date)} at {m.time} | <strong>{m.location}</strong>
                       </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1061,13 +1062,15 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     <td style={{ padding: '16px 12px', fontWeight: 600 }}>{session.member}</td>
                     <td style={{ padding: '16px 12px' }}>{session.mentor}</td>
                     <td style={{ padding: '16px 12px' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontSize: '0.85rem' }}>{session.nextMeetingDate}</div>
+                      <div style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontSize: '0.85rem' }}>
+                        {formatDate(session.nextMeetingDate.split(' ')[0])} · {session.nextMeetingDate.split(' ')[1]}
+                      </div>
                       <span className={`badge ${session.daysUntil <= 1 ? 'badge-danger' : session.daysUntil <= 3 ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem', marginTop: '4px' }}>
                         {session.daysUntil === 0 ? 'Today!' : session.daysUntil === 1 ? 'Tomorrow' : `In ${session.daysUntil} days`}
                       </span>
                     </td>
                     <td style={{ padding: '16px 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      {session.previousMeetingDate ? session.previousMeetingDate : 'None (First Session)'}
+                      {session.previousMeetingDate ? formatDate(session.previousMeetingDate) : 'None (First Session)'}
                     </td>
                     <td style={{ padding: '16px 12px' }}>
                       {session.isRecurring ? (
@@ -1216,7 +1219,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
                       <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
-                        <strong style={{ color: 'var(--accent-cyan)' }}>{c.date}</strong>
+                        <strong style={{ color: 'var(--accent-cyan)' }}>{formatDate(c.date)}</strong>
                       </div>
 
                       <div onClick={(e) => e.stopPropagation()}>
@@ -1359,7 +1362,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               <tbody>
                 {filteredPayments.map((p) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                    <td style={{ padding: '16px 12px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{p.date}</td>
+                    <td style={{ padding: '16px 12px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{formatDate(p.date)}</td>
                     <td style={{ padding: '16px 12px', fontFamily: 'monospace', color: 'var(--accent-cyan)', fontSize: '0.85rem' }}>{p.pfId}</td>
                     <td style={{ padding: '16px 12px' }}>
                       <div style={{ fontWeight: 600 }}>{p.member}</div>
@@ -1682,7 +1685,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     )}
                   </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {new Date(r.createdAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {formatDate(r.createdAt)}
                   </span>
                 </div>
                 {r.title && <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px' }}>{r.title}</h4>}
