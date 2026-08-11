@@ -1,4 +1,4 @@
-// Peer-visible member directory. Only called for real (non-mock) sessions - Mock
+// Peer-visible member directory (used by MemberPortal.jsx). Only called for real (non-mock) sessions - Mock
 // Member has no Supabase session, so the Members tab shows a small local demo
 // roster instead (see MemberPortal.jsx).
 
