@@ -3,6 +3,7 @@ import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile } from '../../lib/memberDirectoryData';
+import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
 import {
   Calendar,
@@ -42,6 +43,8 @@ import {
   Pencil,
   Link,
   User,
+  CheckCircle2,
+  CalendarCheck2,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -116,87 +119,28 @@ const MENTORS = [
 ];
 const MENTOR_CALENDAR_URL = 'https://calendar.app.google/eKVRpXkHCKKcnhYT6';
 
-const MOCK_DIRECTORY = [
-  {
-    email: 'nonhlanhla@example.com',
-    fullName: '[REDACTED]',
-    about: 'Blue team enthusiast grinding toward Security+. Always down to pair on a SOC lab.',
-    location: 'Johannesburg',
-    linkedin: 'https://linkedin.com/in/example',
-    tryhackmeUsername: 'nonhlanhla-s',
-    specialty: 'Blue Team',
-    jobReadiness: 'Interview Ready',
-    employmentStatus: 'Unemployed',
-    jobTitle: '',
-  },
-  {
-    email: 'khody@example.com',
-    fullName: 'Khody Netshifhefhe',
-    about: 'OSCP-focused. Happy to walk through HackTheBox boxes with anyone stuck.',
-    location: 'Pretoria',
-    linkedin: '',
-    tryhackmeUsername: 'khodyn',
-    specialty: 'Red Team',
-    jobReadiness: 'In Progress',
-    employmentStatus: 'Student',
-    jobTitle: '',
-  },
-  {
-    email: 'joshua@example.com',
-    fullName: 'Joshua Harrop',
-    about: 'Landed a Cloud Security role straight out of the program. Happy to review CVs or mock-interview anyone prepping for cloud roles.',
-    location: 'Cape Town',
-    linkedin: 'https://linkedin.com/in/example',
-    tryhackmeUsername: '',
-    specialty: 'Cloud Security',
-    jobReadiness: 'Job Placed',
-    employmentStatus: 'Employed',
-    jobTitle: 'Cloud Security Engineer',
-  },
-  {
-    email: 'lindokuhle@example.com',
-    fullName: 'Lindokuhle Dube',
-    about: 'GRC track. Studying for Certified IT Auditor and always keen to talk frameworks over coffee.',
-    location: 'Durban',
-    linkedin: '',
-    specialty: 'GRC',
-    jobReadiness: 'Interview Ready',
-    employmentStatus: 'Unemployed',
-    jobTitle: '',
-  },
-  {
-    email: 'thabo@example.com',
-    fullName: 'Thabo Ndlovu',
-    about: 'Passed OSCP earlier this year and now working as a full-time pentester. Ask me about the exam, not the vouchers.',
-    location: 'Johannesburg',
-    linkedin: 'https://linkedin.com/in/example',
-    specialty: 'Red Team',
-    jobReadiness: 'Job Placed',
-    employmentStatus: 'Employed',
-    jobTitle: 'Penetration Tester',
-  },
-  {
-    email: 'palesa@example.com',
-    fullName: 'Palesa Dlamini',
-    about: 'Blue team newbie building out a home SOC lab. Currently working through the PortSwigger Academy.',
-    location: 'Pretoria',
-    linkedin: '',
-    specialty: 'Blue Team',
-    jobReadiness: 'In Progress',
-    employmentStatus: 'Student',
-    jobTitle: '',
-  },
-  {
-    email: 'mzimasi@example.com',
-    fullName: '[REDACTED]',
-    about: 'Just getting started with the community - figuring out whether Cloud Security or GRC is the right fit.',
-    location: 'Other (SA)',
-    linkedin: '',
-    specialty: 'Cloud Security',
-    jobReadiness: 'Not Started',
-    employmentStatus: 'Unemployed',
-    jobTitle: '',
-  },
+// Intentionally empty - the Members Directory under Mock Member now shows no
+// fake demo entries (removed per request), just whatever the mock session
+// itself adds via "Edit My Profile" (see handleSaveProfile below).
+const MOCK_DIRECTORY = [];
+
+// Confetti burst config for the "Yes I'm In" RSVP celebration - a fixed,
+// deterministic spread (not random) so it looks the same lively burst every
+// time rather than needing per-click randomization.
+const CONFETTI_COLORS = ['#5ee37a', '#17a856', '#38bdf8', '#facc15', '#f472b6'];
+const CONFETTI_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
+  angle: Math.round((360 / 14) * i),
+  distance: 50 + (i % 4) * 14,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  delay: (i % 5) * 0.03,
+}));
+
+const MOCK_LEADERBOARD = [
+  { email: 'khody@example.com', member: 'Khody Netshifhefhe', rooms: 12, daysLogged: 19 },
+  { email: 'nonhlanhla@example.com', member: '[REDACTED]', rooms: 9, daysLogged: 15 },
+  { email: 'joshua@example.com', member: 'Joshua Harrop', rooms: 8, daysLogged: 13 },
+  { email: 'thabo@example.com', member: 'Thabo Ndlovu', rooms: 7, daysLogged: 11 },
+  { email: 'lindokuhle@example.com', member: 'Lindokuhle Dube', rooms: 5, daysLogged: 8 },
 ];
 
 export default function MemberPortal({ activeTab, user, isMockSession, autoOpenProfileEdit }) {
@@ -427,24 +371,81 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     ? communityEvents
     : communityEvents.filter(e => e.type === eventTypeFilter);
 
-  // Quarterly TryHackMe competition
+  // Quarterly TryHackMe competition - real Supabase data for a real session
+  // (RLS scopes reads to signed-in, approved members), local mock leaderboard
+  // under Mock Member since there's no real session to persist an RSVP against.
+  const [competitionLeaderboard, setCompetitionLeaderboard] = useState(isMockSession ? MOCK_LEADERBOARD : []);
+  const [loadingStandings, setLoadingStandings] = useState(!isMockSession);
+  const [standingsError, setStandingsError] = useState(null);
+  const [rsvpingCompetition, setRsvpingCompetition] = useState(false);
+  // Drives the one-off confetti burst + leaderboard row highlight right when the
+  // member RSVPs - deliberately keyed off "just did it this session" rather than
+  // just "is my row present", so reloading the page later (row already exists
+  // from a prior session) doesn't replay the animation every time.
+  const [showRsvpConfetti, setShowRsvpConfetti] = useState(false);
+  const [justRsvpedEmail, setJustRsvpedEmail] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCompetitionStandings()
+      .then((data) => !cancelled && setCompetitionLeaderboard(data))
+      .catch((err) => !cancelled && setStandingsError(err.message))
+      .finally(() => !cancelled && setLoadingStandings(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const hasRsvpedForCompetition = competitionLeaderboard.some((row) => row.email === user?.email);
+
+  const celebrateRsvp = () => {
+    setJustRsvpedEmail(user?.email);
+    setShowRsvpConfetti(true);
+    setTimeout(() => setShowRsvpConfetti(false), 1000);
+  };
+
+  const handleCompetitionRsvp = async () => {
+    const displayName = user?.user_metadata?.full_name || user?.email || 'You';
+    if (isMockSession) {
+      setCompetitionLeaderboard((prev) =>
+        prev.some((row) => row.email === user?.email)
+          ? prev
+          : [...prev, { email: user?.email, member: displayName, rooms: 0, daysLogged: 0 }]
+      );
+      celebrateRsvp();
+      return;
+    }
+    setRsvpingCompetition(true);
+    setStandingsError(null);
+    try {
+      await rsvpForCompetition(displayName);
+      setCompetitionLeaderboard(await fetchCompetitionStandings());
+      celebrateRsvp();
+    } catch (err) {
+      setStandingsError(err.message);
+    } finally {
+      setRsvpingCompetition(false);
+    }
+  };
+
   const currentCompetition = {
     title: 'Q3 2026 Community CTF Sprint',
     platform: 'TryHackMe',
-    status: 'Active',
-    startDate: '2026-07-01',
-    endDate: '2026-09-30',
-    description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Points are tallied from room completions — top 3 finishers win prizes.',
+    startDate: '2026-08-24',
+    endDate: '2026-10-16', // last Friday of the ~8-week run
+    description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Standings are ranked by days logged — top 3 finishers win prizes.',
     prize: 'R1,500 voucher (1st) · OSCP exam voucher (2nd) · HH hoodie (3rd)',
   };
 
-  const competitionLeaderboard = [
-    { rank: 1, member: 'Khody Netshifhefhe', rooms: 12, points: 3840 },
-    { rank: 2, member: 'Sanele Khumalo', rooms: 11, points: 3510 },
-    { rank: 3, member: '[REDACTED]', rooms: 9, points: 2980 },
-    { rank: 4, member: 'Joshua Harrop', rooms: 8, points: 2600 },
-    { rank: 5, member: 'Thando Mandondo', rooms: 7, points: 2210 },
-  ];
+  // Status and kickoff countdown are derived from today's date rather than
+  // hardcoded, so they can't drift out of sync with the actual competition dates.
+  const competitionNow = new Date();
+  const competitionStartDate = new Date(currentCompetition.startDate);
+  const competitionEndDate = new Date(currentCompetition.endDate);
+  const daysUntilCompetition = Math.ceil((competitionStartDate - competitionNow) / (1000 * 60 * 60 * 24));
+  const competitionStatus = daysUntilCompetition > 0 ? 'Upcoming' : competitionNow <= competitionEndDate ? 'Active' : 'Ended';
+  const competitionStatusBadgeClass = competitionStatus === 'Active' ? 'badge-success' : competitionStatus === 'Upcoming' ? 'badge-warning' : 'badge-danger';
+  const formatCompetitionDate = (date) =>
+    `${date.getDate()} - ${date.toLocaleDateString('en-ZA', { month: 'long' })} - ${date.getFullYear()}`;
 
   // Job Board — roles sourced from HH's employer network and job placement partners
   const [jobTypeFilter, setJobTypeFilter] = useState('All');
@@ -1304,7 +1305,14 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>{currentCompetition.platform}</p>
                 </div>
               </div>
-              <span className="badge badge-success">{currentCompetition.status}</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {daysUntilCompetition > 0 && (
+                  <span className="badge badge-warning" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CalendarCheck2 size={12} /> Kicks off in {daysUntilCompetition} day{daysUntilCompetition === 1 ? '' : 's'}
+                  </span>
+                )}
+                <span className={`badge ${competitionStatusBadgeClass}`}>{competitionStatus}</span>
+              </div>
             </div>
 
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
@@ -1313,8 +1321,17 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
               <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Runs</div>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{currentCompetition.startDate} – {currentCompetition.endDate}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Runs</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Start</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCompetitionDate(competitionStartDate)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>End</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCompetitionDate(competitionEndDate)}</div>
+                  </div>
+                </div>
               </div>
               <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Prizes</div>
@@ -1322,9 +1339,67 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
               </div>
             </div>
 
-            <button className="btn btn-primary" style={{ justifyContent: 'center' }}>
-              <ExternalLink size={14} /> Join on TryHackMe
-            </button>
+            <style>{`
+              @keyframes rsvp-confetti-burst {
+                0% { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) scale(1); opacity: 1; }
+                100% { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--distance)) scale(0.4); opacity: 0; }
+              }
+              .rsvp-confetti {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 7px;
+                height: 7px;
+                border-radius: 2px;
+                animation: rsvp-confetti-burst 0.85s ease-out forwards;
+                animation-delay: var(--delay);
+                pointer-events: none;
+              }
+              @keyframes rsvp-row-in {
+                0% { background: rgba(94, 227, 122, 0.4); transform: scale(1.01); }
+                100% { background: transparent; transform: scale(1); }
+              }
+              .rsvp-row-new { animation: rsvp-row-in 1.8s ease-out; }
+            `}</style>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <button
+                  className={`btn ${hasRsvpedForCompetition ? 'btn-secondary' : 'btn-primary'}`}
+                  onClick={handleCompetitionRsvp}
+                  disabled={hasRsvpedForCompetition || rsvpingCompetition}
+                  style={{ justifyContent: 'center' }}
+                >
+                  {hasRsvpedForCompetition ? <><CheckCircle2 size={14} /> You're In</> : rsvpingCompetition ? 'Joining...' : "Yes I'm In"}
+                </button>
+                {showRsvpConfetti && (
+                  <div style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+                    {CONFETTI_PARTICLES.map((p, i) => (
+                      <span
+                        key={i}
+                        className="rsvp-confetti"
+                        style={{
+                          '--angle': `${p.angle}deg`,
+                          '--distance': `${p.distance}px`,
+                          '--delay': `${p.delay}s`,
+                          background: p.color,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <a
+                href="https://docs.google.com/document/d/1VRDejGUdybG96XckT9XFrQMeRk8aapH1QTDlt6c62QA/edit?tab=t.0#heading=h.fr8u08q2iu12"
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-secondary"
+                style={{ justifyContent: 'center' }}
+              >
+                <BookOpen size={14} /> Learn More
+              </a>
+              {standingsError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{standingsError}</span>}
+            </div>
           </div>
 
           <div className="glass-card">
@@ -1332,6 +1407,11 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
               <h3 style={{ margin: 0 }}>Current Standings</h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Updated weekly</span>
             </div>
+            {loadingStandings && <p style={{ color: 'var(--text-muted)' }}>Loading standings...</p>}
+            {!loadingStandings && competitionLeaderboard.length === 0 && (
+              <p style={{ color: 'var(--text-muted)' }}>No one's RSVP'd yet - be the first!</p>
+            )}
+            {!loadingStandings && competitionLeaderboard.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
@@ -1340,28 +1420,44 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Target size={13} /> Rooms Completed</span>
                   </th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Points</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><CalendarCheck2 size={13} /> Days Logged</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {competitionLeaderboard.map((row) => (
-                  <tr key={row.rank} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                    <td style={{ padding: '14px 12px' }}>
-                      {row.rank === 1 ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                          <Trophy size={15} /> #1
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{row.rank}</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}</td>
-                    <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.rooms}</td>
-                    <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>{row.points.toLocaleString()}</td>
-                  </tr>
-                ))}
+                {[...competitionLeaderboard].sort((a, b) => b.daysLogged - a.daysLogged).map((row, i) => {
+                  const medal = i === 0
+                    ? { bg: 'rgba(250, 204, 21, 0.10)', color: '#facc15' }
+                    : i === 1
+                    ? { bg: 'rgba(203, 213, 225, 0.09)', color: '#cbd5e1' }
+                    : i === 2
+                    ? { bg: 'rgba(217, 119, 87, 0.10)', color: '#d97757' }
+                    : null;
+                  return (
+                    <tr
+                      key={row.email || row.member}
+                      className={row.email && row.email === justRsvpedEmail ? 'rsvp-row-new' : undefined}
+                      style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: medal?.bg }}
+                    >
+                      <td style={{ padding: '14px 12px' }}>
+                        {medal ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: medal.color, fontWeight: 700 }}>
+                            <Trophy size={15} /> #{i + 1}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{i + 1}</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}</td>
+                      <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.rooms}</td>
+                      <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>{row.daysLogged}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+            )}
           </div>
         </div>
       );

@@ -148,13 +148,13 @@ export default function App() {
     setIsMockSession(true);
     setAccessDeniedMessage(null);
     setActiveTab('dashboard');
-    // No real Supabase session to check `onboarded_at` against - just show the
-    // sequence once per mock session for members, same as every other
-    // mock-gated feature in this app. "Mock Member (Leaving)" instead shows the
-    // farewell screen, and skips onboarding entirely (same priority as real
-    // sessions above).
+    // Mock Member skips straight to the normal portal rather than auto-showing
+    // onboarding every time - it was getting in the way of everyday mock testing.
+    // The onboarding sequence still exists and still works under Mock Member;
+    // trigger it on demand via the "Replay Intro" button in the sidebar instead.
+    // "Mock Member (Leaving)" still shows the farewell screen as before.
     setNeedsOffboarding(!!mockUser.mockLeaving);
-    setNeedsOnboarding(mockUser.role !== 'admin' && !mockUser.mockLeaving);
+    setNeedsOnboarding(false);
   };
 
   // Fires from the sequence's "Set Up My Profile" / "Enter the Hub" buttons.

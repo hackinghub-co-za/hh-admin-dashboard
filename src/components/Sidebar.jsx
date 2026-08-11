@@ -33,7 +33,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'reviews', label: 'Reviews', icon: Star },
       ]
     : [
-        { id: 'dashboard', label: 'My Roadmap', icon: LayoutDashboard },
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'members', label: 'Members', icon: Users },
         { id: 'meetings', label: '1on1 Meetings', icon: Users },
         { id: 'events', label: 'Events', icon: CalendarDays },
