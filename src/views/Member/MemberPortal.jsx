@@ -143,8 +143,38 @@ const MOCK_LEADERBOARD = [
   { email: 'lindokuhle@example.com', member: 'Lindokuhle Dube', rooms: 5, daysLogged: 8 },
 ];
 
+// Dashboard "Community Broadcast" feed - only one shows at a time, auto-rotating
+// (see broadcastIndex state below), rather than all listed at once.
+const COMMUNITY_BROADCASTS = [
+  { emoji: '📢', title: 'Sprint 4 Active:', body: 'TryHackMe challenge rooms open for monthly bounty.' },
+  { emoji: '⚡', title: 'Azure Vouchers:', body: 'Submit completed TryHackMe path by Friday.' },
+];
+
+// Mock Community News & Certification Victories Data. linkedinUrl is a
+// LinkedIn search for the member + cert, not a specific post - there's no real
+// per-achievement post link to wire up yet, and a search at least goes
+// somewhere genuinely relevant rather than a fabricated post URL.
+const communityVictories = [
+  { id: 1, member: 'Nonhlanhla S.', cert: 'CompTIA Security+', date: 'Yesterday', avatarColor: 'var(--accent-cyan)', linkedinUrl: 'https://lnkd.in/p/dpe5UfGQ' },
+  { id: 2, member: 'Khody N.', cert: 'OSCP Penetration Tester', date: '2 days ago', avatarColor: 'var(--accent-purple)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Khody%20OSCP%20Penetration%20Tester' },
+  { id: 3, member: 'Joshua H.', cert: 'SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Joshua%20SOC%20Analyst' },
+  { id: 4, member: 'Lindokuhle D.', cert: 'Certified IT Auditor', date: '5 days ago', avatarColor: 'var(--warning)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Lindokuhle%20Certified%20IT%20Auditor' },
+];
+
 export default function MemberPortal({ activeTab, user, isMockSession, autoOpenProfileEdit }) {
   const [selectedCert, setSelectedCert] = useState(null);
+  const firstName = (user?.user_metadata?.full_name || user?.email || 'there').trim().split(' ')[0];
+
+  // Community Broadcast auto-rotates through COMMUNITY_BROADCASTS one at a time
+  // rather than listing every update at once.
+  const [broadcastIndex, setBroadcastIndex] = useState(0);
+  useEffect(() => {
+    if (COMMUNITY_BROADCASTS.length <= 1) return;
+    const interval = setInterval(() => {
+      setBroadcastIndex((i) => (i + 1) % COMMUNITY_BROADCASTS.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
   // Tracks which mentor photos have failed to load (e.g. not uploaded to
   // public/mentors/ yet) so those cards fall back to a plain avatar icon.
   const [mentorPhotoErrors, setMentorPhotoErrors] = useState({});
@@ -282,18 +312,23 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     { id: 4, text: 'Schedule mock OSCP exam run with Jaco (Mentor)', completed: false },
   ]);
 
-  // Mock Community News & Certification Victories Data
-  const communityVictories = [
-    { id: 1, member: 'Nonhlanhla S.', cert: 'CompTIA Security+', date: 'Yesterday', avatarColor: 'var(--accent-cyan)' },
-    { id: 2, member: 'Khody N.', cert: 'OSCP Penetration Tester', date: '2 days ago', avatarColor: 'var(--accent-purple)' },
-    { id: 3, member: 'Joshua H.', cert: 'SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)' },
-    { id: 4, member: 'Lindokuhle D.', cert: 'Certified IT Auditor', date: '5 days ago', avatarColor: 'var(--warning)' },
-  ];
+  // Recent Certification Victories auto-rotates through communityVictories one
+  // at a time (same "single visible tile, moving feed" pattern as the
+  // Community Broadcast card above), on its own independent 5s timer.
+  const [victoryIndex, setVictoryIndex] = useState(0);
+  useEffect(() => {
+    if (communityVictories.length <= 1) return;
+    const interval = setInterval(() => {
+      setVictoryIndex((i) => (i + 1) % communityVictories.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const upcomingEvent = {
-    title: 'Intro to Zero-Knowledge Proofs & Wargaming CTF',
-    date: 'Aug 15, 2026 at 18:30 SAST',
-    location: 'HH Discord & Hybrid JHB',
+    title: 'HH S4 Kickoff',
+    date: 'Sunday, 23 August · 5:00 – 7:00pm SAST',
+    location: 'Google Meet',
+    meetLink: 'https://meet.google.com/pce-rcrd-xmk',
     rsvps: 42,
   };
 
@@ -818,7 +853,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome back, Sanele!</h1>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome back, {firstName}!</h1>
             <p>Here is your current cybersecurity progression overview.</p>
           </div>
 
@@ -837,47 +872,131 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                 {upcomingEvent.date} | <strong>{upcomingEvent.location}</strong>
               </p>
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '8px' }}>
-                RSVP for Event <Sparkles size={14} />
-              </button>
+              <a
+                href={upcomingEvent.meetLink}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '8px' }}
+              >
+                <Video size={14} /> Join Google Meet
+              </a>
             </div>
 
-            {/* Community Intelligence & News Broadcast */}
-            <div className="glass-card">
+            {/* Community Intelligence & News Broadcast - one item visible at a
+                time, auto-rotating through the feed */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <style>{`
+                @keyframes broadcast-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+                .broadcast-fade { animation: broadcast-fade-in 0.5s ease; }
+              `}</style>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Megaphone size={18} color="var(--warning)" />
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--warning)', textTransform: 'uppercase' }}>Community Broadcast</span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-                <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>📢 Sprint 4 Active:</span>
-                  <span style={{ color: 'var(--text-secondary)', marginLeft: '6px' }}>TryHackMe challenge rooms open for monthly bounty.</span>
-                </div>
-                <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>⚡ Azure Vouchers:</span>
-                  <span style={{ color: 'var(--text-secondary)', marginLeft: '6px' }}>Submit completed TryHackMe path by Friday.</span>
-                </div>
+              <div
+                key={broadcastIndex}
+                className="broadcast-fade"
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  padding: '12px',
+                  background: 'rgba(255,255,255,0.02)',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '0.85rem',
+                }}
+              >
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{COMMUNITY_BROADCASTS[broadcastIndex].emoji} {COMMUNITY_BROADCASTS[broadcastIndex].title}</span>
+                <span style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>{COMMUNITY_BROADCASTS[broadcastIndex].body}</span>
               </div>
+              {COMMUNITY_BROADCASTS.length > 1 && (
+                <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                  {COMMUNITY_BROADCASTS.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setBroadcastIndex(i)}
+                      aria-label={`Show broadcast ${i + 1}`}
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        background: i === broadcastIndex ? 'var(--warning)' : 'rgba(255,255,255,0.15)',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Certification Victories & Member Achievements Feed */}
-            <div className="glass-card">
+            {/* Certification Victories & Member Achievements Feed - one victory
+                visible at a time, sliding vertically to the next every 5s */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <style>{`
+                @keyframes victory-slide-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+                .victory-slide { animation: victory-slide-in 0.5s ease; }
+              `}</style>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Award size={18} color="var(--accent-purple)" />
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>Recent Certification Victories</span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {communityVictories.map((v) => (
-                  <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: v.avatarColor }}></div>
-                      <strong style={{ color: 'var(--text-primary)' }}>{v.member}</strong>
-                      <span style={{ color: 'var(--text-secondary)' }}>earned {v.cert}</span>
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{v.date}</span>
-                  </div>
-                ))}
+              <div
+                key={communityVictories[victoryIndex].id}
+                className="victory-slide"
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '12px',
+                  background: 'rgba(255,255,255,0.02)',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '0.85rem',
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: communityVictories[victoryIndex].avatarColor, flexShrink: 0 }}></div>
+                  <a
+                    href={communityVictories[victoryIndex].linkedinUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: 'var(--text-primary)', fontWeight: 700, textDecoration: 'none' }}
+                    title="View on LinkedIn"
+                  >
+                    {communityVictories[victoryIndex].member}
+                  </a>
+                </div>
+                <span style={{ color: 'var(--text-secondary)' }}>earned {communityVictories[victoryIndex].cert}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{communityVictories[victoryIndex].date}</span>
               </div>
+              {communityVictories.length > 1 && (
+                <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                  {communityVictories.map((v, i) => (
+                    <button
+                      key={v.id}
+                      onClick={() => setVictoryIndex(i)}
+                      aria-label={`Show victory ${i + 1}`}
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        background: i === victoryIndex ? 'var(--accent-purple)' : 'rgba(255,255,255,0.15)',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
