@@ -5,9 +5,9 @@
 import { supabase } from './supabase';
 
 /** Fetch every active member's public directory card (name, about, location,
- * LinkedIn, TryHackMe username, headshot, specialty, job readiness, employment
- * status/job title). Excludes sensitive fields (money owed, phone, age/gender,
- * etc.) at the RPC level. */
+ * LinkedIn, TryHackMe username, headshot, GitHub/TikTok/personal website,
+ * specialty, job readiness, employment status/job title). Excludes sensitive
+ * fields (money owed, phone, age/gender, etc.) at the RPC level. */
 export async function fetchMemberDirectory() {
   const { data, error } = await supabase.rpc('get_member_directory');
   if (error) throw error;
@@ -19,6 +19,9 @@ export async function fetchMemberDirectory() {
     linkedin: row.linkedin || '',
     tryhackmeUsername: row.tryhackme_username || '',
     headshotUrl: row.headshot_url || '',
+    githubUrl: row.github_url || '',
+    tiktokUrl: row.tiktok_url || '',
+    websiteUrl: row.website_url || '',
     specialty: row.specialty || 'Not Set',
     jobReadiness: row.job_readiness || 'Not Started',
     employmentStatus: row.employment_status || 'Not Set',
@@ -27,8 +30,8 @@ export async function fetchMemberDirectory() {
 }
 
 /** Updates the current member's own directory card. Scoped server-side to only
- * these 9 public-facing columns on their own row. */
-export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, specialty, employmentStatus, jobTitle }) {
+ * these 12 public-facing columns on their own row. */
+export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, githubUrl, tiktokUrl, websiteUrl, specialty, employmentStatus, jobTitle }) {
   const { error } = await supabase.rpc('update_my_directory_profile', {
     p_full_name: fullName || null,
     p_about: about || null,
@@ -36,6 +39,9 @@ export async function updateMyDirectoryProfile({ fullName, about, location, link
     p_linkedin: linkedin || null,
     p_tryhackme_username: tryhackmeUsername || null,
     p_headshot_url: headshotUrl || null,
+    p_github_url: githubUrl || null,
+    p_tiktok_url: tiktokUrl || null,
+    p_website_url: websiteUrl || null,
     p_specialty: specialty || null,
     p_employment_status: employmentStatus || null,
     p_job_title: employmentStatus === 'Employed' ? (jobTitle || null) : null,

@@ -47,6 +47,8 @@ import {
   User,
   CheckCircle2,
   CalendarCheck2,
+  Code2,
+  Globe,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -283,6 +285,9 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     linkedin: '',
     tryhackmeUsername: '',
     headshotUrl: '',
+    githubUrl: '',
+    tiktokUrl: '',
+    websiteUrl: '',
     specialty: 'Not Set',
     employmentStatus: 'Not Set',
     jobTitle: '',
@@ -857,6 +862,21 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                         <Link size={16} color="var(--accent-cyan)" />
                       </a>
                     )}
+                    {m.githubUrl && (
+                      <a href={m.githubUrl} target="_blank" rel="noreferrer" title="GitHub Profile">
+                        <Code2 size={16} color="var(--accent-cyan)" />
+                      </a>
+                    )}
+                    {m.tiktokUrl && (
+                      <a href={m.tiktokUrl} target="_blank" rel="noreferrer" title="TikTok Profile">
+                        <Video size={16} color="var(--accent-cyan)" />
+                      </a>
+                    )}
+                    {m.websiteUrl && (
+                      <a href={m.websiteUrl} target="_blank" rel="noreferrer" title="Personal Website">
+                        <Globe size={16} color="var(--accent-cyan)" />
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -963,6 +983,27 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                       <Target size={13} /> TryHackMe Username
                     </label>
                     <input type="text" className="form-input" placeholder="e.g. yourusername" value={profileForm.tryhackmeUsername} onChange={(e) => setProfileForm({ ...profileForm, tryhackmeUsername: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Code2 size={13} /> GitHub Profile
+                    </label>
+                    <input type="url" className="form-input" placeholder="https://github.com/..." value={profileForm.githubUrl} onChange={(e) => setProfileForm({ ...profileForm, githubUrl: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Video size={13} /> TikTok Profile
+                    </label>
+                    <input type="url" className="form-input" placeholder="https://tiktok.com/@..." value={profileForm.tiktokUrl} onChange={(e) => setProfileForm({ ...profileForm, tiktokUrl: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Globe size={13} /> Personal Website
+                    </label>
+                    <input type="url" className="form-input" placeholder="https://..." value={profileForm.websiteUrl} onChange={(e) => setProfileForm({ ...profileForm, websiteUrl: e.target.value })} />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
