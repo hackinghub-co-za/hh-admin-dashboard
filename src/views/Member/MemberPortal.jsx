@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
-import { fetchMemberDirectory, updateMyDirectoryProfile } from '../../lib/memberDirectoryData';
+import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
+import { fetchEventRsvps, rsvpForEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
+import { formatDate } from '../../lib/dateFormat';
 import {
   Calendar,
   CalendarDays,
@@ -135,6 +137,36 @@ const CONFETTI_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
   delay: (i % 5) * 0.03,
 }));
 
+// Days between today and an event's `date` (YYYY-MM-DD) - parsed with an
+// explicit local-midnight time so this can't drift a day off in timezones
+// behind UTC the way `new Date('2026-08-23')` alone would.
+function daysUntilEvent(dateStr) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const eventDate = new Date(`${dateStr}T00:00:00`);
+  return Math.round((eventDate - now) / (1000 * 60 * 60 * 24));
+}
+
+function formatEventCountdown(days) {
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`;
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return `In ${days} days`;
+}
+
+// Events tab demo data for Mock Member (no real Supabase session to fetch
+// community_events from). Real sessions fetch these from Supabase instead -
+// see the useEffect below that populates the `communityEvents` state.
+const MOCK_EVENTS = [
+  { id: 1, type: 'HH Meetup', title: 'Cyber War Games: Capture The Flag', date: '2026-08-16', time: '18:00', location: 'HH Discord & Hybrid JHB', description: 'Team-based CTF night with prizes for the top 3 teams.', link: '' },
+  { id: 2, type: 'Sunday Catchup', title: 'Sunday Coffee & Code Catchup', date: '2026-08-17', time: '10:00', location: 'Google Meet', description: 'Casual weekly hangout — share wins, ask questions, no agenda.', link: '' },
+  { id: 7, type: 'Sunday Catchup', title: 'HH S4 Kickoff', date: '2026-08-23', time: '17:00', location: 'Google Meet', description: 'Kicking off Season 4 — what\'s new this quarter, the TryHackMe competition, and a chance to meet the rest of the community.', link: 'https://meet.google.com/pce-rcrd-xmk' },
+  { id: 3, type: 'HH Meetup', title: 'OSINT Fundamentals Workshop', date: '2026-08-23', time: '17:30', location: 'Online (Zoom)', description: 'Hands-on open-source recon workshop led by Jaco.', link: '' },
+  { id: 5, type: 'Sunday Catchup', title: 'Sunday Coffee & Code Catchup', date: '2026-08-24', time: '10:00', location: 'Google Meet', description: 'Casual weekly hangout — share wins, ask questions, no agenda.', link: '' },
+  { id: 4, type: 'Industry Event', title: 'ITWeb Security Summit 2026', date: '2026-08-25', time: '08:00', location: 'Sandton Convention Centre', description: 'Industry conference — HH is attending as a group, ask in the community for details.', link: '' },
+  { id: 6, type: 'Industry Event', title: 'BSides Cape Town', date: '2026-09-05', time: '09:00', location: 'Cape Town', description: 'Community-run infosec conference — group discount code shared in the community.', link: '' },
+];
+
 const MOCK_LEADERBOARD = [
   { email: 'khody@example.com', member: 'Khody Netshifhefhe', rooms: 12, daysLogged: 19 },
   { email: 'nonhlanhla@example.com', member: '[REDACTED]', rooms: 9, daysLogged: 15 },
@@ -242,12 +274,15 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   // needed to react to it changing later.
   const [editingProfile, setEditingProfile] = useState(!!autoOpenProfileEdit);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingHeadshot, setUploadingHeadshot] = useState(false);
+  const [headshotError, setHeadshotError] = useState(null);
   const emptyProfileForm = {
     fullName: user?.user_metadata?.full_name || '',
     about: '',
     location: '',
     linkedin: '',
     tryhackmeUsername: '',
+    headshotUrl: '',
     specialty: 'Not Set',
     employmentStatus: 'Not Set',
     jobTitle: '',
@@ -269,6 +304,30 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   const openEditProfile = () => {
     setProfileForm(myDirectoryEntry ? { ...emptyProfileForm, ...myDirectoryEntry } : emptyProfileForm);
     setEditingProfile(true);
+  };
+
+  const handleHeadshotChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+    setHeadshotError(null);
+
+    if (isMockSession) {
+      // No real Storage session to upload to - just preview locally, matching
+      // how every other mock-gated feature in this app degrades.
+      setProfileForm((prev) => ({ ...prev, headshotUrl: URL.createObjectURL(file) }));
+      return;
+    }
+
+    setUploadingHeadshot(true);
+    try {
+      const url = await uploadHeadshot(user.email, file);
+      setProfileForm((prev) => ({ ...prev, headshotUrl: url }));
+    } catch (err) {
+      setHeadshotError(err.message);
+    } finally {
+      setUploadingHeadshot(false);
+    }
   };
 
   const handleSaveProfile = async (e) => {
@@ -326,7 +385,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
 
   const upcomingEvent = {
     title: 'HH S4 Kickoff',
-    date: 'Sunday, 23 August · 5:00 – 7:00pm SAST',
+    date: 'Sunday, 23 - August - 2026 · 5:00 – 7:00pm SAST',
     location: 'Google Meet',
     meetLink: 'https://meet.google.com/pce-rcrd-xmk',
     rsvps: 42,
@@ -334,68 +393,125 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
 
   // All upcoming events members can attend, across every category
   const [eventTypeFilter, setEventTypeFilter] = useState('All');
-  const communityEvents = [
-    {
-      id: 1,
-      type: 'HH Meetup',
-      title: 'Cyber War Games: Capture The Flag',
-      date: '2026-08-16',
-      time: '18:00',
-      location: 'HH Discord & Hybrid JHB',
-      description: 'Team-based CTF night with prizes for the top 3 teams.',
-      rsvps: 42,
-    },
-    {
-      id: 2,
-      type: 'Sunday Catchup',
-      title: 'Sunday Coffee & Code Catchup',
-      date: '2026-08-17',
-      time: '10:00',
-      location: 'Google Meet',
-      description: 'Casual weekly hangout — share wins, ask questions, no agenda.',
-      rsvps: 18,
-    },
-    {
-      id: 3,
-      type: 'HH Meetup',
-      title: 'OSINT Fundamentals Workshop',
-      date: '2026-08-23',
-      time: '17:30',
-      location: 'Online (Zoom)',
-      description: 'Hands-on open-source recon workshop led by Jaco.',
-      rsvps: 21,
-    },
-    {
-      id: 4,
-      type: 'Industry Event',
-      title: 'ITWeb Security Summit 2026',
-      date: '2026-08-25',
-      time: '08:00',
-      location: 'Sandton Convention Centre',
-      description: 'Industry conference — HH is attending as a group, ask in the community for details.',
-      rsvps: 9,
-    },
-    {
-      id: 5,
-      type: 'Sunday Catchup',
-      title: 'Sunday Coffee & Code Catchup',
-      date: '2026-08-24',
-      time: '10:00',
-      location: 'Google Meet',
-      description: 'Casual weekly hangout — share wins, ask questions, no agenda.',
-      rsvps: 15,
-    },
-    {
-      id: 6,
-      type: 'Industry Event',
-      title: 'BSides Cape Town',
-      date: '2026-09-05',
-      time: '09:00',
-      location: 'Cape Town',
-      description: 'Community-run infosec conference — group discount code shared in the community.',
-      rsvps: 6,
-    },
-  ].sort((a, b) => new Date(a.date) - new Date(b.date));
+  // Event RSVPs - real Supabase data for a real session (RLS scopes reads to
+  // signed-in, approved members), local-only demo state under Mock Member
+  // since there's no real session to persist an RSVP against. Real attendance
+  // counts start at 0 per event and only grow as real members RSVP - no fake
+  // baseline blended in, same principle as the Competitions leaderboard.
+  const [eventRsvps, setEventRsvps] = useState([]);
+  const [loadingEventRsvps, setLoadingEventRsvps] = useState(!isMockSession);
+  const [eventRsvpError, setEventRsvpError] = useState(null);
+  const [mockRsvpedEventIds, setMockRsvpedEventIds] = useState(new Set());
+  const [rsvpingEventId, setRsvpingEventId] = useState(null);
+  const [burstingEventId, setBurstingEventId] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchEventRsvps()
+      .then((data) => !cancelled && setEventRsvps(data))
+      .catch((err) => !cancelled && setEventRsvpError(err.message))
+      .finally(() => !cancelled && setLoadingEventRsvps(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const hasRsvpedToEvent = (eventId) =>
+    isMockSession
+      ? mockRsvpedEventIds.has(eventId)
+      : eventRsvps.some((r) => r.event_id === eventId && r.email === user?.email);
+
+  const rsvpCountForEvent = (event) => {
+    if (isMockSession) return mockRsvpedEventIds.has(event.id) ? 1 : 0;
+    if (loadingEventRsvps) return null;
+    return eventRsvps.filter((r) => r.event_id === event.id).length;
+  };
+
+  const handleEventRsvp = async (eventId) => {
+    if (hasRsvpedToEvent(eventId)) return;
+    setBurstingEventId(eventId);
+    setTimeout(() => setBurstingEventId((id) => (id === eventId ? null : id)), 1000);
+
+    if (isMockSession) {
+      setMockRsvpedEventIds((prev) => new Set(prev).add(eventId));
+      return;
+    }
+
+    setRsvpingEventId(eventId);
+    setEventRsvpError(null);
+    try {
+      await rsvpForEvent(eventId);
+      setEventRsvps(await fetchEventRsvps());
+    } catch (err) {
+      setEventRsvpError(err.message);
+    } finally {
+      setRsvpingEventId(null);
+    }
+  };
+  // Community events - real Supabase data for a real session (RLS scopes
+  // reads to signed-in, approved members), local-only demo events under Mock
+  // Member since there's no real session to fetch from. Members can also add
+  // their own event (case 'events' render below - "Add Event" form) - those
+  // persist for everyone, not just the member who created it.
+  const [communityEvents, setCommunityEvents] = useState(isMockSession ? MOCK_EVENTS : []);
+  const [loadingEvents, setLoadingEvents] = useState(!isMockSession);
+  const [eventsError, setEventsError] = useState(null);
+  const [showAddEventForm, setShowAddEventForm] = useState(false);
+  const [addingEvent, setAddingEvent] = useState(false);
+  const [addEventError, setAddEventError] = useState(null);
+  const [newEventForm, setNewEventForm] = useState({
+    title: '', type: 'HH Meetup', date: '', time: '', location: '', link: '', description: '',
+  });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCommunityEvents()
+      .then((data) => !cancelled && setCommunityEvents(data))
+      .catch((err) => !cancelled && setEventsError(err.message))
+      .finally(() => !cancelled && setLoadingEvents(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleAddEvent = async (e) => {
+    e.preventDefault();
+    if (!newEventForm.title.trim() || !newEventForm.date) return;
+    setAddingEvent(true);
+    setAddEventError(null);
+    try {
+      if (isMockSession) {
+        const mockEvent = {
+          id: Math.max(0, ...communityEvents.map((ev) => ev.id)) + 1,
+          type: newEventForm.type,
+          title: newEventForm.title.trim(),
+          description: newEventForm.description.trim(),
+          date: newEventForm.date,
+          time: newEventForm.time,
+          location: newEventForm.location.trim(),
+          link: newEventForm.link.trim(),
+          createdBy: user?.email || 'you',
+        };
+        setCommunityEvents((prev) => [...prev, mockEvent].sort((a, b) => new Date(a.date) - new Date(b.date)));
+      } else {
+        await createCommunityEvent({
+          type: newEventForm.type,
+          title: newEventForm.title.trim(),
+          description: newEventForm.description.trim(),
+          date: newEventForm.date,
+          time: newEventForm.time,
+          location: newEventForm.location.trim(),
+          link: newEventForm.link.trim(),
+          createdBy: user?.email,
+        });
+        setCommunityEvents(await fetchCommunityEvents());
+      }
+      setNewEventForm({ title: '', type: 'HH Meetup', date: '', time: '', location: '', link: '', description: '' });
+      setShowAddEventForm(false);
+    } catch (err) {
+      setAddEventError(err.message);
+    } finally {
+      setAddingEvent(false);
+    }
+  };
 
   const EVENT_TYPE_STYLES = {
     'HH Meetup': { className: 'badge-success' },
@@ -480,8 +596,6 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   const daysUntilCompetition = Math.ceil((competitionStartDate - competitionNow) / (1000 * 60 * 60 * 24));
   const competitionStatus = daysUntilCompetition > 0 ? 'Upcoming' : competitionNow <= competitionEndDate ? 'Active' : 'Ended';
   const competitionStatusBadgeClass = competitionStatus === 'Active' ? 'badge-success' : competitionStatus === 'Upcoming' ? 'badge-warning' : 'badge-danger';
-  const formatCompetitionDate = (date) =>
-    `${date.getDate()} - ${date.toLocaleDateString('en-ZA', { month: 'long' })} - ${date.getFullYear()}`;
 
   // Job Board — roles sourced from HH's employer network and job placement partners
   const [jobTypeFilter, setJobTypeFilter] = useState('All');
@@ -714,10 +828,19 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
             {filteredDirectory.map((m) => (
               <div key={m.email} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-                    {m.fullName || 'Unnamed member'}
-                    {m.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.8rem' }}> (You)</span>}
-                  </h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {m.headshotUrl ? (
+                        <img src={m.headshotUrl} alt={m.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <User size={17} color="var(--text-secondary)" />
+                      )}
+                    </div>
+                    <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+                      {m.fullName || 'Unnamed member'}
+                      {m.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.8rem' }}> (You)</span>}
+                    </h4>
+                  </div>
                   <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                     {m.tryhackmeUsername && (
                       <a
@@ -777,6 +900,27 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
               >
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>Edit My Profile</h2>
                 <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {profileForm.headshotUrl ? (
+                        <img src={profileForm.headshotUrl} alt="Your headshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <User size={26} color="var(--text-secondary)" />
+                      )}
+                    </div>
+                    <div>
+                      <label
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '8px 14px', cursor: uploadingHeadshot ? 'default' : 'pointer', opacity: uploadingHeadshot ? 0.7 : 1, display: 'inline-flex' }}
+                      >
+                        <Pencil size={13} /> {uploadingHeadshot ? 'Uploading...' : profileForm.headshotUrl ? 'Change Headshot' : 'Add Headshot'}
+                        <input type="file" accept="image/*" onChange={handleHeadshotChange} disabled={uploadingHeadshot} style={{ display: 'none' }} />
+                      </label>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px' }}>Optional. JPG, PNG, WEBP or GIF, up to 5MB.</p>
+                      {headshotError && <p style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '4px' }}>{headshotError}</p>}
+                    </div>
+                  </div>
+
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Display Name</label>
                     <input type="text" className="form-input" value={profileForm.fullName} onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })} />
@@ -1169,10 +1313,66 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     case 'events':
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Events</h1>
-            <p>Everything happening across Hacking Hub — meetups, industry events, and casual catchups.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Events</h1>
+              <p>Everything happening across Hacking Hub — meetups, industry events, and casual catchups.</p>
+              {eventRsvpError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{eventRsvpError}</p>}
+              {eventsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{eventsError}</p>}
+            </div>
+            <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddEventForm(true)}>
+              <CalendarDays size={16} /> Add Event
+            </button>
           </div>
+
+          {(() => {
+            const myRsvpedEvents = communityEvents
+              .filter((e) => hasRsvpedToEvent(e.id))
+              .sort((a, b) => new Date(a.date) - new Date(b.date));
+            if (myRsvpedEvents.length === 0) return null;
+            return (
+              <div className="glass-card" style={{ marginBottom: '24px', border: '1px solid var(--accent-cyan)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                  <CheckCircle2 size={18} color="var(--accent-cyan)" />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>You're Going</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {myRsvpedEvents.map((e) => (
+                    <div
+                      key={e.id}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{e.title}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{formatDate(e.date)} at {e.time} SAST</div>
+                      </div>
+                      <span className="badge badge-success" style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                        {formatEventCountdown(daysUntilEvent(e.date))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          <style>{`
+            @keyframes rsvp-confetti-burst {
+              0% { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) scale(1); opacity: 1; }
+              100% { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--distance)) scale(0.4); opacity: 0; }
+            }
+            .rsvp-confetti {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              width: 7px;
+              height: 7px;
+              border-radius: 2px;
+              animation: rsvp-confetti-burst 0.85s ease-out forwards;
+              animation-delay: var(--delay);
+              pointer-events: none;
+            }
+          `}</style>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
             {['All', 'HH Meetup', 'Industry Event', 'Sunday Catchup'].map((type) => (
@@ -1187,34 +1387,181 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
             ))}
           </div>
 
+          {loadingEvents && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading events...</p>}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
             {filteredEvents.map((e) => {
               const typeStyle = EVENT_TYPE_STYLES[e.type] || {};
+              const hasRsvped = hasRsvpedToEvent(e.id);
+              const rsvpCount = rsvpCountForEvent(e);
+              const rsvping = rsvpingEventId === e.id;
               return (
                 <div key={e.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className={`badge ${typeStyle.className || ''}`} style={typeStyle.style}>{e.type}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                      <Users size={13} /> {e.rsvps} RSVPs
+                      <Users size={13} /> {rsvpCount === null ? '…' : rsvpCount} RSVPs
                     </span>
                   </div>
                   <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{e.title}</h4>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{e.description}</p>
                   <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                      <CalendarDays size={14} /> {e.date} at {e.time} SAST
+                      <CalendarDays size={14} /> {formatDate(e.date)} at {e.time} SAST
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
                       <MapPin size={14} /> {e.location}
                     </div>
+                    {e.link && (
+                      <a
+                        href={e.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}
+                      >
+                        <Link size={14} /> Event Link <ExternalLink size={12} />
+                      </a>
+                    )}
                   </div>
-                  <button className="btn btn-primary" style={{ justifyContent: 'center', marginTop: '4px' }}>
-                    <Sparkles size={14} /> RSVP
-                  </button>
+                  <div style={{ position: 'relative', marginTop: '4px' }}>
+                    <button
+                      onClick={() => handleEventRsvp(e.id)}
+                      disabled={hasRsvped || rsvping}
+                      className={`btn ${hasRsvped ? 'btn-secondary' : 'btn-primary'}`}
+                      style={{ justifyContent: 'center', width: '100%' }}
+                    >
+                      {hasRsvped ? <><CheckCircle2 size={14} /> You're There</> : rsvping ? 'Joining...' : <><Sparkles size={14} /> Yes I'm There</>}
+                    </button>
+                    {burstingEventId === e.id && (
+                      <div style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+                        {CONFETTI_PARTICLES.map((p, i) => (
+                          <span
+                            key={i}
+                            className="rsvp-confetti"
+                            style={{
+                              '--angle': `${p.angle}deg`,
+                              '--distance': `${p.distance}px`,
+                              '--delay': `${p.delay}s`,
+                              background: p.color,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {hasRsvped && (
+                    <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                      {formatEventCountdown(daysUntilEvent(e.date))}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {showAddEventForm && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setShowAddEventForm(false)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>Add Event</h2>
+                <form onSubmit={handleAddEvent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Event Title</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Sunday Coffee & Code Catchup"
+                      value={newEventForm.title}
+                      onChange={(e) => setNewEventForm({ ...newEventForm, title: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Type</label>
+                    <select
+                      className="form-input"
+                      value={newEventForm.type}
+                      onChange={(e) => setNewEventForm({ ...newEventForm, type: e.target.value })}
+                    >
+                      <option value="HH Meetup">HH Meetup</option>
+                      <option value="Industry Event">Industry Event</option>
+                      <option value="Sunday Catchup">Sunday Catchup</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Date</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={newEventForm.date}
+                        onChange={(e) => setNewEventForm({ ...newEventForm, date: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Time</label>
+                      <input
+                        type="time"
+                        className="form-input"
+                        value={newEventForm.time}
+                        onChange={(e) => setNewEventForm({ ...newEventForm, time: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Location</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Google Meet, or a physical address"
+                      value={newEventForm.location}
+                      onChange={(e) => setNewEventForm({ ...newEventForm, location: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Link (optional)</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      placeholder="https://..."
+                      value={newEventForm.link}
+                      onChange={(e) => setNewEventForm({ ...newEventForm, link: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Description (optional)</label>
+                    <textarea
+                      className="form-input"
+                      rows={3}
+                      style={{ resize: 'vertical' }}
+                      placeholder="What's this event about?"
+                      value={newEventForm.description}
+                      onChange={(e) => setNewEventForm({ ...newEventForm, description: e.target.value })}
+                    />
+                  </div>
+
+                  {addEventError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addEventError}</p>}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddEventForm(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={addingEvent}>{addingEvent ? 'Adding...' : 'Add Event'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       );
 
@@ -1387,7 +1734,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
 
                     <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
-                      <strong style={{ color: 'var(--accent-cyan)' }}>{c.date}</strong>
+                      <strong style={{ color: 'var(--accent-cyan)' }}>{formatDate(c.date)}</strong>
                     </div>
                   </div>
                 );
@@ -1445,11 +1792,11 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                   <div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Start</div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCompetitionDate(competitionStartDate)}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatDate(competitionStartDate)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>End</div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCompetitionDate(competitionEndDate)}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatDate(competitionEndDate)}</div>
                   </div>
                 </div>
               </div>
@@ -1694,7 +2041,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                       )}
                     </div>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      {new Date(r.createdAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {formatDate(r.createdAt)}
                     </span>
                   </div>
                   {r.title && <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px' }}>{r.title}</h4>}

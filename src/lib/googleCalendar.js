@@ -2,6 +2,8 @@
 // Uses the provider_token (Google OAuth access token) from Supabase session
 // to fetch events from the authenticated user's Google Calendar.
 
+import { formatDate } from './dateFormat';
+
 const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3';
 
 /**
@@ -177,13 +179,7 @@ function formatEvent(event) {
 function formatDateTime(isoString) {
   if (!isoString) return '';
   const date = new Date(isoString);
-  return date.toLocaleString('en-ZA', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Africa/Johannesburg',
-  });
+  const weekday = date.toLocaleString('en-ZA', { weekday: 'short', timeZone: 'Africa/Johannesburg' });
+  const time = date.toLocaleString('en-ZA', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg' });
+  return `${weekday}, ${formatDate(date)}, ${time}`;
 }
