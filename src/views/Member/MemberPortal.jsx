@@ -265,6 +265,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   };
 
   const filteredDirectory = directory.filter((m) => {
+    if (!m.fullName.trim()) return false; // hide unnamed profiles, same as get_member_directory()
     const q = directorySearch.toLowerCase();
     return (
       m.fullName.toLowerCase().includes(q) ||
