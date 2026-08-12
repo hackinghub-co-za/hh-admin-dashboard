@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Key, AlertCircle, LogOut } from 'lucide-react';
+import { Key, AlertCircle, LogOut, Users, Award, Trophy, CalendarDays } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
+
+const FEATURES = [
+  { icon: Users, label: '1-on-1 Mentoring' },
+  { icon: Award, label: 'Certification Tracking' },
+  { icon: Trophy, label: 'TryHackMe Competitions' },
+  { icon: CalendarDays, label: 'Community Events' },
+];
 
 export default function Login({ onLoginSuccess, accessDeniedMessage }) {
   const [error, setError] = useState(null);
@@ -61,7 +68,7 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
         className="glass-card"
         style={{
           width: '100%',
-          maxWidth: '440px',
+          maxWidth: '480px',
           padding: '40px 32px',
           textAlign: 'center',
           border: '1px solid rgba(94, 227, 122, 0.15)',
@@ -71,21 +78,54 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
           src={logo}
           alt="Hacking Hub"
           style={{
-            width: '120px',
-            height: '120px',
+            width: '96px',
+            height: '96px',
             objectFit: 'cover',
             borderRadius: 'var(--border-radius-lg)',
-            marginBottom: '24px',
+            marginBottom: '20px',
             boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
           }}
         />
 
-        <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>
-          HACKING HUB
-        </h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', fontSize: '0.95rem' }}>
-          Web Portal & Admin Dashboard
+        <h1 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>
+          Hacking Hub Portal
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '0.95rem', lineHeight: 1.6 }}>
+          The private membership dashboard for Hacking Hub, a cybersecurity coaching community.
+          Members use it to track 1-on-1 mentor sessions, certification progress, TryHackMe
+          competitions, and connect with the rest of the community. Sign in below with the Google
+          account tied to your membership.
         </p>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '10px',
+            marginBottom: '28px',
+          }}
+        >
+          {FEATURES.map(({ icon: Icon, label }) => (
+            <div
+              key={label}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 12px',
+                borderRadius: 'var(--border-radius-sm)',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--border-color)',
+                fontSize: '0.78rem',
+                color: 'var(--text-secondary)',
+                textAlign: 'left',
+              }}
+            >
+              <Icon size={15} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
+              {label}
+            </div>
+          ))}
+        </div>
 
         {displayMessage && (
           <div
