@@ -169,8 +169,30 @@ function formatEvent(event) {
     meetLink: event.hangoutLink || event.conferenceData?.entryPoints?.[0]?.uri || '',
     status: event.status, // 'confirmed', 'tentative', 'cancelled'
     attendees,
+    organizerEmail: (event.organizer?.email || '').toLowerCase(),
     htmlLink: event.htmlLink, // Direct link to open in Google Calendar
   };
+}
+
+/**
+ * Finds the soonest upcoming event organized by a specific email (e.g. the
+ * member's next 1on1, which shows up on their own calendar as an event siya
+ * organized and invited them to). `events` should already be sorted
+ * soonest-first (fetchCalendarEvents orders by startTime). Only considers
+ * events starting within `withinDays` days from now - a meeting further out
+ * than that isn't "next" in any useful sense for a dashboard widget.
+ */
+export function findNextMeetingWithOrganizer(events, organizerEmail, withinDays = 30) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() + withinDays);
+  const targetEmail = organizerEmail.toLowerCase();
+  return (
+    events.find((evt) => {
+      if (evt.organizerEmail !== targetEmail || evt.status === 'cancelled' || !evt.start) return false;
+      const startDate = new Date(evt.start);
+      return startDate <= cutoff;
+    }) || null
+  );
 }
 
 /**
