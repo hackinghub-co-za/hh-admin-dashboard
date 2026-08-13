@@ -253,7 +253,9 @@ export default function App() {
         ) : (
           <MemberPortal
             activeTab={activeTab}
+            setActiveTab={setActiveTab}
             user={user}
+            providerToken={providerToken}
             isMockSession={isMockSession}
             autoOpenProfileEdit={autoOpenProfileEdit}
           />

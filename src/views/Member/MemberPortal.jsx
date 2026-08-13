@@ -8,6 +8,7 @@ import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competi
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
+import { fetchCalendarEvents, findNextMeetingWithOrganizer } from '../../lib/googleCalendar';
 import {
   Calendar,
   CalendarDays,
@@ -196,7 +197,9 @@ const communityVictories = [
   { id: 4, member: 'Lindokuhle D.', cert: 'Certified IT Auditor', date: '5 days ago', avatarColor: 'var(--warning)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Lindokuhle%20Certified%20IT%20Auditor' },
 ];
 
-export default function MemberPortal({ activeTab, user, isMockSession, autoOpenProfileEdit }) {
+const SIYA_EMAIL = 'siya@hackinghub.co.za';
+
+export default function MemberPortal({ activeTab, setActiveTab, user, providerToken, isMockSession, autoOpenProfileEdit }) {
   const [selectedCert, setSelectedCert] = useState(null);
   const firstName = (user?.user_metadata?.full_name || user?.email || 'there').trim().split(' ')[0];
 
@@ -213,6 +216,34 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   // Tracks which mentor photos have failed to load (e.g. not uploaded to
   // public/mentors/ yet) so those cards fall back to a plain avatar icon.
   const [mentorPhotoErrors, setMentorPhotoErrors] = useState({});
+
+  // Next 1on1 Session (Dashboard widget) - the member's own next calendar
+  // event organized by siya@hackinghub.co.za, read from the member's own
+  // Google Calendar (they show up there too, as an invited attendee, once
+  // siya books/creates the session). Mock Member has no real Google session
+  // to read a calendar from, so it stays empty there - the widget already
+  // degrades to "Book a 1on1 Meeting" in that case, same as a real member
+  // with nothing booked in the next 30 days. providerToken can be missing
+  // even for a real session (Supabase only returns it right after the OAuth
+  // redirect, not on session restore/refresh) - checked directly at render
+  // time rather than folded into the loading flag, same pattern already
+  // used for the admin's own Google Calendar sync in AdminDashboard.jsx.
+  const [nextOneOnOne, setNextOneOnOne] = useState(null);
+  const [loadingOneOnOne, setLoadingOneOnOne] = useState(!isMockSession);
+  const [oneOnOneError, setOneOnOneError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession || !providerToken) return;
+    let cancelled = false;
+    fetchCalendarEvents(providerToken, { maxResults: 50 })
+      .then((events) => {
+        if (cancelled) return;
+        setNextOneOnOne(findNextMeetingWithOrganizer(events, SIYA_EMAIL, 30));
+      })
+      .catch((err) => !cancelled && setOneOnOneError(err.message))
+      .finally(() => !cancelled && setLoadingOneOnOne(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, providerToken]);
 
   // Reviews / feedback - real Supabase data for a real session (RLS scopes what
   // comes back: public reviews + this member's own private ones), local mock data
@@ -375,12 +406,12 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   });
 
   // Mock roadmap tasks
-  const [tasks, setTasks] = useState([
+  const tasks = [
     { id: 1, text: 'Complete PortSwigger Web Security Academy: Directory Traversal', completed: true },
     { id: 2, text: 'Submit write-up for HackTheBox: "Internal" machine', completed: false },
     { id: 3, text: 'Review Windows Active Directory privilege escalation notes', completed: false },
     { id: 4, text: 'Schedule mock OSCP exam run with Jaco (Mentor)', completed: false },
-  ]);
+  ];
 
   // Recent Certification Victories auto-rotates through communityVictories one
   // at a time (same "single visible tile, moving feed" pattern as the
@@ -608,7 +639,11 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     startDate: '2026-08-24',
     endDate: '2026-10-16', // last Friday of the ~8-week run
     description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Standings are ranked by days logged — top 3 finishers win prizes.',
-    prize: 'R1,500 voucher (1st) · OSCP exam voucher (2nd) · HH hoodie (3rd)',
+    prizes: [
+      { place: '1st', reward: 'Any certification voucher, up to R10,000' },
+      { place: '2nd', reward: 'Any certification voucher, up to R5,000' },
+      { place: '3rd', reward: 'Any certification voucher, up to R2,000' },
+    ],
   };
 
   // Status and kickoff countdown are derived from today's date rather than
@@ -723,10 +758,6 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   const filteredResources = resourceCategoryFilter === 'All'
     ? resources
     : resources.filter(r => r.category === resourceCategoryFilter);
-
-  const toggleTask = (id) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
 
   const handlePayfastPay = (planName, amount, isSubscription = true) => {
     const checkoutUrl = createPayfastCheckoutUrl({
@@ -1353,48 +1384,52 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
             {/* Roadmap & Task Checklist */}
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3>OSCP Roadmap Checklist</h3>
+                <h3>My Roadmap</h3>
                 <span className="badge badge-success">{progressPercent}% Complete</span>
               </div>
 
-              {/* Progress Bar */}
-              <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginBottom: '24px', overflow: 'hidden' }}>
-                <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px', transition: 'width 0.4s ease' }}></div>
-              </div>
-
-              {/* Task Items */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {tasks.map(t => (
-                  <div
-                    key={t.id}
-                    onClick={() => toggleTask(t.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '14px 16px',
-                      borderRadius: 'var(--border-radius-md)',
-                      background: t.completed ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255, 255, 255, 0.01)',
-                      border: t.completed ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-color)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {t.completed ? (
-                      <CheckSquare size={20} color="var(--success)" style={{ flexShrink: 0 }} />
-                    ) : (
-                      <Square size={20} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                    )}
-                    <span style={{
-                      fontSize: '0.95rem',
-                      textDecoration: t.completed ? 'line-through' : 'none',
-                      color: t.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      userSelect: 'none',
-                    }}>
-                      {t.text}
-                    </span>
+              <div style={{ position: 'relative' }}>
+                <div style={{ filter: 'blur(6px)', userSelect: 'none', pointerEvents: 'none' }} aria-hidden="true">
+                  {/* Progress Bar */}
+                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginBottom: '24px', overflow: 'hidden' }}>
+                    <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px', transition: 'width 0.4s ease' }}></div>
                   </div>
-                ))}
+
+                  {/* Task Items */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {tasks.map(t => (
+                      <div
+                        key={t.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '14px 16px',
+                          borderRadius: 'var(--border-radius-md)',
+                          background: t.completed ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255, 255, 255, 0.01)',
+                          border: t.completed ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-color)',
+                        }}
+                      >
+                        {t.completed ? (
+                          <CheckSquare size={20} color="var(--success)" style={{ flexShrink: 0 }} />
+                        ) : (
+                          <Square size={20} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                        )}
+                        <span style={{
+                          fontSize: '0.95rem',
+                          textDecoration: t.completed ? 'line-through' : 'none',
+                          color: t.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
+                          userSelect: 'none',
+                        }}>
+                          {t.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>Under Construction</span>
+                </div>
               </div>
             </div>
 
@@ -1406,14 +1441,58 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                   <Clock size={20} color="var(--accent-cyan)" />
                   <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Next 1on1 Session</h4>
                 </div>
-                <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>OSCP Exam Review</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Mentor: Jaco du Toit</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>Today at 14:00 (SAST)</div>
-                </div>
-                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                  <Video size={16} /> Join Google Meet
-                </button>
+
+                {!isMockSession && !providerToken ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                    Sign in with Google again to sync this from your calendar.
+                  </p>
+                ) : !isMockSession && loadingOneOnOne ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Checking your calendar...</p>
+                ) : oneOnOneError ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--danger)', marginBottom: '16px' }}>Couldn't read your calendar: {oneOnOneError}</p>
+                ) : nextOneOnOne ? (
+                  <>
+                    <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>{nextOneOnOne.title}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Mentor: Siya</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>{nextOneOnOne.startFormatted}</div>
+                    </div>
+                    {nextOneOnOne.meetLink ? (
+                      <a
+                        href={nextOneOnOne.meetLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                      >
+                        <Video size={16} /> Join Google Meet
+                      </a>
+                    ) : (
+                      <a
+                        href={nextOneOnOne.htmlLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                      >
+                        <Calendar size={16} /> View on Google Calendar
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                      Nothing booked with Siya in the next 30 days.
+                    </p>
+                    <button
+                      className="btn btn-primary"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                      onClick={() => setActiveTab?.('meetings')}
+                    >
+                      <Calendar size={16} /> Book a 1on1 Meeting
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Next Payment Card */}
@@ -1422,21 +1501,28 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                   <CreditCard size={20} color="var(--accent-purple)" />
                   <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Billing Info</h4>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Subscription Plan:</span>
-                  <strong>{currentPlan.name}</strong>
+                <div style={{ position: 'relative' }}>
+                  <div style={{ filter: 'blur(6px)', userSelect: 'none', pointerEvents: 'none' }} aria-hidden="true">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Subscription Plan:</span>
+                      <strong>{currentPlan.name}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Next Payment Date:</span>
+                      <strong>2026-09-01</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '16px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Monthly Fee:</span>
+                      <strong style={{ color: 'var(--accent-cyan)' }}>{currentPlan.priceDisplay}</strong>
+                    </div>
+                    <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem' }}>
+                      Manage Payments
+                    </button>
+                  </div>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>Under Construction</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Next Payment Date:</span>
-                  <strong>2026-09-01</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '16px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Monthly Fee:</span>
-                  <strong style={{ color: 'var(--accent-cyan)' }}>{currentPlan.priceDisplay}</strong>
-                </div>
-                <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem' }}>
-                  Manage Payments
-                </button>
               </div>
             </div>
           </div>
@@ -2018,8 +2104,15 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                 </div>
               </div>
               <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Prizes</div>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{currentCompetition.prize}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Prizes</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {currentCompetition.prizes.map((p) => (
+                    <div key={p.place} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{p.place}</span>
+                      <span style={{ fontWeight: 600, textAlign: 'right' }}>{p.reward}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
