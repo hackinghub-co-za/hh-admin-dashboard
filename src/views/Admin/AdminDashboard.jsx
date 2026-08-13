@@ -16,6 +16,7 @@ import {
   insertEftPayment,
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
+import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult } from '../../lib/certCalendarData';
 import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
 import {
   Calendar,
@@ -127,36 +128,70 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     }
   };
 
-  const [certs, setCerts] = useState([
-    { id: 1, member: 'Sanele Khumalo', name: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B', result: 'Pending' },
-    { id: 2, member: '[REDACTED]', name: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug', result: 'Pending' },
-    { id: 3, member: 'Khody Netshifhefhe', name: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro', result: 'Pending' },
-    { id: 4, member: 'Joshua Harrop', name: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3', result: 'Pending' },
-    { id: 5, member: 'Thabo Ndlovu', name: 'OSCP Penetration Tester', date: '2026-08-02', cohort: 'OSCP-26A', result: 'Passed' },
-    { id: 6, member: 'Palesa Dlamini', name: 'CompTIA Security+', date: '2026-07-15', cohort: 'SecPlus-Jul', result: 'Passed' },
-  ]);
+  // Cert Calendar - real Supabase data for a real session (RLS grants admins
+  // full visibility regardless of status via is_admin()), small local mock
+  // roster under Mock Admin since there's no real session to fetch from.
+  // Members can also add their own entry from their own Cert Calendar view
+  // (024_cert_calendar.sql) - those show up here too.
+  const [certs, setCerts] = useState(isMockSession ? [
+    { id: 1, member: 'Sanele Khumalo', cert: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B', result: 'Pending' },
+    { id: 2, member: '[REDACTED]', cert: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug', result: 'Pending' },
+    { id: 3, member: 'Khody Netshifhefhe', cert: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro', result: 'Pending' },
+    { id: 4, member: 'Joshua Harrop', cert: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3', result: 'Pending' },
+    { id: 5, member: 'Thabo Ndlovu', cert: 'OSCP Penetration Tester', date: '2026-08-02', cohort: 'OSCP-26A', result: 'Passed' },
+    { id: 6, member: 'Palesa Dlamini', cert: 'CompTIA Security+', date: '2026-07-15', cohort: 'SecPlus-Jul', result: 'Passed' },
+  ] : []);
+  const [loadingCerts, setLoadingCerts] = useState(!isMockSession);
+  const [certsError, setCertsError] = useState(null);
 
-  const [newCert, setNewCert] = useState({ member: '', name: '', date: '', cohort: '' });
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCertCalendar()
+      .then((data) => !cancelled && setCerts(data))
+      .catch((err) => !cancelled && setCertsError(err.message))
+      .finally(() => !cancelled && setLoadingCerts(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
 
-  const handleAddCert = (e) => {
+  const [newCert, setNewCert] = useState({ member: '', cert: '', date: '', cohort: '' });
+
+  const handleAddCert = async (e) => {
     e.preventDefault();
-    if (!newCert.member || !newCert.name || !newCert.date) return;
-    setCerts([
-      ...certs,
-      {
-        id: certs.length + 1,
-        member: newCert.member,
-        name: newCert.name,
-        date: newCert.date,
-        cohort: newCert.cohort || 'General',
-        result: 'Pending',
-      },
-    ]);
-    setNewCert({ member: '', name: '', date: '', cohort: '' });
+    if (!newCert.member || !newCert.cert || !newCert.date) return;
+    if (isMockSession) {
+      setCerts([
+        ...certs,
+        {
+          id: Math.max(0, ...certs.map((c) => c.id)) + 1,
+          member: newCert.member,
+          cert: newCert.cert,
+          date: newCert.date,
+          cohort: newCert.cohort || 'General',
+          result: 'Pending',
+        },
+      ]);
+    } else {
+      try {
+        await addCertCalendarEntry({ member: newCert.member, cert: newCert.cert, date: newCert.date, cohort: newCert.cohort, createdBy: user?.email });
+        setCerts(await fetchCertCalendar());
+      } catch (err) {
+        setCertsError(err.message);
+        return;
+      }
+    }
+    setNewCert({ member: '', cert: '', date: '', cohort: '' });
   };
 
-  const handleUpdateCertResult = (id, result) => {
+  const handleUpdateCertResult = async (id, result) => {
     setCerts(certs.map(c => c.id === id ? { ...c, result } : c));
+    if (!isMockSession) {
+      try {
+        await updateCertCalendarResult(id, result);
+      } catch (err) {
+        setCertsError(err.message);
+      }
+    }
   };
 
   // PayFast Transactions initialized from exported CSV
@@ -1228,8 +1263,8 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     type="text"
                     className="form-input"
                     placeholder="e.g. OSCP Penetration Tester"
-                    value={newCert.name}
-                    onChange={(e) => setNewCert({ ...newCert, name: e.target.value })}
+                    value={newCert.cert}
+                    onChange={(e) => setNewCert({ ...newCert, cert: e.target.value })}
                   />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -1265,6 +1300,9 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 <h3>Upcoming Member Exams</h3>
                 <span className="badge badge-success">{certs.length} Members Scheduled</span>
               </div>
+
+              {certsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{certsError}</p>}
+              {loadingCerts && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>Loading cert calendar...</p>}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
                 {certs.map((c) => {
@@ -1307,7 +1345,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         </div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
                         <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {c.name} <Info size={14} color="var(--accent-cyan)" />
+                          {c.cert} <Info size={14} color="var(--accent-cyan)" />
                         </div>
                       </div>
 
@@ -1339,7 +1377,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           {/* Cert Details Modal */}
           {selectedCert && (
             <CertDetailsModal
-              certName={selectedCert.name}
+              certName={selectedCert.cert}
                 memberName={selectedCert.member}
               cohort={selectedCert.cohort}
               date={selectedCert.date}
