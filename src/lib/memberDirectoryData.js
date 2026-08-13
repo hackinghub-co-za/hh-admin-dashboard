@@ -56,11 +56,28 @@ export async function updateMyDirectoryProfile({ fullName, about, location, link
  * / image mime types at the bucket level - a too-large or wrong-type file is
  * rejected by Supabase itself, not just skipped client-side. */
 export async function uploadHeadshot(email, file) {
+  const folder = email.toLowerCase();
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${email.toLowerCase()}/headshot.${ext}`;
+  const path = `${folder}/headshot.${ext}`;
+
+  // Explicitly clear out any existing headshot(s) first rather than relying
+  // on upload()'s upsert - Postgres RLS still evaluates the INSERT policy's
+  // WITH CHECK (including is_member_allowed) against the proposed row even
+  // when an upsert resolves via its ON CONFLICT DO UPDATE path, which was
+  // intermittently rejecting a member's own repeat/replacement upload with
+  // "new row violates row-level security policy". Deleting first means the
+  // follow-up upload is always a clean INSERT, sidestepping that entirely -
+  // and it also cleans up an old headshot left behind when a member switches
+  // file extensions (e.g. jpg -> png), which would otherwise never get
+  // removed since the new upload lands at a different path.
+  const { data: existing } = await supabase.storage.from('member-headshots').list(folder);
+  if (existing?.length) {
+    await supabase.storage.from('member-headshots').remove(existing.map((f) => `${folder}/${f.name}`));
+  }
+
   const { error } = await supabase.storage
     .from('member-headshots')
-    .upload(path, file, { upsert: true, cacheControl: '3600', contentType: file.type });
+    .upload(path, file, { cacheControl: '3600', contentType: file.type });
   if (error) throw error;
   const { data } = supabase.storage.from('member-headshots').getPublicUrl(path);
   // Cache-bust so a replaced headshot doesn't keep showing the old cached image
