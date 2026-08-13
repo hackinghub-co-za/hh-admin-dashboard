@@ -3,7 +3,7 @@ import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
-import { fetchEventRsvps, rsvpForEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
+import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -161,13 +161,13 @@ function formatEventCountdown(days) {
 // community_events from). Real sessions fetch these from Supabase instead -
 // see the useEffect below that populates the `communityEvents` state.
 const MOCK_EVENTS = [
-  { id: 1, type: 'HH Meetup', title: 'Cyber War Games: Capture The Flag', date: '2026-08-16', time: '18:00', location: 'HH Discord & Hybrid JHB', description: 'Team-based CTF night with prizes for the top 3 teams.', link: '' },
-  { id: 2, type: 'Sunday Catchup', title: 'Sunday Coffee & Code Catchup', date: '2026-08-17', time: '10:00', location: 'Google Meet', description: 'Casual weekly hangout — share wins, ask questions, no agenda.', link: '' },
-  { id: 7, type: 'Sunday Catchup', title: 'HH S4 Kickoff', date: '2026-08-23', time: '17:00', location: 'Google Meet', description: 'Kicking off Season 4 — what\'s new this quarter, the TryHackMe competition, and a chance to meet the rest of the community.', link: 'https://meet.google.com/pce-rcrd-xmk' },
-  { id: 3, type: 'HH Meetup', title: 'OSINT Fundamentals Workshop', date: '2026-08-23', time: '17:30', location: 'Online (Zoom)', description: 'Hands-on open-source recon workshop led by Jaco.', link: '' },
-  { id: 5, type: 'Sunday Catchup', title: 'Sunday Coffee & Code Catchup', date: '2026-08-24', time: '10:00', location: 'Google Meet', description: 'Casual weekly hangout — share wins, ask questions, no agenda.', link: '' },
-  { id: 4, type: 'Industry Event', title: 'ITWeb Security Summit 2026', date: '2026-08-25', time: '08:00', location: 'Sandton Convention Centre', description: 'Industry conference — HH is attending as a group, ask in the community for details.', link: '' },
-  { id: 6, type: 'Industry Event', title: 'BSides Cape Town', date: '2026-09-05', time: '09:00', location: 'Cape Town', description: 'Community-run infosec conference — group discount code shared in the community.', link: '' },
+  { id: 1, type: 'HH Meetup', title: 'Cyber War Games: Capture The Flag', date: '2026-08-16', time: '18:00', location: 'HH Discord & Hybrid JHB', description: 'Team-based CTF night with prizes for the top 3 teams.', link: '', status: 'Approved' },
+  { id: 2, type: 'Sunday Catchup', title: 'Sunday Coffee & Code Catchup', date: '2026-08-17', time: '10:00', location: 'Google Meet', description: 'Casual weekly hangout — share wins, ask questions, no agenda.', link: '', status: 'Approved' },
+  { id: 7, type: 'Sunday Catchup', title: 'HH S4 Kickoff', date: '2026-08-23', time: '17:00', location: 'Google Meet', description: 'Kicking off Season 4 — what\'s new this quarter, the TryHackMe competition, and a chance to meet the rest of the community.', link: 'https://meet.google.com/pce-rcrd-xmk', status: 'Approved' },
+  { id: 3, type: 'HH Meetup', title: 'OSINT Fundamentals Workshop', date: '2026-08-23', time: '17:30', location: 'Online (Zoom)', description: 'Hands-on open-source recon workshop led by Jaco.', link: '', status: 'Approved' },
+  { id: 5, type: 'Sunday Catchup', title: 'Sunday Coffee & Code Catchup', date: '2026-08-24', time: '10:00', location: 'Google Meet', description: 'Casual weekly hangout — share wins, ask questions, no agenda.', link: '', status: 'Approved' },
+  { id: 4, type: 'Industry Event', title: 'ITWeb Security Summit 2026', date: '2026-08-25', time: '08:00', location: 'Sandton Convention Centre', description: 'Industry conference — HH is attending as a group, ask in the community for details.', link: '', status: 'Approved' },
+  { id: 6, type: 'Industry Event', title: 'BSides Cape Town', date: '2026-09-05', time: '09:00', location: 'Cape Town', description: 'Community-run infosec conference — group discount code shared in the community.', link: '', status: 'Approved' },
 ];
 
 const MOCK_LEADERBOARD = [
@@ -270,6 +270,8 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
   const [loadingDirectory, setLoadingDirectory] = useState(!isMockSession);
   const [directoryError, setDirectoryError] = useState(null);
   const [directorySearch, setDirectorySearch] = useState('');
+  // Full breakdown shown when a member clicks another member's directory card.
+  const [selectedDirectoryMember, setSelectedDirectoryMember] = useState(null);
   // Starts pre-opened when routed here straight from onboarding's "Set Up My
   // Profile" choice (App.jsx) - MemberPortal only ever mounts fresh at that
   // exact moment (onboarding renders a separate component tree entirely), so
@@ -289,6 +291,9 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     githubUrl: '',
     tiktokUrl: '',
     websiteUrl: '',
+    yearsExperience: '',
+    certifications: '',
+    funFact: '',
     specialty: 'Not Set',
     employmentStatus: 'Not Set',
     jobTitle: '',
@@ -432,20 +437,31 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     return eventRsvps.filter((r) => r.event_id === event.id).length;
   };
 
+  // Toggles: RSVPs if the member hasn't said yes yet, un-RSVPs (removing them
+  // from attendance) if they click "You're There" again having already said yes.
   const handleEventRsvp = async (eventId) => {
-    if (hasRsvpedToEvent(eventId)) return;
-    setBurstingEventId(eventId);
-    setTimeout(() => setBurstingEventId((id) => (id === eventId ? null : id)), 1000);
+    const alreadyRsvped = hasRsvpedToEvent(eventId);
+
+    if (!alreadyRsvped) {
+      setBurstingEventId(eventId);
+      setTimeout(() => setBurstingEventId((id) => (id === eventId ? null : id)), 1000);
+    }
 
     if (isMockSession) {
-      setMockRsvpedEventIds((prev) => new Set(prev).add(eventId));
+      setMockRsvpedEventIds((prev) => {
+        const next = new Set(prev);
+        if (alreadyRsvped) next.delete(eventId);
+        else next.add(eventId);
+        return next;
+      });
       return;
     }
 
     setRsvpingEventId(eventId);
     setEventRsvpError(null);
     try {
-      await rsvpForEvent(eventId);
+      if (alreadyRsvped) await unrsvpFromEvent(eventId);
+      else await rsvpForEvent(eventId);
       setEventRsvps(await fetchEventRsvps());
     } catch (err) {
       setEventRsvpError(err.message);
@@ -495,6 +511,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
           location: newEventForm.location.trim(),
           link: newEventForm.link.trim(),
           createdBy: user?.email || 'you',
+          status: 'Pending',
         };
         setCommunityEvents((prev) => [...prev, mockEvent].sort((a, b) => new Date(a.date) - new Date(b.date)));
       } else {
@@ -796,8 +813,8 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
     },
   ];
 
-  // Current active plan state (Default: Rank 1 - Basic Access)
-  const [currentPlanRank, setCurrentPlanRank] = useState(1);
+  // Current active plan (Default: Rank 1 - Basic Access)
+  const currentPlanRank = 1;
   const currentPlan = ALL_TIERS.find(t => t.rank === currentPlanRank) || ALL_TIERS[0];
   const upgradeTiers = ALL_TIERS.filter(t => t.rank >= currentPlanRank);
 
@@ -832,7 +849,12 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
             {filteredDirectory.map((m) => (
-              <div key={m.email} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                key={m.email}
+                className="glass-card hover-glow"
+                style={{ display: 'flex', flexDirection: 'column', gap: '10px', cursor: 'pointer' }}
+                onClick={() => setSelectedDirectoryMember(m)}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                     <div style={{ width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -847,7 +869,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                       {m.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.8rem' }}> (You)</span>}
                     </h4>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                     {m.tryhackmeUsername && (
                       <a
                         href={`https://tryhackme.com/p/${encodeURIComponent(m.tryhackmeUsername)}`}
@@ -1007,6 +1029,27 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                     <input type="url" className="form-input" placeholder="https://..." value={profileForm.websiteUrl} onChange={(e) => setProfileForm({ ...profileForm, websiteUrl: e.target.value })} />
                   </div>
 
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Briefcase size={13} /> Years of Working Experience
+                    </label>
+                    <input type="number" min="0" max="60" className="form-input" placeholder="e.g. 3" value={profileForm.yearsExperience} onChange={(e) => setProfileForm({ ...profileForm, yearsExperience: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Award size={13} /> Certifications
+                    </label>
+                    <input type="text" className="form-input" placeholder="e.g. OSCP, CompTIA Security+" value={profileForm.certifications} onChange={(e) => setProfileForm({ ...profileForm, certifications: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Sparkles size={13} /> A Fun Fact About You
+                    </label>
+                    <input type="text" className="form-input" placeholder="Something interesting other members might enjoy" value={profileForm.funFact} onChange={(e) => setProfileForm({ ...profileForm, funFact: e.target.value })} />
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Employment Status</label>
@@ -1029,6 +1072,126 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                     <button type="submit" className="btn btn-primary" disabled={savingProfile}>{savingProfile ? 'Saving...' : 'Save Profile'}</button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {selectedDirectoryMember && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setSelectedDirectoryMember(null)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                  <div style={{ width: '72px', height: '72px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {selectedDirectoryMember.headshotUrl ? (
+                      <img src={selectedDirectoryMember.headshotUrl} alt={selectedDirectoryMember.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <User size={32} color="var(--text-secondary)" />
+                    )}
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: '1.4rem', fontWeight: 700 }}>
+                      {selectedDirectoryMember.fullName || 'Unnamed member'}
+                      {selectedDirectoryMember.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.85rem' }}> (You)</span>}
+                    </h2>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{selectedDirectoryMember.specialty}</span>
+                      <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{selectedDirectoryMember.jobReadiness}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: selectedDirectoryMember.about ? 'normal' : 'italic', marginBottom: '20px', lineHeight: 1.6 }}>
+                  {selectedDirectoryMember.about || 'No bio yet.'}
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)' }}>
+                  {selectedDirectoryMember.location && (
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Location</div>
+                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={13} /> {selectedDirectoryMember.location}</div>
+                    </div>
+                  )}
+                  {selectedDirectoryMember.employmentStatus && selectedDirectoryMember.employmentStatus !== 'Not Set' && (
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        {selectedDirectoryMember.employmentStatus === 'Employed' && selectedDirectoryMember.jobTitle ? 'Job Title' : 'Employment Status'}
+                      </div>
+                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Building2 size={13} />
+                        {selectedDirectoryMember.employmentStatus === 'Employed' && selectedDirectoryMember.jobTitle ? selectedDirectoryMember.jobTitle : selectedDirectoryMember.employmentStatus}
+                      </div>
+                    </div>
+                  )}
+                  {selectedDirectoryMember.yearsExperience !== null && selectedDirectoryMember.yearsExperience !== undefined && (
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Experience</div>
+                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Briefcase size={13} /> {selectedDirectoryMember.yearsExperience} {selectedDirectoryMember.yearsExperience === 1 ? 'year' : 'years'}
+                      </div>
+                    </div>
+                  )}
+                  {selectedDirectoryMember.certifications && (
+                    <div style={{ gridColumn: selectedDirectoryMember.location || (selectedDirectoryMember.employmentStatus && selectedDirectoryMember.employmentStatus !== 'Not Set') ? 'auto' : '1 / -1' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Certifications</div>
+                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Award size={13} /> {selectedDirectoryMember.certifications}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {selectedDirectoryMember.funFact && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '20px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(94, 227, 122, 0.06)', border: '1px solid rgba(94, 227, 122, 0.15)' }}>
+                    <Sparkles size={15} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{selectedDirectoryMember.funFact}</span>
+                  </div>
+                )}
+
+                {(selectedDirectoryMember.tryhackmeUsername || isSafeUrl(selectedDirectoryMember.linkedin) || isSafeUrl(selectedDirectoryMember.githubUrl) || isSafeUrl(selectedDirectoryMember.tiktokUrl) || isSafeUrl(selectedDirectoryMember.websiteUrl)) && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+                    {selectedDirectoryMember.tryhackmeUsername && (
+                      <a
+                        href={`https://tryhackme.com/p/${encodeURIComponent(selectedDirectoryMember.tryhackmeUsername)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                      >
+                        <Target size={13} /> TryHackMe
+                      </a>
+                    )}
+                    {isSafeUrl(selectedDirectoryMember.linkedin) && (
+                      <a href={selectedDirectoryMember.linkedin} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                        <Link size={13} /> LinkedIn
+                      </a>
+                    )}
+                    {isSafeUrl(selectedDirectoryMember.githubUrl) && (
+                      <a href={selectedDirectoryMember.githubUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                        <Code2 size={13} /> GitHub
+                      </a>
+                    )}
+                    {isSafeUrl(selectedDirectoryMember.tiktokUrl) && (
+                      <a href={selectedDirectoryMember.tiktokUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                        <Video size={13} /> TikTok
+                      </a>
+                    )}
+                    {isSafeUrl(selectedDirectoryMember.websiteUrl) && (
+                      <a href={selectedDirectoryMember.websiteUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                        <Globe size={13} /> Website
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setSelectedDirectoryMember(null)}>Close</button>
+                </div>
               </div>
             </div>
           )}
@@ -1439,9 +1602,16 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
               const rsvping = rsvpingEventId === e.id;
               return (
                 <div key={e.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className={`badge ${typeStyle.className || ''}`} style={typeStyle.style}>{e.type}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span className={`badge ${typeStyle.className || ''}`} style={typeStyle.style}>{e.type}</span>
+                      {e.status === 'Pending' && (
+                        <span className="badge badge-warning" style={{ whiteSpace: 'nowrap' }} title="Only visible to you until an admin approves it">
+                          Pending Review
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                       <Users size={13} /> {rsvpCount === null ? '…' : rsvpCount} RSVPs
                     </span>
                   </div>
@@ -1468,11 +1638,16 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                   <div style={{ position: 'relative', marginTop: '4px' }}>
                     <button
                       onClick={() => handleEventRsvp(e.id)}
-                      disabled={hasRsvped || rsvping}
+                      disabled={rsvping}
+                      title={hasRsvped ? "Click to remove your RSVP" : undefined}
                       className={`btn ${hasRsvped ? 'btn-secondary' : 'btn-primary'}`}
                       style={{ justifyContent: 'center', width: '100%' }}
                     >
-                      {hasRsvped ? <><CheckCircle2 size={14} /> You're There</> : rsvping ? 'Joining...' : <><Sparkles size={14} /> Yes I'm There</>}
+                      {rsvping
+                        ? (hasRsvped ? 'Leaving...' : 'Joining...')
+                        : hasRsvped
+                          ? <><CheckCircle2 size={14} /> You're There</>
+                          : <><Sparkles size={14} /> Yes I'm There</>}
                     </button>
                     {burstingEventId === e.id && (
                       <div style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
@@ -2126,25 +2301,6 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Status</span>
                 <span className="badge badge-success">active</span>
-              </div>
-
-              {/* Developer Tier Selector */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '12px' }}>
-                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                  Simulate Current Membership Level:
-                </label>
-                <select
-                  value={currentPlanRank}
-                  onChange={(e) => setCurrentPlanRank(Number(e.target.value))}
-                  className="form-input"
-                  style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-                >
-                  {ALL_TIERS.map(t => (
-                    <option key={t.rank} value={t.rank}>
-                      Level {t.rank}: {t.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 

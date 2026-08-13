@@ -21,10 +21,11 @@
 -- to approved members and locking update_my_directory_profile() to
 -- UPDATE-only, then the TryHackMe username field, then hiding unnamed
 -- profiles, then the headshot photo, then GitHub/TikTok/personal website
--- links below). Rather than leave those revisions spread across later files -
--- which would silently regress this file back to an outdated, less secure
--- state if it were ever re-run on its own - every change has been folded back
--- in here. The once-separate 014_tryhackme_username.sql and
+-- links, then years of experience/certifications/fun fact below). Rather
+-- than leave those revisions spread across later files - which would
+-- silently regress this file back to an outdated, less secure state if it
+-- were ever re-run on its own - every change has been folded back in here.
+-- The once-separate 014_tryhackme_username.sql and
 -- 018_hide_unnamed_directory_members.sql have been removed since everything
 -- they did now lives in this file; 011_security_fixes.sql keeps only its
 -- unrelated profiles-table fix (Vuln 1).
@@ -47,7 +48,10 @@ ALTER TABLE public.member_profiles
   ADD COLUMN IF NOT EXISTS headshot_url TEXT,
   ADD COLUMN IF NOT EXISTS github_url TEXT,
   ADD COLUMN IF NOT EXISTS tiktok_url TEXT,
-  ADD COLUMN IF NOT EXISTS website_url TEXT;
+  ADD COLUMN IF NOT EXISTS website_url TEXT,
+  ADD COLUMN IF NOT EXISTS years_experience INTEGER,
+  ADD COLUMN IF NOT EXISTS certifications TEXT,
+  ADD COLUMN IF NOT EXISTS fun_fact TEXT;
 
 -- =========================================================================
 -- HEADSHOT STORAGE - a dedicated public bucket, not member_profiles. Members
@@ -118,6 +122,9 @@ RETURNS TABLE (
   github_url TEXT,
   tiktok_url TEXT,
   website_url TEXT,
+  years_experience INTEGER,
+  certifications TEXT,
+  fun_fact TEXT,
   specialty TEXT,
   job_readiness TEXT,
   employment_status TEXT,
@@ -129,7 +136,7 @@ SET search_path = public
 STABLE
 AS $$
   SELECT email, full_name, about, location, linkedin, tryhackme_username, headshot_url,
-         github_url, tiktok_url, website_url,
+         github_url, tiktok_url, website_url, years_experience, certifications, fun_fact,
          specialty, job_readiness, employment_status, job_title
   FROM public.member_profiles
   WHERE status != 'Left'
@@ -142,13 +149,13 @@ GRANT EXECUTE ON FUNCTION public.get_member_directory() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_member_directory() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.get_member_directory() FROM anon;
 
--- Write, scoped to only the caller's own row and only these 12 public-facing
+-- Write, scoped to only the caller's own row and only these 15 public-facing
 -- columns - money_owed/status/offboarding/etc. stay completely untouchable
 -- from here. UPDATE-only (never INSERT) - every real member already has a row
 -- (backfilled in 004_member_access_control.sql, or created by an admin), so a
 -- caller with no existing row just matches zero rows and no-ops, rather than
 -- being able to self-provision a brand-new 'Active' membership row.
-DROP FUNCTION IF EXISTS public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT);
 CREATE FUNCTION public.update_my_directory_profile(
   p_full_name TEXT,
   p_about TEXT,
@@ -159,6 +166,9 @@ CREATE FUNCTION public.update_my_directory_profile(
   p_github_url TEXT,
   p_tiktok_url TEXT,
   p_website_url TEXT,
+  p_years_experience INTEGER,
+  p_certifications TEXT,
+  p_fun_fact TEXT,
   p_specialty TEXT,
   p_employment_status TEXT,
   p_job_title TEXT
@@ -177,6 +187,9 @@ AS $$
     github_url = p_github_url,
     tiktok_url = p_tiktok_url,
     website_url = p_website_url,
+    years_experience = p_years_experience,
+    certifications = p_certifications,
+    fun_fact = p_fun_fact,
     specialty = p_specialty,
     employment_status = p_employment_status,
     job_title = p_job_title,
@@ -184,6 +197,6 @@ AS $$
   WHERE email = lower(auth.jwt() ->> 'email');
 $$;
 
-GRANT EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT) FROM anon;

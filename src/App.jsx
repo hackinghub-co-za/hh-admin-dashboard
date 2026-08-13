@@ -249,7 +249,7 @@ export default function App() {
       <main className="main-content">
         {/* Dynamic Dashboard views */}
         {isAdmin ? (
-          <AdminDashboard activeTab={activeTab} providerToken={providerToken} isMockSession={isMockSession} />
+          <AdminDashboard activeTab={activeTab} providerToken={providerToken} isMockSession={isMockSession} user={user} />
         ) : (
           <MemberPortal
             activeTab={activeTab}
