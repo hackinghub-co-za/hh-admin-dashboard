@@ -6,8 +6,9 @@ import { supabase } from './supabase';
 
 /** Fetch every active member's public directory card (name, about, location,
  * LinkedIn, TryHackMe username, headshot, GitHub/TikTok/personal website,
- * specialty, job readiness, employment status/job title). Excludes sensitive
- * fields (money owed, phone, age/gender, etc.) at the RPC level. */
+ * years of experience, certifications, a fun fact, specialty, job readiness,
+ * employment status/job title). Excludes sensitive fields (money owed, phone,
+ * age/gender, etc.) at the RPC level. */
 export async function fetchMemberDirectory() {
   const { data, error } = await supabase.rpc('get_member_directory');
   if (error) throw error;
@@ -22,6 +23,9 @@ export async function fetchMemberDirectory() {
     githubUrl: row.github_url || '',
     tiktokUrl: row.tiktok_url || '',
     websiteUrl: row.website_url || '',
+    yearsExperience: row.years_experience ?? null,
+    certifications: row.certifications || '',
+    funFact: row.fun_fact || '',
     specialty: row.specialty || 'Not Set',
     jobReadiness: row.job_readiness || 'Not Started',
     employmentStatus: row.employment_status || 'Not Set',
@@ -30,8 +34,8 @@ export async function fetchMemberDirectory() {
 }
 
 /** Updates the current member's own directory card. Scoped server-side to only
- * these 12 public-facing columns on their own row. */
-export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, githubUrl, tiktokUrl, websiteUrl, specialty, employmentStatus, jobTitle }) {
+ * these 15 public-facing columns on their own row. */
+export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, githubUrl, tiktokUrl, websiteUrl, yearsExperience, certifications, funFact, specialty, employmentStatus, jobTitle }) {
   const { error } = await supabase.rpc('update_my_directory_profile', {
     p_full_name: fullName || null,
     p_about: about || null,
@@ -42,6 +46,9 @@ export async function updateMyDirectoryProfile({ fullName, about, location, link
     p_github_url: githubUrl || null,
     p_tiktok_url: tiktokUrl || null,
     p_website_url: websiteUrl || null,
+    p_years_experience: yearsExperience === '' || yearsExperience === null || yearsExperience === undefined ? null : Number(yearsExperience),
+    p_certifications: certifications || null,
+    p_fun_fact: funFact || null,
     p_specialty: specialty || null,
     p_employment_status: employmentStatus || null,
     p_job_title: employmentStatus === 'Employed' ? (jobTitle || null) : null,

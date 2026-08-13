@@ -16,6 +16,7 @@ import {
   insertEftPayment,
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
+import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
 import {
   Calendar,
   Users,
@@ -47,7 +48,7 @@ import {
   Star,
 } from 'lucide-react';
 
-export default function AdminDashboard({ activeTab, providerToken, isMockSession }) {
+export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
   const [googleEvents, setGoogleEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventsError, setEventsError] = useState(null);
@@ -197,6 +198,41 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .finally(() => !cancelled && setLoadingReviews(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
+
+  // Member-submitted events awaiting approval (019_events.sql) - admins can
+  // see every event regardless of status via their own RLS policy, filtered
+  // down to Pending here. Approval itself is further restricted server-side
+  // to exactly siya@hackinghub.co.za, not every admin account.
+  const [communityEvents, setCommunityEvents] = useState([]);
+  const [loadingCommunityEvents, setLoadingCommunityEvents] = useState(!isMockSession);
+  const [approvingEventId, setApprovingEventId] = useState(null);
+  const [approveEventError, setApproveEventError] = useState(null);
+  const canApproveEvents = (user?.email || '').toLowerCase() === 'siya@hackinghub.co.za';
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCommunityEvents()
+      .then((data) => !cancelled && setCommunityEvents(data))
+      .catch(() => {})
+      .finally(() => !cancelled && setLoadingCommunityEvents(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const pendingCommunityEvents = communityEvents.filter((e) => e.status === 'Pending');
+
+  const handleApproveEvent = async (eventId) => {
+    setApprovingEventId(eventId);
+    setApproveEventError(null);
+    try {
+      await approveCommunityEvent(eventId);
+      setCommunityEvents(await fetchCommunityEvents());
+    } catch (err) {
+      setApproveEventError(err.message);
+    } finally {
+      setApprovingEventId(null);
+    }
+  };
 
   const [oneOnOnes, setOneOnOnes] = useState([
     {
@@ -906,6 +942,64 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Pending Community Events - member-submitted events awaiting approval */}
+          <div className="glass-card" style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <h3>Pending Community Events</h3>
+              <span className="badge badge-warning">{pendingCommunityEvents.length} Awaiting Review</span>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              Events members added themselves via the Events tab. Only visible to their submitter until approved.
+              {!canApproveEvents && ' Only siya@hackinghub.co.za can approve these.'}
+            </p>
+            {approveEventError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>{approveEventError}</p>}
+            {isMockSession ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                Not available under Mock Admin - this reads real submissions from Supabase.
+              </div>
+            ) : loadingCommunityEvents ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading...</p>
+            ) : pendingCommunityEvents.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                Nothing waiting on review.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {pendingCommunityEvents.map((ev) => (
+                  <div
+                    key={ev.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      padding: '14px 16px',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '4px' }}>{ev.title}</h4>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        {formatDate(ev.date)}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'} | Submitted by {ev.createdBy}
+                      </p>
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      disabled={!canApproveEvents || approvingEventId === ev.id}
+                      title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za can approve events'}
+                      onClick={() => handleApproveEvent(ev.id)}
+                      style={{ fontSize: '0.8rem', padding: '8px 14px', flexShrink: 0 }}
+                    >
+                      <CheckCircle size={14} /> {approvingEventId === ev.id ? 'Approving...' : 'Approve'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       );
