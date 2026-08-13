@@ -7,6 +7,7 @@ import { fetchEventRsvps, rsvpForEvent, fetchCommunityEvents, createCommunityEve
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
+import { isSafeUrl } from '../../lib/safeUrl';
 import {
   Calendar,
   CalendarDays,
@@ -857,22 +858,22 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                         <Target size={16} color="var(--accent-cyan)" />
                       </a>
                     )}
-                    {m.linkedin && (
+                    {isSafeUrl(m.linkedin) && (
                       <a href={m.linkedin} target="_blank" rel="noreferrer" title="LinkedIn Profile">
                         <Link size={16} color="var(--accent-cyan)" />
                       </a>
                     )}
-                    {m.githubUrl && (
+                    {isSafeUrl(m.githubUrl) && (
                       <a href={m.githubUrl} target="_blank" rel="noreferrer" title="GitHub Profile">
                         <Code2 size={16} color="var(--accent-cyan)" />
                       </a>
                     )}
-                    {m.tiktokUrl && (
+                    {isSafeUrl(m.tiktokUrl) && (
                       <a href={m.tiktokUrl} target="_blank" rel="noreferrer" title="TikTok Profile">
                         <Video size={16} color="var(--accent-cyan)" />
                       </a>
                     )}
-                    {m.websiteUrl && (
+                    {isSafeUrl(m.websiteUrl) && (
                       <a href={m.websiteUrl} target="_blank" rel="noreferrer" title="Personal Website">
                         <Globe size={16} color="var(--accent-cyan)" />
                       </a>
@@ -1453,7 +1454,7 @@ export default function MemberPortal({ activeTab, user, isMockSession, autoOpenP
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
                       <MapPin size={14} /> {e.location}
                     </div>
-                    {e.link && (
+                    {isSafeUrl(e.link) && (
                       <a
                         href={e.link}
                         target="_blank"
