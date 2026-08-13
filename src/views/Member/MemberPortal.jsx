@@ -4,6 +4,7 @@ import CertDetailsModal from '../../components/CertDetailsModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
+import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -51,6 +52,7 @@ import {
   CalendarCheck2,
   Code2,
   Globe,
+  GraduationCap,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -169,6 +171,16 @@ const MOCK_EVENTS = [
   { id: 5, type: 'Sunday Catchup', title: 'Sunday Coffee & Code Catchup', date: '2026-08-24', time: '10:00', location: 'Google Meet', description: 'Casual weekly hangout — share wins, ask questions, no agenda.', link: '', status: 'Approved' },
   { id: 4, type: 'Industry Event', title: 'ITWeb Security Summit 2026', date: '2026-08-25', time: '08:00', location: 'Sandton Convention Centre', description: 'Industry conference — HH is attending as a group, ask in the community for details.', link: '', status: 'Approved' },
   { id: 6, type: 'Industry Event', title: 'BSides Cape Town', date: '2026-09-05', time: '09:00', location: 'Cape Town', description: 'Community-run infosec conference — group discount code shared in the community.', link: '', status: 'Approved' },
+];
+
+const MOCK_CERT_CALENDAR = [
+  { id: 1, member: 'Sanele Khumalo', cert: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B', result: 'Pending' },
+  { id: 2, member: 'Nonhlanhla Sindane', cert: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug', result: 'Pending' },
+  { id: 3, member: 'Khody Netshifhefhe', cert: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro', result: 'Pending' },
+  { id: 4, member: 'Joshua Harrop', cert: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3', result: 'Pending' },
+  { id: 5, member: 'Thando Mandondo', cert: 'CompTIA Network+', date: '2026-09-20', cohort: 'NetPlus-Q3', result: 'Pending' },
+  { id: 8, member: 'Siya', cert: 'KCSA (Kubernetes and Cloud Native Security Associate)', date: '2026-09-17', cohort: 'General', result: 'Pending' },
+  { id: 9, member: 'Siya', cert: 'Microsoft Security Operations Analyst (SC-500)', date: '2026-08-20', cohort: 'General', result: 'Pending' },
 ];
 
 const MOCK_LEADERBOARD = [
@@ -577,6 +589,65 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     ? communityEvents
     : communityEvents.filter(e => e.type === eventTypeFilter);
 
+  // Cert Calendar - real Supabase data for a real session (RLS scopes reads
+  // to signed-in, approved members), local-only demo entries under Mock
+  // Member since there's no real session to fetch from. Members can add their
+  // own target exam date via the "Add to Cert Calendar" form below - those
+  // persist for everyone, not just the member who added them.
+  const [certCalendar, setCertCalendar] = useState(isMockSession ? MOCK_CERT_CALENDAR : []);
+  const [loadingCertCalendar, setLoadingCertCalendar] = useState(!isMockSession);
+  const [certCalendarError, setCertCalendarError] = useState(null);
+  const [showAddCertForm, setShowAddCertForm] = useState(false);
+  const [addingCert, setAddingCert] = useState(false);
+  const [addCertError, setAddCertError] = useState(null);
+  const [newCertForm, setNewCertForm] = useState({ member: '', cert: '', date: '', cohort: '' });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCertCalendar()
+      .then((data) => !cancelled && setCertCalendar(data))
+      .catch((err) => !cancelled && setCertCalendarError(err.message))
+      .finally(() => !cancelled && setLoadingCertCalendar(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleAddCertEntry = async (e) => {
+    e.preventDefault();
+    if (!newCertForm.member.trim() || !newCertForm.cert.trim() || !newCertForm.date) return;
+    setAddingCert(true);
+    setAddCertError(null);
+    try {
+      if (isMockSession) {
+        const mockEntry = {
+          id: Math.max(0, ...certCalendar.map((c) => c.id)) + 1,
+          member: newCertForm.member.trim(),
+          cert: newCertForm.cert.trim(),
+          date: newCertForm.date,
+          cohort: newCertForm.cohort.trim() || 'General',
+          result: 'Pending',
+          createdBy: user?.email || 'you',
+        };
+        setCertCalendar((prev) => [...prev, mockEntry].sort((a, b) => new Date(a.date) - new Date(b.date)));
+      } else {
+        await addCertCalendarEntry({
+          member: newCertForm.member.trim(),
+          cert: newCertForm.cert.trim(),
+          date: newCertForm.date,
+          cohort: newCertForm.cohort.trim(),
+          createdBy: user?.email,
+        });
+        setCertCalendar(await fetchCertCalendar());
+      }
+      setNewCertForm({ member: '', cert: '', date: '', cohort: '' });
+      setShowAddCertForm(false);
+    } catch (err) {
+      setAddCertError(err.message);
+    } finally {
+      setAddingCert(false);
+    }
+  };
+
   // Quarterly TryHackMe competition - real Supabase data for a real session
   // (RLS scopes reads to signed-in, approved members), local mock leaderboard
   // under Mock Member since there's no real session to persist an RSVP against.
@@ -753,6 +824,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     { id: 13, category: 'Interview Playbooks', title: 'Mock Interview Prep Guide', format: 'Playbook', description: 'How to structure answers with the STAR method for technical and behavioural rounds.' },
     { id: 14, category: 'CV Templates', title: 'Entry-Level Security CV Template', format: 'Template', description: 'Formatted for ATS systems, built for members with certs but limited work experience.' },
     { id: 15, category: 'CV Templates', title: 'Pentester / Red Team CV Template', format: 'Template', description: 'Structured to highlight CTF placements, bug bounty finds, and lab write-ups.' },
+    { id: 16, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
+    { id: 17, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
   ];
 
   const filteredResources = resourceCategoryFilter === 'All'
@@ -1964,9 +2037,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                   <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{res.title}</h4>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }}>{res.description}</p>
-                  <button className="btn btn-secondary" style={{ justifyContent: 'center', fontSize: '0.85rem' }}>
-                    <Download size={14} /> Open Resource
-                  </button>
+                  {isSafeUrl(res.link) ? (
+                    <a
+                      href={res.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-secondary"
+                      style={{ justifyContent: 'center', fontSize: '0.85rem' }}
+                    >
+                      <ExternalLink size={14} /> Open Resource
+                    </a>
+                  ) : (
+                    <button className="btn btn-secondary" disabled style={{ justifyContent: 'center', fontSize: '0.85rem', opacity: 0.5, cursor: 'not-allowed' }}>
+                      <Download size={14} /> Coming Soon
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -1975,29 +2060,29 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       );
 
     case 'certs':
-      const communityCerts = [
-        { id: 1, member: 'Sanele Khumalo', cert: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B' },
-        { id: 2, member: 'Nonhlanhla Sindane', cert: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug' },
-        { id: 3, member: 'Khody Netshifhefhe', cert: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro' },
-        { id: 4, member: 'Joshua Harrop', cert: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3' },
-        { id: 5, member: 'Thando Mandondo', cert: 'CompTIA Network+', date: '2026-09-20', cohort: 'NetPlus-Q3' },
-      ];
-
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Community Certification Calendar</h1>
-            <p>Hacking Hub community-wide target exam dates, active cohorts, and member countdowns.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Community Certification Calendar</h1>
+              <p>Hacking Hub community-wide target exam dates, active cohorts, and member countdowns.</p>
+              {certCalendarError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{certCalendarError}</p>}
+            </div>
+            <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddCertForm(true)}>
+              <GraduationCap size={16} /> Add to Cert Calendar
+            </button>
           </div>
 
           <div className="glass-card" style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3>Community Operatives Exam Countdown</h3>
-              <span className="badge badge-success">{communityCerts.length} Active Targets</span>
+              <span className="badge badge-success">{certCalendar.length} Active Targets</span>
             </div>
 
+            {loadingCertCalendar && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading cert calendar...</p>}
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              {communityCerts.map((c) => {
+              {certCalendar.map((c) => {
                 const targetDate = new Date(c.date);
                 const today = new Date();
                 const diffTime = targetDate - today;
@@ -2054,6 +2139,75 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               date={selectedCert.date}
               onClose={() => setSelectedCert(null)}
             />
+          )}
+
+          {showAddCertForm && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setShowAddCertForm(false)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>Add to Cert Calendar</h2>
+                <form onSubmit={handleAddCertEntry} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Your Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Jane Doe"
+                      value={newCertForm.member}
+                      onChange={(e) => setNewCertForm({ ...newCertForm, member: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. CompTIA Security+"
+                      value={newCertForm.cert}
+                      onChange={(e) => setNewCertForm({ ...newCertForm, cert: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Target Exam Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={newCertForm.date}
+                      onChange={(e) => setNewCertForm({ ...newCertForm, date: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Cohort (optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. SecPlus-Aug"
+                      value={newCertForm.cohort}
+                      onChange={(e) => setNewCertForm({ ...newCertForm, cohort: e.target.value })}
+                    />
+                  </div>
+
+                  {addCertError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addCertError}</p>}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddCertForm(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={addingCert}>{addingCert ? 'Adding...' : 'Add to Calendar'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
         </div>
       );
@@ -2383,17 +2537,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
             <div className="glass-card">
               <h3 style={{ marginBottom: '16px' }}>Current Active Clearance</h3>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Plan Name</span>
-                <strong>{currentPlan.name}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Rate</span>
-                <strong>{currentPlan.priceDisplay} {currentPlan.period}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Status</span>
-                <span className="badge badge-success">active</span>
+              <div style={{ position: 'relative' }}>
+                <div style={{ filter: 'blur(6px)', userSelect: 'none', pointerEvents: 'none' }} aria-hidden="true">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Plan Name</span>
+                    <strong>{currentPlan.name}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Rate</span>
+                    <strong>{currentPlan.priceDisplay} {currentPlan.period}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Status</span>
+                    <span className="badge badge-success">active</span>
+                  </div>
+                </div>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>Under Construction</span>
+                </div>
               </div>
             </div>
 
