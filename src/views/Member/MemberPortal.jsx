@@ -5,10 +5,13 @@ import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarData';
+import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
+import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
+import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { fetchCalendarEvents, findNextMeetingWithOrganizer } from '../../lib/googleCalendar';
 import {
   Calendar,
@@ -183,6 +186,19 @@ const MOCK_CERT_CALENDAR = [
   { id: 9, member: 'Siya', cert: 'Microsoft Security Operations Analyst (SC-500)', date: '2026-08-20', cohort: 'General', result: 'Pending' },
 ];
 
+const MOCK_JOB_BOARD = [
+  { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', posted: '2026-08-01', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who\'ve completed Security+.', tags: ['Blue Team', 'Security+', 'Entry Level'], link: '' },
+  { id: 2, title: 'Junior Penetration Tester', company: 'Telspace Systems', location: 'Cape Town (Onsite)', type: 'Full-Time', posted: '2026-07-28', salary: 'R22,000 – R30,000 / month', description: 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.', tags: ['Red Team', 'OSCP', 'Junior'], link: '' },
+  { id: 3, title: 'GRC Analyst Intern', company: 'Standard Bank', location: 'Johannesburg (Onsite)', type: 'Internship', posted: '2026-08-05', salary: 'R8,000 / month stipend', description: '6-month internship supporting risk assessments and compliance documentation within the group security office.', tags: ['GRC', 'Internship'], link: '' },
+  { id: 4, title: 'Cloud Security Engineer', company: 'Entelect', location: 'Remote (SA)', type: 'Full-Time', posted: '2026-07-20', salary: 'R45,000 – R60,000 / month', description: 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.', tags: ['Cloud Security', 'AZ-500', 'Mid-Level'], link: '' },
+  { id: 5, title: 'Vulnerability Assessment Contractor', company: 'Private Client (via HH Network)', location: 'Remote', type: 'Contract', posted: '2026-08-06', salary: 'Project-based', description: 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.', tags: ['Red Team', 'Contract'], link: '' },
+];
+
+const MOCK_RESOURCES = [
+  { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
+  { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
+];
+
 const MOCK_LEADERBOARD = [
   { email: 'khody@example.com', member: 'Khody Netshifhefhe', rooms: 12, daysLogged: 19 },
   { email: 'nonhlanhla@example.com', member: 'Nonhlanhla Sindane', rooms: 9, daysLogged: 15 },
@@ -252,7 +268,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         if (cancelled) return;
         setNextOneOnOne(findNextMeetingWithOrganizer(events, SIYA_EMAIL, 30));
       })
-      .catch((err) => !cancelled && setOneOnOneError(err.message))
+      .catch((err) => !cancelled && setOneOnOneError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingOneOnOne(false));
     return () => { cancelled = true; };
   }, [isMockSession, providerToken]);
@@ -271,7 +287,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchReviews()
       .then((data) => !cancelled && setReviews(data))
-      .catch((err) => !cancelled && setReviewsError(err.message))
+      .catch((err) => !cancelled && setReviewsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingReviews(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -301,7 +317,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       }
       setReviewForm({ rating: '', category: 'General', title: '', body: '', visibility: 'Private' });
     } catch (err) {
-      setReviewsError(err.message);
+      setReviewsError(friendlyErrorMessage(err));
     } finally {
       setSubmittingReview(false);
     }
@@ -348,7 +364,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchMemberDirectory()
       .then((data) => !cancelled && setDirectory(data))
-      .catch((err) => !cancelled && setDirectoryError(err.message))
+      .catch((err) => !cancelled && setDirectoryError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingDirectory(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -378,7 +394,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       const url = await uploadHeadshot(user.email, file);
       setProfileForm((prev) => ({ ...prev, headshotUrl: url }));
     } catch (err) {
-      setHeadshotError(err.message);
+      setHeadshotError(friendlyErrorMessage(err));
     } finally {
       setUploadingHeadshot(false);
     }
@@ -401,7 +417,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       }
       setEditingProfile(false);
     } catch (err) {
-      setDirectoryError(err.message);
+      setDirectoryError(friendlyErrorMessage(err));
     } finally {
       setSavingProfile(false);
     }
@@ -464,7 +480,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchEventRsvps()
       .then((data) => !cancelled && setEventRsvps(data))
-      .catch((err) => !cancelled && setEventRsvpError(err.message))
+      .catch((err) => !cancelled && setEventRsvpError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingEventRsvps(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -507,7 +523,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       else await rsvpForEvent(eventId);
       setEventRsvps(await fetchEventRsvps());
     } catch (err) {
-      setEventRsvpError(err.message);
+      setEventRsvpError(friendlyErrorMessage(err));
     } finally {
       setRsvpingEventId(null);
     }
@@ -532,7 +548,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchCommunityEvents()
       .then((data) => !cancelled && setCommunityEvents(data))
-      .catch((err) => !cancelled && setEventsError(err.message))
+      .catch((err) => !cancelled && setEventsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingEvents(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -573,7 +589,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setNewEventForm({ title: '', type: 'HH Meetup', date: '', time: '', location: '', link: '', description: '' });
       setShowAddEventForm(false);
     } catch (err) {
-      setAddEventError(err.message);
+      setAddEventError(friendlyErrorMessage(err));
     } finally {
       setAddingEvent(false);
     }
@@ -607,7 +623,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchCertCalendar()
       .then((data) => !cancelled && setCertCalendar(data))
-      .catch((err) => !cancelled && setCertCalendarError(err.message))
+      .catch((err) => !cancelled && setCertCalendarError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingCertCalendar(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -642,7 +658,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setNewCertForm({ member: '', cert: '', date: '', cohort: '' });
       setShowAddCertForm(false);
     } catch (err) {
-      setAddCertError(err.message);
+      setAddCertError(friendlyErrorMessage(err));
     } finally {
       setAddingCert(false);
     }
@@ -667,7 +683,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchCompetitionStandings()
       .then((data) => !cancelled && setCompetitionLeaderboard(data))
-      .catch((err) => !cancelled && setStandingsError(err.message))
+      .catch((err) => !cancelled && setStandingsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingStandings(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -698,7 +714,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setCompetitionLeaderboard(await fetchCompetitionStandings());
       celebrateRsvp();
     } catch (err) {
-      setStandingsError(err.message);
+      setStandingsError(friendlyErrorMessage(err));
     } finally {
       setRsvpingCompetition(false);
     }
@@ -726,65 +742,74 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const competitionStatus = daysUntilCompetition > 0 ? 'Upcoming' : competitionNow <= competitionEndDate ? 'Active' : 'Ended';
   const competitionStatusBadgeClass = competitionStatus === 'Active' ? 'badge-success' : competitionStatus === 'Upcoming' ? 'badge-warning' : 'badge-danger';
 
-  // Job Board — roles sourced from HH's employer network and job placement partners
+  // Job Board — real Supabase data for a real session (RLS scopes reads to
+  // signed-in, approved members), local-only demo listings under Mock Member
+  // since there's no real session to fetch from. Members can add their own
+  // listing via the "Add Job" form below - those persist for everyone.
   const [jobTypeFilter, setJobTypeFilter] = useState('All');
-  const jobListings = [
-    {
-      id: 1,
-      title: 'SOC Analyst (Junior)',
-      company: 'Nclose',
-      location: 'Johannesburg (Hybrid)',
-      type: 'Full-Time',
-      posted: '2026-08-01',
-      salary: 'R18,000 – R25,000 / month',
-      description: 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who\'ve completed Security+.',
-      tags: ['Blue Team', 'Security+', 'Entry Level'],
-    },
-    {
-      id: 2,
-      title: 'Junior Penetration Tester',
-      company: 'Telspace Systems',
-      location: 'Cape Town (Onsite)',
-      type: 'Full-Time',
-      posted: '2026-07-28',
-      salary: 'R22,000 – R30,000 / month',
-      description: 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.',
-      tags: ['Red Team', 'OSCP', 'Junior'],
-    },
-    {
-      id: 3,
-      title: 'GRC Analyst Intern',
-      company: 'Standard Bank',
-      location: 'Johannesburg (Onsite)',
-      type: 'Internship',
-      posted: '2026-08-05',
-      salary: 'R8,000 / month stipend',
-      description: '6-month internship supporting risk assessments and compliance documentation within the group security office.',
-      tags: ['GRC', 'Internship'],
-    },
-    {
-      id: 4,
-      title: 'Cloud Security Engineer',
-      company: 'Entelect',
-      location: 'Remote (SA)',
-      type: 'Full-Time',
-      posted: '2026-07-20',
-      salary: 'R45,000 – R60,000 / month',
-      description: 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.',
-      tags: ['Cloud Security', 'AZ-500', 'Mid-Level'],
-    },
-    {
-      id: 5,
-      title: 'Vulnerability Assessment Contractor',
-      company: 'Private Client (via HH Network)',
-      location: 'Remote',
-      type: 'Contract',
-      posted: '2026-08-06',
-      salary: 'Project-based',
-      description: 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.',
-      tags: ['Red Team', 'Contract'],
-    },
-  ].sort((a, b) => new Date(b.posted) - new Date(a.posted));
+  const [jobListings, setJobListings] = useState(isMockSession ? MOCK_JOB_BOARD : []);
+  const [loadingJobs, setLoadingJobs] = useState(!isMockSession);
+  const [jobsError, setJobsError] = useState(null);
+  const [showAddJobForm, setShowAddJobForm] = useState(false);
+  const [addingJob, setAddingJob] = useState(false);
+  const [addJobError, setAddJobError] = useState(null);
+  const [newJobForm, setNewJobForm] = useState({
+    title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', link: '',
+  });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchJobBoard()
+      .then((data) => !cancelled && setJobListings(data))
+      .catch((err) => !cancelled && setJobsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingJobs(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleAddJob = async (e) => {
+    e.preventDefault();
+    if (!newJobForm.title.trim() || !newJobForm.company.trim()) return;
+    setAddingJob(true);
+    setAddJobError(null);
+    const tagList = newJobForm.tags.split(',').map((t) => t.trim()).filter(Boolean);
+    try {
+      if (isMockSession) {
+        const mockJob = {
+          id: Math.max(0, ...jobListings.map((j) => j.id)) + 1,
+          title: newJobForm.title.trim(),
+          company: newJobForm.company.trim(),
+          location: newJobForm.location.trim(),
+          type: newJobForm.type,
+          salary: newJobForm.salary.trim(),
+          description: newJobForm.description.trim(),
+          tags: tagList,
+          link: newJobForm.link.trim(),
+          posted: new Date().toISOString().slice(0, 10),
+        };
+        setJobListings((prev) => [mockJob, ...prev]);
+      } else {
+        await addJobListing({
+          title: newJobForm.title.trim(),
+          company: newJobForm.company.trim(),
+          location: newJobForm.location.trim(),
+          type: newJobForm.type,
+          salary: newJobForm.salary.trim(),
+          description: newJobForm.description.trim(),
+          tags: tagList,
+          link: newJobForm.link.trim(),
+          createdBy: user?.email,
+        });
+        setJobListings(await fetchJobBoard());
+      }
+      setNewJobForm({ title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', link: '' });
+      setShowAddJobForm(false);
+    } catch (err) {
+      setAddJobError(friendlyErrorMessage(err));
+    } finally {
+      setAddingJob(false);
+    }
+  };
 
   const JOB_TYPE_BADGE = {
     'Full-Time': 'badge-success',
@@ -808,25 +833,65 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'CV Templates': NotebookPen,
   };
 
-  const resources = [
-    { id: 1, category: 'Cert Prep', title: 'OSCP Study Notes & Buffer Overflow Cheatsheet', format: 'HH Guide', description: 'Community-maintained notes covering AD attacks, privilege escalation, and manual buffer overflow steps.' },
-    { id: 2, category: 'Cert Prep', title: 'CompTIA Security+ Exam Objectives Breakdown', format: 'HH Guide', description: 'Domain-by-domain summary of the SY0-701 objectives with practice question links.' },
-    { id: 3, category: 'Cert Prep', title: 'eCPPT Prep Checklist', format: 'HH Guide', description: 'What to review before booking your eCPPT practical exam window.' },
-    { id: 4, category: 'Role Roadmaps', title: 'SOC Analyst Roadmap (0–2 Years)', format: 'Roadmap', description: 'Skills, certs, and projects to go from no experience to a confident junior SOC analyst.' },
-    { id: 5, category: 'Role Roadmaps', title: 'Penetration Tester Roadmap', format: 'Roadmap', description: 'Junior to senior progression for offensive security, with recommended certs at each stage.' },
-    { id: 6, category: 'Role Roadmaps', title: 'Cloud Security Engineer Roadmap', format: 'Roadmap', description: 'AWS and Azure security fundamentals through to AZ-500 and beyond.' },
-    { id: 7, category: 'Role Roadmaps', title: 'GRC Analyst Roadmap', format: 'Roadmap', description: 'Building a governance, risk, and compliance career — frameworks worth knowing and where to start.' },
-    { id: 8, category: 'Podcasts', title: 'Darknet Diaries', format: 'Podcast', description: 'True stories from the dark side of the internet — great for building intuition on real attacks.' },
-    { id: 9, category: 'Podcasts', title: 'Risky Business', format: 'Podcast', description: 'Weekly news roundup on the security industry — good for staying current for interviews.' },
-    { id: 10, category: 'Books', title: "The Web Application Hacker's Handbook", format: 'Book', description: 'Still one of the best deep dives into web app exploitation techniques.' },
-    { id: 11, category: 'Books', title: 'Practical Malware Analysis', format: 'Book', description: 'Hands-on introduction to analysing malicious software in a lab environment.' },
-    { id: 12, category: 'Interview Playbooks', title: 'Cybersecurity Interview Question Bank', format: 'Playbook', description: '80+ real questions asked at SA employers, grouped by role (SOC, pentest, GRC, cloud).' },
-    { id: 13, category: 'Interview Playbooks', title: 'Mock Interview Prep Guide', format: 'Playbook', description: 'How to structure answers with the STAR method for technical and behavioural rounds.' },
-    { id: 14, category: 'CV Templates', title: 'Entry-Level Security CV Template', format: 'Template', description: 'Formatted for ATS systems, built for members with certs but limited work experience.' },
-    { id: 15, category: 'CV Templates', title: 'Pentester / Red Team CV Template', format: 'Template', description: 'Structured to highlight CTF placements, bug bounty finds, and lab write-ups.' },
-    { id: 16, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
-    { id: 17, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
-  ];
+  // Real Supabase data for a real session (RLS scopes reads to signed-in,
+  // approved members), local-only demo resources under Mock Member since
+  // there's no real session to fetch from. Members can add their own via the
+  // "Add Resource" form below - those persist for everyone.
+  const [resources, setResources] = useState(isMockSession ? MOCK_RESOURCES : []);
+  const [loadingResources, setLoadingResources] = useState(!isMockSession);
+  const [resourcesError, setResourcesError] = useState(null);
+  const [showAddResourceForm, setShowAddResourceForm] = useState(false);
+  const [addingResource, setAddingResource] = useState(false);
+  const [addResourceError, setAddResourceError] = useState(null);
+  const [newResourceForm, setNewResourceForm] = useState({
+    category: 'Cert Prep', title: '', format: '', description: '', link: '',
+  });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchResources()
+      .then((data) => !cancelled && setResources(data))
+      .catch((err) => !cancelled && setResourcesError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingResources(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleAddResource = async (e) => {
+    e.preventDefault();
+    if (!newResourceForm.title.trim() || !newResourceForm.link.trim()) return;
+    setAddingResource(true);
+    setAddResourceError(null);
+    try {
+      if (isMockSession) {
+        const mockResource = {
+          id: Math.max(0, ...resources.map((r) => r.id)) + 1,
+          category: newResourceForm.category,
+          title: newResourceForm.title.trim(),
+          format: newResourceForm.format.trim(),
+          description: newResourceForm.description.trim(),
+          link: newResourceForm.link.trim(),
+        };
+        setResources((prev) => [mockResource, ...prev]);
+      } else {
+        await addResource({
+          category: newResourceForm.category,
+          title: newResourceForm.title.trim(),
+          format: newResourceForm.format.trim(),
+          description: newResourceForm.description.trim(),
+          link: newResourceForm.link.trim(),
+          createdBy: user?.email,
+        });
+        setResources(await fetchResources());
+      }
+      setNewResourceForm({ category: 'Cert Prep', title: '', format: '', description: '', link: '' });
+      setShowAddResourceForm(false);
+    } catch (err) {
+      setAddResourceError(friendlyErrorMessage(err));
+    } finally {
+      setAddingResource(false);
+    }
+  };
 
   const filteredResources = resourceCategoryFilter === 'All'
     ? resources
@@ -1944,9 +2009,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     case 'jobs':
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Job Board</h1>
-            <p>Roles sourced from Hacking Hub's employer network and job placement partners.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Job Board</h1>
+              <p>Roles sourced from Hacking Hub's employer network and job placement partners.</p>
+              {jobsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{jobsError}</p>}
+            </div>
+            <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddJobForm(true)}>
+              <Briefcase size={16} /> Add Job
+            </button>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
@@ -1962,6 +2033,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             ))}
           </div>
 
+          {loadingJobs && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading job board...</p>}
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {filteredJobs.map((job) => (
               <div key={job.id} className="glass-card">
@@ -1969,16 +2042,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                       <span className={`badge ${JOB_TYPE_BADGE[job.type] || 'badge-success'}`}>{job.type}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Posted {job.posted}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Posted {formatDate(job.posted)}</span>
                     </div>
                     <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{job.title}</h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
                       <Building2 size={14} /> {job.company}
                     </div>
                   </div>
-                  <button className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
-                    <Briefcase size={14} /> Apply
-                  </button>
+                  {isSafeUrl(job.link) ? (
+                    <a href={job.link} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
+                      <Briefcase size={14} /> Apply
+                    </a>
+                  ) : (
+                    <button className="btn btn-primary" disabled style={{ fontSize: '0.85rem', opacity: 0.5, cursor: 'not-allowed' }}>
+                      <Briefcase size={14} /> No Link Yet
+                    </button>
+                  )}
                 </div>
 
                 <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>{job.description}</p>
@@ -1998,17 +2077,136 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             ))}
           </div>
+
+          {showAddJobForm && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setShowAddJobForm(false)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>Add a Job</h2>
+                <form onSubmit={handleAddJob} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Job Title</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. SOC Analyst (Junior)"
+                      value={newJobForm.title}
+                      onChange={(e) => setNewJobForm({ ...newJobForm, title: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Company</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Nclose"
+                      value={newJobForm.company}
+                      onChange={(e) => setNewJobForm({ ...newJobForm, company: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Type</label>
+                      <select className="form-input" value={newJobForm.type} onChange={(e) => setNewJobForm({ ...newJobForm, type: e.target.value })}>
+                        <option value="Full-Time">Full-Time</option>
+                        <option value="Contract">Contract</option>
+                        <option value="Internship">Internship</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Location</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. Remote (SA)"
+                        value={newJobForm.location}
+                        onChange={(e) => setNewJobForm({ ...newJobForm, location: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Salary (optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. R18,000 – R25,000 / month"
+                      value={newJobForm.salary}
+                      onChange={(e) => setNewJobForm({ ...newJobForm, salary: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Apply Link</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      placeholder="https://..."
+                      value={newJobForm.link}
+                      onChange={(e) => setNewJobForm({ ...newJobForm, link: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Tags (comma-separated, optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Blue Team, Security+, Entry Level"
+                      value={newJobForm.tags}
+                      onChange={(e) => setNewJobForm({ ...newJobForm, tags: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Description (optional)</label>
+                    <textarea
+                      className="form-input"
+                      rows={3}
+                      style={{ resize: 'vertical' }}
+                      placeholder="What's the role about?"
+                      value={newJobForm.description}
+                      onChange={(e) => setNewJobForm({ ...newJobForm, description: e.target.value })}
+                    />
+                  </div>
+
+                  {addJobError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addJobError}</p>}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddJobForm(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={addingJob}>{addingJob ? 'Adding...' : 'Add Job'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       );
 
     case 'resources':
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Library size={28} color="var(--accent-cyan)" /> Resources
-            </h1>
-            <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, and CV templates.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Library size={28} color="var(--accent-cyan)" /> Resources
+              </h1>
+              <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, and CV templates.</p>
+              {resourcesError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{resourcesError}</p>}
+            </div>
+            <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddResourceForm(true)}>
+              <Library size={16} /> Add Resource
+            </button>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
@@ -2023,6 +2221,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </button>
             ))}
           </div>
+
+          {loadingResources && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading resources...</p>}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
             {filteredResources.map((res) => {
@@ -2056,6 +2256,91 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               );
             })}
           </div>
+
+          {!loadingResources && filteredResources.length === 0 && (
+            <p style={{ color: 'var(--text-muted)' }}>No resources here yet — be the first to add one.</p>
+          )}
+
+          {showAddResourceForm && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setShowAddResourceForm(false)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>Add a Resource</h2>
+                <form onSubmit={handleAddResource} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Category</label>
+                    <select
+                      className="form-input"
+                      value={newResourceForm.category}
+                      onChange={(e) => setNewResourceForm({ ...newResourceForm, category: e.target.value })}
+                    >
+                      {RESOURCE_CATEGORIES.filter((c) => c !== 'All').map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Title</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Google Cybersecurity Professional Certificate"
+                      value={newResourceForm.title}
+                      onChange={(e) => setNewResourceForm({ ...newResourceForm, title: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Link</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      placeholder="https://..."
+                      value={newResourceForm.link}
+                      onChange={(e) => setNewResourceForm({ ...newResourceForm, link: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Format (optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Course, Guide, Podcast, Book"
+                      value={newResourceForm.format}
+                      onChange={(e) => setNewResourceForm({ ...newResourceForm, format: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Description (optional)</label>
+                    <textarea
+                      className="form-input"
+                      rows={3}
+                      style={{ resize: 'vertical' }}
+                      placeholder="Why is this worth checking out?"
+                      value={newResourceForm.description}
+                      onChange={(e) => setNewResourceForm({ ...newResourceForm, description: e.target.value })}
+                    />
+                  </div>
+
+                  {addResourceError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addResourceError}</p>}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddResourceForm(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={addingResource}>{addingResource ? 'Adding...' : 'Add Resource'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       );
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { friendlyErrorMessage } from '../lib/errorMessages';
 import { Key, AlertCircle, LogOut, Users, Award, Trophy, CalendarDays } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 
@@ -32,7 +33,7 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
       });
       if (error) throw error;
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
       setLoading(false);
     }
   };
