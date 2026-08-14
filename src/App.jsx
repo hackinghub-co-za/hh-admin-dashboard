@@ -134,6 +134,25 @@ export default function App() {
     };
   }, []);
 
+  // A background/inactive tab's session token can go stale past its ~1 hour
+  // expiry while the tab isn't focused - supabase-js's own auto-refresh timer
+  // can be throttled by the browser while backgrounded. Without this, the
+  // member's next click after returning to the tab would be the one that
+  // discovers the token is dead, surfacing as a raw "permission denied"
+  // error. Calling getSession() on focus proactively refreshes it (supabase-js
+  // does this internally when the stored session is expired) before that can
+  // happen - onAuthStateChange above then re-runs resolveSession with the
+  // refreshed session automatically.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        supabase.auth.getSession();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);

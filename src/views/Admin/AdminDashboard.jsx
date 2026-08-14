@@ -16,6 +16,7 @@ import {
   insertEftPayment,
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
+import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult } from '../../lib/certCalendarData';
 import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
 import {
@@ -97,14 +98,14 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         });
         setLastMeetingByEmail(map);
       })
-      .catch((err) => setMeetingSyncError(err.message))
+      .catch((err) => setMeetingSyncError(friendlyErrorMessage(err)))
       .finally(() => setLoadingMeetingSync(false));
   };
 
   const handleSaveMemberProfile = (email, profileData) => {
     setMemberProfiles((prev) => ({ ...prev, [email.toLowerCase()]: profileData }));
     if (!isMockSession) {
-      upsertMemberProfile(email, profileData).catch((err) => setSavedMemberDataError(err.message));
+      upsertMemberProfile(email, profileData).catch((err) => setSavedMemberDataError(friendlyErrorMessage(err)));
     }
   };
 
@@ -124,7 +125,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     ]);
     handleSaveMemberProfile(email, { ...profileFields, moneyOwed: Number(profileFields.moneyOwed) || 0 });
     if (!isMockSession) {
-      insertManualMember({ member, email, startDate, lastPlan, totalSpent }).catch((err) => setSavedMemberDataError(err.message));
+      insertManualMember({ member, email, startDate, lastPlan, totalSpent }).catch((err) => setSavedMemberDataError(friendlyErrorMessage(err)));
     }
   };
 
@@ -149,7 +150,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     let cancelled = false;
     fetchCertCalendar()
       .then((data) => !cancelled && setCerts(data))
-      .catch((err) => !cancelled && setCertsError(err.message))
+      .catch((err) => !cancelled && setCertsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingCerts(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -176,7 +177,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         await addCertCalendarEntry({ member: newCert.member, cert: newCert.cert, date: newCert.date, cohort: newCert.cohort, createdBy: user?.email });
         setCerts(await fetchCertCalendar());
       } catch (err) {
-        setCertsError(err.message);
+        setCertsError(friendlyErrorMessage(err));
         return;
       }
     }
@@ -189,7 +190,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       try {
         await updateCertCalendarResult(id, result);
       } catch (err) {
-        setCertsError(err.message);
+        setCertsError(friendlyErrorMessage(err));
       }
     }
   };
@@ -212,7 +213,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         setManualMembers(manual);
         if (eft.length) setPayments((prev) => [...eft, ...prev]);
       })
-      .catch((err) => !cancelled && setSavedMemberDataError(err.message))
+      .catch((err) => !cancelled && setSavedMemberDataError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingSavedMemberData(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -229,7 +230,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     let cancelled = false;
     fetchReviews()
       .then((data) => !cancelled && setReviews(data))
-      .catch((err) => !cancelled && setReviewsError(err.message))
+      .catch((err) => !cancelled && setReviewsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingReviews(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -263,7 +264,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       await approveCommunityEvent(eventId);
       setCommunityEvents(await fetchCommunityEvents());
     } catch (err) {
-      setApproveEventError(err.message);
+      setApproveEventError(friendlyErrorMessage(err));
     } finally {
       setApprovingEventId(null);
     }
@@ -373,7 +374,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     };
     setPayments([newPayment, ...payments]);
     if (!isMockSession) {
-      insertEftPayment(newPayment).catch((err) => setSavedMemberDataError(err.message));
+      insertEftPayment(newPayment).catch((err) => setSavedMemberDataError(friendlyErrorMessage(err)));
     }
   };
 
@@ -1088,7 +1089,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     setLoadingEvents(true);
                     fetchCalendarEvents(providerToken)
                       .then(setGoogleEvents)
-                      .catch(err => setEventsError(err.message))
+                      .catch(err => setEventsError(friendlyErrorMessage(err)))
                       .finally(() => setLoadingEvents(false));
                   }}
                 >
