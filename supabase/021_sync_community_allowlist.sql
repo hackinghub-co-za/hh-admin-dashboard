@@ -61,6 +61,7 @@ VALUES
     ('[REDACTED]', 'Active', 'Mimieportiadhladla'),
     ('[REDACTED]', 'Active', 'Molvercallum'),
     ('[REDACTED]', 'Active', 'Monenecmasekoameng'),
+    ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Ndiambamba'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Nokutshaya09'),
@@ -102,7 +103,6 @@ ON CONFLICT (email) DO UPDATE SET status = 'Active';
 -- exactly like never having had access at all.
 UPDATE public.member_profiles SET status = 'Left'
 WHERE email IN (
-    '[REDACTED]',
     '[REDACTED]',
     '[REDACTED]',
     '[REDACTED]',
