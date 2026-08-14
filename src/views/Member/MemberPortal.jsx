@@ -219,10 +219,8 @@ const COMMUNITY_BROADCASTS = [
 // per-achievement post link to wire up yet, and a search at least goes
 // somewhere genuinely relevant rather than a fabricated post URL.
 const communityVictories = [
-  { id: 1, member: 'Nonhlanhla S.', cert: 'CompTIA Security+', date: 'Yesterday', avatarColor: 'var(--accent-cyan)', linkedinUrl: 'https://lnkd.in/p/dpe5UfGQ' },
-  { id: 2, member: 'Khody N.', cert: 'OSCP Penetration Tester', date: '2 days ago', avatarColor: 'var(--accent-purple)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Khody%20OSCP%20Penetration%20Tester' },
-  { id: 3, member: 'Joshua H.', cert: 'SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Joshua%20SOC%20Analyst' },
-  { id: 4, member: 'Lindokuhle D.', cert: 'Certified IT Auditor', date: '5 days ago', avatarColor: 'var(--warning)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Lindokuhle%20Certified%20IT%20Auditor' },
+  { id: 1, member: 'Philisiwe N.', cert: 'SC-900: Security, Compliance & Identity Fundamentals', date: 'Today', avatarColor: 'var(--accent-purple)', linkedinUrl: 'https://www.linkedin.com/posts/philisiwe-ncube-258263360_sc900-microsoftcertified-cybersecurity-activity-7494082635091251201-xzT6' },
+  { id: 2, member: 'Joshua H.', cert: 'SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Joshua%20SOC%20Analyst' },
 ];
 
 const SIYA_EMAIL = 'siya@hackinghub.co.za';
