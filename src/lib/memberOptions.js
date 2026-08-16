@@ -30,6 +30,12 @@ export const OFFBOARDING_REASONS = [
 export const EMPLOYMENT_STATUSES = ['Not Set', 'Employed', 'Unemployed', 'Student'];
 export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Permanent Access', 'Custom Plan', 'Maintenance Fee'];
 
+// The learning path a coach assigns a member to - drives which checklist shows
+// up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
+// own self-described directory badge); this one is coach-assigned.
+export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps'];
+export const ROADMAP_PHASES = ['Core Foundations', 'Specialization'];
+
 // A member is flagged "Lapsed" if they haven't paid in this many days and haven't
 // been explicitly marked Active or Left by an admin - a nudge to go check on them,
 // not a verdict.

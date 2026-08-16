@@ -21,6 +21,7 @@ INSERT INTO public.member_profiles (email, status, full_name)
 VALUES
     ('akahopewell28@gmail.com', 'Active', 'Akahopewell28'),
     ('asandancube070@gmail.com', 'Active', 'Asandancube070'),
+    ('awonkevintwembi@icloud.com', 'Active', 'Awonke Vintwembi'),
     ('bmemthimunye85@gmail.com', 'Active', 'Bmemthimunye85'),
     ('chiomaolebuike14@gmail.com', 'Active', 'Chiomaolebuike14'),
     ('clyde15sello@gmail.com', 'Active', 'Clyde15sello'),
@@ -61,6 +62,7 @@ VALUES
     ('mimieportiadhladla@gmail.com', 'Active', 'Mimieportiadhladla'),
     ('molvercallum@gmail.com', 'Active', 'Molvercallum'),
     ('monenecmasekoameng@gmail.com', 'Active', 'Monenecmasekoameng'),
+    ('motholobakang4@gmail.com', 'Active', 'Motholobakang4'),
     ('musa.ngobeni14@gmail.com', 'Active', 'Musa Ngobeni'),
     ('ndiambamba@gmail.com', 'Active', 'Ndiambamba'),
     ('nkosinathidhladhla77@gmail.com', 'Active', 'Nkosinathidhladhla77'),
@@ -89,6 +91,7 @@ VALUES
     ('tshepo.nchabeng36@gmail.com', 'Active', 'Tshepo.nchabeng36'),
     ('tshiamo878@gmail.com', 'Active', 'Nokulunga Aphane'),
     ('tshiamoseleki@gmail.com', 'Active', 'Tshiamoseleki'),
+    ('twala.ww@gmail.com', 'Active', 'Thando Twala'),
     ('ululamilemabunda@gmail.com', 'Active', 'Ululamilemabunda'),
     ('vanschalkwykjose64@gmail.com', 'Active', 'Jose van Schalkwyk'),
     ('wafs2damax@gmail.com', 'Active', 'Wafs2damax'),
@@ -103,7 +106,6 @@ ON CONFLICT (email) DO UPDATE SET status = 'Active';
 -- exactly like never having had access at all.
 UPDATE public.member_profiles SET status = 'Left'
 WHERE email IN (
-    'awonkevintwembi@icloud.com',
     'bokangngoetjana06@gmail.com',
     'ethan.cainboois@gmail.com',
     'ishmaeljr1922@gmail.com',
@@ -135,7 +137,6 @@ WHERE email IN (
     'thobatsitl45@gmail.com',
     'tinyikob811@gmail.com',
     'tumelomahonono2@gmail.com',
-    'twala.ww@gmail.com',
     'yonela.mavunga@gmail.com',
     'zoeasiahpaulse@gmail.com',
     'zothilentshangase16@gmail.com'
