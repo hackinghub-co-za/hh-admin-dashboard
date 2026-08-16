@@ -15,6 +15,7 @@ import {
   Library,
   Star,
   Terminal,
+  Milestone,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 
@@ -25,6 +26,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'members', label: 'Members', icon: Contact },
+        { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
         { id: '1on1s', label: '1on1 Sessions', icon: Users },
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
@@ -34,6 +36,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
       ]
     : [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'roadmap', label: 'My Roadmap', icon: Milestone },
         { id: 'members', label: 'Members', icon: Users },
         { id: 'meetings', label: '1on1 Meetings', icon: Users },
         { id: 'events', label: 'Events', icon: CalendarDays },

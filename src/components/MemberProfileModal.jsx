@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star } from 'lucide-react';
-import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../lib/memberOptions';
+import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star, Milestone } from 'lucide-react';
+import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS } from '../lib/memberOptions';
 import { formatDate } from '../lib/dateFormat';
 
 export default function MemberProfileModal({ member, profile, onSave, onClose, today }) {
@@ -13,6 +13,7 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
     phone: profile?.phone || '',
     moneyOwed: profile?.moneyOwed ?? 0,
     jobReadiness: profile?.jobReadiness || 'Not Started',
+    roadmapTrack: profile?.roadmapTrack || 'Not Assigned',
     status: profile?.status || 'Active',
     employmentStatus: profile?.employmentStatus || 'Not Set',
     jobTitle: profile?.jobTitle || '',
@@ -255,6 +256,18 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
                 {JOB_READINESS_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <Milestone size={13} /> Roadmap Track
+            </label>
+            <select className="form-input" value={form.roadmapTrack} onChange={update('roadmapTrack')}>
+              {ROADMAP_TRACKS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Determines which checklist shows up under "My Roadmap" for this member. Manage the actual checklist items from the Roadmaps tab.
+            </p>
           </div>
 
           {form.jobReadiness === 'Job Placed' && (

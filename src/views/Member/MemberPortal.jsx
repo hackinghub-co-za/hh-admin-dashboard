@@ -8,7 +8,8 @@ import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarD
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES } from '../../lib/memberOptions';
+import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack } from '../../lib/roadmapData';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
@@ -56,6 +57,7 @@ import {
   Code2,
   Globe,
   GraduationCap,
+  Milestone,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -197,6 +199,25 @@ const MOCK_JOB_BOARD = [
 const MOCK_RESOURCES = [
   { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
+];
+
+// Mock Member's demo roadmap - modeled on a real member's actual plan
+// (Offensive Security track, Core Foundations + Specialization phases) so
+// the mock experience matches what a real assigned roadmap looks like.
+const MOCK_ROADMAP_TRACK = 'Offensive Security';
+const MOCK_ROADMAP_ITEMS = [
+  { id: 1, phase: 'Core Foundations', category: 'Certifications', title: 'Immersive Labs', detail: '9/20 collections · by end of August', completed: false, sortOrder: 10 },
+  { id: 2, phase: 'Core Foundations', category: 'Certifications', title: 'CISCO Junior Cyber Pathway', detail: '1/6 courses', completed: false, sortOrder: 20 },
+  { id: 3, phase: 'Core Foundations', category: 'Certifications', title: 'CompTIA Security+', detail: 'by 28th of August', completed: false, sortOrder: 30 },
+  { id: 4, phase: 'Core Foundations', category: 'Networking', title: 'Get to 1000 LinkedIn connections', detail: '307/1000', completed: false, sortOrder: 10 },
+  { id: 5, phase: 'Core Foundations', category: 'Networking', title: 'Add banner and fix headshot', detail: '', completed: true, sortOrder: 20 },
+  { id: 6, phase: 'Core Foundations', category: 'Networking', title: 'Post once a week', detail: 'THM Medium-level room with a write-up', completed: false, sortOrder: 30 },
+  { id: 7, phase: 'Core Foundations', category: 'Networking', title: 'Attend events/webinars', detail: '', completed: false, sortOrder: 40 },
+  { id: 8, phase: 'Specialization', category: 'Red Teaming', title: 'THM Junior Pentester', detail: '100% complete', completed: true, sortOrder: 10 },
+  { id: 9, phase: 'Specialization', category: 'Red Teaming', title: 'Burp Suite Practitioner Certification', detail: '', completed: false, sortOrder: 20 },
+  { id: 10, phase: 'Specialization', category: 'Red Teaming', title: 'eJPT', detail: '', completed: false, sortOrder: 30 },
+  { id: 11, phase: 'Specialization', category: 'Red Teaming', title: 'THM Offensive Pentesting', detail: '34% complete, with write-ups', completed: false, sortOrder: 40 },
+  { id: 12, phase: 'Specialization', category: 'Red Teaming', title: 'OSCP', detail: '', completed: false, sortOrder: 50 },
 ];
 
 const MOCK_LEADERBOARD = [
@@ -431,13 +452,39 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     );
   });
 
-  // Mock roadmap tasks
-  const tasks = [
-    { id: 1, text: 'Complete PortSwigger Web Security Academy: Directory Traversal', completed: true },
-    { id: 2, text: 'Submit write-up for HackTheBox: "Internal" machine', completed: false },
-    { id: 3, text: 'Review Windows Active Directory privilege escalation notes', completed: false },
-    { id: 4, text: 'Schedule mock OSCP exam run with Jaco (Mentor)', completed: false },
-  ];
+  // My Roadmap - coach-assigned track + checklist (supabase/028_roadmap.sql).
+  // Members can only toggle items done via the toggle_my_roadmap_item RPC;
+  // the plan itself (title/detail/phase/category) is admin-authored.
+  const [roadmapTrack, setRoadmapTrack] = useState(isMockSession ? MOCK_ROADMAP_TRACK : null);
+  const [roadmapItems, setRoadmapItems] = useState(isMockSession ? MOCK_ROADMAP_ITEMS : []);
+  const [loadingRoadmap, setLoadingRoadmap] = useState(!isMockSession);
+  const [roadmapError, setRoadmapError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    Promise.all([fetchMyRoadmapTrack(), fetchMyRoadmap()])
+      .then(([track, items]) => {
+        if (cancelled) return;
+        setRoadmapTrack(track);
+        setRoadmapItems(items);
+      })
+      .catch((err) => !cancelled && setRoadmapError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingRoadmap(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleToggleMyRoadmapItem = async (item) => {
+    const updated = { ...item, completed: !item.completed };
+    setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+    if (isMockSession) return;
+    try {
+      await toggleMyRoadmapItem(item.id, updated.completed);
+    } catch (err) {
+      setRoadmapError(friendlyErrorMessage(err));
+      setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+    }
+  };
 
   // Recent Certification Victories auto-rotates through communityVictories one
   // at a time (same "single visible tile, moving feed" pattern as the
@@ -905,8 +952,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     window.location.href = checkoutUrl;
   };
 
-  const completedCount = tasks.filter(t => t.completed).length;
-  const progressPercent = Math.round((completedCount / tasks.length) * 100);
+  const roadmapCompletedCount = roadmapItems.filter(i => i.completed).length;
+  const roadmapProgressPercent = roadmapItems.length ? Math.round((roadmapCompletedCount / roadmapItems.length) * 100) : 0;
 
   // Membership Tier Definitions
   const ALL_TIERS = [
@@ -1365,6 +1412,95 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         </div>
       );
 
+    case 'roadmap': {
+      const roadmapPhaseGroups = ROADMAP_PHASES.map((phase) => ({
+        phase,
+        categories: [...new Set(roadmapItems.filter((i) => i.phase === phase).map((i) => i.category))].map((category) => ({
+          category,
+          items: roadmapItems.filter((i) => i.phase === phase && i.category === category).sort((a, b) => a.sortOrder - b.sortOrder),
+        })),
+      })).filter((g) => g.categories.length > 0);
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>My Roadmap</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              {roadmapTrack ? `Your coach-assigned ${roadmapTrack} track.` : "Your coach hasn't assigned a track yet."} Check items off as you complete them — your coach owns the plan itself.
+            </p>
+          </div>
+
+          {!isMockSession && loadingRoadmap ? (
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading your roadmap...</p>
+          ) : roadmapError ? (
+            <p style={{ fontSize: '0.9rem', color: 'var(--danger)' }}>Couldn't load your roadmap: {roadmapError}</p>
+          ) : roadmapItems.length === 0 ? (
+            <div className="glass-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+              <Milestone size={40} color="var(--text-muted)" style={{ marginBottom: '16px' }} />
+              <p style={{ color: 'var(--text-muted)' }}>No roadmap assigned yet — reach out to Siya to get one set up, or bring it up in your next 1on1.</p>
+            </div>
+          ) : (
+            <div className="glass-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
+                <div style={{ flex: 1, height: '10px', background: 'var(--bg-tertiary)', borderRadius: '5px', overflow: 'hidden' }}>
+                  <div style={{ width: `${roadmapProgressPercent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '5px', transition: 'width 0.4s ease' }}></div>
+                </div>
+                <span className="badge badge-success" style={{ flexShrink: 0 }}>{roadmapCompletedCount}/{roadmapItems.length} done · {roadmapProgressPercent}%</span>
+              </div>
+
+              {roadmapPhaseGroups.map((g) => (
+                <div key={g.phase} style={{ marginBottom: '32px' }}>
+                  <h3 style={{ fontSize: '1.1rem', color: 'var(--accent-purple)', marginBottom: '16px', paddingBottom: '10px', borderBottom: '1px solid var(--border-color)' }}>{g.phase}</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                    {g.categories.map((c) => (
+                      <div key={c.category}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px' }}>{c.category}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {c.items.map((item) => (
+                            <div
+                              key={item.id}
+                              onClick={() => handleToggleMyRoadmapItem(item)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                                padding: '12px 14px',
+                                borderRadius: 'var(--border-radius-md)',
+                                background: item.completed ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255, 255, 255, 0.01)',
+                                border: item.completed ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-color)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {item.completed ? (
+                                <CheckSquare size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                              ) : (
+                                <Square size={18} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                              )}
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{
+                                  fontSize: '0.9rem',
+                                  textDecoration: item.completed ? 'line-through' : 'none',
+                                  color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                  userSelect: 'none',
+                                }}>
+                                  {item.title}
+                                </div>
+                                {item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     case 'dashboard':
       return (
         <div>
@@ -1517,56 +1653,74 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-            {/* Roadmap & Task Checklist */}
+            {/* My Roadmap */}
             <div className="glass-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '8px' }}>
                 <h3>My Roadmap</h3>
-                <span className="badge badge-success">{progressPercent}% Complete</span>
+                {roadmapItems.length > 0 && <span className="badge badge-success">{roadmapProgressPercent}% Complete</span>}
               </div>
 
-              <div style={{ position: 'relative' }}>
-                <div style={{ filter: 'blur(6px)', userSelect: 'none', pointerEvents: 'none' }} aria-hidden="true">
-                  {/* Progress Bar */}
-                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginBottom: '24px', overflow: 'hidden' }}>
-                    <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px', transition: 'width 0.4s ease' }}></div>
+              {!isMockSession && loadingRoadmap ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your roadmap...</p>
+              ) : roadmapError ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Couldn't load your roadmap: {roadmapError}</p>
+              ) : roadmapItems.length === 0 ? (
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                  Your coach hasn't assigned a roadmap yet — it'll show up here once they do.
+                </p>
+              ) : (
+                <>
+                  {roadmapTrack && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', fontSize: '0.82rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                      <Milestone size={15} /> {roadmapTrack} Track
+                    </div>
+                  )}
+
+                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginBottom: '20px', overflow: 'hidden' }}>
+                    <div style={{ width: `${roadmapProgressPercent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px', transition: 'width 0.4s ease' }}></div>
                   </div>
 
-                  {/* Task Items */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {tasks.map(t => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
+                    {[...roadmapItems].sort((a, b) => a.completed - b.completed).slice(0, 4).map(item => (
                       <div
-                        key={t.id}
+                        key={item.id}
+                        onClick={() => handleToggleMyRoadmapItem(item)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '12px',
-                          padding: '14px 16px',
+                          padding: '12px 14px',
                           borderRadius: 'var(--border-radius-md)',
-                          background: t.completed ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255, 255, 255, 0.01)',
-                          border: t.completed ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-color)',
+                          background: item.completed ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255, 255, 255, 0.01)',
+                          border: item.completed ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-color)',
+                          cursor: 'pointer',
                         }}
                       >
-                        {t.completed ? (
+                        {item.completed ? (
                           <CheckSquare size={20} color="var(--success)" style={{ flexShrink: 0 }} />
                         ) : (
                           <Square size={20} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                         )}
-                        <span style={{
-                          fontSize: '0.95rem',
-                          textDecoration: t.completed ? 'line-through' : 'none',
-                          color: t.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
-                          userSelect: 'none',
-                        }}>
-                          {t.text}
-                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '0.9rem',
+                            textDecoration: item.completed ? 'line-through' : 'none',
+                            color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
+                            userSelect: 'none',
+                          }}>
+                            {item.title}
+                          </div>
+                          {item.detail && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.detail}</div>}
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>Under Construction</span>
-                </div>
-              </div>
+
+                  <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setActiveTab?.('roadmap')}>
+                    View Full Roadmap <ArrowRight size={14} />
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Side Widgets (1on1 + Payment) */}

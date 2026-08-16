@@ -5,7 +5,7 @@ import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
 import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -19,6 +19,7 @@ import { fetchReviews } from '../../lib/reviewsData';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult } from '../../lib/certCalendarData';
 import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
+import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem } from '../../lib/roadmapData';
 import {
   Calendar,
   Users,
@@ -48,6 +49,11 @@ import {
   Building2,
   Flag,
   Star,
+  Milestone,
+  Trash2,
+  Pencil,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
@@ -62,6 +68,118 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [certEventsError, setCertEventsError] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Roadmaps tab - one member's checklist at a time, admin-authored. Real
+  // Supabase data for a real session (RLS grants admins full visibility via
+  // is_admin()); Mock Admin has no real session, so it stays purely local.
+  const [roadmapMemberEmail, setRoadmapMemberEmail] = useState(null);
+  const [roadmapMemberSearch, setRoadmapMemberSearch] = useState('');
+  const [roadmapItems, setRoadmapItems] = useState([]);
+  const [loadingRoadmapItems, setLoadingRoadmapItems] = useState(false);
+  const [roadmapItemsError, setRoadmapItemsError] = useState(null);
+  const [showAddRoadmapItemForm, setShowAddRoadmapItemForm] = useState(false);
+  const [newRoadmapItem, setNewRoadmapItem] = useState({ phase: 'Core Foundations', category: '', title: '', detail: '' });
+  const [editingRoadmapItemId, setEditingRoadmapItemId] = useState(null);
+  const [editRoadmapItemForm, setEditRoadmapItemForm] = useState({ phase: '', category: '', title: '', detail: '' });
+  // Mock Admin only - keeps locally-added/edited items around when switching
+  // between members, since there's no real session to persist them to.
+  const [mockRoadmapItemsByEmail, setMockRoadmapItemsByEmail] = useState({});
+
+  // Mock Admin only - updates both the visible list and the per-email store
+  // that survives switching to a different member and back.
+  const applyMockRoadmapItems = (email, items) => {
+    setRoadmapItems(items);
+    setMockRoadmapItemsByEmail((prev) => ({ ...prev, [email.toLowerCase()]: items }));
+  };
+
+  const loadRoadmapForMember = (email) => {
+    setRoadmapMemberEmail(email);
+    setShowAddRoadmapItemForm(false);
+    setEditingRoadmapItemId(null);
+    if (isMockSession) {
+      // No fabricated roadmap for real member names in the mock roster (the
+      // roster itself comes from real PayFast history even under Mock
+      // Admin) - starts empty, same as a real member with nothing assigned
+      // yet. Add/edit/delete below still work locally to try the UI out.
+      setRoadmapItems(mockRoadmapItemsByEmail[email.toLowerCase()] || []);
+      return;
+    }
+    setLoadingRoadmapItems(true);
+    setRoadmapItemsError(null);
+    fetchRoadmapForMember(email)
+      .then(setRoadmapItems)
+      .catch((err) => setRoadmapItemsError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingRoadmapItems(false));
+  };
+
+  const handleAddRoadmapItem = async (e) => {
+    e.preventDefault();
+    if (!roadmapMemberEmail || !newRoadmapItem.category || !newRoadmapItem.title) return;
+    const nextSortOrder = Math.max(0, ...roadmapItems.map((i) => i.sortOrder), 0) + 10;
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, [...roadmapItems, { id: Date.now(), memberEmail: roadmapMemberEmail, completed: false, sortOrder: nextSortOrder, ...newRoadmapItem }]);
+    } else {
+      try {
+        const created = await addRoadmapItem({ memberEmail: roadmapMemberEmail, sortOrder: nextSortOrder, ...newRoadmapItem });
+        setRoadmapItems([...roadmapItems, created]);
+      } catch (err) {
+        setRoadmapItemsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setNewRoadmapItem({ phase: 'Core Foundations', category: '', title: '', detail: '' });
+    setShowAddRoadmapItemForm(false);
+  };
+
+  const startEditRoadmapItem = (item) => {
+    setEditingRoadmapItemId(item.id);
+    setEditRoadmapItemForm({ phase: item.phase, category: item.category, title: item.title, detail: item.detail });
+  };
+
+  const handleSaveRoadmapItemEdit = async (item) => {
+    const updated = { ...item, ...editRoadmapItemForm };
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, roadmapItems.map((i) => (i.id === item.id ? updated : i)));
+    } else {
+      try {
+        await updateRoadmapItem(item.id, { ...updated, sortOrder: item.sortOrder });
+        setRoadmapItems(roadmapItems.map((i) => (i.id === item.id ? updated : i)));
+      } catch (err) {
+        setRoadmapItemsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setEditingRoadmapItemId(null);
+  };
+
+  const handleToggleRoadmapItemDone = async (item) => {
+    const updated = { ...item, completed: !item.completed };
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, roadmapItems.map((i) => (i.id === item.id ? updated : i)));
+      return;
+    }
+    setRoadmapItems(roadmapItems.map((i) => (i.id === item.id ? updated : i)));
+    try {
+      await updateRoadmapItem(item.id, { ...updated, sortOrder: item.sortOrder });
+    } catch (err) {
+      setRoadmapItemsError(friendlyErrorMessage(err));
+      setRoadmapItems(roadmapItems.map((i) => (i.id === item.id ? item : i)));
+    }
+  };
+
+  const handleDeleteRoadmapItem = async (item) => {
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, roadmapItems.filter((i) => i.id !== item.id));
+      return;
+    }
+    setRoadmapItems(roadmapItems.filter((i) => i.id !== item.id));
+    try {
+      await deleteRoadmapItem(item.id);
+    } catch (err) {
+      setRoadmapItemsError(friendlyErrorMessage(err));
+      setRoadmapItems([...roadmapItems, item]);
+    }
+  };
 
   // Member profile fields with no source in the PayFast export (age, location, gender,
   // specialty, LinkedIn, phone, money owed, job readiness) are admin-entered and kept
@@ -880,6 +998,226 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           )}
         </div>
       );
+
+    case 'roadmaps': {
+      const roadmapSelected = roadmapMemberEmail
+        ? memberRoster.find((m) => m.email.toLowerCase() === roadmapMemberEmail.toLowerCase())
+        : null;
+      const filteredRoadmapRoster = memberRoster.filter((m) =>
+        m.member.toLowerCase().includes(roadmapMemberSearch.toLowerCase()) ||
+        m.email.toLowerCase().includes(roadmapMemberSearch.toLowerCase())
+      );
+      const existingCategories = [...new Set(roadmapItems.map((i) => i.category))];
+      const completedCount = roadmapItems.filter((i) => i.completed).length;
+      const roadmapProgress = roadmapItems.length ? Math.round((completedCount / roadmapItems.length) * 100) : 0;
+      const phaseGroups = ROADMAP_PHASES.map((phase) => ({
+        phase,
+        categories: [...new Set(roadmapItems.filter((i) => i.phase === phase).map((i) => i.category))].map((category) => ({
+          category,
+          items: roadmapItems.filter((i) => i.phase === phase && i.category === category).sort((a, b) => a.sortOrder - b.sortOrder),
+        })),
+      })).filter((g) => g.categories.length > 0);
+
+      const handleTrackChange = (email, value) => {
+        const rm = memberRoster.find((m) => m.email.toLowerCase() === email.toLowerCase());
+        handleSaveMemberProfile(email, { ...(rm?.profile || {}), roadmapTrack: value });
+      };
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Roadmaps</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>Assign a track and curate a member's checklist. They can only mark items done - the plan itself is yours to author.</p>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — changes here are local only and will be lost on your next login.
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'flex-start' }}>
+            {/* Member picker */}
+            <div className="glass-card" style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', marginBottom: '14px' }}>
+                <Search size={16} color="var(--text-muted)" style={{ marginTop: '2px' }} />
+                <input
+                  type="text"
+                  placeholder="Search members..."
+                  value={roadmapMemberSearch}
+                  onChange={(e) => setRoadmapMemberSearch(e.target.value)}
+                  style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.85rem', outline: 'none', width: '100%' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '520px', overflowY: 'auto' }}>
+                {filteredRoadmapRoster.map((m) => (
+                  <button
+                    key={m.email}
+                    onClick={() => loadRoadmapForMember(m.email)}
+                    className="hover-glow"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: '2px',
+                      padding: '10px 12px',
+                      borderRadius: 'var(--border-radius-sm)',
+                      border: '1px solid ' + (roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'var(--accent-cyan)' : 'var(--border-color)'),
+                      background: roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'rgba(94, 227, 122, 0.06)' : 'rgba(255,255,255,0.01)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{m.member}</span>
+                    <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>
+                      {m.profile?.roadmapTrack && m.profile.roadmapTrack !== 'Not Assigned' ? m.profile.roadmapTrack : 'No track assigned'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Selected member's roadmap */}
+            <div className="glass-card" style={{ padding: '24px' }}>
+              {!roadmapSelected ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Pick a member on the left to assign a track and build their checklist.</p>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{roadmapSelected.member}</h3>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{roadmapSelected.email}</p>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Track</label>
+                      <select
+                        className="form-input"
+                        value={roadmapSelected.profile?.roadmapTrack || 'Not Assigned'}
+                        onChange={(e) => handleTrackChange(roadmapSelected.email, e.target.value)}
+                      >
+                        {ROADMAP_TRACKS.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {roadmapItemsError && (
+                    <div style={{ padding: '10px 14px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.82rem' }}>
+                      {roadmapItemsError}
+                    </div>
+                  )}
+
+                  {!isMockSession && loadingRoadmapItems ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading checklist...</p>
+                  ) : (
+                    <>
+                      {roadmapItems.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                          <div style={{ flex: 1, height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ width: `${roadmapProgress}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px' }}></div>
+                          </div>
+                          <span className="badge badge-success" style={{ fontSize: '0.75rem', flexShrink: 0 }}>{completedCount}/{roadmapItems.length} done</span>
+                        </div>
+                      )}
+
+                      {phaseGroups.length === 0 ? (
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '20px' }}>No checklist items yet.</p>
+                      ) : (
+                        phaseGroups.map((g) => (
+                          <div key={g.phase} style={{ marginBottom: '20px' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-purple)', marginBottom: '10px' }}>{g.phase}</div>
+                            {g.categories.map((c) => (
+                              <div key={c.category} style={{ marginBottom: '14px' }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>{c.category}</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {c.items.map((item) => (
+                                    <div key={item.id} style={{ padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)' }}>
+                                      {editingRoadmapItemId === item.id ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                            <select className="form-input" value={editRoadmapItemForm.phase} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, phase: e.target.value })}>
+                                              {ROADMAP_PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                            <input className="form-input" value={editRoadmapItemForm.category} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, category: e.target.value })} placeholder="Category" />
+                                          </div>
+                                          <input className="form-input" value={editRoadmapItemForm.title} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, title: e.target.value })} placeholder="Item title" />
+                                          <input className="form-input" value={editRoadmapItemForm.detail} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, detail: e.target.value })} placeholder="Detail (optional) - e.g. 9/20 collections, by 28 Aug" />
+                                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                            <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setEditingRoadmapItemId(null)}>Cancel</button>
+                                            <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSaveRoadmapItemEdit(item)}>Save</button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                          <button onClick={() => handleToggleRoadmapItemDone(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0 }} aria-label={item.completed ? 'Mark not done' : 'Mark done'}>
+                                            {item.completed ? <CheckSquare size={18} color="var(--success)" /> : <Square size={18} color="var(--text-muted)" />}
+                                          </button>
+                                          <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.9rem', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.title}</div>
+                                            {item.detail && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.detail}</div>}
+                                          </div>
+                                          <button onClick={() => startEditRoadmapItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }} aria-label="Edit item">
+                                            <Pencil size={15} />
+                                          </button>
+                                          <button onClick={() => handleDeleteRoadmapItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', flexShrink: 0 }} aria-label="Delete item">
+                                            <Trash2 size={15} />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ))
+                      )}
+                    </>
+                  )}
+
+                  {showAddRoadmapItemForm ? (
+                    <form onSubmit={handleAddRoadmapItem} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Phase</label>
+                          <select className="form-input" value={newRoadmapItem.phase} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, phase: e.target.value })}>
+                            {ROADMAP_PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Category</label>
+                          <input className="form-input" list="roadmap-category-suggestions" value={newRoadmapItem.category} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, category: e.target.value })} placeholder="e.g. Certifications" required />
+                          <datalist id="roadmap-category-suggestions">
+                            {existingCategories.map((c) => <option key={c} value={c} />)}
+                          </datalist>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Item title</label>
+                        <input className="form-input" value={newRoadmapItem.title} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, title: e.target.value })} placeholder="e.g. CompTIA Security+" required />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Detail (optional)</label>
+                        <input className="form-input" value={newRoadmapItem.detail} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, detail: e.target.value })} placeholder="e.g. 9/20 collections, by 28th of August" />
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button type="button" className="btn btn-secondary" style={{ fontSize: '0.82rem' }} onClick={() => setShowAddRoadmapItemForm(false)}>Cancel</button>
+                        <button type="submit" className="btn btn-primary" style={{ fontSize: '0.82rem' }}>Add Item</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button className="btn btn-secondary" onClick={() => setShowAddRoadmapItemForm(true)}>
+                      <Plus size={16} /> Add Checklist Item
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     case 'meetups':
       return (

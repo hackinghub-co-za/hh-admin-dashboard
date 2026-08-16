@@ -21,6 +21,7 @@ INSERT INTO public.member_profiles (email, status, full_name)
 VALUES
     ('[REDACTED]', 'Active', 'Akahopewell28'),
     ('[REDACTED]', 'Active', 'Asandancube070'),
+    ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Bmemthimunye85'),
     ('[REDACTED]', 'Active', 'Chiomaolebuike14'),
     ('[REDACTED]', 'Active', 'Clyde15sello'),
@@ -61,6 +62,7 @@ VALUES
     ('[REDACTED]', 'Active', 'Mimieportiadhladla'),
     ('[REDACTED]', 'Active', 'Molvercallum'),
     ('[REDACTED]', 'Active', 'Monenecmasekoameng'),
+    ('[REDACTED]', 'Active', 'Motholobakang4'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Ndiambamba'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
@@ -89,6 +91,7 @@ VALUES
     ('[REDACTED]', 'Active', 'Tshepo.nchabeng36'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Tshiamoseleki'),
+    ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Ululamilemabunda'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Wafs2damax'),
@@ -103,8 +106,6 @@ ON CONFLICT (email) DO UPDATE SET status = 'Active';
 -- exactly like never having had access at all.
 UPDATE public.member_profiles SET status = 'Left'
 WHERE email IN (
-    '[REDACTED]',
-    '[REDACTED]',
     '[REDACTED]',
     '[REDACTED]',
     '[REDACTED]',
