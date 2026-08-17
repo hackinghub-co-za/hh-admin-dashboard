@@ -2979,7 +2979,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <h3 style={{ margin: 0 }}>Log Today's Rooms</h3>
             </div>
 
-            {!isMockSession && loadingRoomLogs ? (
+            {competitionStatus === 'Upcoming' ? (
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                Room logging opens once the competition kicks off{daysUntilCompetition > 0 ? ` — ${daysUntilCompetition} day${daysUntilCompetition === 1 ? '' : 's'} to go` : ''}.
+              </p>
+            ) : competitionStatus === 'Ended' ? (
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                This competition has ended — room logging opens again for the next one.
+              </p>
+            ) : !isMockSession && loadingRoomLogs ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
             ) : roomLogsError ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Couldn't load your room logs: {roomLogsError}</p>
