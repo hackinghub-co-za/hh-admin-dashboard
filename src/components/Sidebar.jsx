@@ -176,7 +176,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
       </div>
 
       {/* Navigation List */}
-      <nav style={{ flexGrow: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <nav style={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {menuItems.map((item) => (
           <TooltipButton
             key={item.id}
