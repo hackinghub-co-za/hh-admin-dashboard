@@ -10,6 +10,7 @@ import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
+import { recordDailyLogin } from '../../lib/loginStreakData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -495,6 +496,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
     }
   };
+
+  // Daily login streak - recorded once per session load, shown as a
+  // "🔥 N day streak" badge on the dashboard.
+  const [loginStreak, setLoginStreak] = useState(isMockSession ? 5 : 0);
+  useEffect(() => {
+    if (isMockSession) return;
+    recordDailyLogin().then(setLoginStreak).catch((err) => console.error('Could not record login streak:', err));
+  }, [isMockSession]);
 
   // Matchmaker - opt-in pool + the member's own randomly-assigned group(s).
   const [optinPool, setOptinPool] = useState([]);
@@ -1673,9 +1682,34 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     case 'dashboard':
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome back, {firstName}!</h1>
-            <p>Here is your current cybersecurity progression overview.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '32px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome back, {firstName}!</h1>
+              <p>Here is your current cybersecurity progression overview.</p>
+            </div>
+            {loginStreak > 0 && (
+              <div
+                title={`Signed in ${loginStreak} day${loginStreak === 1 ? '' : 's'} in a row`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 18px',
+                  borderRadius: 'var(--border-radius-md)',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>🔥</span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.1 }}>{loginStreak}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    day{loginStreak === 1 ? '' : 's'} in a row
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* TOP PANEL: Community Feed, Upcoming Events & Certification Victories */}
