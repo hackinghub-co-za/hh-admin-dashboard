@@ -9,6 +9,8 @@ import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack } from '../../lib/roadmapData';
+import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
+import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
@@ -58,6 +60,7 @@ import {
   Globe,
   GraduationCap,
   Milestone,
+  Handshake,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -218,6 +221,13 @@ const MOCK_ROADMAP_ITEMS = [
   { id: 10, phase: 'Specialization', category: 'Red Teaming', title: 'eJPT', detail: '', completed: false, sortOrder: 30 },
   { id: 11, phase: 'Specialization', category: 'Red Teaming', title: 'THM Offensive Pentesting', detail: '34% complete, with write-ups', completed: false, sortOrder: 40 },
   { id: 12, phase: 'Specialization', category: 'Red Teaming', title: 'OSCP', detail: '', completed: false, sortOrder: 50 },
+];
+
+
+const todayISODate = () => new Date().toISOString().split('T')[0];
+
+const MOCK_ROOM_LOGS = [
+  { id: 1, memberEmail: 'member@hackinghub.co.za', logDate: '2026-08-16', roomCount: 2, status: 'Approved', reviewedBy: 'siya@hackinghub.co.za', adminNote: '' },
 ];
 
 const MOCK_LEADERBOARD = [
@@ -483,6 +493,101 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     } catch (err) {
       setRoadmapError(friendlyErrorMessage(err));
       setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+    }
+  };
+
+  // Matchmaker - opt-in pool + the member's own randomly-assigned group(s).
+  const [optinPool, setOptinPool] = useState([]);
+  // Starts empty even under Mock Member - a member starts un-opted-in and
+  // ungrouped by default, so the Matchmaker tab shows the real "Count Me
+  // In" flow rather than skipping straight to an already-formed group.
+  const [myGroups, setMyGroups] = useState([]);
+  const [loadingMatchmaker, setLoadingMatchmaker] = useState(!isMockSession);
+  const [matchmakerError, setMatchmakerError] = useState(null);
+  const [joiningPool, setJoiningPool] = useState(false);
+
+  const refreshMatchmakerData = () =>
+    Promise.all([fetchOptinPool(), fetchMyGroups()])
+      .then(([pool, groups]) => {
+        setOptinPool(pool);
+        setMyGroups(groups);
+      })
+      .catch((err) => setMatchmakerError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingMatchmaker(false));
+
+  useEffect(() => {
+    if (isMockSession) return;
+    refreshMatchmakerData();
+  }, [isMockSession]);
+
+  const myEmailLower = (user?.email || '').toLowerCase();
+  const isInOptinPool = optinPool.includes(myEmailLower);
+  const activeGroup = myGroups.find((g) => g.status === 'Active');
+
+  const handleToggleOptin = async () => {
+    setJoiningPool(true);
+    if (isMockSession) {
+      setOptinPool(isInOptinPool ? optinPool.filter((e) => e !== myEmailLower) : [...optinPool, myEmailLower]);
+      setJoiningPool(false);
+      return;
+    }
+    try {
+      if (isInOptinPool) {
+        await leaveOptinPool(user.email);
+      } else {
+        await joinOptinPool(user.email);
+      }
+      refreshMatchmakerData();
+    } catch (err) {
+      setMatchmakerError(friendlyErrorMessage(err));
+    } finally {
+      setJoiningPool(false);
+    }
+  };
+
+  // Daily TryHackMe Room Logs - self-reported, admin-approved, feeds the
+  // Competitions leaderboard on approval (supabase/031_daily_room_logs.sql).
+  const [roomLogs, setRoomLogs] = useState(isMockSession ? MOCK_ROOM_LOGS : []);
+  const [loadingRoomLogs, setLoadingRoomLogs] = useState(!isMockSession);
+  const [roomLogsError, setRoomLogsError] = useState(null);
+  const [roomCountInput, setRoomCountInput] = useState(1);
+  const [proofConfirmedInput, setProofConfirmedInput] = useState(false);
+  const [submittingRoomLog, setSubmittingRoomLog] = useState(false);
+  const [submitRoomLogError, setSubmitRoomLogError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyRoomLogs()
+      .then((data) => !cancelled && setRoomLogs(data))
+      .catch((err) => !cancelled && setRoomLogsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingRoomLogs(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const todaysRoomLog = roomLogs.find((l) => l.logDate === todayISODate());
+
+  const handleSubmitRoomLog = async (e) => {
+    e.preventDefault();
+    setSubmitRoomLogError(null);
+    if (!proofConfirmedInput) {
+      setSubmitRoomLogError('Confirm the WhatsApp proof checkbox before submitting.');
+      return;
+    }
+    setSubmittingRoomLog(true);
+    if (isMockSession) {
+      const updated = { id: todaysRoomLog?.id || Date.now(), memberEmail: user?.email, logDate: todayISODate(), roomCount: Number(roomCountInput), status: 'Pending', reviewedBy: '', adminNote: '' };
+      setRoomLogs([updated, ...roomLogs.filter((l) => l.id !== updated.id)]);
+      setSubmittingRoomLog(false);
+      return;
+    }
+    try {
+      await submitDailyRoomLog(Number(roomCountInput), true);
+      setRoomLogs(await fetchMyRoomLogs());
+    } catch (err) {
+      setSubmitRoomLogError(friendlyErrorMessage(err));
+    } finally {
+      setSubmittingRoomLog(false);
     }
   };
 
@@ -1495,6 +1600,70 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case 'matchmaker': {
+      const nameForEmail = (email) => {
+        if (email?.toLowerCase() === myEmailLower) return 'You';
+        return directory.find((m) => m.email.toLowerCase() === email?.toLowerCase())?.fullName
+          || MOCK_LEADERBOARD.find((m) => m.email.toLowerCase() === email?.toLowerCase())?.member
+          || email;
+      };
+      const othersInPool = optinPool.filter((e) => e !== myEmailLower).length;
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Matchmaker</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              Opt in and you'll be randomly grouped with 1-3 other members (teams of 2-4) to either collaborate on a project or give a presentation together. Groups are fully randomized — you don't get to pick your teammates, and neither does an admin.
+            </p>
+          </div>
+
+          {!isMockSession && loadingMatchmaker ? (
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading...</p>
+          ) : matchmakerError ? (
+            <p style={{ fontSize: '0.9rem', color: 'var(--danger)' }}>Couldn't load Matchmaker: {matchmakerError}</p>
+          ) : activeGroup ? (
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '12px' }}>
+                <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Your Group</h4>
+                <span className="badge badge-warning">{activeGroup.activityType}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--accent-cyan)', marginBottom: '4px' }}>
+                <Handshake size={14} /> You've been randomly grouped with:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+                {activeGroup.memberEmails.filter((e) => e.toLowerCase() !== myEmailLower).map((email) => (
+                  <li key={email}>{nameForEmail(email)}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="glass-card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+              <Handshake size={40} color="var(--text-muted)" style={{ marginBottom: '16px' }} />
+              {isInOptinPool ? (
+                <>
+                  <p style={{ color: 'var(--text-primary)', marginBottom: '6px' }}>You're in the pool for the next round.</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                    {othersInPool > 0 ? `${othersInPool} other member${othersInPool === 1 ? '' : 's'} waiting with you.` : 'Waiting on a few more members to join before a round can run.'}
+                  </p>
+                  <button className="btn btn-secondary" onClick={handleToggleOptin} disabled={joiningPool}>
+                    {joiningPool ? 'Leaving...' : 'Leave Pool'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>No group yet — opt in below to join the next randomized round.</p>
+                  <button className="btn btn-primary" onClick={handleToggleOptin} disabled={joiningPool}>
+                    {joiningPool ? 'Joining...' : "Count Me In"}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -2768,6 +2937,57 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </a>
               {standingsError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{standingsError}</span>}
             </div>
+          </div>
+
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <Target size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Log Today's Rooms</h3>
+            </div>
+
+            {!isMockSession && loadingRoomLogs ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+            ) : roomLogsError ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Couldn't load your room logs: {roomLogsError}</p>
+            ) : todaysRoomLog?.status === 'Approved' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--success)', fontSize: '0.9rem' }}>
+                <CheckCircle2 size={16} /> Today's log is approved — {todaysRoomLog.roomCount} room{todaysRoomLog.roomCount === 1 ? '' : 's'}. Locked for the day.
+              </div>
+            ) : (
+              <>
+                {todaysRoomLog?.status === 'Pending' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--warning)', fontSize: '0.85rem', marginBottom: '14px' }}>
+                    <Clock size={14} /> Pending review — {todaysRoomLog.roomCount} room{todaysRoomLog.roomCount === 1 ? '' : 's'} submitted today. You can still update the count below until it's reviewed.
+                  </div>
+                )}
+                {todaysRoomLog?.status === 'Rejected' && (
+                  <div style={{ padding: '10px 14px', marginBottom: '14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem', color: 'var(--danger)' }}>
+                    Today's log was rejected{todaysRoomLog.adminNote ? `: ${todaysRoomLog.adminNote}` : '.'} Fix it and resubmit below.
+                  </div>
+                )}
+                <form onSubmit={handleSubmitRoomLog} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', flexWrap: 'wrap' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Rooms completed today (max 5)</label>
+                      <select className="form-input" value={roomCountInput} onChange={(e) => setRoomCountInput(e.target.value)} style={{ width: '100px' }}>
+                        {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <button type="submit" className="btn btn-primary" disabled={submittingRoomLog}>
+                      {submittingRoomLog ? 'Submitting...' : todaysRoomLog ? 'Update Submission' : 'Submit for Review'}
+                    </button>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.82rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={proofConfirmedInput} onChange={(e) => setProofConfirmedInput(e.target.checked)} style={{ marginTop: '3px' }} />
+                    I've posted a once-view photo of each completed room in the WhatsApp group chat as proof.
+                  </label>
+                  {submitRoomLogError && <p style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{submitRoomLogError}</p>}
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Submissions need admin approval before they count toward Rooms Completed / Days Logged below.
+                  </p>
+                </form>
+              </>
+            )}
           </div>
 
           <div className="glass-card">

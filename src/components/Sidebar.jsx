@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   Calendar,
@@ -16,17 +16,78 @@ import {
   Star,
   Terminal,
   Milestone,
+  Handshake,
+  ListChecks,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 
+// Icon-only rail - every interactive item reveals its label as a tooltip on
+// hover rather than showing text inline, so the sidebar stays a fixed narrow
+// width instead of pushing page content around.
+function TooltipButton({ id, icon: Icon, label, active, danger, hoveredId, onHover, onLeave, onClick }) {
+  const isHovered = hoveredId === id;
+  return (
+    <div style={{ position: 'relative' }} onMouseEnter={() => onHover(id)} onMouseLeave={onLeave}>
+      <button
+        onClick={onClick}
+        aria-label={label}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '44px',
+          height: '44px',
+          margin: '0 auto',
+          borderRadius: 'var(--border-radius-sm)',
+          background: active ? 'rgba(94, 227, 122, 0.08)' : isHovered ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+          border: 'none',
+          color: danger ? 'var(--danger)' : active ? 'var(--accent-cyan)' : 'var(--text-muted)',
+          cursor: 'pointer',
+          transition: 'background 0.15s ease',
+        }}
+      >
+        <Icon size={18} />
+      </button>
+      <span
+        role="tooltip"
+        style={{
+          position: 'absolute',
+          left: 'calc(100% + 10px)',
+          top: '50%',
+          transform: isHovered ? 'translateY(-50%) translateX(0)' : 'translateY(-50%) translateX(-6px)',
+          whiteSpace: 'nowrap',
+          padding: '6px 12px',
+          borderRadius: 'var(--border-radius-sm)',
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border-color)',
+          boxShadow: 'var(--glass-shadow)',
+          color: danger ? 'var(--danger)' : 'var(--text-primary)',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          fontFamily: 'var(--font-sans)',
+          pointerEvents: 'none',
+          opacity: isHovered ? 1 : 0,
+          transition: 'opacity 0.15s ease, transform 0.15s ease',
+          zIndex: 200,
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro }) {
   const isAdmin = user?.role === 'admin';
+  const [hoveredId, setHoveredId] = useState(null);
 
   const menuItems = isAdmin
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'members', label: 'Members', icon: Contact },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
+        { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
+        { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
         { id: '1on1s', label: '1on1 Sessions', icon: Users },
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
@@ -37,6 +98,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     : [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'roadmap', label: 'My Roadmap', icon: Milestone },
+        { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'members', label: 'Members', icon: Users },
         { id: 'meetings', label: '1on1 Meetings', icon: Users },
         { id: 'events', label: 'Events', icon: CalendarDays },
@@ -70,60 +132,64 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           height: 'var(--header-height)',
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
-          padding: '0 24px',
+          justifyContent: 'center',
           borderBottom: 'var(--glass-border)',
         }}
       >
-        <img
-          src={logo}
-          alt="Hacking Hub"
-          style={{
-            width: '38px',
-            height: '38px',
-            objectFit: 'cover',
-            borderRadius: 'var(--border-radius-sm)',
-            flexShrink: 0,
-          }}
-        />
-        <span style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '0.05em' }}>
-          HACKING HUB
-        </span>
+        <div
+          style={{ position: 'relative' }}
+          onMouseEnter={() => setHoveredId('brand')}
+          onMouseLeave={() => setHoveredId(null)}
+        >
+          <img
+            src={logo}
+            alt="Hacking Hub"
+            style={{ width: '34px', height: '34px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)' }}
+          />
+          <span
+            role="tooltip"
+            style={{
+              position: 'absolute',
+              left: 'calc(100% + 10px)',
+              top: '50%',
+              transform: hoveredId === 'brand' ? 'translateY(-50%) translateX(0)' : 'translateY(-50%) translateX(-6px)',
+              whiteSpace: 'nowrap',
+              padding: '6px 12px',
+              borderRadius: 'var(--border-radius-sm)',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--glass-shadow)',
+              color: 'var(--text-primary)',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              letterSpacing: '0.05em',
+              fontFamily: 'var(--font-sans)',
+              pointerEvents: 'none',
+              opacity: hoveredId === 'brand' ? 1 : 0,
+              transition: 'opacity 0.15s ease, transform 0.15s ease',
+              zIndex: 200,
+            }}
+          >
+            HACKING HUB
+          </span>
+        </div>
       </div>
 
       {/* Navigation List */}
       <nav style={{ flexGrow: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: 'var(--border-radius-sm)',
-                background: isActive ? 'rgba(94, 227, 122, 0.08)' : 'transparent',
-                border: 'none',
-                color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: 'var(--font-sans)',
-                fontSize: '0.95rem',
-                fontWeight: isActive ? 600 : 500,
-                transition: 'all 0.2s ease',
-              }}
-              className="nav-link"
-            >
-              <Icon size={18} style={{ color: isActive ? 'var(--accent-cyan)' : 'var(--text-muted)' }} />
-              {item.label}
-            </button>
-          );
-        })}
+        {menuItems.map((item) => (
+          <TooltipButton
+            key={item.id}
+            id={item.id}
+            icon={item.icon}
+            label={item.label}
+            active={activeTab === item.id}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onLeave={() => setHoveredId(null)}
+            onClick={() => setActiveTab(item.id)}
+          />
+        ))}
       </nav>
 
       {/* Profile Section */}
@@ -134,17 +200,22 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           background: 'rgba(0, 0, 0, 0.2)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
+          alignItems: 'center',
+          gap: '14px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div
+          style={{ position: 'relative' }}
+          onMouseEnter={() => setHoveredId('profile')}
+          onMouseLeave={() => setHoveredId(null)}
+        >
           <div
             style={{
               width: '40px',
               height: '40px',
               borderRadius: '50%',
               background: 'var(--bg-tertiary)',
-              border: '1px solid var(--border-color)',
+              border: `1px solid ${isAdmin ? 'var(--success)' : 'var(--warning)'}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -158,80 +229,62 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             ) : (
-              <User size={20} color="var(--text-secondary)" />
+              <User size={18} color="var(--text-secondary)" />
             )}
           </div>
-          <div style={{ flexGrow: 1, overflow: 'hidden' }}>
-            <div
-              style={{
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                whiteSpace: 'nowrap',
-                textOverflow: 'ellipsis',
-                overflow: 'hidden',
-              }}
-            >
-              {user?.user_metadata?.full_name || 'HH User'}
-            </div>
-            <span
-              className={`badge ${isAdmin ? 'badge-success' : 'badge-warning'}`}
-              style={{ padding: '2px 6px', fontSize: '0.65rem', marginTop: '4px' }}
-            >
+          <span
+            role="tooltip"
+            style={{
+              position: 'absolute',
+              left: 'calc(100% + 10px)',
+              top: '50%',
+              transform: hoveredId === 'profile' ? 'translateY(-50%) translateX(0)' : 'translateY(-50%) translateX(-6px)',
+              whiteSpace: 'nowrap',
+              padding: '6px 12px',
+              borderRadius: 'var(--border-radius-sm)',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--glass-shadow)',
+              fontSize: '0.85rem',
+              fontFamily: 'var(--font-sans)',
+              pointerEvents: 'none',
+              opacity: hoveredId === 'profile' ? 1 : 0,
+              transition: 'opacity 0.15s ease, transform 0.15s ease',
+              zIndex: 200,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+            }}
+          >
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user?.user_metadata?.full_name || 'HH User'}</span>
+            <span className={`badge ${isAdmin ? 'badge-success' : 'badge-warning'}`} style={{ padding: '2px 6px', fontSize: '0.65rem', width: 'fit-content' }}>
               {user?.role || 'Member'}
             </span>
-          </div>
+          </span>
         </div>
 
         {onReplayIntro && (
-          <button
+          <TooltipButton
+            id="replay-intro"
+            icon={Terminal}
+            label="Replay Intro"
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onLeave={() => setHoveredId(null)}
             onClick={onReplayIntro}
-            title="Replay the welcome intro"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              width: '100%',
-              padding: '10px',
-              borderRadius: 'var(--border-radius-sm)',
-              background: 'rgba(94, 227, 122, 0.06)',
-              border: '1px solid rgba(94, 227, 122, 0.15)',
-              color: 'var(--accent-cyan)',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-sans)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <Terminal size={14} />
-            Replay Intro
-          </button>
+          />
         )}
 
-        <button
+        <TooltipButton
+          id="sign-out"
+          icon={LogOut}
+          label="Sign Out"
+          danger
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+          onLeave={() => setHoveredId(null)}
           onClick={onLogout}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            width: '100%',
-            padding: '10px',
-            borderRadius: 'var(--border-radius-sm)',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            color: 'var(--danger)',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <LogOut size={14} />
-          Sign Out
-        </button>
+        />
       </div>
     </aside>
   );

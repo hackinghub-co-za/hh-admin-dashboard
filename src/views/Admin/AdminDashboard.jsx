@@ -20,6 +20,8 @@ import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult } from '../../lib/certCalendarData';
 import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
 import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem } from '../../lib/roadmapData';
+import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
+import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import {
   Calendar,
   Users,
@@ -49,11 +51,12 @@ import {
   Building2,
   Flag,
   Star,
-  Milestone,
   Trash2,
   Pencil,
   CheckSquare,
   Square,
+  Handshake,
+  ListChecks,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
@@ -178,6 +181,119 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     } catch (err) {
       setRoadmapItemsError(friendlyErrorMessage(err));
       setRoadmapItems([...roadmapItems, item]);
+    }
+  };
+
+  // Matchmaker - opt-in pool + randomized groups of 2-4. Real Supabase data
+  // for a real session (RLS grants admins full visibility via is_admin());
+  // Mock Admin has no real session, so it stays purely local.
+  const [optinPool, setOptinPool] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [loadingMatchmaker, setLoadingMatchmaker] = useState(!isMockSession);
+  const [matchmakerError, setMatchmakerError] = useState(null);
+  const [runningRound, setRunningRound] = useState(false);
+
+  const refreshMatchmakerData = () =>
+    Promise.all([fetchOptinPool(), fetchAllGroups()])
+      .then(([pool, allGroups]) => {
+        setOptinPool(pool);
+        setGroups(allGroups);
+      })
+      .catch((err) => setMatchmakerError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingMatchmaker(false));
+
+  useEffect(() => {
+    if (isMockSession) return;
+    refreshMatchmakerData();
+  }, [isMockSession]);
+
+  const handleRunMatchmakerRound = async () => {
+    setMatchmakerError(null);
+    if (isMockSession) {
+      if (optinPool.length < 2) {
+        setMatchmakerError('Need at least 2 opted-in members to run a round.');
+        return;
+      }
+      const shuffled = [...optinPool].sort(() => Math.random() - 0.5);
+      const numGroups = Math.ceil(shuffled.length / 4);
+      const newGroups = Array.from({ length: numGroups }, (_, i) => ({
+        id: Date.now() + i,
+        activityType: Math.random() < 0.5 ? 'Project' : 'Presentation',
+        memberEmails: shuffled.filter((_, idx) => idx % numGroups === i),
+        status: 'Active',
+      }));
+      setGroups([...newGroups, ...groups]);
+      setOptinPool([]);
+      return;
+    }
+    setRunningRound(true);
+    try {
+      await runMatchmakerRound();
+      refreshMatchmakerData();
+    } catch (err) {
+      setMatchmakerError(friendlyErrorMessage(err));
+    } finally {
+      setRunningRound(false);
+    }
+  };
+
+  const handleUpdateGroupStatus = async (group, status) => {
+    setGroups(groups.map((g) => (g.id === group.id ? { ...g, status } : g)));
+    if (!isMockSession) {
+      try {
+        await updateGroupStatus(group.id, status);
+      } catch (err) {
+        setMatchmakerError(friendlyErrorMessage(err));
+        setGroups(groups.map((g) => (g.id === group.id ? group : g)));
+      }
+    }
+  };
+
+  const handleDeleteGroup = async (group) => {
+    setGroups(groups.filter((g) => g.id !== group.id));
+    if (!isMockSession) {
+      try {
+        await deleteGroup(group.id);
+      } catch (err) {
+        setMatchmakerError(friendlyErrorMessage(err));
+        setGroups((prev) => [...prev, group]);
+      }
+    }
+  };
+
+  // Room Logs - members' self-reported daily TryHackMe room counts, pending
+  // admin review. Approving credits competition_standings for that member.
+  const [roomLogs, setRoomLogs] = useState([]);
+  const [loadingRoomLogs, setLoadingRoomLogs] = useState(!isMockSession);
+  const [roomLogsError, setRoomLogsError] = useState(null);
+  const [reviewingRoomLogId, setReviewingRoomLogId] = useState(null);
+  const [rejectNoteDraft, setRejectNoteDraft] = useState({});
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllRoomLogs()
+      .then((data) => !cancelled && setRoomLogs(data))
+      .catch((err) => !cancelled && setRoomLogsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingRoomLogs(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleReviewRoomLog = async (log, approved) => {
+    const note = approved ? '' : (rejectNoteDraft[log.id] || '');
+    setReviewingRoomLogId(log.id);
+    if (isMockSession) {
+      setRoomLogs(roomLogs.map((l) => (l.id === log.id ? { ...l, status: approved ? 'Approved' : 'Rejected', adminNote: note } : l)));
+      setReviewingRoomLogId(null);
+      return;
+    }
+    try {
+      await reviewRoomLog(log.id, approved, note);
+      setRoomLogs(await fetchAllRoomLogs());
+    } catch (err) {
+      setRoomLogsError(friendlyErrorMessage(err));
+    } finally {
+      setReviewingRoomLogId(null);
     }
   };
 
@@ -1215,6 +1331,207 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               )}
             </div>
           </div>
+        </div>
+      );
+    }
+
+    case 'matchmaker': {
+      const nameForEmail = (email) => memberRoster.find((m) => m.email.toLowerCase() === email?.toLowerCase())?.member || email;
+      const activeGroups = groups.filter((g) => g.status === 'Active');
+      const completedGroups = groups.filter((g) => g.status === 'Completed');
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Matchmaker</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>Members opt in, then a round randomly groups everyone in the pool into teams of 2-4 for a Project or a Presentation.</p>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — changes here are local only and will be lost on your next login.
+            </div>
+          )}
+          {matchmakerError && (
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              {matchmakerError}
+            </div>
+          )}
+
+          <div className="glass-card" style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <Handshake size={18} color="var(--accent-cyan)" />
+                <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Opt-In Pool</h3>
+              </div>
+              {!isMockSession && loadingMatchmaker ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+              ) : optinPool.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nobody's opted in yet.</p>
+              ) : (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  {optinPool.length} waiting: {optinPool.map(nameForEmail).join(', ')}
+                </p>
+              )}
+            </div>
+            <button
+              className="btn btn-primary"
+              disabled={optinPool.length < 2 || runningRound}
+              onClick={handleRunMatchmakerRound}
+              title={optinPool.length < 2 ? 'Need at least 2 opted-in members' : undefined}
+            >
+              {runningRound ? 'Shuffling...' : `Run Matching Round (${optinPool.length})`}
+            </button>
+          </div>
+
+          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            Active Groups ({activeGroups.length})
+          </div>
+          {activeGroups.length === 0 ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '28px' }}>No active groups yet — run a round once enough members have opted in.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+              {activeGroups.map((group) => (
+                <div key={group.id} className="glass-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' }}>
+                    <span className="badge badge-warning">{group.activityType}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{group.memberEmails.length} members</span>
+                  </div>
+                  <ul style={{ margin: '0 0 14px', paddingLeft: '18px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                    {group.memberEmails.map((email) => <li key={email}>{nameForEmail(email)}</li>)}
+                  </ul>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                    <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleUpdateGroupStatus(group, 'Completed')}>
+                      <CheckCircle size={13} /> Mark Completed
+                    </button>
+                    <button onClick={() => handleDeleteGroup(group)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }} aria-label="Delete group">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            Completed ({completedGroups.length})
+          </div>
+          {completedGroups.length === 0 ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No completed groups yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {completedGroups.map((group) => (
+                <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '0.85rem' }}>
+                    <span className="badge badge-success" style={{ fontSize: '0.65rem', marginRight: '8px' }}>{group.activityType}</span>
+                    {group.memberEmails.map(nameForEmail).join(', ')}
+                  </div>
+                  <button onClick={() => handleDeleteGroup(group)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }} aria-label="Delete group">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case 'roomlogs': {
+      const nameForLogEmail = (email) => memberRoster.find((m) => m.email.toLowerCase() === email?.toLowerCase())?.member || email;
+      const pendingLogs = roomLogs.filter((l) => l.status === 'Pending').sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
+      const reviewedLogs = roomLogs.filter((l) => l.status !== 'Pending').sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
+      const statusColor = { Approved: 'badge-success', Rejected: 'badge-danger' };
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><ListChecks size={28} color="var(--accent-cyan)" /> Room Logs</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>Members' self-reported daily TryHackMe room counts. Approving credits the Competitions leaderboard.</p>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — changes here are local only and will be lost on your next login.
+            </div>
+          )}
+          {roomLogsError && (
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              {roomLogsError}
+            </div>
+          )}
+
+          {!isMockSession && loadingRoomLogs ? (
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading room logs...</p>
+          ) : (
+            <>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                Pending Review ({pendingLogs.length})
+              </div>
+              {pendingLogs.length === 0 ? (
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '28px' }}>Nothing waiting on review.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                  {pendingLogs.map((log) => (
+                    <div key={log.id} className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: '4px' }}>{nameForLogEmail(log.memberEmail)}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{formatDate(log.logDate)} · {log.roomCount} room{log.roomCount === 1 ? '' : 's'}</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            className="btn btn-primary"
+                            style={{ fontSize: '0.8rem', padding: '7px 14px' }}
+                            disabled={reviewingRoomLogId === log.id}
+                            onClick={() => handleReviewRoomLog(log, true)}
+                          >
+                            <CheckCircle size={14} /> Approve
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ fontSize: '0.8rem', padding: '7px 14px', color: 'var(--danger)' }}
+                            disabled={reviewingRoomLogId === log.id}
+                            onClick={() => handleReviewRoomLog(log, false)}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                        <input
+                          className="form-input"
+                          placeholder="Rejection note (optional)"
+                          style={{ fontSize: '0.78rem', padding: '6px 10px', width: '220px' }}
+                          value={rejectNoteDraft[log.id] || ''}
+                          onChange={(e) => setRejectNoteDraft({ ...rejectNoteDraft, [log.id]: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                Reviewed ({reviewedLogs.length})
+              </div>
+              {reviewedLogs.length === 0 ? (
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No reviewed logs yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {reviewedLogs.map((log) => (
+                    <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        <strong>{nameForLogEmail(log.memberEmail)}</strong>
+                        <span style={{ color: 'var(--text-muted)' }}> · {formatDate(log.logDate)} · {log.roomCount} room{log.roomCount === 1 ? '' : 's'}{log.adminNote ? ` · "${log.adminNote}"` : ''}</span>
+                      </div>
+                      <span className={`badge ${statusColor[log.status]}`} style={{ fontSize: '0.65rem' }}>{log.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       );
     }
