@@ -31,3 +31,39 @@ export function friendlyErrorMessage(error) {
 
   return error?.message || 'Something went wrong. Please try again.';
 }
+
+// Signatures of a genuinely raw database/driver error slipping through
+// unmatched above - Postgres constraint/syntax jargon, PostgREST error
+// codes, or a raw JS exception - as opposed to one of our own RAISE
+// EXCEPTION messages (plain English, written to be read by a member, e.g.
+// "You can log between 1 and 5 rooms per day"). Checked as a blocklist
+// rather than trying to enumerate every friendly message we've ever
+// written, since that list only grows and would be easy to forget to update.
+const RAW_ERROR_SIGNATURES = [
+  'violates', // constraint violations (unique/check/foreign key/not-null)
+  'duplicate key',
+  'null value in column',
+  'syntax error',
+  'relation "',
+  "relation '",
+  'does not exist',
+  'invalid input syntax',
+  'pgrst',
+  'typeerror',
+  'is not a function',
+  "cannot read propert",
+  'unexpected token',
+];
+
+/**
+ * The member-facing variant: still gives the specific, actionable text for
+ * a session/connectivity problem or one of our own RAISE EXCEPTION
+ * messages, but collapses anything that looks like a raw database/driver
+ * error into a single friendly line instead of leaking Postgres internals.
+ */
+export function friendlyMemberErrorMessage(error) {
+  const friendly = friendlyErrorMessage(error);
+  const lower = friendly.toLowerCase();
+  const looksRaw = RAW_ERROR_SIGNATURES.some((sig) => lower.includes(sig));
+  return looksRaw ? 'Oops, something is wrong here. Please try again in a moment.' : friendly;
+}

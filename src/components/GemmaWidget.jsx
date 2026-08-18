@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bot, X, Send, AlertCircle, Sparkles } from 'lucide-react';
 import { fetchGemmaHistory } from '../lib/gemmaData';
-import { friendlyErrorMessage } from '../lib/errorMessages';
+import { friendlyMemberErrorMessage } from '../lib/errorMessages';
 
 export default function GemmaWidget({ user, isMockSession }) {
   const [open, setOpen] = useState(false);
@@ -20,7 +20,7 @@ export default function GemmaWidget({ user, isMockSession }) {
         setMessages(rows);
         setHistoryLoaded(true);
       })
-      .catch((err) => !cancelled && setError(friendlyErrorMessage(err)));
+      .catch((err) => !cancelled && setError(friendlyMemberErrorMessage(err)));
     return () => { cancelled = true; };
     // Only needs to run once per open, not on every keystroke/message send.
     // eslint-disable-next-line react-hooks/exhaustive-deps
