@@ -15,7 +15,7 @@ import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
-import { friendlyErrorMessage } from '../../lib/errorMessages';
+import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
 import { fetchCalendarEvents, findNextMeetingWithOrganizer } from '../../lib/googleCalendar';
 import {
   Calendar,
@@ -298,7 +298,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         if (cancelled) return;
         setNextOneOnOne(findNextMeetingWithOrganizer(events, SIYA_EMAIL, 30));
       })
-      .catch((err) => !cancelled && setOneOnOneError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setOneOnOneError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingOneOnOne(false));
     return () => { cancelled = true; };
   }, [isMockSession, providerToken]);
@@ -317,7 +317,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchReviews()
       .then((data) => !cancelled && setReviews(data))
-      .catch((err) => !cancelled && setReviewsError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setReviewsError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingReviews(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -347,7 +347,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       }
       setReviewForm({ rating: '', category: 'General', title: '', body: '', visibility: 'Private' });
     } catch (err) {
-      setReviewsError(friendlyErrorMessage(err));
+      setReviewsError(friendlyMemberErrorMessage(err));
     } finally {
       setSubmittingReview(false);
     }
@@ -394,7 +394,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchMemberDirectory()
       .then((data) => !cancelled && setDirectory(data))
-      .catch((err) => !cancelled && setDirectoryError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setDirectoryError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingDirectory(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -424,7 +424,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       const url = await uploadHeadshot(user.email, file);
       setProfileForm((prev) => ({ ...prev, headshotUrl: url }));
     } catch (err) {
-      setHeadshotError(friendlyErrorMessage(err));
+      setHeadshotError(friendlyMemberErrorMessage(err));
     } finally {
       setUploadingHeadshot(false);
     }
@@ -447,7 +447,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       }
       setEditingProfile(false);
     } catch (err) {
-      setDirectoryError(friendlyErrorMessage(err));
+      setDirectoryError(friendlyMemberErrorMessage(err));
     } finally {
       setSavingProfile(false);
     }
@@ -480,7 +480,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         setRoadmapTrack(track);
         setRoadmapItems(items);
       })
-      .catch((err) => !cancelled && setRoadmapError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setRoadmapError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingRoadmap(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -492,7 +492,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     try {
       await toggleMyRoadmapItem(item.id, updated.completed);
     } catch (err) {
-      setRoadmapError(friendlyErrorMessage(err));
+      setRoadmapError(friendlyMemberErrorMessage(err));
       setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
     }
   };
@@ -521,7 +521,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         setOptinPool(pool);
         setMyGroups(groups);
       })
-      .catch((err) => setMatchmakerError(friendlyErrorMessage(err)))
+      .catch((err) => setMatchmakerError(friendlyMemberErrorMessage(err)))
       .finally(() => setLoadingMatchmaker(false));
 
   useEffect(() => {
@@ -548,7 +548,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       }
       refreshMatchmakerData();
     } catch (err) {
-      setMatchmakerError(friendlyErrorMessage(err));
+      setMatchmakerError(friendlyMemberErrorMessage(err));
     } finally {
       setJoiningPool(false);
     }
@@ -569,7 +569,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchMyRoomLogs()
       .then((data) => !cancelled && setRoomLogs(data))
-      .catch((err) => !cancelled && setRoomLogsError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setRoomLogsError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingRoomLogs(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -594,7 +594,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       await submitDailyRoomLog(Number(roomCountInput), true);
       setRoomLogs(await fetchMyRoomLogs());
     } catch (err) {
-      setSubmitRoomLogError(friendlyErrorMessage(err));
+      setSubmitRoomLogError(friendlyMemberErrorMessage(err));
     } finally {
       setSubmittingRoomLog(false);
     }
@@ -639,7 +639,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchEventRsvps()
       .then((data) => !cancelled && setEventRsvps(data))
-      .catch((err) => !cancelled && setEventRsvpError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setEventRsvpError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingEventRsvps(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -682,7 +682,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       else await rsvpForEvent(eventId);
       setEventRsvps(await fetchEventRsvps());
     } catch (err) {
-      setEventRsvpError(friendlyErrorMessage(err));
+      setEventRsvpError(friendlyMemberErrorMessage(err));
     } finally {
       setRsvpingEventId(null);
     }
@@ -707,7 +707,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchCommunityEvents()
       .then((data) => !cancelled && setCommunityEvents(data))
-      .catch((err) => !cancelled && setEventsError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setEventsError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingEvents(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -748,7 +748,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setNewEventForm({ title: '', type: 'HH Meetup', date: '', time: '', location: '', link: '', description: '' });
       setShowAddEventForm(false);
     } catch (err) {
-      setAddEventError(friendlyErrorMessage(err));
+      setAddEventError(friendlyMemberErrorMessage(err));
     } finally {
       setAddingEvent(false);
     }
@@ -782,7 +782,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchCertCalendar()
       .then((data) => !cancelled && setCertCalendar(data))
-      .catch((err) => !cancelled && setCertCalendarError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setCertCalendarError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingCertCalendar(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -817,7 +817,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setNewCertForm({ member: '', cert: '', date: '', cohort: '' });
       setShowAddCertForm(false);
     } catch (err) {
-      setAddCertError(friendlyErrorMessage(err));
+      setAddCertError(friendlyMemberErrorMessage(err));
     } finally {
       setAddingCert(false);
     }
@@ -842,7 +842,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchCompetitionStandings()
       .then((data) => !cancelled && setCompetitionLeaderboard(data))
-      .catch((err) => !cancelled && setStandingsError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setStandingsError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingStandings(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -873,7 +873,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setCompetitionLeaderboard(await fetchCompetitionStandings());
       celebrateRsvp();
     } catch (err) {
-      setStandingsError(friendlyErrorMessage(err));
+      setStandingsError(friendlyMemberErrorMessage(err));
     } finally {
       setRsvpingCompetition(false);
     }
@@ -921,7 +921,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchJobBoard()
       .then((data) => !cancelled && setJobListings(data))
-      .catch((err) => !cancelled && setJobsError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setJobsError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingJobs(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -964,7 +964,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setNewJobForm({ title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', link: '' });
       setShowAddJobForm(false);
     } catch (err) {
-      setAddJobError(friendlyErrorMessage(err));
+      setAddJobError(friendlyMemberErrorMessage(err));
     } finally {
       setAddingJob(false);
     }
@@ -1011,7 +1011,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     let cancelled = false;
     fetchResources()
       .then((data) => !cancelled && setResources(data))
-      .catch((err) => !cancelled && setResourcesError(friendlyErrorMessage(err)))
+      .catch((err) => !cancelled && setResourcesError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingResources(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -1046,7 +1046,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setNewResourceForm({ category: 'Cert Prep', title: '', format: '', description: '', link: '' });
       setShowAddResourceForm(false);
     } catch (err) {
-      setAddResourceError(friendlyErrorMessage(err));
+      setAddResourceError(friendlyMemberErrorMessage(err));
     } finally {
       setAddingResource(false);
     }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { LogOut } from 'lucide-react';
-import { friendlyErrorMessage } from '../lib/errorMessages';
+import { friendlyMemberErrorMessage } from '../lib/errorMessages';
 
 function buildLines(user) {
   const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'operative';
@@ -85,7 +85,7 @@ export default function OffboardingSequence({ user, onDone }) {
     try {
       await onDone(withFeedback ? { rating: rating || null, feedback: feedback.trim() } : { rating: null, feedback: '' });
     } catch (err) {
-      setError(friendlyErrorMessage(err));
+      setError(friendlyMemberErrorMessage(err));
       setSubmitting(false);
     }
   };
