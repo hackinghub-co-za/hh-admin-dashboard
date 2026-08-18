@@ -25,9 +25,16 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
         options: {
           redirectTo: window.location.origin,
           scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+          // No prompt: 'consent' - that forces Google's full permission-grant
+          // screen on every single sign-in, not just the first. This app
+          // never persists/uses a Google refresh token server-side (calendar
+          // access is only ever the short-lived provider_token from the most
+          // recent OAuth redirect - see App.jsx), so there's nothing here
+          // that actually needs the forced re-consent; access_type: 'offline'
+          // alone is enough to get a fresh token each time a member does
+          // need to sign in again.
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent',
           },
         },
       });

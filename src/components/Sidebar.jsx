@@ -18,13 +18,18 @@ import {
   Milestone,
   Handshake,
   ListChecks,
+  Megaphone,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
+import ReleaseNotesModal from './ReleaseNotesModal';
+import { LATEST_RELEASE_VERSION } from '../data/releaseNotes';
+
+const LAST_SEEN_RELEASE_KEY = 'hh_last_seen_release';
 
 // Icon-only rail - every interactive item reveals its label as a tooltip on
 // hover rather than showing text inline, so the sidebar stays a fixed narrow
 // width instead of pushing page content around.
-function TooltipButton({ id, icon: Icon, label, active, danger, hoveredId, onHover, onLeave, onClick }) {
+function TooltipButton({ id, icon: Icon, label, active, danger, badge, hoveredId, onHover, onLeave, onClick }) {
   const isHovered = hoveredId === id;
   return (
     <div style={{ position: 'relative' }} onMouseEnter={() => onHover(id)} onMouseLeave={onLeave}>
@@ -32,6 +37,7 @@ function TooltipButton({ id, icon: Icon, label, active, danger, hoveredId, onHov
         onClick={onClick}
         aria-label={label}
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -47,6 +53,20 @@ function TooltipButton({ id, icon: Icon, label, active, danger, hoveredId, onHov
         }}
       >
         <Icon size={18} />
+        {badge && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '7px',
+              right: '7px',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: 'var(--accent-cyan)',
+              boxShadow: '0 0 0 2px var(--bg-secondary)',
+            }}
+          />
+        )}
       </button>
       <span
         role="tooltip"
@@ -80,6 +100,24 @@ function TooltipButton({ id, icon: Icon, label, active, danger, hoveredId, onHov
 export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro }) {
   const isAdmin = user?.role === 'admin';
   const [hoveredId, setHoveredId] = useState(null);
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+  const hasUnseenRelease = LATEST_RELEASE_VERSION && (() => {
+    try {
+      return localStorage.getItem(LAST_SEEN_RELEASE_KEY) !== LATEST_RELEASE_VERSION;
+    } catch {
+      return false;
+    }
+  })();
+
+  const openReleaseNotes = () => {
+    setShowReleaseNotes(true);
+    try {
+      localStorage.setItem(LAST_SEEN_RELEASE_KEY, LATEST_RELEASE_VERSION);
+    } catch {
+      // Storage unavailable (private browsing, etc.) - the badge just won't
+      // remember it's been seen next time, which is harmless.
+    }
+  };
 
   const menuItems = isAdmin
     ? [
@@ -111,6 +149,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
       ];
 
   return (
+    <>
     <aside
       style={{
         position: 'fixed',
@@ -263,6 +302,17 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           </span>
         </div>
 
+        <TooltipButton
+          id="whats-new"
+          icon={Megaphone}
+          label="What's New"
+          badge={hasUnseenRelease}
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+          onLeave={() => setHoveredId(null)}
+          onClick={openReleaseNotes}
+        />
+
         {onReplayIntro && (
           <TooltipButton
             id="replay-intro"
@@ -287,5 +337,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         />
       </div>
     </aside>
+    {showReleaseNotes && <ReleaseNotesModal onClose={() => setShowReleaseNotes(false)} />}
+    </>
   );
 }
