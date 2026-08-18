@@ -22,6 +22,7 @@ import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsDat
 import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem } from '../../lib/roadmapData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
+import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
 import {
   Calendar,
   Users,
@@ -429,8 +430,23 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     }
   };
 
-  // PayFast Transactions initialized from exported CSV
+  // PayFast Transactions - the one-time exported-CSV snapshot (up to
+  // 2026-08-05) merged with everything the payfast-webhook Edge Function has
+  // recorded live since. Real Supabase data for a real session; Mock Admin
+  // has no session, so it only ever sees the static historical snapshot.
   const [payments, setPayments] = useState(payfastTransactionsData);
+  const [loadingLivePayments, setLoadingLivePayments] = useState(!isMockSession);
+  const [livePaymentsError, setLivePaymentsError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchPayfastPayments()
+      .then((live) => !cancelled && setPayments([...live, ...payfastTransactionsData]))
+      .catch((err) => !cancelled && setLivePaymentsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingLivePayments(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
 
   // Loaded once for real admin sessions - Mock Admin has no Supabase session, so
   // these calls would just be rejected by RLS, and edits stay local-only for it.
@@ -554,34 +570,6 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       status: 'scheduled',
     },
   ]);
-
-  const handleSimulatePayfastPayment = () => {
-    const plans = [
-      { name: 'Basic Access', amount: 200, fee: 9.66, net: 190.34 },
-      { name: 'Monthly Operative', amount: 600, fee: 24.38, net: 575.62 },
-      { name: 'Permanent Access', amount: 1000, fee: 39.10, net: 960.90 },
-    ];
-    const randomPlan = plans[Math.floor(Math.random() * plans.length)];
-    const names = ['Thabo Mokoena', 'Anika Reddy', 'Bongani Sithole', 'Chantel Marais', 'David Botha'];
-    const randomName = names[Math.floor(Math.random() * names.length)];
-    const randomEmail = `${randomName.toLowerCase().replace(' ', '.')}@gmail.com`;
-
-    const newPayment = {
-      id: payments.length + 1,
-      pfId: `PF-${Math.floor(318000000 + Math.random() * 2000000)}`,
-      member: randomName,
-      email: randomEmail,
-      plan: randomPlan.name,
-      amount: randomPlan.amount,
-      fee: randomPlan.fee,
-      net: randomPlan.net,
-      fundingType: 'Credit Card',
-      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      status: 'COMPLETE',
-    };
-
-    setPayments([newPayment, ...payments]);
-  };
 
   const [showEftModal, setShowEftModal] = useState(false);
 
@@ -2094,21 +2082,29 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--success)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
                   <CreditCard size={22} color="var(--success)" />
                   <h3 style={{ margin: 0 }}>PayFast Gateway Status</h3>
-                  <span className="badge badge-success">MERCHANT ID: 18467178 (ACTIVE)</span>
+                  {isMockSession ? (
+                    <span className="badge badge-warning">MOCK ADMIN - LIVE FEED UNAVAILABLE</span>
+                  ) : loadingLivePayments ? (
+                    <span className="badge badge-warning">SYNCING...</span>
+                  ) : livePaymentsError ? (
+                    <span className="badge badge-danger">LIVE FEED ERROR</span>
+                  ) : (
+                    <span className="badge badge-success">LIVE via payfast-webhook</span>
+                  )}
                 </div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Data Source: <strong style={{ color: '#fff' }}>payfast_transactions_2026.csv</strong> (Processed Jan 1 - Aug 7, 2026) + manually recorded EFT payments
+                  {livePaymentsError
+                    ? `Couldn't reach the live transaction feed: ${livePaymentsError}`
+                    : 'Historical snapshot (Jan 1 - Aug 5, 2026) plus everything recorded live since, straight from PayFast\'s payment notification.'}
+                  {' '}+ manually recorded EFT payments
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <button className="btn btn-secondary" onClick={() => setShowEftModal(true)}>
                   <Landmark size={16} /> Record EFT Payment
-                </button>
-                <button className="btn btn-primary" onClick={handleSimulatePayfastPayment}>
-                  <Plus size={16} /> Simulate PayFast ITN Transaction
                 </button>
               </div>
             </div>
