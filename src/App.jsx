@@ -40,8 +40,13 @@ export default function App() {
     // Members are only let in if `is_member_allowed` (Supabase RPC) says so - it
     // treats member_profiles as the allow-list: no row, or a row marked 'Left',
     // means access is denied. Admins skip this check (unaffected, same as before).
-    // Fails closed: any error checking membership results in access being denied,
-    // not silently granted.
+    // Only a definitive "not allowed" result signs the member out - a failure to
+    // even complete the check (network blip, transient Supabase error) does NOT.
+    // This function reruns on every background token refresh, not just a fresh
+    // login (see onAuthStateChange below), so treating a transient check failure
+    // as a denial was signing already-legitimate members out mid-session over
+    // nothing, forcing them back through the full Google OAuth screen for no
+    // reason - that's the "why do I have to keep signing in" bug.
     const resolveSession = async (session) => {
       setAccessDeniedMessage(null);
 
@@ -56,17 +61,18 @@ export default function App() {
       const isAdminEmail = email.endsWith('@hackinghub.co.za');
 
       if (!isAdminEmail) {
-        let allowed;
+        let allowed = true;
+        let checkFailed = false;
         try {
           const { data, error } = await supabase.rpc('is_member_allowed', { check_email: email });
           if (error) throw error;
           allowed = data === true;
         } catch (err) {
-          console.error('Membership check failed:', err.message);
-          allowed = false;
+          console.error('Membership check failed - not signing out over a transient error:', err.message);
+          checkFailed = true;
         }
 
-        if (!allowed) {
+        if (!checkFailed && !allowed) {
           await supabase.auth.signOut();
           setAccessDeniedMessage(
             "This Google account isn't recognized as an active Hacking Hub member. If you believe this is a mistake, contact an admin."
