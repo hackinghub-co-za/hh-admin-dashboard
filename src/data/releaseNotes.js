@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.08.19',
+    date: '2026-08-19',
+    headline: "Specialization now means something.",
+    intro: "Your Roadmap's Core Foundations now follows one standard set of certs across every track, and Specialization is something you unlock rather than see from day one.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🔓',
+            title: 'Specialization is now unlocked, not just available',
+            body: "Core Foundations now draws from one standard list of 8 certs (CISCO Junior Cyber Pathway, Immersive Labs, TryHackMe Pre-Security, TryHackMe Cyber 101, AZ-900, AI-901, SC-900, CompTIA Security+) — the same 8 for everyone, whatever your track. Get 5 of them done and your coach signs off on it, and your Specialization section unlocks. Two people on the same track can still end up with a different Specialization list, but Core Foundations is now the same starting line for everyone.",
+            where: 'My Roadmap',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.08.17',
     date: '2026-08-17',
     headline: "Your path just got a lot more real.",
