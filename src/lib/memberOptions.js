@@ -36,6 +36,58 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Permanent
 export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps'];
 export const ROADMAP_PHASES = ['Core Foundations', 'Specialization'];
 
+// The standard Core Foundations "Certifications" catalog every assigned
+// roadmap draws from, regardless of track - a member needs at least
+// CORE_FOUNDATIONS_MIN_REQUIRED of these done before their Core Foundations
+// certs count as complete. Specialization stays fully track-specific beyond
+// this, with its own courses/certs.
+export const CORE_FOUNDATIONS_CATALOG = [
+  { title: 'CISCO Junior Cyber Pathway', defaultDetail: '6/6 courses' },
+  { title: 'Immersive Labs', defaultDetail: '20 collections' },
+  { title: 'TryHackMe Pre-Security', defaultDetail: '' },
+  { title: 'TryHackMe Cyber 101', defaultDetail: '' },
+  { title: 'AZ-900', defaultDetail: '' },
+  { title: 'AI-901', defaultDetail: '' },
+  { title: 'SC-900', defaultDetail: '' },
+  { title: 'CompTIA Security+', defaultDetail: '' },
+];
+export const CORE_FOUNDATIONS_MIN_REQUIRED = 4;
+
+// A member only sees their Specialization section once they've completed
+// this many Core Foundations certs - a higher bar than
+// CORE_FOUNDATIONS_MIN_REQUIRED (which just marks foundations as "met"),
+// deliberately: Specialization stays hidden a little longer than the
+// minimum, so it reads as something earned rather than available from day
+// one.
+export const SPECIALIZATION_UNLOCK_MIN = 5;
+
+// Standard Specialization catalogs, by roadmap_track and the category name
+// each track's specialization items are grouped under. Only tracks with a
+// defined catalog here get the admin "Add Standard Specialization"
+// quick-fill - Cloud Security and DevSecOps don't have one yet, so their
+// Specialization stays fully free-form until one is defined.
+export const SPECIALIZATION_CATALOGS = {
+  SOC: {
+    category: 'SOC',
+    items: [
+      { title: 'CySA+', defaultDetail: '' },
+      { title: 'SC-200', defaultDetail: '' },
+      { title: 'THM SOC Level 1', defaultDetail: '' },
+      { title: 'Blue Team Level 1', defaultDetail: '' },
+    ],
+  },
+  'Offensive Security': {
+    category: 'Pen Testing',
+    items: [
+      { title: 'eJPT', defaultDetail: '' },
+      { title: 'THM Junior Pentester', defaultDetail: '' },
+      { title: 'THM Offensive Pentesting', defaultDetail: '' },
+      { title: 'Burp Suite Certified Practitioner', defaultDetail: '' },
+      { title: 'OSCP', defaultDetail: '' },
+    ],
+  },
+};
+
 // A member is flagged "Lapsed" if they haven't paid in this many days and haven't
 // been explicitly marked Active or Left by an admin - a nudge to go check on them,
 // not a verdict.

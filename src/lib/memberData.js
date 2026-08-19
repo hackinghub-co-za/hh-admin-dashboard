@@ -25,6 +25,7 @@ export async function fetchMemberProfiles() {
       moneyOwed: Number(row.money_owed) || 0,
       jobReadiness: row.job_readiness || 'Not Started',
       roadmapTrack: row.roadmap_track || 'Not Assigned',
+      roadmapFoundationsApproved: !!row.roadmap_foundations_approved_at,
       status: row.status || 'Active',
       employmentStatus: row.employment_status || 'Not Set',
       jobTitle: row.job_title || '',

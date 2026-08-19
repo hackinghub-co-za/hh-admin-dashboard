@@ -56,3 +56,27 @@ export async function updateCertCalendarResult(id, result) {
   const { error } = await supabase.from('cert_calendar').update({ result }).eq('id', id);
   if (error) throw error;
 }
+
+/** Admin-only: edits any field of an existing cert calendar entry (not just
+ * the result). RLS (admins manage cert calendar) rejects this for non-admins
+ * - a member can only ever add their own entry, never edit one. */
+export async function updateCertCalendarEntry(id, { member, cert, date, cohort, result }) {
+  const { error } = await supabase
+    .from('cert_calendar')
+    .update({
+      member,
+      cert_name: cert,
+      date,
+      cohort: cohort || null,
+      result,
+    })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+/** Admin-only: removes a cert calendar entry entirely. RLS rejects this for
+ * non-admins. */
+export async function deleteCertCalendarEntry(id) {
+  const { error } = await supabase.from('cert_calendar').delete().eq('id', id);
+  if (error) throw error;
+}

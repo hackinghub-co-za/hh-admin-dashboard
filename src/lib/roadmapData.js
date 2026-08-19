@@ -46,6 +46,27 @@ export async function fetchMyRoadmapTrack() {
   return data || null;
 }
 
+/** Whether an admin has approved the caller's Core Foundations progress -
+ * reaching the completion count alone isn't enough, this is the deliberate
+ * anti-cheating gate on top of it (see 035_roadmap_foundations_approval.sql). */
+export async function fetchMyRoadmapFoundationsApproved() {
+  const { data, error } = await supabase.rpc('get_my_roadmap_foundations_approved');
+  if (error) throw error;
+  return !!data;
+}
+
+/** Admin: approve or revoke a member's Core Foundations progress. Reading
+ * the current state doesn't need a dedicated fetch here - it's already part
+ * of the `memberProfiles` map AdminDashboard loads via fetchMemberProfiles()
+ * (see memberData.js), same as roadmapTrack. */
+export async function setRoadmapFoundationsApproval(email, approved) {
+  const { error } = await supabase
+    .from('member_profiles')
+    .update({ roadmap_foundations_approved_at: approved ? new Date().toISOString() : null })
+    .eq('email', email.toLowerCase());
+  if (error) throw error;
+}
+
 /** Admin: fetch any member's roadmap items (RLS grants admins full visibility
  * via is_admin()). */
 export async function fetchRoadmapForMember(email) {

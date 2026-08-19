@@ -57,20 +57,17 @@ CREATE POLICY "admins manage cert calendar"
   ON public.cert_calendar FOR ALL
   USING (public.is_admin(auth.uid()));
 
--- Seed with the entries that were previously hardcoded (reconciled - the
--- admin and member arrays had drifted to slightly different lists), plus the
--- two new real target dates.
+-- Seed with only the real target dates - ids 1-7 below were placeholder
+-- entries (reconciled from two hardcoded arrays that predated this table),
+-- never real member exam dates.
 INSERT INTO public.cert_calendar (id, member, cert_name, date, cohort, result) VALUES
-  (1, 'Sanele Khumalo', 'OSCP Penetration Tester', '2026-09-12', 'OSCP-26B', 'Pending'),
-  (2, 'Nonhlanhla Sindane', 'CompTIA Security+', '2026-08-28', 'SecPlus-Aug', 'Pending'),
-  (3, 'Khody Netshifhefhe', 'eLearnSecurity eCPPT', '2026-10-05', 'eCPPT-Intro', 'Pending'),
-  (4, 'Joshua Harrop', 'Microsoft Azure Security (AZ-500)', '2026-09-01', 'Azure-Q3', 'Pending'),
-  (5, 'Thando Mandondo', 'CompTIA Network+', '2026-09-20', 'NetPlus-Q3', 'Pending'),
-  (6, 'Thabo Ndlovu', 'OSCP Penetration Tester', '2026-08-02', 'OSCP-26A', 'Passed'),
-  (7, 'Palesa Dlamini', 'CompTIA Security+', '2026-07-15', 'SecPlus-Jul', 'Passed'),
   (8, 'Siya', 'KCSA (Kubernetes and Cloud Native Security Associate)', '2026-09-17', 'General', 'Pending'),
   (9, 'Siya', 'Microsoft Security Operations Analyst (SC-500)', '2026-08-20', 'General', 'Pending')
 ON CONFLICT (id) DO NOTHING;
+
+-- Removes the placeholder rows (ids 1-7) if an earlier run of this file ever
+-- seeded them - naturally idempotent, a second run just deletes zero rows.
+DELETE FROM public.cert_calendar WHERE id IN (1, 2, 3, 4, 5, 6, 7);
 
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
 -- the first member-added entry gets id 10, not a collision with 1-9.
