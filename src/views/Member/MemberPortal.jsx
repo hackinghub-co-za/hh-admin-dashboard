@@ -8,11 +8,11 @@ import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarD
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
-import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack } from '../../lib/roadmapData';
+import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -62,6 +62,7 @@ import {
   GraduationCap,
   Milestone,
   Handshake,
+  Lock,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -468,17 +469,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // the plan itself (title/detail/phase/category) is admin-authored.
   const [roadmapTrack, setRoadmapTrack] = useState(isMockSession ? MOCK_ROADMAP_TRACK : null);
   const [roadmapItems, setRoadmapItems] = useState(isMockSession ? MOCK_ROADMAP_ITEMS : []);
+  const [roadmapFoundationsApproved, setRoadmapFoundationsApproved] = useState(false);
   const [loadingRoadmap, setLoadingRoadmap] = useState(!isMockSession);
   const [roadmapError, setRoadmapError] = useState(null);
 
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
-    Promise.all([fetchMyRoadmapTrack(), fetchMyRoadmap()])
-      .then(([track, items]) => {
+    Promise.all([fetchMyRoadmapTrack(), fetchMyRoadmap(), fetchMyRoadmapFoundationsApproved()])
+      .then(([track, items, approved]) => {
         if (cancelled) return;
         setRoadmapTrack(track);
         setRoadmapItems(items);
+        setRoadmapFoundationsApproved(approved);
       })
       .catch((err) => !cancelled && setRoadmapError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingRoadmap(false));
@@ -1535,6 +1538,23 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         })),
       })).filter((g) => g.categories.length > 0);
 
+      // How many of the 8 standard Core Foundations certs are done, against
+      // the 4-of-8 minimum every assigned roadmap uses.
+      const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
+      const coreFoundationsDone = roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title) && i.completed).length;
+      const coreFoundationsMet = coreFoundationsDone >= CORE_FOUNDATIONS_MIN_REQUIRED;
+      // Specialization stays hidden until a higher bar than the plain
+      // "foundations met" minimum - it should read as earned, not available
+      // from day one. Hitting that count alone still isn't enough, though -
+      // a member can toggle their own items done, so reaching 5/8 only
+      // makes them eligible; an admin still has to approve before it
+      // actually unlocks, so self-reported completion can't be used to rush
+      // or cheat past this checkpoint.
+      const specializationEligible = coreFoundationsDone >= SPECIALIZATION_UNLOCK_MIN;
+      const specializationUnlocked = specializationEligible && roadmapFoundationsApproved;
+      const visiblePhaseGroups = roadmapPhaseGroups.filter((g) => g.phase !== 'Specialization' || specializationUnlocked);
+      const hasLockedSpecialization = !specializationUnlocked && roadmapPhaseGroups.some((g) => g.phase === 'Specialization');
+
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
@@ -1562,9 +1582,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <span className="badge badge-success" style={{ flexShrink: 0 }}>{roadmapCompletedCount}/{roadmapItems.length} done · {roadmapProgressPercent}%</span>
               </div>
 
-              {roadmapPhaseGroups.map((g) => (
+              {visiblePhaseGroups.map((g) => (
                 <div key={g.phase} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ fontSize: '1.1rem', color: 'var(--accent-purple)', marginBottom: '16px', paddingBottom: '10px', borderBottom: '1px solid var(--border-color)' }}>{g.phase}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '10px', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: '1.1rem', color: 'var(--accent-purple)', margin: 0 }}>{g.phase}</h3>
+                    {g.phase === 'Core Foundations' && (
+                      <span className={`badge ${coreFoundationsMet ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.7rem' }}>
+                        {coreFoundationsDone}/{CORE_FOUNDATIONS_CATALOG.length} Foundation Certs {coreFoundationsMet ? '· Minimum Met' : `· Need ${CORE_FOUNDATIONS_MIN_REQUIRED - coreFoundationsDone} More`}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
                     {g.categories.map((c) => (
                       <div key={c.category}>
@@ -1609,6 +1636,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                 </div>
               ))}
+
+              {hasLockedSpecialization && (
+                <div style={{ textAlign: 'center', padding: '32px 24px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--border-color)' }}>
+                  <Lock size={28} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
+                  <p style={{ color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Specialization is locked</p>
+                  {specializationEligible ? (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      You've completed {SPECIALIZATION_UNLOCK_MIN} Core Foundations certs — waiting on your coach to review and approve before it unlocks.
+                    </p>
+                  ) : (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      Complete {SPECIALIZATION_UNLOCK_MIN} Core Foundations certs to become eligible — you're at {coreFoundationsDone}/{SPECIALIZATION_UNLOCK_MIN}.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

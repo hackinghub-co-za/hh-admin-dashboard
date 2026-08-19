@@ -5,7 +5,7 @@ import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
 import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -17,9 +17,10 @@ import {
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
-import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult } from '../../lib/certCalendarData';
+import { isSafeUrl } from '../../lib/safeUrl';
+import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
-import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem } from '../../lib/roadmapData';
+import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
@@ -52,12 +53,14 @@ import {
   Building2,
   Flag,
   Star,
+  Milestone,
   Trash2,
   Pencil,
   CheckSquare,
   Square,
   Handshake,
   ListChecks,
+  X,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
@@ -133,6 +136,109 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     }
     setNewRoadmapItem({ phase: 'Core Foundations', category: '', title: '', detail: '' });
     setShowAddRoadmapItemForm(false);
+  };
+
+  // Quick-fills whichever of the 8 standard Core Foundations certs (see
+  // CORE_FOUNDATIONS_CATALOG) this member doesn't already have, rather than
+  // an admin having to type each one by hand for every new roadmap.
+  const [addingStandardFoundations, setAddingStandardFoundations] = useState(false);
+
+  const handleAddStandardFoundations = async () => {
+    if (!roadmapMemberEmail) return;
+    const existingTitles = new Set(roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications').map((i) => i.title));
+    const missing = CORE_FOUNDATIONS_CATALOG.filter((c) => !existingTitles.has(c.title));
+    if (missing.length === 0) return;
+
+    setAddingStandardFoundations(true);
+    let nextSortOrder = Math.max(0, ...roadmapItems.map((i) => i.sortOrder), 0) + 10;
+    const newItems = missing.map((c) => {
+      const item = { phase: 'Core Foundations', category: 'Certifications', title: c.title, detail: c.defaultDetail };
+      const sortOrder = nextSortOrder;
+      nextSortOrder += 10;
+      return { ...item, sortOrder };
+    });
+
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, [...roadmapItems, ...newItems.map((item) => ({ id: Date.now() + item.sortOrder, memberEmail: roadmapMemberEmail, completed: false, ...item }))]);
+      setAddingStandardFoundations(false);
+      return;
+    }
+
+    try {
+      const created = [];
+      for (const item of newItems) {
+        created.push(await addRoadmapItem({ memberEmail: roadmapMemberEmail, ...item }));
+      }
+      setRoadmapItems([...roadmapItems, ...created]);
+    } catch (err) {
+      setRoadmapItemsError(friendlyErrorMessage(err));
+    } finally {
+      setAddingStandardFoundations(false);
+    }
+  };
+
+  // Quick-fills whichever items from the member's assigned track's standard
+  // Specialization catalog (SPECIALIZATION_CATALOGS) they don't already
+  // have. Only SOC and Offensive Security have a defined catalog today.
+  const [addingStandardSpecialization, setAddingStandardSpecialization] = useState(false);
+
+  const handleAddStandardSpecialization = async (catalog) => {
+    if (!roadmapMemberEmail || !catalog) return;
+    const existingTitles = new Set(roadmapItems.filter((i) => i.phase === 'Specialization' && i.category === catalog.category).map((i) => i.title));
+    const missing = catalog.items.filter((c) => !existingTitles.has(c.title));
+    if (missing.length === 0) return;
+
+    setAddingStandardSpecialization(true);
+    let nextSortOrder = Math.max(0, ...roadmapItems.map((i) => i.sortOrder), 0) + 10;
+    const newItems = missing.map((c) => {
+      const item = { phase: 'Specialization', category: catalog.category, title: c.title, detail: c.defaultDetail };
+      const sortOrder = nextSortOrder;
+      nextSortOrder += 10;
+      return { ...item, sortOrder };
+    });
+
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, [...roadmapItems, ...newItems.map((item) => ({ id: Date.now() + item.sortOrder, memberEmail: roadmapMemberEmail, completed: false, ...item }))]);
+      setAddingStandardSpecialization(false);
+      return;
+    }
+
+    try {
+      const created = [];
+      for (const item of newItems) {
+        created.push(await addRoadmapItem({ memberEmail: roadmapMemberEmail, ...item }));
+      }
+      setRoadmapItems([...roadmapItems, ...created]);
+    } catch (err) {
+      setRoadmapItemsError(friendlyErrorMessage(err));
+    } finally {
+      setAddingStandardSpecialization(false);
+    }
+  };
+
+  // Approving/revoking is what actually unlocks Specialization for a member
+  // who's hit the completion count - see SPECIALIZATION_UNLOCK_MIN. Updates
+  // the local memberProfiles overlay directly so the badge/button reflect
+  // it immediately, same pattern as handleSaveMemberProfile.
+  const [savingFoundationsApproval, setSavingFoundationsApproval] = useState(false);
+
+  const handleToggleFoundationsApproval = async (email, approved) => {
+    setSavingFoundationsApproval(true);
+    const key = email.toLowerCase();
+    if (!isMockSession) {
+      try {
+        await setRoadmapFoundationsApproval(email, approved);
+      } catch (err) {
+        setRoadmapItemsError(friendlyErrorMessage(err));
+        setSavingFoundationsApproval(false);
+        return;
+      }
+    }
+    setMemberProfiles((prev) => ({
+      ...prev,
+      [key]: { ...(prev[key] || {}), roadmapFoundationsApproved: approved },
+    }));
+    setSavingFoundationsApproval(false);
   };
 
   const startEditRoadmapItem = (item) => {
@@ -430,6 +536,43 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     }
   };
 
+  const [editingCertId, setEditingCertId] = useState(null);
+  const [editCertForm, setEditCertForm] = useState({ member: '', cert: '', date: '', cohort: '', result: 'Pending' });
+
+  const startEditCert = (c) => {
+    setEditingCertId(c.id);
+    setEditCertForm({ member: c.member, cert: c.cert, date: c.date, cohort: c.cohort || '', result: c.result || 'Pending' });
+  };
+
+  const handleSaveCertEdit = async (cert) => {
+    const updated = { ...cert, ...editCertForm };
+    if (isMockSession) {
+      setCerts(certs.map((c) => (c.id === cert.id ? updated : c)));
+    } else {
+      try {
+        await updateCertCalendarEntry(cert.id, editCertForm);
+        setCerts(certs.map((c) => (c.id === cert.id ? updated : c)));
+      } catch (err) {
+        setCertsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setEditingCertId(null);
+  };
+
+  const handleDeleteCert = async (cert) => {
+    setCerts(certs.filter((c) => c.id !== cert.id));
+    if (selectedCert?.id === cert.id) setSelectedCert(null);
+    if (!isMockSession) {
+      try {
+        await deleteCertCalendarEntry(cert.id);
+      } catch (err) {
+        setCertsError(friendlyErrorMessage(err));
+        setCerts((prev) => [...prev, cert]);
+      }
+    }
+  };
+
   // PayFast Transactions - the one-time exported-CSV snapshot (up to
   // 2026-08-05) merged with everything the payfast-webhook Edge Function has
   // recorded live since. Real Supabase data for a real session; Mock Admin
@@ -493,6 +636,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [loadingCommunityEvents, setLoadingCommunityEvents] = useState(!isMockSession);
   const [approvingEventId, setApprovingEventId] = useState(null);
   const [approveEventError, setApproveEventError] = useState(null);
+  const [selectedPendingEvent, setSelectedPendingEvent] = useState(null);
   const canApproveEvents = (user?.email || '').toLowerCase() === 'siya@hackinghub.co.za';
 
   useEffect(() => {
@@ -519,57 +663,6 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       setApprovingEventId(null);
     }
   };
-
-  const [oneOnOnes, setOneOnOnes] = useState([
-    {
-      id: 1,
-      member: 'Sanele Khumalo',
-      mentor: '[REDACTED]',
-      nextMeetingDate: '2026-08-10 14:00',
-      daysUntil: 3,
-      previousMeetingDate: '2026-07-27',
-      isRecurring: true,
-      frequency: 'Weekly (Mon)',
-      topic: 'OSCP Prep Roadmap & Buffer Overflows',
-      status: 'scheduled',
-    },
-    {
-      id: 2,
-      member: 'Liam O\'Connor',
-      mentor: '[REDACTED]',
-      nextMeetingDate: '2026-08-08 10:00',
-      daysUntil: 1,
-      previousMeetingDate: '2026-07-25',
-      isRecurring: true,
-      frequency: 'Bi-weekly (Sat)',
-      topic: 'Web Security & PortSwigger Labs Review',
-      status: 'scheduled',
-    },
-    {
-      id: 3,
-      member: 'Fatima Patel',
-      mentor: 'Jaco du Toit',
-      nextMeetingDate: '2026-08-14 16:30',
-      daysUntil: 7,
-      previousMeetingDate: '2026-07-31',
-      isRecurring: false,
-      frequency: 'One-off Session',
-      topic: 'Malware Analysis & Ghidra Basics',
-      status: 'scheduled',
-    },
-    {
-      id: 4,
-      member: 'Zoe van der Merwe',
-      mentor: '[REDACTED]',
-      nextMeetingDate: '2026-08-12 11:00',
-      daysUntil: 5,
-      previousMeetingDate: '2026-07-15',
-      isRecurring: true,
-      frequency: 'Monthly Sync',
-      topic: 'Career Transition & Salary Negotiation',
-      status: 'scheduled',
-    },
-  ]);
 
   const [showEftModal, setShowEftModal] = useState(false);
 
@@ -1114,6 +1207,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       const existingCategories = [...new Set(roadmapItems.map((i) => i.category))];
       const completedCount = roadmapItems.filter((i) => i.completed).length;
       const roadmapProgress = roadmapItems.length ? Math.round((completedCount / roadmapItems.length) * 100) : 0;
+      const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
+      const coreFoundationsDone = roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title) && i.completed).length;
+      const coreFoundationsMet = coreFoundationsDone >= CORE_FOUNDATIONS_MIN_REQUIRED;
+      const missingFoundationsCount = CORE_FOUNDATIONS_CATALOG.length - roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title)).length;
+      const specializationEligible = coreFoundationsDone >= SPECIALIZATION_UNLOCK_MIN;
+      const foundationsApproved = !!roadmapSelected?.profile?.roadmapFoundationsApproved;
+      const specializationUnlocked = specializationEligible && foundationsApproved;
+      const specializationCatalog = roadmapSelected?.profile?.roadmapTrack ? SPECIALIZATION_CATALOGS[roadmapSelected.profile.roadmapTrack] : null;
+      const missingSpecializationCount = specializationCatalog
+        ? specializationCatalog.items.length - roadmapItems.filter((i) => i.phase === 'Specialization' && i.category === specializationCatalog.category).length
+        : 0;
       const phaseGroups = ROADMAP_PHASES.map((phase) => ({
         phase,
         categories: [...new Set(roadmapItems.filter((i) => i.phase === phase).map((i) => i.category))].map((category) => ({
@@ -1230,7 +1334,33 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       ) : (
                         phaseGroups.map((g) => (
                           <div key={g.phase} style={{ marginBottom: '20px' }}>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-purple)', marginBottom: '10px' }}>{g.phase}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-purple)' }}>{g.phase}</div>
+                              {g.phase === 'Core Foundations' && (
+                                <span className={`badge ${coreFoundationsMet ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.62rem' }}>
+                                  {coreFoundationsDone}/{CORE_FOUNDATIONS_CATALOG.length} Foundation Certs
+                                </span>
+                              )}
+                              {g.phase === 'Specialization' && (
+                                <span
+                                  className={`badge ${specializationUnlocked ? 'badge-success' : specializationEligible ? 'badge-warning' : 'badge-warning'}`}
+                                  style={{ fontSize: '0.62rem' }}
+                                  title={specializationUnlocked ? 'Visible to the member' : specializationEligible ? 'Member has hit the completion count - needs your approval to unlock' : `Needs ${SPECIALIZATION_UNLOCK_MIN} Core Foundations certs done (currently ${coreFoundationsDone})`}
+                                >
+                                  {specializationUnlocked ? 'Visible to member' : specializationEligible ? 'Awaiting Your Approval' : `Locked · ${coreFoundationsDone}/${SPECIALIZATION_UNLOCK_MIN} needed`}
+                                </span>
+                              )}
+                              {g.phase === 'Specialization' && specializationEligible && (
+                                <button
+                                  className={`btn ${foundationsApproved ? 'btn-secondary' : 'btn-primary'}`}
+                                  style={{ fontSize: '0.68rem', padding: '4px 10px' }}
+                                  disabled={savingFoundationsApproval}
+                                  onClick={() => handleToggleFoundationsApproval(roadmapSelected.email, !foundationsApproved)}
+                                >
+                                  {foundationsApproved ? 'Revoke Approval' : 'Approve Foundations'}
+                                </button>
+                              )}
+                            </div>
                             {g.categories.map((c) => (
                               <div key={c.category} style={{ marginBottom: '14px' }}>
                                 <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>{c.category}</div>
@@ -1311,9 +1441,21 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       </div>
                     </form>
                   ) : (
-                    <button className="btn btn-secondary" onClick={() => setShowAddRoadmapItemForm(true)}>
-                      <Plus size={16} /> Add Checklist Item
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button className="btn btn-secondary" onClick={() => setShowAddRoadmapItemForm(true)}>
+                        <Plus size={16} /> Add Checklist Item
+                      </button>
+                      {missingFoundationsCount > 0 && (
+                        <button className="btn btn-secondary" onClick={handleAddStandardFoundations} disabled={addingStandardFoundations}>
+                          <Milestone size={16} /> {addingStandardFoundations ? 'Adding...' : `Add Standard Foundations (${missingFoundationsCount} missing)`}
+                        </button>
+                      )}
+                      {specializationCatalog && missingSpecializationCount > 0 && (
+                        <button className="btn btn-secondary" onClick={() => handleAddStandardSpecialization(specializationCatalog)} disabled={addingStandardSpecialization}>
+                          <Milestone size={16} /> {addingStandardSpecialization ? 'Adding...' : `Add Standard Specialization (${missingSpecializationCount} missing)`}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </>
               )}
@@ -1649,6 +1791,8 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 {pendingCommunityEvents.map((ev) => (
                   <div
                     key={ev.id}
+                    onClick={() => setSelectedPendingEvent(ev)}
+                    className="hover-glow"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1658,6 +1802,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       borderRadius: 'var(--border-radius-md)',
                       background: 'rgba(255,255,255,0.02)',
                       border: '1px solid var(--border-color)',
+                      cursor: 'pointer',
                     }}
                   >
                     <div>
@@ -1666,20 +1811,117 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         {formatDate(ev.date)}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'} | Submitted by {ev.createdBy}
                       </p>
                     </div>
-                    <button
-                      className="btn btn-primary"
-                      disabled={!canApproveEvents || approvingEventId === ev.id}
-                      title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za can approve events'}
-                      onClick={() => handleApproveEvent(ev.id)}
-                      style={{ fontSize: '0.8rem', padding: '8px 14px', flexShrink: 0 }}
-                    >
-                      <CheckCircle size={14} /> {approvingEventId === ev.id ? 'Approving...' : 'Approve'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSelectedPendingEvent(ev)}
+                        style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                      >
+                        <Info size={14} /> Details
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        disabled={!canApproveEvents || approvingEventId === ev.id}
+                        title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za can approve events'}
+                        onClick={() => handleApproveEvent(ev.id)}
+                        style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                      >
+                        <CheckCircle size={14} /> {approvingEventId === ev.id ? 'Approving...' : 'Approve'}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Pending Event Details Modal */}
+          {selectedPendingEvent && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(3, 7, 18, 0.85)',
+                backdropFilter: 'blur(8px)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px',
+              }}
+              onClick={() => setSelectedPendingEvent(null)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '520px', maxHeight: '85vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--warning)', position: 'relative' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => setSelectedPendingEvent(null)}
+                  aria-label="Close"
+                  style={{ position: 'absolute', top: '20px', right: '20px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                >
+                  <X size={18} />
+                </button>
+
+                <span className="badge badge-warning" style={{ marginBottom: '12px', display: 'inline-block' }}>{selectedPendingEvent.type || 'Event'} · Pending Review</span>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '16px', paddingRight: '30px' }}>{selectedPendingEvent.title}</h2>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', fontSize: '0.88rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+                    <Calendar size={14} color="var(--accent-cyan)" />
+                    {formatDate(selectedPendingEvent.date)}{selectedPendingEvent.time ? ` at ${selectedPendingEvent.time}` : ' · No time set'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+                    <Info size={14} color="var(--accent-cyan)" />
+                    {selectedPendingEvent.location || 'No location set'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+                    <Users size={14} color="var(--accent-cyan)" />
+                    Submitted by {selectedPendingEvent.createdBy}
+                  </div>
+                  {selectedPendingEvent.link && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Link size={14} color="var(--accent-cyan)" />
+                      {isSafeUrl(selectedPendingEvent.link) ? (
+                        <a href={selectedPendingEvent.link} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)' }}>
+                          {selectedPendingEvent.link} <ExternalLink size={11} style={{ display: 'inline' }} />
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--danger)' }}>Unsafe link - not shown</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {selectedPendingEvent.description ? (
+                  <div style={{ padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '24px' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>Description</div>
+                    <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{selectedPendingEvent.description}</p>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '24px' }}>No description provided.</p>
+                )}
+
+                {approveEventError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>{approveEventError}</p>}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <button className="btn btn-secondary" onClick={() => setSelectedPendingEvent(null)}>Close</button>
+                  <button
+                    className="btn btn-primary"
+                    disabled={!canApproveEvents || approvingEventId === selectedPendingEvent.id}
+                    title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za can approve events'}
+                    onClick={async () => {
+                      await handleApproveEvent(selectedPendingEvent.id);
+                      setSelectedPendingEvent(null);
+                    }}
+                  >
+                    <CheckCircle size={14} /> {approvingEventId === selectedPendingEvent.id ? 'Approving...' : 'Approve'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
 
@@ -1814,54 +2056,6 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               </div>
             )}
           </div>
-
-          {/* Active Bookings Table */}
-          <div className="glass-card">
-            <h3 style={{ marginBottom: '20px' }}>Dashboard Bookings List</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Assigned Mentor</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Next Meeting & Countdown</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Previous Meeting Date</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Recurring Setup</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Focus Topic</th>
-                </tr>
-              </thead>
-              <tbody>
-                {oneOnOnes.map((session) => (
-                  <tr key={session.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                    <td style={{ padding: '16px 12px', fontWeight: 600 }}>{session.member}</td>
-                    <td style={{ padding: '16px 12px' }}>{session.mentor}</td>
-                    <td style={{ padding: '16px 12px' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontSize: '0.85rem' }}>
-                        {formatDate(session.nextMeetingDate.split(' ')[0])} · {session.nextMeetingDate.split(' ')[1]}
-                      </div>
-                      <span className={`badge ${session.daysUntil <= 1 ? 'badge-danger' : session.daysUntil <= 3 ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem', marginTop: '4px' }}>
-                        {session.daysUntil === 0 ? 'Today!' : session.daysUntil === 1 ? 'Tomorrow' : `In ${session.daysUntil} days`}
-                      </span>
-                    </td>
-                    <td style={{ padding: '16px 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      {session.previousMeetingDate ? formatDate(session.previousMeetingDate) : 'None (First Session)'}
-                    </td>
-                    <td style={{ padding: '16px 12px' }}>
-                      {session.isRecurring ? (
-                        <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
-                          Yes ({session.frequency})
-                        </span>
-                      ) : (
-                        <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
-                          No (One-off)
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '16px 12px', fontSize: '0.85rem' }}>{session.topic}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       );
 
@@ -1956,6 +2150,28 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                   const isUrgent = daysLeft <= 14;
 
+                  if (editingCertId === c.id) {
+                    return (
+                      <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <input className="form-input" value={editCertForm.member} onChange={(e) => setEditCertForm({ ...editCertForm, member: e.target.value })} placeholder="Member name" />
+                        <input className="form-input" value={editCertForm.cert} onChange={(e) => setEditCertForm({ ...editCertForm, cert: e.target.value })} placeholder="Certification" />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <input type="date" className="form-input" value={editCertForm.date} onChange={(e) => setEditCertForm({ ...editCertForm, date: e.target.value })} />
+                          <input className="form-input" value={editCertForm.cohort} onChange={(e) => setEditCertForm({ ...editCertForm, cohort: e.target.value })} placeholder="Cohort" />
+                        </div>
+                        <select className="form-input" value={editCertForm.result} onChange={(e) => setEditCertForm({ ...editCertForm, result: e.target.value })}>
+                          <option value="Pending">Pending</option>
+                          <option value="Passed">Passed</option>
+                          <option value="Failed">Failed</option>
+                        </select>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setEditingCertId(null)}>Cancel</button>
+                          <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSaveCertEdit(c)}>Save</button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={c.id}
@@ -1977,15 +2193,23 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                           <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
-                          {c.result === 'Passed' ? (
-                            <span className="badge badge-success">Passed</span>
-                          ) : c.result === 'Failed' ? (
-                            <span className="badge badge-danger">Failed</span>
-                          ) : (
-                            <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
-                              {daysLeft > 0 ? `${daysLeft} Days Left` : daysLeft === 0 ? 'Exam Today!' : 'Awaiting Result'}
-                            </span>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {c.result === 'Passed' ? (
+                              <span className="badge badge-success">Passed</span>
+                            ) : c.result === 'Failed' ? (
+                              <span className="badge badge-danger">Failed</span>
+                            ) : (
+                              <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
+                                {daysLeft > 0 ? `${daysLeft} Days Left` : daysLeft === 0 ? 'Exam Today!' : 'Awaiting Result'}
+                              </span>
+                            )}
+                            <button onClick={(e) => { e.stopPropagation(); startEditCert(c); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }} aria-label="Edit entry">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteCert(c); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'flex' }} aria-label="Delete entry">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
                         <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
