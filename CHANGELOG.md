@@ -18,6 +18,43 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.08.19
+
+### Added
+- **Standard Core Foundations catalog** — every assigned roadmap now draws
+  its Core Foundations certs from one 8-item list (`CORE_FOUNDATIONS_CATALOG`
+  in `src/lib/memberOptions.js`), 4 of 8 required to count as met. Retrofitted
+  all 14 existing member roadmaps onto it (real progress on matching items
+  preserved, non-matching items dropped - deliberate, explicitly confirmed).
+  Admin gets an "Add Standard Foundations" quick-fill.
+- **Specialization catalogs + unlock gate** — SOC and Offensive Security now
+  have a defined Specialization catalog too. A member's Specialization stays
+  hidden until they've completed 5 of the 8 Core Foundations certs *and* an
+  admin has explicitly approved that progress - the count alone only makes
+  them eligible, since a member can toggle their own items done and nothing
+  stopped them from rushing past Core Foundations dishonestly before this.
+  Admin gets an "Approve Foundations" / "Revoke Approval" toggle and an "Add
+  Standard Specialization" quick-fill. (`035_roadmap_foundations_approval.sql`)
+- **Live PayFast payments** — `payfast-webhook` Edge Function actually exists
+  now. `notify_url` has pointed at it since day one, but nothing was there to
+  receive it - "recent payments" was a manually-regenerated JSON snapshot,
+  last updated 2026-08-05. Validates PayFast's signature and confirms with
+  PayFast's own `/eng/query/validate` endpoint server-to-server before
+  recording anything. (`033_payfast_transactions.sql`)
+- Cert Calendar: admins can now edit and delete any entry, not just flip
+  Pending/Passed/Failed.
+
+### Changed
+- Room Log submissions only accepted while the Competitions cycle is
+  actually `Active` - no submitting before kickoff or after it ends.
+- Removed the fake "Dashboard Bookings List" from the admin 1on1 Sessions
+  tab (four hardcoded fictional members, never wired to anything real) -
+  redundant with the genuine Google Calendar sync already in that tab.
+- Removed the "Simulate PayFast ITN Transaction" button now that real
+  payments record automatically.
+- Cert Calendar: removed 7 placeholder entries that were seeded into the
+  live table on day one and never real member exam dates.
+
 ## 2026.08.17
 
 ### Added
