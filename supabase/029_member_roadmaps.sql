@@ -274,8 +274,12 @@ BEGIN
   END IF;
 END $$;
 
--- [REDACTED] ([REDACTED]) - no track/specialization
--- given in her doc yet, so roadmap_track is left as-is rather than guessed at.
+-- [REDACTED] ([REDACTED]) - DevSecOps track. No catalog
+-- retrofit needed for her Specialization phase - she has none yet, and
+-- DevSecOps's standard catalog can be added via the admin "Add Standard
+-- Specialization" quick-fill whenever she's ready for it.
+UPDATE public.member_profiles SET roadmap_track = 'DevSecOps' WHERE email = '[REDACTED]';
+
 DELETE FROM public.roadmap_items WHERE member_email = '[REDACTED]' AND phase = 'Core Foundations' AND category = 'Certifications';
 INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
   ('[REDACTED]', 'Core Foundations', 'Certifications', 'CISCO Junior Cyber Pathway', '0/6 courses · before end of August', false, 10),

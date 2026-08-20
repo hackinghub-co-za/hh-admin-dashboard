@@ -977,20 +977,42 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     if (!memberRosterMap.has(key) && !deletedEmails.has(key)) memberRosterMap.set(key, m);
   });
 
+  // Real members exist who are allowlisted (a real member_profiles row, real
+  // portal access) but have neither a PayFast payment nor a manual-member
+  // entry - without this pass they're invisible in every admin member list
+  // (Roadmaps, Matchmaker, Room Logs, Referrals), even though they can sign
+  // in and use the app right now. firstPaymentDate/lastPaymentDate stay null
+  // rather than a fabricated date - handled explicitly below and in
+  // MemberProfileModal rather than defaulted to something misleading.
+  Object.entries(memberProfiles).forEach(([email, profile]) => {
+    if (memberRosterMap.has(email) || deletedEmails.has(email)) return;
+    memberRosterMap.set(email, {
+      email,
+      member: profile.fullName || email,
+      firstPaymentDate: null,
+      lastPaymentDate: null,
+      lastPlan: 'No Payment Yet',
+      totalSpent: 0,
+      paymentCount: 0,
+    });
+  });
+
   const memberRoster = [...memberRosterMap.values()]
     .map(m => {
       const profile = memberProfiles[m.email.toLowerCase()] || null;
-      const daysSinceLastPayment = Math.floor((today - new Date(m.lastPaymentDate)) / (1000 * 60 * 60 * 24));
+      const daysSinceLastPayment = m.lastPaymentDate
+        ? Math.floor((today - new Date(m.lastPaymentDate)) / (1000 * 60 * 60 * 24))
+        : null;
       const status = profile?.status === 'Left'
         ? 'Left'
         : profile?.status === 'Leaving'
         ? 'Leaving'
         : profile?.status === 'Active (Permanent)'
         ? 'Active'
-        : daysSinceLastPayment > LAPSED_AFTER_DAYS ? 'Lapsed' : 'Active';
+        : (daysSinceLastPayment !== null && daysSinceLastPayment > LAPSED_AFTER_DAYS) ? 'Lapsed' : 'Active';
       return {
         ...m,
-        monthsInHH: Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))),
+        monthsInHH: m.firstPaymentDate ? Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))) : 0,
         profile,
         status,
         lastMeetingDate: lastMeetingByEmail[m.email.toLowerCase()] || null,
@@ -1427,10 +1449,19 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       const roadmapSelected = roadmapMemberEmail
         ? memberRoster.find((m) => m.email.toLowerCase() === roadmapMemberEmail.toLowerCase())
         : null;
-      const filteredRoadmapRoster = memberRoster.filter((m) =>
+      // Only active members are worth authoring a live coaching plan for -
+      // Lapsed/Leaving/Left members drop out of the picker entirely (though a
+      // member already mid-track who later lapses/leaves keeps their existing
+      // roadmap data untouched; they just won't show up here to pick again).
+      const activeRoadmapRoster = memberRoster.filter((m) => m.status === 'Active');
+      const filteredRoadmapRoster = activeRoadmapRoster.filter((m) =>
         m.member.toLowerCase().includes(roadmapMemberSearch.toLowerCase()) ||
         m.email.toLowerCase().includes(roadmapMemberSearch.toLowerCase())
       );
+      const roadmapTrackCounts = ROADMAP_TRACKS.map((track) => ({
+        track,
+        count: activeRoadmapRoster.filter((m) => (m.profile?.roadmapTrack || 'Not Assigned') === track).length,
+      }));
       const existingCategories = [...new Set(roadmapItems.map((i) => i.category))];
       const completedCount = roadmapItems.filter((i) => i.completed).length;
       const roadmapProgress = roadmapItems.length ? Math.round((completedCount / roadmapItems.length) * 100) : 0;
@@ -1471,6 +1502,24 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               You're using Mock Admin — changes here are local only and will be lost on your next login.
             </div>
           )}
+
+          {/* Breakdown of active members per specialization track */}
+          <div className="glass-card" style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Milestone size={16} color="var(--accent-cyan)" /> Active Members by Track
+            </h3>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {roadmapTrackCounts.map(({ track, count }) => (
+                <div
+                  key={track}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}
+                >
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{track}</span>
+                  <span className={`badge ${track === 'Not Assigned' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.7rem' }}>{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'flex-start' }}>
             {/* Member picker */}

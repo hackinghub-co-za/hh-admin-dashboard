@@ -21,6 +21,13 @@ saved in their browser's `localStorage`.
 ## 2026.08.20
 
 ### Added
+- **Active Members by Track breakdown, and Active-only Roadmaps picker** — the
+  Roadmaps tab's member picker now only lists members whose status is
+  Active (Lapsed/Leaving/Left drop out of the list, though a member already
+  mid-track keeps their existing roadmap data untouched if their status
+  later changes). A new summary card shows how many active members are on
+  each track (Not Assigned, SOC, Offensive Security, Cloud Security,
+  DevSecOps, IAM, AI Security) at a glance.
 - **Manual refresh on Admin Overview** — every tab's data was a one-time
   fetch on mount with no polling or live subscription anywhere, so nothing
   updated without a full page reload. A "Refresh" button now re-runs every
@@ -83,6 +90,15 @@ saved in their browser's `localStorage`.
   Quicket registration link. (`019_events.sql`)
 
 ### Fixed
+- **Allowlisted members with no PayFast payment were invisible everywhere**
+  — every admin member list (Members, Roadmaps, Matchmaker, Room Logs,
+  Referrals) was built only from PayFast payment history plus manually-added
+  members, so a real member with real portal access but no payment on
+  record (e.g. [REDACTED]) never showed up to assign a track to or
+  manage at all. The roster now also includes anyone with a real
+  member_profiles row, showing "No Payment Yet" instead of fabricated
+  numbers for their payment fields. Chioma is now assigned the DevSecOps
+  track. (`029_member_roadmaps.sql`)
 - **"Active Members" on Admin Overview didn't match the Members tab** — the
   Overview tile counted distinct PayFast payers in the trailing 35 days,
   completely ignoring `member_profiles.status` - so it excluded
