@@ -20,21 +20,18 @@ saved in their browser's `localStorage`.
 
 ## 2026.08.20
 
-### Fixed
-- **Specialty terminology no longer diverges from Roadmap Track** — the
-  "Specialty" dropdown (member's self-described badge) used Red Team/Blue
-  Team/Cloud Security/GRC while "Roadmap Track" (coach-assigned) used
-  SOC/Offensive Security/Cloud Security/DevSecOps - same concept, two
-  different vocabularies, no DevSecOps option at all on the Specialty side.
-  Specialty now uses the same names as Roadmap Track (Not Set, SOC,
-  Offensive Security, Cloud Security, DevSecOps, IAM, AI Security, GRC), so
-  assigning one actually matches the other. Any member already stored as
-  'Red Team' or 'Blue Team' was renamed to 'Offensive Security'/'SOC'
-  respectively so their profile doesn't silently show an invalid value.
-  IAM and AI Security were added as two new options to both lists.
-  (`028_roadmap.sql`)
-
 ### Added
+- **Manual refresh on Admin Overview** — every tab's data was a one-time
+  fetch on mount with no polling or live subscription anywhere, so nothing
+  updated without a full page reload. A "Refresh" button now re-runs every
+  data fetch across the whole admin dashboard (Members, Payments, Reviews,
+  Room Logs, Events, Referrals, Expenses, Cert Calendar, Matchmaker), not
+  just the Overview tab's own numbers.
+- Meetups & Events: admins can now Reject a pending member-submitted event,
+  not just Approve it - permanently removes the submission, from both the
+  pending list and its details modal. Open to any admin, unlike Approve
+  (still restricted to siya@hackinghub.co.za), since removing an unpublished
+  submission is lower-stakes than publishing one community-wide.
 - **Delete Permanently for 'Left' members** — a new button on a member's
   profile (only shown once their status is 'Left') permanently deletes their
   profile and hides them from every roster in the admin dashboard (Members,
@@ -60,8 +57,6 @@ saved in their browser's `localStorage`.
 - Resources: added CompTIA Security+ prep - the official overview,
   Professor Messer's free video course, and ExamCompass practice tests.
   (`026_resources.sql`)
-
-### Added
 - **Cloud Security Specialization catalog** — AZ-104, SC-200, SC-500,
   Terraform Associate, SC-100, AZ-305. Retrofitted the 2 members already on
   the Cloud Security track onto it (real progress preserved where an old
@@ -86,6 +81,28 @@ saved in their browser's `localStorage`.
   `community_events` table on day one. Corrected BSides Cape Town's date
   (was the wrong `2026-09-05`, now the real `2026-12-05`) and added its real
   Quicket registration link. (`019_events.sql`)
+
+### Fixed
+- **"Active Members" on Admin Overview didn't match the Members tab** — the
+  Overview tile counted distinct PayFast payers in the trailing 35 days,
+  completely ignoring `member_profiles.status` - so it excluded
+  "Active (Permanent)" members who don't pay recurring dues, manually-added
+  members with no PayFast history, and used a different lapse window (35
+  days vs the Members tab's 45). Now shows the same status-based count as
+  the Members tab's "Active" filter, with a lapsed/leaving breakdown instead
+  of the mismatched growth trend.
+- **Specialty terminology no longer diverges from Roadmap Track** — the
+  "Specialty" dropdown (member's self-described badge) used Red Team/Blue
+  Team/Cloud Security/GRC while "Roadmap Track" (coach-assigned) used
+  SOC/Offensive Security/Cloud Security/DevSecOps - same concept, two
+  different vocabularies, no DevSecOps option at all on the Specialty side.
+  Specialty now uses the same names as Roadmap Track (Not Set, SOC,
+  Offensive Security, Cloud Security, DevSecOps, IAM, AI Security, GRC), so
+  assigning one actually matches the other. Any member already stored as
+  'Red Team' or 'Blue Team' was renamed to 'Offensive Security'/'SOC'
+  respectively so their profile doesn't silently show an invalid value.
+  IAM and AI Security were added as two new options to both lists.
+  (`028_roadmap.sql`)
 
 ## 2026.08.19
 

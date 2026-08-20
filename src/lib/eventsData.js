@@ -71,6 +71,16 @@ export async function approveCommunityEvent(eventId) {
   if (error) throw error;
 }
 
+/** Admin-only: permanently deletes an event, most useful for rejecting a
+ * pending submission that shouldn't go live. RLS ("admins manage community
+ * events") rejects this for non-admins - unlike approval, not further
+ * restricted to one specific admin account, since removing an unpublished
+ * submission is lower-stakes than publishing one community-wide. */
+export async function deleteCommunityEvent(eventId) {
+  const { error } = await supabase.from('community_events').delete().eq('id', eventId);
+  if (error) throw error;
+}
+
 /** Fetch every RSVP row (event_id, email) across all events. RLS scopes this
  * to signed-in, approved members only. Used to compute both real per-event
  * attendance counts and "have I RSVP'd" client-side. */

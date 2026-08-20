@@ -245,8 +245,8 @@ const MOCK_LEADERBOARD = [
 // Dashboard "Community Broadcast" feed - only one shows at a time, auto-rotating
 // (see broadcastIndex state below), rather than all listed at once.
 const COMMUNITY_BROADCASTS = [
-  { emoji: '📢', title: 'Sprint 4 Active:', body: 'TryHackMe challenge rooms open for monthly bounty.' },
-  { emoji: '⚡', title: 'Azure Vouchers:', body: 'Submit completed TryHackMe path by Friday.' },
+  { emoji: '🤝', title: 'Matchmaker is live:', body: "Opt in and get randomly grouped with 1-3 other members for a project or presentation. Head to Matchmaker → Count Me In." },
+  { emoji: '🏆', title: 'TryHackMe Competition kicks off 24 August:', body: 'Complete as many rooms as you can this quarter for a shot at the bigger prizes — top 3 finishers win cert vouchers up to R10,000. Get logging early once it opens.' },
 ];
 
 // Recent member wins - certs, job placements, whatever's worth celebrating.

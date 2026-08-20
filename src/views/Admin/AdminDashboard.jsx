@@ -23,7 +23,7 @@ import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
-import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
+import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent } from '../../lib/eventsData';
 import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
@@ -41,8 +41,6 @@ import {
   Search,
   CheckCircle,
   Clock,
-  ArrowUpRight,
-  ArrowDownRight,
   Video,
   ExternalLink,
   RefreshCw,
@@ -68,6 +66,19 @@ import {
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
+  // Bumped by the "Refresh" button on the Admin Overview tab - added to every
+  // data-fetching useEffect's dependency array below so a click re-runs all
+  // of them. Nothing here is live/polling otherwise: every tab's data is a
+  // one-time fetch on mount, so without this the admin has no way to see
+  // fresh data short of a full page reload.
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
+  const [refreshingData, setRefreshingData] = useState(false);
+  const handleRefreshData = () => {
+    setRefreshingData(true);
+    setDataRefreshKey((k) => k + 1);
+    setTimeout(() => setRefreshingData(false), 1200);
+  };
+
   const [googleEvents, setGoogleEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventsError, setEventsError] = useState(null);
@@ -316,7 +327,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   useEffect(() => {
     if (isMockSession) return;
     refreshMatchmakerData();
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   const handleRunMatchmakerRound = async () => {
     setMatchmakerError(null);
@@ -388,7 +399,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch((err) => !cancelled && setRoomLogsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingRoomLogs(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   const handleReviewRoomLog = async (log, approved) => {
     const note = approved ? '' : (rejectNoteDraft[log.id] || '');
@@ -434,7 +445,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch((err) => !cancelled && setReferralsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingReferrals(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   // Members added by hand (no PayFast payment yet) - kept separate from the
   // payment-derived roster and merged in for display.
@@ -536,7 +547,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch((err) => !cancelled && setCertsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingCerts(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   const [newCert, setNewCert] = useState({ member: '', cert: '', date: '', cohort: '' });
 
@@ -634,7 +645,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch((err) => !cancelled && setExpensesError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingExpenses(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   const EXPENSE_CATEGORIES = ['Tools & Software', 'Coach / Mentor Pay', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other'];
   const [newExpense, setNewExpense] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
@@ -712,7 +723,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch((err) => !cancelled && setLivePaymentsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingLivePayments(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   // Loaded once for real admin sessions - Mock Admin has no Supabase session, so
   // these calls would just be rejected by RLS, and edits stay local-only for it.
@@ -738,7 +749,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch((err) => !cancelled && setSavedMemberDataError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingSavedMemberData(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   // Reviews/feedback - admins see everything (RLS grants full access), including
   // reviews members marked private, which is the whole point of that option existing.
@@ -755,7 +766,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch((err) => !cancelled && setReviewsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingReviews(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   // Member-submitted events awaiting approval (019_events.sql) - admins can
   // see every event regardless of status via their own RLS policy, filtered
@@ -776,7 +787,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .catch(() => {})
       .finally(() => !cancelled && setLoadingCommunityEvents(false));
     return () => { cancelled = true; };
-  }, [isMockSession]);
+  }, [isMockSession, dataRefreshKey]);
 
   const pendingCommunityEvents = communityEvents.filter((e) => e.status === 'Pending');
 
@@ -790,6 +801,32 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       setApproveEventError(friendlyErrorMessage(err));
     } finally {
       setApprovingEventId(null);
+    }
+  };
+
+  const [rejectingEventId, setRejectingEventId] = useState(null);
+
+  // Rejecting = deleting the pending submission outright, not a tracked
+  // 'Rejected' status - there's nowhere in the member's own Events tab that
+  // would meaningfully show a rejected submission, so there's nothing to
+  // preserve by keeping the row around.
+  const handleRejectEvent = async (eventId) => {
+    if (!window.confirm('Reject and permanently remove this event submission?')) return false;
+    setRejectingEventId(eventId);
+    setApproveEventError(null);
+    try {
+      if (isMockSession) {
+        setCommunityEvents((prev) => prev.filter((e) => e.id !== eventId));
+      } else {
+        await deleteCommunityEvent(eventId);
+        setCommunityEvents(await fetchCommunityEvents());
+      }
+      return true;
+    } catch (err) {
+      setApproveEventError(friendlyErrorMessage(err));
+      return true;
+    } finally {
+      setRejectingEventId(null);
     }
   };
 
@@ -855,15 +892,6 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const monthlyRecurringRevenue = payments
     .filter(p => (p.plan === 'Monthly Operative' || p.plan === 'Basic Access') && new Date(p.date) >= last30DaysStart)
     .reduce((acc, p) => acc + p.amount, 0);
-
-  // Active members = distinct payers within one trailing 35-day billing window
-  const last35DaysStart = new Date(today.getTime() - 35 * 24 * 60 * 60 * 1000);
-  const prev35DaysStart = new Date(today.getTime() - 70 * 24 * 60 * 60 * 1000);
-  const activeMemberEmails = emailsPaidBetween(last35DaysStart, today);
-  const previousActiveMemberEmails = emailsPaidBetween(prev35DaysStart, last35DaysStart);
-  const activeMemberGrowthPct = previousActiveMemberEmails.size
-    ? ((activeMemberEmails.size - previousActiveMemberEmails.size) / previousActiveMemberEmails.size) * 100
-    : 0;
 
   // Monthly churn = last full month's payers who didn't pay again the following month
   const lastFullMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -1024,9 +1052,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     case 'dashboard':
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Admin Overview</h1>
-            <p>Real-time analytics and growth stats for Hacking Hub.</p>
+          <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Admin Overview</h1>
+              <p>Analytics and growth stats for Hacking Hub, as of your last refresh.</p>
+            </div>
+            {!isMockSession && (
+              <button className="btn btn-secondary" onClick={handleRefreshData} disabled={refreshingData}>
+                <RefreshCw size={16} className={refreshingData ? 'animate-spin' : ''} />
+                {refreshingData ? 'Refreshing...' : 'Refresh'}
+              </button>
+            )}
           </div>
 
           {/* Key Metrics Grid */}
@@ -1036,10 +1072,9 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Active Members</span>
                 <Users size={20} color="var(--accent-cyan)" />
               </div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{activeMemberEmails.size}</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: activeMemberGrowthPct >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                {activeMemberGrowthPct >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                <span>{activeMemberGrowthPct >= 0 ? '+' : ''}{activeMemberGrowthPct.toFixed(1)}% vs prior 35 days</span>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{memberStatusCounts['Active'] || 0}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span>{memberStatusCounts['Lapsed'] || 0} lapsed · {memberStatusCounts['Leaving'] || 0} leaving</span>
               </div>
             </div>
 
@@ -2012,6 +2047,14 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         <Info size={14} /> Details
                       </button>
                       <button
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '8px 14px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                        disabled={rejectingEventId === ev.id}
+                        onClick={() => handleRejectEvent(ev.id)}
+                      >
+                        <X size={14} /> {rejectingEventId === ev.id ? 'Rejecting...' : 'Reject'}
+                      </button>
+                      <button
                         className="btn btn-primary"
                         disabled={!canApproveEvents || approvingEventId === ev.id}
                         title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za can approve events'}
@@ -2099,6 +2142,18 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   <button className="btn btn-secondary" onClick={() => setSelectedPendingEvent(null)}>Close</button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    disabled={rejectingEventId === selectedPendingEvent.id}
+                    onClick={async () => {
+                      if (await handleRejectEvent(selectedPendingEvent.id)) {
+                        setSelectedPendingEvent(null);
+                      }
+                    }}
+                  >
+                    <X size={14} /> {rejectingEventId === selectedPendingEvent.id ? 'Rejecting...' : 'Reject'}
+                  </button>
                   <button
                     className="btn btn-primary"
                     disabled={!canApproveEvents || approvingEventId === selectedPendingEvent.id}
