@@ -1,15 +1,15 @@
 -- Hacking Hub Admin Dashboard - Restrict Access to Community Contacts
 -- Run this in the Supabase SQL Editor after 002-019 have already been applied.
 --
--- Narrows real portal access to exactly two groups: the 73 email addresses in
--- the "Hacking Hub" Google Contacts label (the current, deliberately curated
--- community list) and the existing pentest/test accounts from
--- 012_pentest_access.sql. Every other member_profiles row is left untouched
--- EXCEPT the 38 real PayFast payers - backfilled as 'Active' in
--- 004_member_access_control.sql - who are not in this contacts list; those
--- are explicitly revoked below. This was confirmed deliberately: those 38
--- people did pay at some point, but are being removed from the allow-list on
--- purpose as part of narrowing access to the current community contact list.
+-- Narrows real portal access to exactly two groups: the community contact
+-- list (originally 73, since grown as new members joined) and the existing
+-- pentest/test accounts from 012_pentest_access.sql. Every other
+-- member_profiles row is left untouched EXCEPT the 38 real PayFast payers -
+-- backfilled as 'Active' in 004_member_access_control.sql - who are not in
+-- this contacts list; those are explicitly revoked below. This was confirmed
+-- deliberately: those 38 people did pay at some point, but are being removed
+-- from the allow-list on purpose as part of narrowing access to the current
+-- community contact list.
 --
 -- full_name is left untouched on conflict for rows that already exist, so no
 -- member's own self-edited directory profile gets overwritten by this import
@@ -47,10 +47,12 @@ VALUES
     ('[REDACTED]', 'Active', 'Kharisanker16'),
     ('kmchunu029@gmail.com', 'Active', 'Kmchunu029'),
     ('[REDACTED]', 'Active', 'Lesedincwana'),
+    ('[REDACTED]', 'Active', 'Lesegomaphosa12'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Lethabo-mokoma'),
     ('[REDACTED]', 'Active', 'Mojalefa'),
+    ('[REDACTED]', 'Active', 'Louisanonhlanhla11'),
     ('[REDACTED]', 'Active', 'Lungaka777'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Lutendo.muthala17'),
@@ -91,6 +93,7 @@ VALUES
     ('[REDACTED]', 'Active', 'Tshepo.nchabeng36'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Tshiamoseleki'),
+    ('[REDACTED]', 'Active', 'Tshireletsomoeti062'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Ululamilemabunda'),
     ('[REDACTED]', 'Active', '[REDACTED]'),

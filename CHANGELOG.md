@@ -21,6 +21,16 @@ saved in their browser's `localStorage`.
 ## 2026.08.20
 
 ### Added
+- **Delete Permanently for 'Left' members** — a new button on a member's
+  profile (only shown once their status is 'Left') permanently deletes their
+  profile and hides them from every roster in the admin dashboard (Members,
+  Roadmaps, Matchmaker, Room Logs, Referrals), even though the Members list
+  is actually built from PayFast payment history and wouldn't otherwise drop
+  them. Deliberately scoped to just their profile - payment history,
+  reviews, cert calendar entries, room logs, roadmap, and referrals stay
+  intact as real records, just no longer linked to a live profile. Requires
+  a confirmation dialog; there's no undo once it runs.
+  (`040_deleted_members.sql`)
 - **Refer a Friend** — members can refer someone to the community from the
   Members tab (name, LinkedIn profile, optional phone number). They can see
   their own past referrals; admins see and manage every referral submitted,
