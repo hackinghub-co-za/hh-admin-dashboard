@@ -16,6 +16,14 @@
 -- Seeded with only the 2 real resources that already existed - the 15
 -- placeholder entries (dead "Open Resource" links, never real content) are
 -- deliberately not carried over.
+--
+-- PortSwigger Web Security Academy and the HH Interview Playbook were added
+-- later, consolidated in here rather than left in a separate
+-- 036_more_resources.sql. Unlike the first 2, they're seeded without explicit
+-- ids and guarded by title instead of ON CONFLICT (id) - the Resources tab
+-- has had a live "Add Resource" button since this file first shipped, so a
+-- real member may already have a submission sitting at id 3+, and hardcoding
+-- an id here could collide with it.
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id BIGSERIAL PRIMARY KEY,
@@ -64,3 +72,27 @@ ON CONFLICT (id) DO NOTHING;
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
 -- the first member-added resource gets id 3, not a collision with 1-2.
 SELECT setval(pg_get_serial_sequence('public.resources', 'id'), 2, true);
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'PortSwigger Web Security Academy',
+  'Labs',
+  'Free, hands-on web security training from the makers of Burp Suite - hundreds of interactive labs covering web app vulnerabilities from XSS through request smuggling.',
+  'https://portswigger.net/web-security',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'PortSwigger Web Security Academy'
+);
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Interview Playbooks',
+  'HH Interview Playbook',
+  'Doc',
+  'Hacking Hub''s own interview prep playbook.',
+  'https://docs.google.com/document/d/1mqgfhSXH1U8NVwzBs4yVen9eBTHrFcflu9N9kWuvSJI/edit?tab=t.0',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'HH Interview Playbook'
+);

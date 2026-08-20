@@ -19,6 +19,7 @@ import { fetchReviews } from '../../lib/reviewsData';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
+import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchCommunityEvents, approveCommunityEvent } from '../../lib/eventsData';
 import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
@@ -569,6 +570,87 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       } catch (err) {
         setCertsError(friendlyErrorMessage(err));
         setCerts((prev) => [...prev, cert]);
+      }
+    }
+  };
+
+  // Business Expenses - the money-out side of the Finances tab, admin-only
+  // (no member-facing equivalent, unlike Cert Calendar). Mock Admin has no
+  // Supabase session, so it starts with a small local demo set instead.
+  const [expenses, setExpenses] = useState(isMockSession ? [
+    { id: 1, category: 'Coach / Mentor Pay', description: 'Siya - August coaching hours', amount: 4500, date: '2026-08-01' },
+    { id: 2, category: 'Hosting / Infrastructure', description: 'Supabase Pro plan', amount: 450, date: '2026-08-03' },
+    { id: 3, category: 'Tools & Software', description: 'Notion team seats', amount: 320, date: '2026-08-05' },
+  ] : []);
+  const [loadingExpenses, setLoadingExpenses] = useState(!isMockSession);
+  const [expensesError, setExpensesError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchExpenses()
+      .then((data) => !cancelled && setExpenses(data))
+      .catch((err) => !cancelled && setExpensesError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingExpenses(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const EXPENSE_CATEGORIES = ['Tools & Software', 'Coach / Mentor Pay', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other'];
+  const [newExpense, setNewExpense] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
+
+  const handleAddExpense = async (e) => {
+    e.preventDefault();
+    if (!newExpense.description || !newExpense.amount || !newExpense.date) return;
+    const amount = Number(newExpense.amount);
+    if (isMockSession) {
+      setExpenses([
+        { id: Math.max(0, ...expenses.map((x) => x.id)) + 1, category: newExpense.category, description: newExpense.description, amount, date: newExpense.date },
+        ...expenses,
+      ]);
+    } else {
+      try {
+        const added = await addExpense({ ...newExpense, amount, createdBy: user?.email });
+        setExpenses([added, ...expenses]);
+      } catch (err) {
+        setExpensesError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setNewExpense({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
+  };
+
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [editExpenseForm, setEditExpenseForm] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
+
+  const startEditExpense = (x) => {
+    setEditingExpenseId(x.id);
+    setEditExpenseForm({ category: x.category, description: x.description, amount: String(x.amount), date: x.date });
+  };
+
+  const handleSaveExpenseEdit = async (expense) => {
+    const updated = { ...expense, ...editExpenseForm, amount: Number(editExpenseForm.amount) };
+    if (isMockSession) {
+      setExpenses(expenses.map((x) => (x.id === expense.id ? updated : x)));
+    } else {
+      try {
+        await updateExpense(expense.id, { ...editExpenseForm, amount: Number(editExpenseForm.amount) });
+        setExpenses(expenses.map((x) => (x.id === expense.id ? updated : x)));
+      } catch (err) {
+        setExpensesError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setEditingExpenseId(null);
+  };
+
+  const handleDeleteExpense = async (expense) => {
+    setExpenses(expenses.filter((x) => x.id !== expense.id));
+    if (!isMockSession) {
+      try {
+        await deleteExpense(expense.id);
+      } catch (err) {
+        setExpensesError(friendlyErrorMessage(err));
+        setExpenses((prev) => [...prev, expense]);
       }
     }
   };
@@ -2628,6 +2710,103 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 Net Retention Rate: <strong style={{ color: 'var(--success)' }}>{((totalNetRevenue / totalGrossRevenue) * 100).toFixed(1)}%</strong> of gross revenue retained after card processing fees.
               </div>
             </div>
+          </div>
+
+          {/* Business Expenses - the money-out side, kept as its own log
+              rather than folded into the PayFast net-margin figures above. */}
+          <div className="glass-card" style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <DollarSign size={20} color="var(--warning)" />
+                <h3 style={{ margin: 0 }}>Business Expenses</h3>
+              </div>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--warning)' }}>
+                Total: R {expenses.reduce((acc, x) => acc + x.amount, 0).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {isMockSession && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '16px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                You're using Mock Admin — expenses only persist for a real signed-in session.
+              </div>
+            )}
+            {!isMockSession && expensesError && (
+              <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+                {expensesError}
+              </div>
+            )}
+
+            <form onSubmit={handleAddExpense} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 140px 160px auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+              <select className="form-input" value={newExpense.category} onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}>
+                {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input className="form-input" value={newExpense.description} onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })} placeholder="Description" />
+              <input type="number" step="0.01" className="form-input" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} placeholder="Amount (R)" />
+              <input type="date" className="form-input" value={newExpense.date} onChange={(e) => setNewExpense({ ...newExpense, date: e.target.value })} />
+              <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', padding: '10px 16px' }}>
+                <Plus size={14} /> Add
+              </button>
+            </form>
+
+            {loadingExpenses ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading expenses...</p>
+            ) : expenses.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No expenses logged yet.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Date</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Category</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Description</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Amount</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((x) =>
+                    editingExpenseId === x.id ? (
+                      <tr key={x.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                        <td style={{ padding: '10px 8px' }}>
+                          <input type="date" className="form-input" style={{ fontSize: '0.8rem', padding: '6px 8px' }} value={editExpenseForm.date} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, date: e.target.value })} />
+                        </td>
+                        <td style={{ padding: '10px 8px' }}>
+                          <select className="form-input" style={{ fontSize: '0.8rem', padding: '6px 8px' }} value={editExpenseForm.category} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, category: e.target.value })}>
+                            {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding: '10px 8px' }}>
+                          <input className="form-input" style={{ fontSize: '0.8rem', padding: '6px 8px' }} value={editExpenseForm.description} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, description: e.target.value })} />
+                        </td>
+                        <td style={{ padding: '10px 8px' }}>
+                          <input type="number" step="0.01" className="form-input" style={{ fontSize: '0.8rem', padding: '6px 8px', width: '100px' }} value={editExpenseForm.amount} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, amount: e.target.value })} />
+                        </td>
+                        <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
+                          <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px', marginRight: '6px' }} onClick={() => handleSaveExpenseEdit(x)}>Save</button>
+                          <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setEditingExpenseId(null)}>Cancel</button>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={x.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                        <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{x.date}</td>
+                        <td style={{ padding: '12px 8px' }}><span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{x.category}</span></td>
+                        <td style={{ padding: '12px 8px' }}>{x.description}</td>
+                        <td style={{ padding: '12px 8px', fontWeight: 700 }}>R {x.amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '12px 8px', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => startEditExpense(x)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex', marginRight: '10px' }} aria-label="Edit expense">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => handleDeleteExpense(x)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete expense">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       );
