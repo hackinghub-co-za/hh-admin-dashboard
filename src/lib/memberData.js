@@ -16,6 +16,7 @@ export async function fetchMemberProfiles() {
   const byEmail = {};
   (data || []).forEach((row) => {
     byEmail[row.email.toLowerCase()] = {
+      fullName: row.full_name || '',
       age: row.age || '',
       gender: row.gender || '',
       location: row.location || '',

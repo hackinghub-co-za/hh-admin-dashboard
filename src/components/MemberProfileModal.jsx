@@ -26,8 +26,13 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
 
   if (!member) return null;
 
-  const daysSinceLastPayment = Math.floor((today - new Date(member.lastPaymentDate)) / (1000 * 60 * 60 * 24));
-  const isLapsed = form.status === 'Active' && daysSinceLastPayment > LAPSED_AFTER_DAYS;
+  // member.lastPaymentDate is null for a real, allowlisted member who's never
+  // actually made a PayFast payment (or been added manually) - "lapsed"
+  // doesn't apply when there's no payment history to have lapsed from.
+  const daysSinceLastPayment = member.lastPaymentDate
+    ? Math.floor((today - new Date(member.lastPaymentDate)) / (1000 * 60 * 60 * 24))
+    : null;
+  const isLapsed = form.status === 'Active' && daysSinceLastPayment !== null && daysSinceLastPayment > LAPSED_AFTER_DAYS;
 
   const daysSinceLastMeeting = member.lastMeetingDate
     ? Math.floor((today - new Date(member.lastMeetingDate)) / (1000 * 60 * 60 * 24))
@@ -170,7 +175,9 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Calendar size={12} /> Start Date
             </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatDate(member.firstPaymentDate.split(' ')[0])}</div>
+            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+              {member.firstPaymentDate ? formatDate(member.firstPaymentDate.split(' ')[0]) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>No payment on record</span>}
+            </div>
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
