@@ -20,6 +20,20 @@ saved in their browser's `localStorage`.
 
 ## 2026.08.20
 
+### Fixed
+- **Specialty terminology no longer diverges from Roadmap Track** — the
+  "Specialty" dropdown (member's self-described badge) used Red Team/Blue
+  Team/Cloud Security/GRC while "Roadmap Track" (coach-assigned) used
+  SOC/Offensive Security/Cloud Security/DevSecOps - same concept, two
+  different vocabularies, no DevSecOps option at all on the Specialty side.
+  Specialty now uses the same names as Roadmap Track (Not Set, SOC,
+  Offensive Security, Cloud Security, DevSecOps, IAM, AI Security, GRC), so
+  assigning one actually matches the other. Any member already stored as
+  'Red Team' or 'Blue Team' was renamed to 'Offensive Security'/'SOC'
+  respectively so their profile doesn't silently show an invalid value.
+  IAM and AI Security were added as two new options to both lists.
+  (`028_roadmap.sql`)
+
 ### Added
 - **Delete Permanently for 'Left' members** — a new button on a member's
   profile (only shown once their status is 'Left') permanently deletes their

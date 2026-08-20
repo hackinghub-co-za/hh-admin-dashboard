@@ -20,9 +20,20 @@
 -- SECURITY DEFINER + explicit-ownership-check pattern already used for
 -- rsvp_for_event() and submit_exit_feedback() - it only ever touches
 -- `completed`, no matter what a client sends.
+--
+-- member_profiles.specialty (a member's self-described "about me" badge,
+-- SPECIALTIES in src/lib/memberOptions.js) is kept in the same vocabulary as
+-- roadmap_track below, so assigning one always matches the other - it used
+-- to diverge (Red Team/Blue Team there vs Offensive Security/SOC here). Any
+-- already-stored 'Red Team'/'Blue Team' rows are renamed below so no
+-- existing member's profile silently shows a value that's no longer a valid
+-- dropdown option.
 
 ALTER TABLE public.member_profiles
   ADD COLUMN IF NOT EXISTS roadmap_track TEXT;
+
+UPDATE public.member_profiles SET specialty = 'Offensive Security' WHERE specialty = 'Red Team';
+UPDATE public.member_profiles SET specialty = 'SOC' WHERE specialty = 'Blue Team';
 
 CREATE TABLE IF NOT EXISTS public.roadmap_items (
   id BIGSERIAL PRIMARY KEY,
