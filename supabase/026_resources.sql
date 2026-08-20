@@ -24,6 +24,14 @@
 -- has had a live "Add Resource" button since this file first shipped, so a
 -- real member may already have a submission sitting at id 3+, and hardcoding
 -- an id here could collide with it.
+--
+-- CompTIA Security+ prep (official overview, Professor Messer's free video
+-- course, and ExamCompass practice tests) was added the same way. Two other
+-- resources were named (Open-exam-prep, PocketPrep) but no link was ever
+-- given for them, and a resource card with no link renders as a disabled
+-- "Coming Soon" button - so rather than publish a broken-looking card for
+-- content that's actually available, they're just named as further reading
+-- inside the overview entry's description instead of getting their own card.
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id BIGSERIAL PRIMARY KEY,
@@ -70,8 +78,16 @@ INSERT INTO public.resources (id, category, title, format, description, link) VA
 ON CONFLICT (id) DO NOTHING;
 
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
--- the first member-added resource gets id 3, not a collision with 1-2.
-SELECT setval(pg_get_serial_sequence('public.resources', 'id'), 2, true);
+-- the first member-added resource gets id 3, not a collision with 1-2. Uses
+-- GREATEST against the table's real current max id, not a bare 2 - a bare
+-- value here would rewind the sequence backward on a re-run after real
+-- members have already added resources past id 2, causing the next
+-- id-less INSERT below to collide with one of their rows.
+SELECT setval(
+  pg_get_serial_sequence('public.resources', 'id'),
+  GREATEST(2, (SELECT COALESCE(MAX(id), 0) FROM public.resources)),
+  true
+);
 
 INSERT INTO public.resources (category, title, format, description, link, created_by)
 SELECT
@@ -95,4 +111,40 @@ SELECT
   NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'HH Interview Playbook'
+);
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'CompTIA Security+',
+  'Certification',
+  'A highly recognized, vendor-neutral certification for starting a career in cybersecurity - covers core security principles, concepts, and best practices without tying you to one specific technology or platform. Price: R5,412. Recommended study duration: 4 to 12 weeks. Members have also used Open-exam-prep and PocketPrep for extra practice questions.',
+  'https://www.comptia.org/en-us/certifications/security/#overview',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'CompTIA Security+'
+);
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'Professor Messer — Security+ Video Course',
+  'Video Playlist',
+  'Free, full-length CompTIA Security+ video course covering every exam objective, taught by Professor Messer.',
+  'https://www.youtube.com/playlist?list=PLG49S3nxzAnl4QDVqK-hOnoqcSKEIDDuv',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'Professor Messer — Security+ Video Course'
+);
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'ExamCompass — Security+ Practice Tests',
+  'Practice Test',
+  'Free Security+ practice tests to check exam readiness before booking the real thing.',
+  'https://www.examcompass.com/comptia/security-plus-certification/free-security-plus-practice-tests',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'ExamCompass — Security+ Practice Tests'
 );

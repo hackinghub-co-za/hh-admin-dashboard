@@ -64,8 +64,7 @@ export const SPECIALIZATION_UNLOCK_MIN = 5;
 // Standard Specialization catalogs, by roadmap_track and the category name
 // each track's specialization items are grouped under. Only tracks with a
 // defined catalog here get the admin "Add Standard Specialization"
-// quick-fill - Cloud Security and DevSecOps don't have one yet, so their
-// Specialization stays fully free-form until one is defined.
+// quick-fill.
 export const SPECIALIZATION_CATALOGS = {
   SOC: {
     category: 'SOC',
@@ -84,6 +83,32 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'THM Offensive Pentesting', defaultDetail: '' },
       { title: 'Burp Suite Certified Practitioner', defaultDetail: '' },
       { title: 'OSCP', defaultDetail: '' },
+    ],
+  },
+  'Cloud Security': {
+    category: 'Cloud Security',
+    items: [
+      { title: 'AZ-104', defaultDetail: '' },
+      { title: 'SC-200', defaultDetail: '' },
+      { title: 'SC-500', defaultDetail: '' },
+      { title: 'Terraform Associate', defaultDetail: '' },
+      { title: 'SC-100', defaultDetail: '' },
+      { title: 'AZ-305', defaultDetail: '' },
+    ],
+  },
+  DevSecOps: {
+    category: 'DevSecOps',
+    items: [
+      { title: 'Linux Essentials', defaultDetail: '' },
+      { title: 'GH-900', defaultDetail: '' },
+      { title: 'GH-500', defaultDetail: '' },
+      { title: 'KCNA', defaultDetail: '' },
+      { title: 'KCSA', defaultDetail: '' },
+      { title: 'Terraform Associate', defaultDetail: '' },
+      { title: 'AZ-104', defaultDetail: '' },
+      { title: 'AZ-400', defaultDetail: '' },
+      { title: 'SC-500', defaultDetail: '' },
+      { title: 'Python (or any programming language)', defaultDetail: 'Optional' },
     ],
   },
 };

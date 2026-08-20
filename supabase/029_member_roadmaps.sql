@@ -89,22 +89,34 @@ INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, 
   ('[REDACTED]', 'Core Foundations', 'Certifications', 'SC-900', '', false, 70),
   ('[REDACTED]', 'Core Foundations', 'Certifications', 'CompTIA Security+', '', false, 80);
 
+-- Cloud Security's standard Specialization catalog (SPECIALIZATION_CATALOGS
+-- in src/lib/memberOptions.js), same unconditional-replace idempotency as
+-- Core Foundations Certifications above. Her old 'SC-500 (AZ-500)' item
+-- doesn't exact-match the catalog's 'SC-500' title, so it's dropped along
+-- with the rest of the non-matching old items - same accepted-loss pattern
+-- already applied to Core Foundations and to SOC/Offensive Security.
+DELETE FROM public.roadmap_items WHERE member_email = '[REDACTED]' AND phase = 'Specialization' AND category = 'Cloud Security';
+INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'AZ-104', '', false, 10),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-200', '', false, 20),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-500', '', false, 30),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'Terraform Associate', '', false, 40),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-100', '', false, 50),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'AZ-305', '', false, 60);
+
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.roadmap_items
-    WHERE member_email = '[REDACTED]' AND NOT (phase = 'Core Foundations' AND category = 'Certifications')
+    WHERE member_email = '[REDACTED]'
+      AND NOT (phase = 'Core Foundations' AND category = 'Certifications')
+      AND NOT (phase = 'Specialization' AND category = 'Cloud Security')
   ) THEN
     INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
       ('[REDACTED]', 'Core Foundations', 'Networking', 'Get to 5000 followers', '2612/5000', false, 10),
       ('[REDACTED]', 'Core Foundations', 'Networking', 'Post everyday', '', false, 20),
       ('[REDACTED]', 'Core Foundations', 'Networking', 'Attend webinars', '', false, 30),
       ('[REDACTED]', 'Core Foundations', 'Other', 'Studying', 'Final-year law student at Rhodes University · R5.5k per month', true, 10),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'AZ-900', 'by 18th of June', false, 10),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-900', '', false, 20),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'DevSec Blueprint', '', false, 30),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-200', '', false, 40),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-500 (AZ-500)', '', false, 50),
       ('[REDACTED]', 'Specialization', 'Performance Incentive', 'Complete roadmap up to SC-200 to obtain Security+ voucher', '', false, 60);
   END IF;
 END $$;
@@ -385,23 +397,36 @@ INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, 
   ('[REDACTED]', 'Core Foundations', 'Certifications', 'SC-900', '', false, 70),
   ('[REDACTED]', 'Core Foundations', 'Certifications', 'CompTIA Security+', '~R4.5k', false, 80);
 
+-- Cloud Security's standard Specialization catalog (SPECIALIZATION_CATALOGS
+-- in src/lib/memberOptions.js), same unconditional-replace idempotency as
+-- Core Foundations Certifications above. His old 'AZ-500' item doesn't match
+-- anything in the standard catalog (it's AZ-305, not AZ-500), so it's
+-- dropped along with 'Learn2Cloud' and 'SC-900' - same accepted-loss pattern
+-- already applied elsewhere. 'AZ-104' and 'SC-200' match exactly and keep
+-- their (blank) detail.
+DELETE FROM public.roadmap_items WHERE member_email = '[REDACTED]' AND phase = 'Specialization' AND category = 'Cloud Security';
+INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'AZ-104', '', false, 10),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-200', '', false, 20),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-500', '', false, 30),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'Terraform Associate', '', false, 40),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-100', '', false, 50),
+  ('[REDACTED]', 'Specialization', 'Cloud Security', 'AZ-305', '', false, 60);
+
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.roadmap_items
-    WHERE member_email = '[REDACTED]' AND NOT (phase = 'Core Foundations' AND category = 'Certifications')
+    WHERE member_email = '[REDACTED]'
+      AND NOT (phase = 'Core Foundations' AND category = 'Certifications')
+      AND NOT (phase = 'Specialization' AND category = 'Cloud Security')
   ) THEN
     INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
       ('[REDACTED]', 'Core Foundations', 'Networking', 'Get to 1000 LinkedIn connections', '1,000/1,000', true, 10),
       ('[REDACTED]', 'Core Foundations', 'Networking', 'Post at least once a week', '', false, 20),
       ('[REDACTED]', 'Core Foundations', 'Networking', 'Attend a webinar/event a month', '', false, 30),
       ('[REDACTED]', 'Core Foundations', 'Other', 'Current role: Travel Specialist', 'R7k per month', true, 10),
-      ('[REDACTED]', 'Core Foundations', 'Other', 'Location', 'Pretoria', true, 20),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'Learn2Cloud', '', false, 10),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-900', '', false, 20),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'AZ-104', '', false, 30),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'SC-200', '', false, 40),
-      ('[REDACTED]', 'Specialization', 'Cloud Security', 'AZ-500', '', false, 50);
+      ('[REDACTED]', 'Core Foundations', 'Other', 'Location', 'Pretoria', true, 20);
   END IF;
 END $$;
 
