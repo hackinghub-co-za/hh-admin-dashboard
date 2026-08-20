@@ -1,4 +1,12 @@
-export const SPECIALTIES = ['Not Set', 'Red Team', 'Blue Team', 'Cloud Security', 'GRC'];
+// Kept in the same vocabulary as ROADMAP_TRACKS below so a member's
+// self-described specialty badge and their coach-assigned roadmap track
+// always mean the same thing - these used to diverge (Red Team/Blue Team
+// here vs Offensive Security/SOC there, DevSecOps missing entirely), which
+// made it easy to assign a specialty that didn't match the actual roadmap
+// track. GRC has no roadmap track counterpart (no catalog defined for it)
+// but stays as a specialty option since it's a real, distinct area members
+// describe themselves with.
+export const SPECIALTIES = ['Not Set', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
 export const JOB_READINESS_STAGES = ['Not Started', 'In Progress', 'Interview Ready', 'Job Placed'];
 export const GENDERS = ['Male', 'Female'];
 export const LOCATIONS = [
@@ -33,7 +41,7 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Permanent
 // The learning path a coach assigns a member to - drives which checklist shows
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
 // own self-described directory badge); this one is coach-assigned.
-export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps'];
+export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security'];
 export const ROADMAP_PHASES = ['Core Foundations', 'Specialization'];
 
 // The standard Core Foundations "Certifications" catalog every assigned
