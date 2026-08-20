@@ -3,6 +3,7 @@ import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
+import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
@@ -63,6 +64,7 @@ import {
   Milestone,
   Handshake,
   Lock,
+  UserPlus,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -252,8 +254,7 @@ const COMMUNITY_BROADCASTS = [
 // member's name just renders as plain text instead of a fabricated link.
 const communityVictories = [
   { id: 1, member: 'Philisiwe N.', achievement: 'earned SC-900: Security, Compliance & Identity Fundamentals', date: 'Today', avatarColor: 'var(--accent-purple)', linkedinUrl: 'https://www.linkedin.com/posts/philisiwe-ncube-258263360_sc900-microsoftcertified-cybersecurity-activity-7494082635091251201-xzT6' },
-  { id: 2, member: 'Kiolin', achievement: 'landed a Software Developer internship', date: 'Recently', avatarColor: 'var(--accent-cyan)', linkedinUrl: '' },
-  { id: 3, member: 'Joshua H.', achievement: 'earned SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Joshua%20SOC%20Analyst' },
+  { id: 2, member: 'Kiolin', achievement: 'landed a Software Developer internship', date: 'Recently', avatarColor: 'var(--accent-cyan)', linkedinUrl: 'https://www.linkedin.com/in/kiolinharisanker/' },
 ];
 
 const SIYA_EMAIL = 'siya@hackinghub.co.za';
@@ -362,6 +363,52 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [directorySearch, setDirectorySearch] = useState('');
   // Full breakdown shown when a member clicks another member's directory card.
   const [selectedDirectoryMember, setSelectedDirectoryMember] = useState(null);
+
+  // Refer a Friend - real Supabase data for a real session, local-only demo
+  // state under Mock Member since there's no real session to persist against.
+  const [myReferrals, setMyReferrals] = useState([]);
+  const [showReferForm, setShowReferForm] = useState(false);
+  const [newReferral, setNewReferral] = useState({ name: '', linkedin: '', phone: '' });
+  const [submittingReferral, setSubmittingReferral] = useState(false);
+  const [referralError, setReferralError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyReferrals()
+      .then((data) => !cancelled && setMyReferrals(data))
+      .catch((err) => !cancelled && setReferralError(friendlyMemberErrorMessage(err)));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleSubmitReferral = async (e) => {
+    e.preventDefault();
+    if (!newReferral.name.trim() || !newReferral.linkedin.trim()) return;
+    setSubmittingReferral(true);
+    setReferralError(null);
+    try {
+      if (isMockSession) {
+        setMyReferrals([
+          { id: Date.now(), name: newReferral.name.trim(), linkedin: newReferral.linkedin.trim(), phone: newReferral.phone.trim(), createdAt: new Date().toISOString() },
+          ...myReferrals,
+        ]);
+      } else {
+        const added = await addReferral({
+          name: newReferral.name.trim(),
+          linkedin: newReferral.linkedin.trim(),
+          phone: newReferral.phone.trim(),
+          referrerEmail: user?.email,
+        });
+        setMyReferrals([added, ...myReferrals]);
+      }
+      setNewReferral({ name: '', linkedin: '', phone: '' });
+      setShowReferForm(false);
+    } catch (err) {
+      setReferralError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSubmittingReferral(false);
+    }
+  };
   // Starts pre-opened when routed here straight from onboarding's "Set Up My
   // Profile" choice (App.jsx) - MemberPortal only ever mounts fresh at that
   // exact moment (onboarding renders a separate component tree entirely), so
@@ -753,6 +800,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'HH Meetup': { className: 'badge-success' },
     'Industry Event': { className: 'badge-warning' },
     'Sunday Catchup': { style: { background: 'rgba(192, 132, 252, 0.15)', color: 'var(--accent-purple)', border: '1px solid rgba(192, 132, 252, 0.25)' } },
+    'Study Session': { style: { background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-cyan)', border: '1px solid rgba(56, 189, 248, 0.25)' } },
   };
 
   const filteredEvents = eventTypeFilter === 'All'
@@ -1158,9 +1206,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Members</h1>
               <p>Everyone else in the Hacking Hub community — see who's around and what they're working on.</p>
             </div>
-            <button className="btn btn-primary" onClick={openEditProfile}>
-              <Pencil size={16} /> Edit My Profile
-            </button>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary" onClick={() => setShowReferForm(true)}>
+                <UserPlus size={16} /> Refer a Friend
+              </button>
+              <button className="btn btn-primary" onClick={openEditProfile}>
+                <Pencil size={16} /> Edit My Profile
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', marginBottom: '24px' }}>
@@ -1173,6 +1226,26 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%' }}
             />
           </div>
+
+          {myReferrals.length > 0 && (
+            <div className="glass-card" style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserPlus size={16} color="var(--accent-cyan)" /> Your Referrals
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {myReferrals.map((r) => (
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                  <span style={{ fontWeight: 600 }}>{r.name}</span>
+                    {isSafeUrl(r.linkedin) && (
+                      <a href={r.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Link size={13} /> LinkedIn
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {loadingDirectory && <p style={{ color: 'var(--text-muted)' }}>Loading members...</p>}
           {directoryError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{directoryError}</p>}
@@ -1522,6 +1595,67 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   <button type="button" className="btn btn-secondary" onClick={() => setSelectedDirectoryMember(null)}>Close</button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {showReferForm && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setShowReferForm(false)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>Refer a Friend</h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                  Know someone who'd be a good fit for Hacking Hub? Pass along their details and a coach will reach out.
+                </p>
+                <form onSubmit={handleSubmitReferral} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Full Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Jane Doe"
+                      value={newReferral.name}
+                      onChange={(e) => setNewReferral({ ...newReferral, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>LinkedIn Profile</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      placeholder="https://www.linkedin.com/in/..."
+                      value={newReferral.linkedin}
+                      onChange={(e) => setNewReferral({ ...newReferral, linkedin: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Phone Number (optional)</label>
+                    <input
+                      type="tel"
+                      className="form-input"
+                      placeholder="e.g. 082 123 4567"
+                      value={newReferral.phone}
+                      onChange={(e) => setNewReferral({ ...newReferral, phone: e.target.value })}
+                    />
+                  </div>
+
+                  {referralError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{referralError}</p>}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowReferForm(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={submittingReferral}>{submittingReferral ? 'Submitting...' : 'Submit Referral'}</button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
@@ -2227,7 +2361,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           `}</style>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
-            {['All', 'HH Meetup', 'Industry Event', 'Sunday Catchup'].map((type) => (
+            {['All', 'HH Meetup', 'Industry Event', 'Sunday Catchup', 'Study Session'].map((type) => (
               <button
                 key={type}
                 onClick={() => setEventTypeFilter(type)}
@@ -2357,6 +2491,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <option value="HH Meetup">HH Meetup</option>
                       <option value="Industry Event">Industry Event</option>
                       <option value="Sunday Catchup">Sunday Catchup</option>
+                      <option value="Study Session">Study Session</option>
                     </select>
                   </div>
 

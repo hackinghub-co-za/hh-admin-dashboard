@@ -43,10 +43,16 @@
 -- the seed INSERT below now only seeds the real event with correct details,
 -- and an explicit DELETE + UPDATE handle correcting a database where the old
 -- version of this script already ran.
+--
+-- Update: added a 4th event type, 'Study Session', for a co-working/study
+-- block distinct from a full HH Meetup or a casual Sunday Catchup. The
+-- CREATE TABLE's inline CHECK below now includes it for a fresh install; the
+-- ALTER TABLE further down fixes an already-existing table, since CREATE
+-- TABLE IF NOT EXISTS is a no-op against one.
 
 CREATE TABLE IF NOT EXISTS public.community_events (
   id BIGSERIAL PRIMARY KEY,
-  type TEXT NOT NULL CHECK (type IN ('HH Meetup', 'Industry Event', 'Sunday Catchup')),
+  type TEXT NOT NULL CHECK (type IN ('HH Meetup', 'Industry Event', 'Sunday Catchup', 'Study Session')),
   title TEXT NOT NULL,
   description TEXT,
   date DATE NOT NULL,
@@ -60,6 +66,14 @@ CREATE TABLE IF NOT EXISTS public.community_events (
 ALTER TABLE public.community_events
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Pending'
     CHECK (status IN ('Pending', 'Approved'));
+
+-- Fixes up a table that already existed before 'Study Session' was added to
+-- the CREATE TABLE's inline CHECK above - a no-op on a fresh install where
+-- the constraint was already created correctly.
+ALTER TABLE public.community_events DROP CONSTRAINT IF EXISTS community_events_type_check;
+ALTER TABLE public.community_events
+  ADD CONSTRAINT community_events_type_check
+  CHECK (type IN ('HH Meetup', 'Industry Event', 'Sunday Catchup', 'Study Session'));
 
 ALTER TABLE public.community_events ENABLE ROW LEVEL SECURITY;
 

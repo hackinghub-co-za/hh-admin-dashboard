@@ -21,6 +21,11 @@ saved in their browser's `localStorage`.
 ## 2026.08.20
 
 ### Added
+- **Refer a Friend** — members can refer someone to the community from the
+  Members tab (name, LinkedIn profile, optional phone number). They can see
+  their own past referrals; admins see and manage every referral submitted,
+  with the referrer's own name/email alongside it, from a new Referrals
+  section at the bottom of the admin Members tab. (`039_referrals.sql`)
 - **Business Expenses** — new admin-only log on the Finances tab for money
   going out (tools, coach pay, hosting, marketing, events, other), separate
   from the existing PayFast revenue tracking. Add/edit/delete, standalone
@@ -28,8 +33,27 @@ saved in their browser's `localStorage`.
   (`037_expenses.sql`)
 - Resources: added PortSwigger Web Security Academy and the HH Interview
   Playbook. (`026_resources.sql`)
+- Resources: added CompTIA Security+ prep - the official overview,
+  Professor Messer's free video course, and ExamCompass practice tests.
+  (`026_resources.sql`)
+
+### Added
+- **Cloud Security Specialization catalog** — AZ-104, SC-200, SC-500,
+  Terraform Associate, SC-100, AZ-305. Retrofitted the 2 members already on
+  the Cloud Security track onto it (real progress preserved where an old
+  item's title matched exactly; non-matching items dropped, same accepted-
+  loss pattern as SOC/Offensive Security). Cloud Security now gets the admin
+  "Add Standard Specialization" quick-fill too. (`029_member_roadmaps.sql`)
+- **DevSecOps Specialization catalog** — Linux Essentials, GH-900, GH-500,
+  KCNA, KCSA, Terraform Associate, AZ-104, AZ-400, SC-500, and Python (or any
+  programming language, marked optional). No existing members were on the
+  DevSecOps track yet, so there was nothing to retrofit - DevSecOps now gets
+  the admin "Add Standard Specialization" quick-fill too, closing out the
+  last track that didn't have a defined catalog.
 
 ### Changed
+- Events: added a 4th "Add Event" type, Study Session, alongside HH Meetup,
+  Industry Event, and Sunday Catchup. (`019_events.sql`)
 - Dashboard: "Recent Certification Victories" renamed to "Recent Wins" and
   broadened beyond certs - added Kiolin's Software Developer internship.
 - Dashboard "Upcoming Event" now pulls the real next approved event from

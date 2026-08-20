@@ -16,6 +16,7 @@ import {
   insertEftPayment,
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
+import { fetchAllReferrals } from '../../lib/referralsData';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
@@ -413,6 +414,25 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [memberStatusFilter, setMemberStatusFilter] = useState('all');
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+
+  // Refer a Friend submissions - real Supabase data for a real session, a
+  // small local demo set under Mock Admin since there's no session to fetch
+  // against.
+  const [referrals, setReferrals] = useState(isMockSession ? [
+    { id: 1, referrerEmail: 'twala.ww@gmail.com', name: 'Nomvula Radebe', linkedin: 'https://www.linkedin.com/in/example', phone: '071 234 5678', createdAt: '2026-08-15T00:00:00Z' },
+  ] : []);
+  const [loadingReferrals, setLoadingReferrals] = useState(!isMockSession);
+  const [referralsError, setReferralsError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllReferrals()
+      .then((data) => !cancelled && setReferrals(data))
+      .catch((err) => !cancelled && setReferralsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingReferrals(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
 
   // Members added by hand (no PayFast payment yet) - kept separate from the
   // payment-derived roster and merged in for display.
@@ -1257,6 +1277,68 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 </div>
               );
             })}
+          </div>
+
+          {/* Refer a Friend submissions - who members have referred to the
+              community, and who referred them. */}
+          <div className="glass-card" style={{ marginTop: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <UserPlus size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Referrals</h3>
+            </div>
+
+            {isMockSession && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '16px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                You're using Mock Admin — referrals only load for a real signed-in session.
+              </div>
+            )}
+            {!isMockSession && referralsError && (
+              <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+                {referralsError}
+              </div>
+            )}
+
+            {loadingReferrals ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading referrals...</p>
+            ) : referrals.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No referrals submitted yet.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Referred By</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Referred Person</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>LinkedIn</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Phone</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {referrals.map((r) => {
+                    const referrer = memberRoster.find((m) => m.email.toLowerCase() === r.referrerEmail.toLowerCase());
+                    return (
+                      <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                        <td style={{ padding: '12px 8px' }}>
+                          <div style={{ fontWeight: 600 }}>{referrer?.member || r.referrerEmail}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{r.referrerEmail}</div>
+                        </td>
+                        <td style={{ padding: '12px 8px', fontWeight: 600 }}>{r.name}</td>
+                        <td style={{ padding: '12px 8px' }}>
+                          {isSafeUrl(r.linkedin) ? (
+                            <a href={r.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Link size={13} /> Profile
+                            </a>
+                          ) : '—'}
+                        </td>
+                        <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{r.phone || '—'}</td>
+                        <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{formatDate(r.createdAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {selectedMember && (
