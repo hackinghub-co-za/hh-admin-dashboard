@@ -247,13 +247,13 @@ const COMMUNITY_BROADCASTS = [
   { emoji: '⚡', title: 'Azure Vouchers:', body: 'Submit completed TryHackMe path by Friday.' },
 ];
 
-// Mock Community News & Certification Victories Data. linkedinUrl is a
-// LinkedIn search for the member + cert, not a specific post - there's no real
-// per-achievement post link to wire up yet, and a search at least goes
-// somewhere genuinely relevant rather than a fabricated post URL.
+// Recent member wins - certs, job placements, whatever's worth celebrating.
+// linkedinUrl is optional; where there's no specific post to link to, the
+// member's name just renders as plain text instead of a fabricated link.
 const communityVictories = [
-  { id: 1, member: 'Philisiwe N.', cert: 'SC-900: Security, Compliance & Identity Fundamentals', date: 'Today', avatarColor: 'var(--accent-purple)', linkedinUrl: 'https://www.linkedin.com/posts/philisiwe-ncube-258263360_sc900-microsoftcertified-cybersecurity-activity-7494082635091251201-xzT6' },
-  { id: 2, member: 'Joshua H.', cert: 'SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Joshua%20SOC%20Analyst' },
+  { id: 1, member: 'Philisiwe N.', achievement: 'earned SC-900: Security, Compliance & Identity Fundamentals', date: 'Today', avatarColor: 'var(--accent-purple)', linkedinUrl: 'https://www.linkedin.com/posts/philisiwe-ncube-258263360_sc900-microsoftcertified-cybersecurity-activity-7494082635091251201-xzT6' },
+  { id: 2, member: 'Kiolin', achievement: 'landed a Software Developer internship', date: 'Recently', avatarColor: 'var(--accent-cyan)', linkedinUrl: '' },
+  { id: 3, member: 'Joshua H.', achievement: 'earned SOC Analyst Deployment', date: '3 days ago', avatarColor: 'var(--success)', linkedinUrl: 'https://www.linkedin.com/search/results/content/?keywords=Joshua%20SOC%20Analyst' },
 ];
 
 const SIYA_EMAIL = 'siya@hackinghub.co.za';
@@ -615,14 +615,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => clearInterval(interval);
   }, []);
 
-  const upcomingEvent = {
-    title: 'HH S4 Kickoff',
-    date: 'Sunday, 23 - August - 2026 · 5:00 – 7:00pm SAST',
-    location: 'Google Meet',
-    meetLink: 'https://meet.google.com/pce-rcrd-xmk',
-    rsvps: 42,
-  };
-
   // All upcoming events members can attend, across every category
   const [eventTypeFilter, setEventTypeFilter] = useState('All');
   // Event RSVPs - real Supabase data for a real session (RLS scopes reads to
@@ -766,6 +758,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const filteredEvents = eventTypeFilter === 'All'
     ? communityEvents
     : communityEvents.filter(e => e.type === eventTypeFilter);
+
+  // Dashboard "Upcoming Event" spotlight - the soonest real, approved event
+  // that hasn't happened yet, not a hardcoded placeholder. undefined once
+  // there's genuinely nothing on the calendar.
+  const nextCommunityEvent = communityEvents
+    .filter((e) => e.status === 'Approved' && daysUntilEvent(e.date) >= 0)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
 
   // Cert Calendar - real Supabase data for a real session (RLS scopes reads
   // to signed-in, approved members), local-only demo entries under Mock
@@ -1764,21 +1763,43 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <Calendar size={18} color="var(--accent-cyan)" />
                   <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>Upcoming Event</span>
                 </div>
-                <span className="badge badge-success">{upcomingEvent.rsvps} RSVPs</span>
+                {nextCommunityEvent && (
+                  <span className="badge badge-success">
+                    {rsvpCountForEvent(nextCommunityEvent) ?? '…'} RSVPs
+                  </span>
+                )}
               </div>
-              <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '6px' }}>{upcomingEvent.title}</h4>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                {upcomingEvent.date} | <strong>{upcomingEvent.location}</strong>
-              </p>
-              <a
-                href={upcomingEvent.meetLink}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '8px' }}
-              >
-                <Video size={14} /> Join Google Meet
-              </a>
+              {nextCommunityEvent ? (
+                <>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '6px' }}>{nextCommunityEvent.title}</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                    {formatDate(nextCommunityEvent.date)} · {nextCommunityEvent.time} SAST | <strong>{nextCommunityEvent.location}</strong>
+                  </p>
+                  {isSafeUrl(nextCommunityEvent.link) ? (
+                    <a
+                      href={nextCommunityEvent.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-primary"
+                      style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '8px' }}
+                    >
+                      <Video size={14} /> {nextCommunityEvent.location === 'Google Meet' ? 'Join Google Meet' : 'Event Link'}
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => setActiveTab?.('events')}
+                      className="btn btn-secondary"
+                      style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '8px' }}
+                    >
+                      View in Events
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Nothing on the calendar right now — check the Events tab for what's coming up.
+                </p>
+              )}
             </div>
 
             {/* Community Intelligence & News Broadcast - one item visible at a
@@ -1841,7 +1862,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               `}</style>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Award size={18} color="var(--accent-purple)" />
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>Recent Certification Victories</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>Recent Wins</span>
               </div>
               <div
                 key={communityVictories[victoryIndex].id}
@@ -1862,17 +1883,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: communityVictories[victoryIndex].avatarColor, flexShrink: 0 }}></div>
-                  <a
-                    href={communityVictories[victoryIndex].linkedinUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: 'var(--text-primary)', fontWeight: 700, textDecoration: 'none' }}
-                    title="View on LinkedIn"
-                  >
-                    {communityVictories[victoryIndex].member}
-                  </a>
+                  {communityVictories[victoryIndex].linkedinUrl ? (
+                    <a
+                      href={communityVictories[victoryIndex].linkedinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'var(--text-primary)', fontWeight: 700, textDecoration: 'none' }}
+                      title="View on LinkedIn"
+                    >
+                      {communityVictories[victoryIndex].member}
+                    </a>
+                  ) : (
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{communityVictories[victoryIndex].member}</span>
+                  )}
                 </div>
-                <span style={{ color: 'var(--text-secondary)' }}>earned {communityVictories[victoryIndex].cert}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{communityVictories[victoryIndex].achievement}</span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{communityVictories[victoryIndex].date}</span>
               </div>
               {communityVictories.length > 1 && (

@@ -35,6 +35,14 @@
 -- collected against those ids stay correctly linked. The FK from event_rsvps to
 -- community_events is added via a separate ALTER TABLE (rather than inline on
 -- CREATE TABLE) so this script works regardless of which table already exists.
+--
+-- Update: 6 of those 7 (ids 1,2,3,4,5,7) were made-up placeholder content that
+-- was never a real event - only id 6, BSides Cape Town, is a real thing
+-- happening, and even it shipped with the wrong date and no real link. Rather
+-- than leave a separate cleanup file for later, this consolidates in place:
+-- the seed INSERT below now only seeds the real event with correct details,
+-- and an explicit DELETE + UPDATE handle correcting a database where the old
+-- version of this script already ran.
 
 CREATE TABLE IF NOT EXISTS public.community_events (
   id BIGSERIAL PRIMARY KEY,
@@ -91,21 +99,30 @@ CREATE POLICY "admins manage community events"
   USING (public.is_admin(auth.uid()));
 
 INSERT INTO public.community_events (id, type, title, description, date, time, location, link, created_by) VALUES
-  (1, 'HH Meetup', 'Cyber War Games: Capture The Flag', 'Team-based CTF night with prizes for the top 3 teams.', '2026-08-16', '18:00', 'HH Discord & Hybrid JHB', NULL, NULL),
-  (2, 'Sunday Catchup', 'Sunday Coffee & Code Catchup', 'Casual weekly hangout — share wins, ask questions, no agenda.', '2026-08-17', '10:00', 'Google Meet', NULL, NULL),
-  (3, 'HH Meetup', 'OSINT Fundamentals Workshop', 'Hands-on open-source recon workshop led by Jaco.', '2026-08-23', '17:30', 'Online (Zoom)', NULL, NULL),
-  (4, 'Industry Event', 'ITWeb Security Summit 2026', 'Industry conference — HH is attending as a group, ask in the community for details.', '2026-08-25', '08:00', 'Sandton Convention Centre', NULL, NULL),
-  (5, 'Sunday Catchup', 'Sunday Coffee & Code Catchup', 'Casual weekly hangout — share wins, ask questions, no agenda.', '2026-08-24', '10:00', 'Google Meet', NULL, NULL),
-  (6, 'Industry Event', 'BSides Cape Town', 'Community-run infosec conference — group discount code shared in the community.', '2026-09-05', '09:00', 'Cape Town', NULL, NULL),
-  (7, 'Sunday Catchup', 'HH S4 Kickoff', 'Kicking off Season 4 — what''s new this quarter, the TryHackMe competition, and a chance to meet the rest of the community.', '2026-08-23', '17:00', 'Google Meet', 'https://meet.google.com/pce-rcrd-xmk', NULL)
+  (6, 'Industry Event', 'BSides Cape Town', 'Community-run infosec conference in Cape Town.', '2026-12-05', '09:00', 'Cape Town', 'https://www.quicket.co.za/events/384815-bsides-cape-town-5th-december-2026/#/', NULL)
 ON CONFLICT (id) DO NOTHING;
 
--- The 7 seeded events above were never actually "reviewed" - they're
--- launch-day content, not a member submission - so they're marked Approved
--- explicitly by id rather than a blanket "every Pending row" backfill, which
--- would incorrectly approve a real member's still-pending submission if this
--- script is ever re-run after real submissions exist.
-UPDATE public.community_events SET status = 'Approved' WHERE id IN (1, 2, 3, 4, 5, 6, 7);
+-- ids 1,2,3,4,5,7 were made-up placeholder events, never real - remove them
+-- from any database where the earlier version of this script already ran.
+DELETE FROM public.community_events WHERE id IN (1, 2, 3, 4, 5, 7);
+
+-- id 6 (BSides Cape Town) shipped with the wrong date and no link on an
+-- earlier run of this script - ON CONFLICT DO NOTHING above won't touch an
+-- already-existing row, so correct it explicitly here.
+UPDATE public.community_events SET
+  description = 'Community-run infosec conference in Cape Town.',
+  date = '2026-12-05',
+  time = '09:00',
+  location = 'Cape Town',
+  link = 'https://www.quicket.co.za/events/384815-bsides-cape-town-5th-december-2026/#/'
+WHERE id = 6;
+
+-- The seeded event above was never actually "reviewed" - it's launch-day
+-- content, not a member submission - so it's marked Approved explicitly by id
+-- rather than a blanket "every Pending row" backfill, which would incorrectly
+-- approve a real member's still-pending submission if this script is ever
+-- re-run after real submissions exist.
+UPDATE public.community_events SET status = 'Approved' WHERE id = 6;
 
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
 -- the first member-created event gets id 8, not a collision with 1-7.

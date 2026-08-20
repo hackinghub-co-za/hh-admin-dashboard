@@ -18,6 +18,27 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.08.20
+
+### Added
+- **Business Expenses** — new admin-only log on the Finances tab for money
+  going out (tools, coach pay, hosting, marketing, events, other), separate
+  from the existing PayFast revenue tracking. Add/edit/delete, standalone
+  total — not blended into the PayFast net-margin figures.
+  (`037_expenses.sql`)
+- Resources: added PortSwigger Web Security Academy and the HH Interview
+  Playbook. (`026_resources.sql`)
+
+### Changed
+- Dashboard: "Recent Certification Victories" renamed to "Recent Wins" and
+  broadened beyond certs - added Kiolin's Software Developer internship.
+- Dashboard "Upcoming Event" now pulls the real next approved event from
+  `community_events` instead of a hardcoded placeholder.
+- Events: removed 6 fabricated placeholder events seeded into the live
+  `community_events` table on day one. Corrected BSides Cape Town's date
+  (was the wrong `2026-09-05`, now the real `2026-12-05`) and added its real
+  Quicket registration link. (`019_events.sql`)
+
 ## 2026.08.19
 
 ### Added
