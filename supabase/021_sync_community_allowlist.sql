@@ -1,15 +1,15 @@
 -- Hacking Hub Admin Dashboard - Restrict Access to Community Contacts
 -- Run this in the Supabase SQL Editor after 002-019 have already been applied.
 --
--- Narrows real portal access to exactly two groups: the 73 email addresses in
--- the "Hacking Hub" Google Contacts label (the current, deliberately curated
--- community list) and the existing pentest/test accounts from
--- 012_pentest_access.sql. Every other member_profiles row is left untouched
--- EXCEPT the 38 real PayFast payers - backfilled as 'Active' in
--- 004_member_access_control.sql - who are not in this contacts list; those
--- are explicitly revoked below. This was confirmed deliberately: those 38
--- people did pay at some point, but are being removed from the allow-list on
--- purpose as part of narrowing access to the current community contact list.
+-- Narrows real portal access to exactly two groups: the community contact
+-- list (originally 73, since grown as new members joined) and the existing
+-- pentest/test accounts from 012_pentest_access.sql. Every other
+-- member_profiles row is left untouched EXCEPT the 38 real PayFast payers -
+-- backfilled as 'Active' in 004_member_access_control.sql - who are not in
+-- this contacts list; those are explicitly revoked below. This was confirmed
+-- deliberately: those 38 people did pay at some point, but are being removed
+-- from the allow-list on purpose as part of narrowing access to the current
+-- community contact list.
 --
 -- full_name is left untouched on conflict for rows that already exist, so no
 -- member's own self-edited directory profile gets overwritten by this import
@@ -47,10 +47,12 @@ VALUES
     ('kharisanker16@gmail.com', 'Active', 'Kharisanker16'),
     ('kmchunu029@gmail.com', 'Active', 'Kmchunu029'),
     ('lesedincwana@gmail.com', 'Active', 'Lesedincwana'),
+    ('lesegomaphosa12@gmail.com', 'Active', 'Lesegomaphosa12'),
     ('leshabelebese@gmail.com', 'Active', 'Palesa Lebese'),
     ('lesokotmonyepao@gmail.com', 'Active', 'Lesokotmonyepao'),
     ('lethabo-mokoma@protonmail.com', 'Active', 'Lethabo-mokoma'),
     ('letsoaramojalefa8@gmail.com', 'Active', 'Mojalefa'),
+    ('louisanonhlanhla11@gmail.com', 'Active', 'Louisanonhlanhla11'),
     ('lungaka777@gmail.com', 'Active', 'Lungaka777'),
     ('luphawusiphumeze@gmail.com', 'Active', 'Luphawusiphumeze'),
     ('lutendo.muthala17@gmail.com', 'Active', 'Lutendo.muthala17'),
@@ -91,6 +93,7 @@ VALUES
     ('tshepo.nchabeng36@gmail.com', 'Active', 'Tshepo.nchabeng36'),
     ('tshiamo878@gmail.com', 'Active', 'Nokulunga Aphane'),
     ('tshiamoseleki@gmail.com', 'Active', 'Tshiamoseleki'),
+    ('tshireletsomoeti062@gmail.com', 'Active', 'Tshireletsomoeti062'),
     ('twala.ww@gmail.com', 'Active', 'Thando Twala'),
     ('ululamilemabunda@gmail.com', 'Active', 'Ululamilemabunda'),
     ('vanschalkwykjose64@gmail.com', 'Active', 'Jose van Schalkwyk'),

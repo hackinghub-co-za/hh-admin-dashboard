@@ -10,6 +10,8 @@ import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
   upsertMemberProfile,
+  permanentlyDeleteMember,
+  fetchDeletedMemberEmails,
   fetchManualMembers,
   insertManualMember,
   fetchEftPayments,
@@ -471,6 +473,25 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     }
   };
 
+  // Only ever called for a member already marked 'Left' (enforced in
+  // MemberProfileModal, which only renders the button in that state).
+  // Immediately hides them from every roster - real payment history and
+  // other records stay intact, just no longer linked to a live profile.
+  const handleDeleteMemberProfile = (email) => {
+    const lowerEmail = email.toLowerCase();
+    setDeletedEmails((prev) => new Set(prev).add(lowerEmail));
+    setMemberProfiles((prev) => {
+      const next = { ...prev };
+      delete next[lowerEmail];
+      return next;
+    });
+    setManualMembers((prev) => prev.filter((m) => m.email.toLowerCase() !== lowerEmail));
+    setSelectedMemberEmail(null);
+    if (!isMockSession) {
+      permanentlyDeleteMember(email, user?.email).catch((err) => setSavedMemberDataError(friendlyErrorMessage(err)));
+    }
+  };
+
   const handleAddManualMember = (form) => {
     const { member, email, startDate, lastPlan, totalSpent, ...profileFields } = form;
     setManualMembers((prev) => [
@@ -698,15 +719,21 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [loadingSavedMemberData, setLoadingSavedMemberData] = useState(!isMockSession);
   const [savedMemberDataError, setSavedMemberDataError] = useState(null);
 
+  // Permanently-deleted member emails - filtered out of every roster built
+  // below, regardless of real payment history. Mock Admin has no session to
+  // fetch against, so deletions there stay local-only for the session.
+  const [deletedEmails, setDeletedEmails] = useState(new Set());
+
   useEffect(() => {
     if (isMockSession) return; // loadingSavedMemberData already starts false in this case
     let cancelled = false;
-    Promise.all([fetchMemberProfiles(), fetchManualMembers(), fetchEftPayments()])
-      .then(([profiles, manual, eft]) => {
+    Promise.all([fetchMemberProfiles(), fetchManualMembers(), fetchEftPayments(), fetchDeletedMemberEmails()])
+      .then(([profiles, manual, eft, deleted]) => {
         if (cancelled) return;
         setMemberProfiles(profiles);
         setManualMembers(manual);
         if (eft.length) setPayments((prev) => [...eft, ...prev]);
+        setDeletedEmails(new Set(deleted));
       })
       .catch((err) => !cancelled && setSavedMemberDataError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingSavedMemberData(false));
@@ -890,7 +917,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // them in, since they have no source in the PayFast data.
   const memberRosterMap = new Map();
   payments
-    .filter(p => p.type === 'Funds Received' || p.type === 'Funds Received (Reversal)')
+    .filter(p => (p.type === 'Funds Received' || p.type === 'Funds Received (Reversal)') && !deletedEmails.has(p.email.toLowerCase()))
     .forEach(p => {
       const key = p.email.toLowerCase();
       const entry = memberRosterMap.get(key) || {
@@ -919,7 +946,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // already exists from real transactions, the real data wins.
   manualMembers.forEach(m => {
     const key = m.email.toLowerCase();
-    if (!memberRosterMap.has(key)) memberRosterMap.set(key, m);
+    if (!memberRosterMap.has(key) && !deletedEmails.has(key)) memberRosterMap.set(key, m);
   });
 
   const memberRoster = [...memberRosterMap.values()]
@@ -1346,6 +1373,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               member={selectedMember}
               profile={selectedMember.profile}
               onSave={handleSaveMemberProfile}
+              onDelete={handleDeleteMemberProfile}
               onClose={() => setSelectedMemberEmail(null)}
               today={today}
             />

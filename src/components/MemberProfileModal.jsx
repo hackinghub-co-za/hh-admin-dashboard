@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star, Milestone } from 'lucide-react';
+import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star, Milestone, Trash2 } from 'lucide-react';
 import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS } from '../lib/memberOptions';
 import { formatDate } from '../lib/dateFormat';
 
-export default function MemberProfileModal({ member, profile, onSave, onClose, today }) {
+export default function MemberProfileModal({ member, profile, onSave, onDelete, onClose, today }) {
   const [form, setForm] = useState({
     age: profile?.age || '',
     gender: profile?.gender || '',
@@ -378,6 +378,26 @@ export default function MemberProfileModal({ member, profile, onSave, onClose, t
               ) : form.status === 'Leaving' ? (
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Waiting on their next sign-in to see if they leave feedback.</p>
               ) : null}
+
+              {form.status === 'Left' && onDelete && (
+                <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    onClick={() => {
+                      if (window.confirm(`Permanently delete ${member.member}'s profile? This can't be undone - they'll disappear from every member list. Their payment history, reviews, and other records stay intact.`)) {
+                        onDelete(member.email);
+                      }
+                    }}
+                  >
+                    <Trash2 size={14} /> Delete Permanently
+                  </button>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                    Removes their profile and hides them from every member list. Doesn't touch their payment history, reviews, or other records.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

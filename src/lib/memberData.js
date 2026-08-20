@@ -71,6 +71,32 @@ export async function upsertMemberProfile(email, profile) {
   if (error) throw error;
 }
 
+/** Admin-only, and only meant to be called for a member already marked
+ * 'Left': permanently deletes their member_profiles row AND records their
+ * email in deleted_members so they're filtered out of the roster everywhere
+ * it's built, even though their real PayFast payment history still exists.
+ * Deliberately scoped to just these two things - reviews, cert calendar
+ * entries, room logs, roadmap, and referrals are left untouched (still real
+ * records, just no longer linked to a live profile). There's no undo once
+ * this runs. */
+export async function permanentlyDeleteMember(email, deletedBy) {
+  const lowerEmail = email.toLowerCase();
+  const { error: deleteError } = await supabase.from('member_profiles').delete().eq('email', lowerEmail);
+  if (deleteError) throw deleteError;
+  const { error: hideError } = await supabase
+    .from('deleted_members')
+    .upsert({ email: lowerEmail, deleted_by: deletedBy ? deletedBy.toLowerCase() : null, deleted_at: new Date().toISOString() });
+  if (hideError) throw hideError;
+}
+
+/** The set of permanently-deleted member emails - every roster built in the
+ * admin dashboard filters these out, regardless of real payment history. */
+export async function fetchDeletedMemberEmails() {
+  const { data, error } = await supabase.from('deleted_members').select('email');
+  if (error) throw error;
+  return (data || []).map((row) => row.email.toLowerCase());
+}
+
 /** Fetch members added by hand, in the same shape the local roster map uses. */
 export async function fetchManualMembers() {
   const { data, error } = await supabase.from('manual_members').select('*');
