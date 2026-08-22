@@ -17,11 +17,23 @@
 -- that's fine there since those are dedicated test accounts, not real members
 -- who may have already personalized their profile).
 
+-- Awonke's email changed to vincevinty@gmail.com - this has to run BEFORE
+-- the seed below, not after. The seed's VALUES list already includes
+-- vincevinty@gmail.com directly, so a rename attempted afterward would try
+-- to move this row onto a PK the seed had already inserted, which is exactly
+-- the "duplicate key value violates unique constraint" error this caused
+-- the first time. Renaming first means the seed's ON CONFLICT just updates
+-- this same (already-renamed) row instead of colliding with it - and since
+-- this only touches the email column, every other field already on the row
+-- (roadmap_track, location, etc.) carries over untouched rather than being
+-- lost the way a delete-and-reinsert would lose it.
+UPDATE public.member_profiles SET email = 'vincevinty@gmail.com'
+WHERE email = 'awonkevintwembi@icloud.com';
+
 INSERT INTO public.member_profiles (email, status, full_name)
 VALUES
     ('akahopewell28@gmail.com', 'Active', 'Akahopewell28'),
     ('asandancube070@gmail.com', 'Active', 'Asandancube070'),
-    ('awonkevintwembi@icloud.com', 'Active', 'Awonke Vintwembi'),
     ('bmemthimunye85@gmail.com', 'Active', 'Bmemthimunye85'),
     ('chiomaolebuike14@gmail.com', 'Active', 'Chiomaolebuike14'),
     ('clyde15sello@gmail.com', 'Active', 'Clyde15sello'),
@@ -88,6 +100,7 @@ VALUES
     ('sizwezwane026@gmail.com', 'Active', 'Sizwezwane026'),
     ('sshabangu061@gmail.com', 'Active', 'Sshabangu061'),
     ('tebogonong3@gmail.com', 'Active', 'Tebogo Nong'),
+    ('thabisowandi0605890926@gmail.com', 'Active', 'Wandi'),
     ('thakgalangmphaila@gmail.com', 'Active', 'Thakgalangmphaila'),
     ('thatopilusa97@gmail.com', 'Active', 'Thatopilusa97'),
     ('timothyadams3012002@gmail.com', 'Active', 'Timothyadams3012002'),
@@ -98,6 +111,7 @@ VALUES
     ('twala.ww@gmail.com', 'Active', 'Thando Twala'),
     ('ululamilemabunda@gmail.com', 'Active', 'Ululamilemabunda'),
     ('vanschalkwykjose64@gmail.com', 'Active', 'Jose van Schalkwyk'),
+    ('vincevinty@gmail.com', 'Active', 'Awonke Vintwembi'),
     ('wafs2damax@gmail.com', 'Active', 'Wafs2damax'),
     ('zanele.k.mpofu@gmail.com', 'Active', 'Zanele.k.mpofu'),
     ('zmatimu@gmail.com', 'Active', 'Matimu Ndhukwani')

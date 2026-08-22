@@ -6,6 +6,86 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.08.22',
+    date: '2026-08-22',
+    headline: "Your subscription page is finally real.",
+    intro: "The big one — see your actual plan and next payment date, pay by EFT if you'd rather, two new ways to request coaching outside your scheduled sessions, real LinkedIn and Security+ guides in Resources, and a smoother first day in the Hub.",
+    groups: [
+      {
+        label: 'Money & Billing',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '💳',
+            title: 'Current Active Clearance is no longer "Under Construction"',
+            body: "My Subscription & Upgrades now shows your real plan, rate, and next payment date instead of a blurred placeholder.",
+            where: 'sidebar → My Subscription',
+          },
+          {
+            icon: '🏦',
+            title: 'Pay via EFT',
+            body: "Prefer a direct bank transfer over PayFast? Full account details are right there on the subscription page — just use your full name as the payment reference.",
+            where: 'sidebar → My Subscription',
+          },
+          {
+            icon: '✨',
+            title: 'Suggested Content',
+            body: "The Dashboard's old billing stub is now a real feed of recommended videos, articles, and other content, curated for you.",
+            where: 'Dashboard',
+          },
+        ],
+      },
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '📄',
+            title: 'Request a CV Review or Interview Prep',
+            body: "Two new cards on the 1on1 booking page let you request a CV review or a mock interview session outside your regular coaching slot.",
+            where: 'sidebar → 1on1 Meetings',
+          },
+          {
+            icon: '💼',
+            title: 'LinkedIn Strategy guide',
+            body: "A full checklist for a LinkedIn profile that actually gets you noticed — photo, banner, headline, posting cadence, and what to avoid.",
+            where: 'Resources → LinkedIn Strategy',
+          },
+          {
+            icon: '🎓',
+            title: 'CompTIA Security+ Study Guide',
+            body: "Every free resource members actually use for Security+ — official overview, Professor Messer's video course, ExamCompass, and PocketPrep — consolidated into one guide.",
+            where: 'Resources → Cert Prep',
+          },
+        ],
+      },
+      {
+        label: 'Recognition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🏆',
+            title: 'Passing a cert now posts a Recent Win automatically',
+            body: "The moment your coach marks a cert as Passed, it shows up as a Recent Win on the Dashboard — no extra step needed.",
+            where: 'Dashboard → Recent Wins',
+          },
+        ],
+      },
+      {
+        label: 'Getting Started',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '👋',
+            title: 'A better first day',
+            body: "The welcome sequence now nudges you to join the WhatsApp community, get Google Calendar, create a TryHackMe account and follow SiyaCybersecurity, and add a headshot to your profile.",
+            where: 'shown on first sign-in, or sidebar → Replay Intro',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.08.19',
     date: '2026-08-19',
     headline: "Specialization now means something.",

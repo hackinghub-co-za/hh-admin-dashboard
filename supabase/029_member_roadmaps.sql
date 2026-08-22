@@ -460,43 +460,50 @@ BEGIN
   END IF;
 END $$;
 
--- Awonke Vintwembi (awonkevintwembi@icloud.com) - Offensive Security track,
--- Pen Testing specialization.
-UPDATE public.member_profiles SET roadmap_track = 'Offensive Security' WHERE email = 'awonkevintwembi@icloud.com';
+-- Awonke's email changed to vincevinty@gmail.com
+-- (021_sync_community_allowlist.sql) - renames any already-seeded roadmap
+-- rows in place first, so re-running this file after the email change
+-- doesn't leave them orphaned under the old email. Everything below already
+-- uses the new email directly.
+UPDATE public.roadmap_items SET member_email = 'vincevinty@gmail.com' WHERE member_email = 'awonkevintwembi@icloud.com';
 
-DELETE FROM public.roadmap_items WHERE member_email = 'awonkevintwembi@icloud.com' AND phase = 'Core Foundations' AND category = 'Certifications';
+-- Awonke Vintwembi (vincevinty@gmail.com) - Offensive Security track,
+-- Pen Testing specialization.
+UPDATE public.member_profiles SET roadmap_track = 'Offensive Security' WHERE email = 'vincevinty@gmail.com';
+
+DELETE FROM public.roadmap_items WHERE member_email = 'vincevinty@gmail.com' AND phase = 'Core Foundations' AND category = 'Certifications';
 INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'CISCO Junior Cyber Pathway', '1/6 courses · by end of June', false, 10),
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'Immersive Labs', '0/20 collections', false, 20),
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'TryHackMe Pre-Security', '', false, 30),
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'TryHackMe Cyber 101', '', false, 40),
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'AZ-900', '', false, 50),
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'AI-901', '', false, 60),
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'SC-900', '', false, 70),
-  ('awonkevintwembi@icloud.com', 'Core Foundations', 'Certifications', 'CompTIA Security+', '', false, 80);
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'CISCO Junior Cyber Pathway', '1/6 courses · by end of June', false, 10),
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'Immersive Labs', '0/20 collections', false, 20),
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'TryHackMe Pre-Security', '', false, 30),
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'TryHackMe Cyber 101', '', false, 40),
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'AZ-900', '', false, 50),
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'AI-901', '', false, 60),
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'SC-900', '', false, 70),
+  ('vincevinty@gmail.com', 'Core Foundations', 'Certifications', 'CompTIA Security+', '', false, 80);
 
 -- Offensive Security's standard Specialization catalog (SPECIALIZATION_CATALOGS
 -- in src/lib/memberOptions.js), same unconditional-replace idempotency as
 -- Core Foundations Certifications above.
-DELETE FROM public.roadmap_items WHERE member_email = 'awonkevintwembi@icloud.com' AND phase = 'Specialization' AND category = 'Pen Testing';
+DELETE FROM public.roadmap_items WHERE member_email = 'vincevinty@gmail.com' AND phase = 'Specialization' AND category = 'Pen Testing';
 INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
-  ('awonkevintwembi@icloud.com', 'Specialization', 'Pen Testing', 'eJPT', '', false, 10),
-  ('awonkevintwembi@icloud.com', 'Specialization', 'Pen Testing', 'THM Junior Pentester', '', false, 20),
-  ('awonkevintwembi@icloud.com', 'Specialization', 'Pen Testing', 'THM Offensive Pentesting', '', false, 30),
-  ('awonkevintwembi@icloud.com', 'Specialization', 'Pen Testing', 'Burp Suite Certified Practitioner', '', false, 40),
-  ('awonkevintwembi@icloud.com', 'Specialization', 'Pen Testing', 'OSCP', '', false, 50);
+  ('vincevinty@gmail.com', 'Specialization', 'Pen Testing', 'eJPT', '', false, 10),
+  ('vincevinty@gmail.com', 'Specialization', 'Pen Testing', 'THM Junior Pentester', '', false, 20),
+  ('vincevinty@gmail.com', 'Specialization', 'Pen Testing', 'THM Offensive Pentesting', '', false, 30),
+  ('vincevinty@gmail.com', 'Specialization', 'Pen Testing', 'Burp Suite Certified Practitioner', '', false, 40),
+  ('vincevinty@gmail.com', 'Specialization', 'Pen Testing', 'OSCP', '', false, 50);
 
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.roadmap_items
-    WHERE member_email = 'awonkevintwembi@icloud.com'
+    WHERE member_email = 'vincevinty@gmail.com'
       AND NOT (phase = 'Core Foundations' AND category = 'Certifications')
       AND NOT (phase = 'Specialization' AND category = 'Pen Testing')
   ) THEN
     INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, completed, sort_order) VALUES
-      ('awonkevintwembi@icloud.com', 'Core Foundations', 'Networking', 'Post at least once a week', 'Lab, course, room, etc.', false, 10),
-      ('awonkevintwembi@icloud.com', 'Core Foundations', 'Other', 'Current role: Mechanical Fitter', 'R37k per month', true, 10),
-      ('awonkevintwembi@icloud.com', 'Core Foundations', 'Other', 'Location', 'Witbank (open to JHB and CPT)', true, 20);
+      ('vincevinty@gmail.com', 'Core Foundations', 'Networking', 'Post at least once a week', 'Lab, course, room, etc.', false, 10),
+      ('vincevinty@gmail.com', 'Core Foundations', 'Other', 'Current role: Mechanical Fitter', 'R37k per month', true, 10),
+      ('vincevinty@gmail.com', 'Core Foundations', 'Other', 'Location', 'Witbank (open to JHB and CPT)', true, 20);
   END IF;
 END $$;

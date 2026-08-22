@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
+import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
+import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
@@ -14,6 +16,8 @@ import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '..
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
+import { fetchSuggestedContent } from '../../lib/suggestedContentData';
+import { fetchMyLastPayment } from '../../lib/billingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -29,12 +33,12 @@ import {
   BookOpen,
   ArrowRight,
   TrendingUp,
-  CreditCard,
   Video,
   ShieldCheck,
   ExternalLink,
   Megaphone,
   Award,
+  AlertTriangle,
   Flame,
   Bell,
   Sparkles,
@@ -50,6 +54,12 @@ import {
   Map,
   MessageSquare,
   NotebookPen,
+  Newspaper,
+  Music2,
+  Laugh,
+  Image,
+  Landmark,
+  IdCard,
   Library,
   Download,
   FileText,
@@ -226,6 +236,9 @@ const MOCK_JOB_BOARD = [
 const MOCK_RESOURCES = [
   { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
+  { id: 3, category: 'LinkedIn Strategy', title: 'The Hacking Hub LinkedIn Playbook', format: 'Guide', description: 'Photo, banner, headline, About section, posting cadence, and what to avoid - the full checklist for a LinkedIn profile that actually gets you noticed.', link: '' },
+  { id: 4, category: 'Cert Prep', title: 'PocketPrep', format: 'App', description: 'Mobile and web app for studying popular ISC2, CompTIA, and Cisco exams.', link: 'https://study.pocketprep.com/study' },
+  { id: 5, category: 'Cert Prep', title: 'CompTIA Security+ Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every free resource members actually use - official overview, Professor Messer\'s full video course, ExamCompass practice tests, and PocketPrep.', link: '' },
 ];
 
 // Mock Member's demo roadmap - modeled on a real member's actual plan
@@ -275,6 +288,25 @@ const MOCK_COMMUNITY_WINS = [
   { id: 2, member: 'Kiolin', achievement: 'landed a Software Developer internship', achievedDate: '2026-08-15', linkedinUrl: 'https://www.linkedin.com/in/kiolinharisanker/' },
 ];
 
+// Suggested Content is real Supabase data now (045_suggested_content.sql) -
+// this is only the Mock Member fallback. No link fabricated for the demo
+// items - same as MOCK_JOB_BOARD, an empty link just renders without the
+// "Open" button rather than pointing anywhere real.
+const MOCK_SUGGESTED_CONTENT = [
+  { id: 1, contentType: 'Video', title: 'How a real OSCP exam attempt actually goes', url: '' },
+  { id: 2, contentType: 'Article', title: 'What hiring managers actually look for on a junior SOC CV', url: '' },
+  { id: 3, contentType: 'Meme', title: 'The five stages of a failed pentest report deadline', url: '' },
+];
+
+const CONTENT_TYPE_ICONS = {
+  Video: Video,
+  Article: Newspaper,
+  TikTok: Music2,
+  Meme: Laugh,
+  Screenshot: Image,
+  Other: Link,
+};
+
 const SIYA_EMAIL = 'siya@hackinghub.co.za';
 
 export default function MemberPortal({ activeTab, setActiveTab, user, providerToken, isMockSession, autoOpenProfileEdit }) {
@@ -299,6 +331,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }, 5000);
     return () => clearInterval(interval);
   }, [communityBroadcasts.length]);
+  // Suggested Content - real Supabase data for a real session, local-only
+  // demo state under Mock Member. Replaces the old "Billing Info" card,
+  // which was a blurred "Under Construction" stub.
+  const [suggestedContent, setSuggestedContent] = useState(isMockSession ? MOCK_SUGGESTED_CONTENT : []);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchSuggestedContent().then((data) => !cancelled && setSuggestedContent(data)).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  // My billing summary (My Subscription & Upgrades) - real Supabase data via
+  // a narrow SECURITY DEFINER function (supabase/046_member_billing_summary.sql),
+  // local-only demo state under Mock Member. null (after loading finishes)
+  // means the member genuinely has no completed payment on record yet.
+  const [myLastPayment, setMyLastPayment] = useState(isMockSession ? { plan: 'Basic Access', paymentDate: '2026-08-01 10:00' } : null);
+  const [loadingMyLastPayment, setLoadingMyLastPayment] = useState(!isMockSession);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyLastPayment()
+      .then((data) => !cancelled && setMyLastPayment(data))
+      .catch(() => {})
+      .finally(() => !cancelled && setLoadingMyLastPayment(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
   // Tracks which mentor photos have failed to load (e.g. not uploaded to
   // public/mentors/ yet) so those cards fall back to a plain avatar icon.
   const [mentorPhotoErrors, setMentorPhotoErrors] = useState({});
@@ -1075,7 +1134,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
   // Resources — cert prep, role roadmaps, podcasts, books, interview prep, CV templates
   const [resourceCategoryFilter, setResourceCategoryFilter] = useState('All');
-  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates'];
+  const [showLinkedInPlaybook, setShowLinkedInPlaybook] = useState(false);
+  const [showSecurityPlusGuide, setShowSecurityPlusGuide] = useState(false);
+  // Resources with their real content hardcoded in-app (not a link) - the
+  // card opens a dedicated modal instead of "Open Resource"/"Coming Soon".
+  const IN_APP_ARTICLE_RESOURCES = {
+    'The Hacking Hub LinkedIn Playbook': () => setShowLinkedInPlaybook(true),
+    'CompTIA Security+ Study Guide': () => setShowSecurityPlusGuide(true),
+  };
+  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy'];
   const RESOURCE_ICON = {
     'Cert Prep': FileText,
     'Role Roadmaps': Map,
@@ -1083,6 +1150,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Books': BookOpen,
     'Interview Playbooks': MessageSquare,
     'CV Templates': NotebookPen,
+    'LinkedIn Strategy': IdCard,
   };
 
   // Real Supabase data for a real session (RLS scopes reads to signed-in,
@@ -1244,10 +1312,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     },
   ];
 
-  // Current active plan (Default: Rank 1 - Basic Access)
-  const currentPlanRank = 1;
-  const currentPlan = ALL_TIERS.find(t => t.rank === currentPlanRank) || ALL_TIERS[0];
+  // Current active plan, derived from the member's own most recent completed
+  // payment (myLastPayment) - falls back to Basic Access/rank 1 only when
+  // there's no payment on record yet, or the plan name doesn't match one of
+  // the 4 defined tiers (e.g. a one-off 'Custom Plan' or 'Maintenance Fee').
+  const matchedTier = myLastPayment ? ALL_TIERS.find(t => t.name === myLastPayment.plan) : null;
+  const currentPlanRank = matchedTier?.rank || 1;
   const upgradeTiers = ALL_TIERS.filter(t => t.rank >= currentPlanRank);
+
+  // Only these plans actually renew on a cycle - matches the exact same list
+  // the admin Finance dashboard uses for "Next 5 Upcoming Renewals", so a
+  // member sees the same renewal date an admin would for their account.
+  const RECURRING_BILLING_PLANS = ['Basic Access', 'Monthly Operative', 'Custom Plan'];
+  const myNextPaymentDate = myLastPayment && RECURRING_BILLING_PLANS.includes(myLastPayment.plan)
+    ? new Date(new Date(myLastPayment.paymentDate).getTime() + 30 * 24 * 60 * 60 * 1000)
+    : null;
 
   // Router for Member Dashboard
   switch (activeTab) {
@@ -2258,41 +2337,55 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 )}
               </div>
 
-              {/* Next Payment Card */}
+              {/* Suggested Content Card */}
               <div className="glass-card">
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
-                  <CreditCard size={20} color="var(--accent-purple)" />
-                  <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Billing Info</h4>
+                  <Sparkles size={20} color="var(--accent-purple)" />
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Suggested Content</h4>
                 </div>
-                <div style={{ position: 'relative' }}>
-                  <div style={{ filter: 'blur(6px)', userSelect: 'none', pointerEvents: 'none' }} aria-hidden="true">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Subscription Plan:</span>
-                      <strong>{currentPlan.name}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Next Payment Date:</span>
-                      <strong>2026-09-01</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '16px' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Monthly Fee:</span>
-                      <strong style={{ color: 'var(--accent-cyan)' }}>{currentPlan.priceDisplay}</strong>
-                    </div>
-                    <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem' }}>
-                      Manage Payments
-                    </button>
+                {suggestedContent.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nothing suggested yet - check back soon.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {suggestedContent.slice(0, 4).map((item) => {
+                      const TypeIcon = CONTENT_TYPE_ICONS[item.contentType] || Link;
+                      return (
+                        <div key={item.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                          <TypeIcon size={16} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>{item.contentType}</div>
+                            {isSafeUrl(item.url) ? (
+                              <a href={item.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, textDecoration: 'none' }}>
+                                {item.title}
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>{item.title}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>Under Construction</span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       );
 
-    case 'meetings':
+    case 'meetings': {
+      // A quick email nudge, not a tracked request queue - just pre-fills the
+      // subject/body with the member's own name and email so they don't have
+      // to type it, and lands straight in Siya's inbox like any other ask.
+      const buildServiceRequestMailto = (subject, serviceLabel) => {
+        const name = user?.user_metadata?.full_name || 'Member';
+        const email = user?.email || '';
+        const body = `Hi Siya,\n\nI'd like to request a ${serviceLabel}.\n\nName: ${name}\nEmail: ${email}\n`;
+        return `mailto:${SIYA_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      };
+      const cvRequestMailto = buildServiceRequestMailto('CV Review Request', 'CV review');
+      const interviewPrepMailto = buildServiceRequestMailto('Interview Prep Request', 'mock interview / interview prep session');
+
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
@@ -2361,8 +2454,51 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             ))}
           </div>
+
+          <div style={{ marginTop: '40px' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '6px' }}>More 1on1 Support</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Outside the regular coaching slots above - send a request and we'll set up a time.</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+              <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <FileText size={20} color="var(--accent-cyan)" />
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Request a CV Review</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                    Get your CV reviewed or rewritten by your coach before you apply for a role.
+                  </p>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <a href={cvRequestMailto} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+                    <FileText size={16} /> Request a CV Review
+                  </a>
+                </div>
+              </div>
+
+              <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <MessageSquare size={20} color="var(--accent-cyan)" />
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Request Interview Prep</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                    Practice mock technical and behavioral interview questions before the real thing.
+                  </p>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <a href={interviewPrepMailto} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+                    <MessageSquare size={16} /> Request Interview Prep
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       );
+    }
 
     case 'events':
       return (
@@ -2827,7 +2963,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Library size={28} color="var(--accent-cyan)" /> Resources
               </h1>
-              <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, and CV templates.</p>
+              <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, CV templates, and LinkedIn strategy.</p>
               {resourcesError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{resourcesError}</p>}
             </div>
             <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddResourceForm(true)}>
@@ -2863,7 +2999,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                   <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{res.title}</h4>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }}>{res.description}</p>
-                  {isSafeUrl(res.link) ? (
+                  {IN_APP_ARTICLE_RESOURCES[res.title] ? (
+                    <button
+                      className="btn btn-secondary"
+                      onClick={IN_APP_ARTICLE_RESOURCES[res.title]}
+                      style={{ justifyContent: 'center', fontSize: '0.85rem' }}
+                    >
+                      <BookOpen size={14} /> Read Guide
+                    </button>
+                  ) : isSafeUrl(res.link) ? (
                     <a
                       href={res.link}
                       target="_blank"
@@ -2967,6 +3111,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             </div>
           )}
+
+          {showLinkedInPlaybook && <LinkedInPlaybookModal onClose={() => setShowLinkedInPlaybook(false)} />}
+          {showSecurityPlusGuide && <SecurityPlusGuideModal onClose={() => setShowSecurityPlusGuide(false)} />}
         </div>
       );
 
@@ -3496,25 +3643,32 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
             <div className="glass-card">
               <h3 style={{ marginBottom: '16px' }}>Current Active Clearance</h3>
-              <div style={{ position: 'relative' }}>
-                <div style={{ filter: 'blur(6px)', userSelect: 'none', pointerEvents: 'none' }} aria-hidden="true">
+              {loadingMyLastPayment ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your billing info...</p>
+              ) : !myLastPayment ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No payment on record yet. Once your first payment lands, it'll show up here.</p>
+              ) : (
+                <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Plan Name</span>
-                    <strong>{currentPlan.name}</strong>
+                    <strong>{myLastPayment.plan}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Rate</span>
-                    <strong>{currentPlan.priceDisplay} {currentPlan.period}</strong>
+                    <strong>{matchedTier ? `${matchedTier.priceDisplay} ${matchedTier.period}` : '—'}</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Next Payment Date</span>
+                    <strong style={{ color: myNextPaymentDate ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
+                      {myNextPaymentDate ? formatDate(myNextPaymentDate.toISOString()) : 'No recurring renewal'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Status</span>
                     <span className="badge badge-success">active</span>
                   </div>
                 </div>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>Under Construction</span>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="glass-card">
@@ -3528,6 +3682,45 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 Upgrades instantly unlock additional benefits upon PayFast ITN verification.
+              </p>
+            </div>
+          </div>
+
+          {/* Pay via EFT */}
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <Landmark size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Pay via EFT</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              Prefer a direct bank transfer over PayFast? Use these details, then let us know once it's paid.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>Bank</div>
+                <div style={{ fontWeight: 600 }}>FNB / RMB</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>Account Holder</div>
+                <div style={{ fontWeight: 600 }}>Hacker Hub Pty Ltd</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>Account Type</div>
+                <div style={{ fontWeight: 600 }}>Gold Business Account</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>Account Number</div>
+                <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>63200814803</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>Branch Code</div>
+                <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>250655</div>
+              </div>
+            </div>
+            <div style={{ padding: '12px 16px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              <AlertTriangle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Use your <strong style={{ color: 'var(--text-primary)' }}>full name</strong> as the payment reference so we can match it to your account.
               </p>
             </div>
           </div>

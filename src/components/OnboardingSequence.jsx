@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Volume2, VolumeX, SkipForward } from 'lucide-react';
+import { Volume2, VolumeX, SkipForward, MessageCircle, Calendar, Terminal, UserPlus } from 'lucide-react';
 
 // A little personality per email provider - not a real security claim, just flavor.
 const DOMAIN_FLAVOR = {
@@ -311,8 +311,33 @@ export default function OnboardingSequence({ user, onComplete }) {
 
           {done && (
             <div className="onboarding-cta" style={{ marginTop: '32px', textAlign: 'center' }}>
+              <p style={{ color: '#7f879b', fontSize: '0.85rem', marginBottom: '12px' }}>
+                A few quick things before you dive in - have you got these covered?
+              </p>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '20px', maxWidth: '520px', marginLeft: 'auto', marginRight: 'auto' }}>
+                {[
+                  { href: 'https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1', icon: MessageCircle, label: 'Join the WhatsApp Community' },
+                  { href: 'https://workspace.google.com/products/calendar/', icon: Calendar, label: 'Get Google Calendar' },
+                  { href: 'https://tryhackme.com/signup', icon: Terminal, label: 'Create a TryHackMe Account' },
+                  { href: 'https://tryhackme.com/p/SiyaCybersecurity', icon: UserPlus, label: 'Follow SiyaCybersecurity on TryHackMe' },
+                ].map(({ href, icon: Icon, label }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9999px',
+                      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(94,227,122,0.25)', color: '#5ee37a',
+                      fontSize: '0.8rem', fontFamily: 'inherit', textDecoration: 'none',
+                    }}
+                  >
+                    <Icon size={14} /> {label}
+                  </a>
+                ))}
+              </div>
               <p style={{ color: '#7f879b', fontSize: '0.85rem', marginBottom: '18px' }}>
-                One last thing: your fellow members can't find you in the directory yet.
+                One last thing: add a headshot so your fellow members can actually recognize you in the directory.
               </p>
               <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
