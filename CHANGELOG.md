@@ -20,6 +20,63 @@ saved in their browser's `localStorage`.
 
 ## 2026.08.20
 
+### Changed
+- Member Cert Calendar: removed the "Cohort" field from the "Add to Cert
+  Calendar" form - new entries default to "General" instead. Existing
+  entries with a real cohort are untouched.
+
+### Added
+- **Room Logs stats** — five stat cards on the admin Room Logs tab, scoped to
+  Approved logs only (Pending/Rejected haven't actually been credited, so
+  counting them would overstate real activity): total rooms completed and
+  avg rooms per member, most active day of the week, who's logged the most
+  distinct days (consistency, not just volume), and the best single-day
+  room count on record.
+- **Manually-set member Start Date** — a member's "Start Date" was always
+  just their first PayFast payment, with no way to correct it for anyone
+  who joined before ever paying or whose real start date differs. Admins
+  can now set it directly on the Members tab; it defaults to the real first
+  payment date (still shown separately as "First Payment") but is a true
+  override. Insights prefers this manual date first, ahead of the real
+  onboarding timestamp and first payment, for every tenure and
+  time-to-outcome stat. Members can see their own start date ("Member
+  since..." on the Dashboard) but can't edit it themselves - confirmed
+  deliberately, so it stays trustworthy for the Insights stats it feeds.
+  (`042_manual_start_date.sql`)
+- **Insights tab** — replaces "1on1 Session Facilitator" (a read-only Google
+  Calendar mirror with no analytics value of its own; the same live 1on1
+  data is still available via "Sync Last 1on1 Dates" on the Members tab).
+  Real, computed-not-modeled stats: avg tenure for current members vs. avg
+  tenure before leaving for departed members (measured separately - blending
+  them would understate how long current members have already stuck
+  around), avg time from join date to employment, avg time to first
+  certification (approximate - matched by name against Cert Calendar, since
+  that table stores a free-text name rather than an email), and breakdowns
+  by age/gender/location. Every stat states its sample size and shows "—"
+  rather than a misleading number when there's not enough real data to
+  compute it. Join date prefers the real onboarding timestamp, falling back
+  to first PayFast payment for members who joined before onboarding
+  existed.
+- **Roadmaps: filter by track, and see each member's % complete + job
+  readiness** — the "Active Members by Track" chips are now clickable and
+  filter the member picker down to just that track; a dropdown does the
+  same. Every member in the picker now shows their live checklist
+  completion percentage, computed from a single bulk fetch of every
+  member's roadmap items (not a per-member query), plus their job
+  readiness stage (Not Started / In Progress / Interview Ready / Job
+  Placed), same badge as the Members tab - all visible without opening
+  each person's checklist first.
+
+### Changed
+- **Admin Meetups & Events: mock data replaced with the real Events tab** —
+  the "Create Event" form and "Event List" were 100% local, hardcoded state
+  (three fake meetups, never touching `community_events`). Replaced with a
+  read-only "Live Events" list showing the exact same approved rows the
+  member-side Events tab shows, right above the existing (already real)
+  Pending Community Events review section. Admins create events the same
+  way members do now, from the Events tab; this page is for seeing what's
+  live and approving/rejecting what's waiting.
+
 ### Added
 - **Active Members by Track breakdown, and Active-only Roadmaps picker** — the
   Roadmaps tab's member picker now only lists members whose status is
@@ -90,6 +147,22 @@ saved in their browser's `localStorage`.
   Quicket registration link. (`019_events.sql`)
 
 ### Fixed
+- **PayFast checkout was completely broken, and leaking the passphrase to
+  every visitor** — checkout URL signing happened client-side in
+  `src/lib/payfast.js`, which required `VITE_PAYFAST_PASSPHRASE` to be
+  bundled into the browser JS (readable by anyone via devtools - and since
+  the webhook trusts that same passphrase to verify a payment is real,
+  exposing it would let someone forge a fake "payment succeeded" call).
+  Separately, and independently, the hand-rolled client-side MD5
+  implementation was actually broken - it called `add32`/`md5cycle`,
+  neither ever defined in the file - so the "Upgrade" button has been
+  throwing a `ReferenceError` on click regardless. Checkout-URL signing now
+  happens entirely server-side in a new `payfast-checkout` Edge Function
+  (reusing the same tested `js-md5` library `payfast-webhook` already
+  relies on), using the member's own verified session for name/email rather
+  than a client-supplied value. The passphrase, merchant ID, and merchant
+  key are no longer in any `VITE_*` env var or the client bundle at all.
+  (`supabase/functions/payfast-checkout/`)
 - **Allowlisted members with no PayFast payment were invisible everywhere**
   — every admin member list (Members, Roadmaps, Matchmaker, Room Logs,
   Referrals) was built only from PayFast payment history plus manually-added

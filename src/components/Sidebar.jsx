@@ -19,6 +19,7 @@ import {
   Handshake,
   ListChecks,
   Megaphone,
+  BarChart3,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
@@ -127,11 +128,11 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
-        { id: '1on1s', label: '1on1 Sessions', icon: Users },
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
         { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'finances', label: 'Finances', icon: DollarSign },
         { id: 'reviews', label: 'Reviews', icon: Star },
+        { id: 'insights', label: 'Insights', icon: BarChart3 },
       ]
     : [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },

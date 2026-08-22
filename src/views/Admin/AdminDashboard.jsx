@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCalendarEvents, fetchCertCalendarEvents, fetchPastCalendarEvents } from '../../lib/googleCalendar';
+import { fetchPastCalendarEvents } from '../../lib/googleCalendar';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
@@ -24,7 +24,7 @@ import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent } from '../../lib/eventsData';
-import { fetchRoadmapForMember, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
+import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
@@ -41,7 +41,6 @@ import {
   Search,
   CheckCircle,
   Clock,
-  Video,
   ExternalLink,
   RefreshCw,
   Award,
@@ -79,10 +78,6 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     setTimeout(() => setRefreshingData(false), 1200);
   };
 
-  const [googleEvents, setGoogleEvents] = useState([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
-  const [eventsError, setEventsError] = useState(null);
-
   // Certifications state
   const [selectedCert, setSelectedCert] = useState(null);
   const [certEvents, setCertEvents] = useState([]);
@@ -96,6 +91,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // is_admin()); Mock Admin has no real session, so it stays purely local.
   const [roadmapMemberEmail, setRoadmapMemberEmail] = useState(null);
   const [roadmapMemberSearch, setRoadmapMemberSearch] = useState('');
+  const [roadmapTrackFilter, setRoadmapTrackFilter] = useState('All');
   const [roadmapItems, setRoadmapItems] = useState([]);
   const [loadingRoadmapItems, setLoadingRoadmapItems] = useState(false);
   const [roadmapItemsError, setRoadmapItemsError] = useState(null);
@@ -113,6 +109,21 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     setRoadmapItems(items);
     setMockRoadmapItemsByEmail((prev) => ({ ...prev, [email.toLowerCase()]: items }));
   };
+
+  // Every member's roadmap items, fetched once (not per-member) purely to
+  // compute each member's % complete in the picker list without having to
+  // open their checklist first. Real session only - Mock Admin reuses
+  // mockRoadmapItemsByEmail above instead, since there's nothing to fetch.
+  const [allRoadmapItems, setAllRoadmapItems] = useState([]);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllRoadmapItems()
+      .then((data) => !cancelled && setAllRoadmapItems(data))
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
 
   const loadRoadmapForMember = (email) => {
     setRoadmapMemberEmail(email);
@@ -790,6 +801,9 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   }, [isMockSession, dataRefreshKey]);
 
   const pendingCommunityEvents = communityEvents.filter((e) => e.status === 'Pending');
+  // The exact same approved events the member-side Events tab shows -
+  // already sorted soonest-first by fetchCommunityEvents()'s own query.
+  const liveCommunityEvents = communityEvents.filter((e) => e.status === 'Approved');
 
   const handleApproveEvent = async (eventId) => {
     setApprovingEventId(eventId);
@@ -1042,32 +1056,6 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const selectedMember = selectedMemberEmail
     ? memberRoster.find(m => m.email.toLowerCase() === selectedMemberEmail.toLowerCase())
     : null;
-
-  const [meetups, setMeetups] = useState([
-    { id: 1, title: 'Cyber War Games: Capture The Flag', date: '2026-08-16', time: '18:00', location: 'Discord', rsvps: 34, status: 'upcoming' },
-    { id: 2, title: 'OSINT Fundamentals Workshop', date: '2026-08-23', time: '17:30', location: 'Online (Zoom)', rsvps: 21, status: 'upcoming' },
-    { id: 3, title: 'July Community Meetup', date: '2026-07-19', time: '18:00', location: 'Discord', rsvps: 58, status: 'completed' },
-  ]);
-
-  const [newMeetup, setNewMeetup] = useState({ title: '', date: '', time: '', location: '' });
-
-  const handleAddMeetup = (e) => {
-    e.preventDefault();
-    if (!newMeetup.title || !newMeetup.date) return;
-    setMeetups([
-      ...meetups,
-      {
-        id: meetups.length + 1,
-        title: newMeetup.title,
-        date: newMeetup.date,
-        time: newMeetup.time || '18:00',
-        location: newMeetup.location || 'Online',
-        rsvps: 0,
-        status: 'upcoming',
-      },
-    ]);
-    setNewMeetup({ title: '', date: '', time: '', location: '' });
-  };
 
   // RENDER SECTIONS BASED ON ACTIVE TAB
   switch (activeTab) {
@@ -1455,13 +1443,32 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       // roadmap data untouched; they just won't show up here to pick again).
       const activeRoadmapRoster = memberRoster.filter((m) => m.status === 'Active');
       const filteredRoadmapRoster = activeRoadmapRoster.filter((m) =>
-        m.member.toLowerCase().includes(roadmapMemberSearch.toLowerCase()) ||
-        m.email.toLowerCase().includes(roadmapMemberSearch.toLowerCase())
+        (roadmapTrackFilter === 'All' || (m.profile?.roadmapTrack || 'Not Assigned') === roadmapTrackFilter) &&
+        (m.member.toLowerCase().includes(roadmapMemberSearch.toLowerCase()) ||
+          m.email.toLowerCase().includes(roadmapMemberSearch.toLowerCase()))
       );
       const roadmapTrackCounts = ROADMAP_TRACKS.map((track) => ({
         track,
         count: activeRoadmapRoster.filter((m) => (m.profile?.roadmapTrack || 'Not Assigned') === track).length,
       }));
+
+      // Per-member % complete for the picker list, without needing to open
+      // each member's checklist first. Real session: grouped from the one
+      // bulk fetchAllRoadmapItems() call. Mock Admin: reuses
+      // mockRoadmapItemsByEmail, the same per-email store the picker already
+      // maintains when you add/edit/delete items locally.
+      const roadmapItemsByEmail = isMockSession
+        ? mockRoadmapItemsByEmail
+        : allRoadmapItems.reduce((acc, item) => {
+            const key = item.memberEmail.toLowerCase();
+            (acc[key] = acc[key] || []).push(item);
+            return acc;
+          }, {});
+      const getRoadmapProgressPct = (email) => {
+        const items = roadmapItemsByEmail[email.toLowerCase()];
+        if (!items || items.length === 0) return null;
+        return Math.round((items.filter((i) => i.completed).length / items.length) * 100);
+      };
       const existingCategories = [...new Set(roadmapItems.map((i) => i.category))];
       const completedCount = roadmapItems.filter((i) => i.completed).length;
       const roadmapProgress = roadmapItems.length ? Math.round((completedCount / roadmapItems.length) * 100) : 0;
@@ -1503,20 +1510,29 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             </div>
           )}
 
-          {/* Breakdown of active members per specialization track */}
+          {/* Breakdown of active members per specialization track - click a
+              chip to filter the member picker down to just that track. */}
           <div className="glass-card" style={{ marginBottom: '20px' }}>
             <h3 style={{ fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Milestone size={16} color="var(--accent-cyan)" /> Active Members by Track
+              <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>· click to filter</span>
             </h3>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {roadmapTrackCounts.map(({ track, count }) => (
-                <div
+                <button
                   key={track}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}
+                  onClick={() => setRoadmapTrackFilter((prev) => (prev === track ? 'All' : track))}
+                  className="hover-glow"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: 'var(--border-radius-md)',
+                    background: roadmapTrackFilter === track ? 'rgba(94, 227, 122, 0.1)' : 'rgba(255,255,255,0.02)',
+                    border: '1px solid ' + (roadmapTrackFilter === track ? 'var(--accent-cyan)' : 'var(--border-color)'),
+                    cursor: 'pointer', font: 'inherit', color: 'inherit',
+                  }}
                 >
                   <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{track}</span>
                   <span className={`badge ${track === 'Not Assigned' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.7rem' }}>{count}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -1524,7 +1540,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'flex-start' }}>
             {/* Member picker */}
             <div className="glass-card" style={{ padding: '16px' }}>
-              <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', marginBottom: '10px' }}>
                 <Search size={16} color="var(--text-muted)" style={{ marginTop: '2px' }} />
                 <input
                   type="text"
@@ -1534,32 +1550,57 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.85rem', outline: 'none', width: '100%' }}
                 />
               </div>
+              <select
+                className="form-input"
+                value={roadmapTrackFilter}
+                onChange={(e) => setRoadmapTrackFilter(e.target.value)}
+                style={{ fontSize: '0.82rem', marginBottom: '14px' }}
+              >
+                <option value="All">All Tracks</option>
+                {ROADMAP_TRACKS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '520px', overflowY: 'auto' }}>
-                {filteredRoadmapRoster.map((m) => (
-                  <button
-                    key={m.email}
-                    onClick={() => loadRoadmapForMember(m.email)}
-                    className="hover-glow"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: '2px',
-                      padding: '10px 12px',
-                      borderRadius: 'var(--border-radius-sm)',
-                      border: '1px solid ' + (roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'var(--accent-cyan)' : 'var(--border-color)'),
-                      background: roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'rgba(94, 227, 122, 0.06)' : 'rgba(255,255,255,0.01)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      width: '100%',
-                    }}
-                  >
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{m.member}</span>
-                    <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>
-                      {m.profile?.roadmapTrack && m.profile.roadmapTrack !== 'Not Assigned' ? m.profile.roadmapTrack : 'No track assigned'}
-                    </span>
-                  </button>
-                ))}
+                {filteredRoadmapRoster.length === 0 && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '8px 4px' }}>No active members on this track.</p>
+                )}
+                {filteredRoadmapRoster.map((m) => {
+                  const pct = getRoadmapProgressPct(m.email);
+                  return (
+                    <button
+                      key={m.email}
+                      onClick={() => loadRoadmapForMember(m.email)}
+                      className="hover-glow"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: '2px',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--border-radius-sm)',
+                        border: '1px solid ' + (roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'var(--accent-cyan)' : 'var(--border-color)'),
+                        background: roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'rgba(94, 227, 122, 0.06)' : 'rgba(255,255,255,0.01)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        width: '100%',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{m.member}</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: pct === null ? 'var(--text-muted)' : pct === 100 ? 'var(--success)' : 'var(--accent-cyan)', flexShrink: 0 }}>
+                          {pct === null ? '—' : `${pct}%`}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>
+                          {m.profile?.roadmapTrack && m.profile.roadmapTrack !== 'Not Assigned' ? m.profile.roadmapTrack : 'No track assigned'}
+                        </span>
+                        <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>
+                          {m.profile?.jobReadiness || 'Not Started'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1850,12 +1891,87 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       const reviewedLogs = roomLogs.filter((l) => l.status !== 'Pending').sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
       const statusColor = { Approved: 'badge-success', Rejected: 'badge-danger' };
 
+      // Stats below are scoped to Approved logs only - Pending/Rejected
+      // haven't actually been credited to anyone, so counting them as
+      // "completed" would overstate real activity.
+      const approvedLogs = roomLogs.filter((l) => l.status === 'Approved');
+      const totalRoomsCompleted = approvedLogs.reduce((sum, l) => sum + l.roomCount, 0);
+      const loggerEmails = [...new Set(approvedLogs.map((l) => l.memberEmail.toLowerCase()))];
+      const avgRoomsPerMember = loggerEmails.length ? (totalRoomsCompleted / loggerEmails.length).toFixed(1) : null;
+
+      const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const roomsByDayOfWeek = DAY_NAMES.map((day, idx) => ({
+        day,
+        rooms: approvedLogs.filter((l) => new Date(`${l.logDate}T00:00:00`).getDay() === idx).reduce((sum, l) => sum + l.roomCount, 0),
+      }));
+      const mostActiveDay = roomsByDayOfWeek.reduce((best, d) => (!best || d.rooms > best.rooms ? d : best), null);
+
+      const daysLoggedByEmail = approvedLogs.reduce((acc, l) => {
+        const key = l.memberEmail.toLowerCase();
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      const [topLoggerEmail, topLoggerDays] = Object.entries(daysLoggedByEmail).sort((a, b) => b[1] - a[1])[0] || [null, null];
+
+      const bestSingleDay = approvedLogs.reduce((best, l) => (!best || l.roomCount > best.roomCount ? l : best), null);
+
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><ListChecks size={28} color="var(--accent-cyan)" /> Room Logs</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Members' self-reported daily TryHackMe room counts. Approving credits the Competitions leaderboard.</p>
           </div>
+
+          {/* Stats - scoped to Approved logs only, so a big Pending backlog
+              doesn't inflate "completed" activity. */}
+          {approvedLogs.length > 0 && (
+            <div className="dashboard-grid" style={{ marginBottom: '28px' }}>
+              <div className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>Rooms Completed</span>
+                  <ListChecks size={18} color="var(--accent-cyan)" />
+                </div>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: 700 }}>{totalRoomsCompleted}</h2>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>Across {loggerEmails.length} member{loggerEmails.length === 1 ? '' : 's'}</div>
+              </div>
+
+              <div className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>Avg Rooms per Member</span>
+                  <TrendingUp size={18} color="var(--success)" />
+                </div>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: 700 }}>{avgRoomsPerMember}</h2>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>Across every approved log on file</div>
+              </div>
+
+              <div className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>Most Active Day</span>
+                  <Calendar size={18} color="var(--accent-purple)" />
+                </div>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: 700 }}>{mostActiveDay?.day || '—'}</h2>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>{mostActiveDay ? `${mostActiveDay.rooms} rooms logged, all-time` : 'No data yet'}</div>
+              </div>
+
+              <div className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>Most Days Logged</span>
+                  <Award size={18} color="var(--warning)" />
+                </div>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>{topLoggerEmail ? nameForLogEmail(topLoggerEmail) : '—'}</h2>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>{topLoggerDays ? `${topLoggerDays} day${topLoggerDays === 1 ? '' : 's'} logged` : 'No data yet'}</div>
+              </div>
+
+              <div className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>Best Single Day</span>
+                  <Star size={18} color="var(--accent-cyan)" />
+                </div>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>{bestSingleDay ? nameForLogEmail(bestSingleDay.memberEmail) : '—'}</h2>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>{bestSingleDay ? `${bestSingleDay.roomCount} room${bestSingleDay.roomCount === 1 ? '' : 's'} on ${formatDate(bestSingleDay.logDate)}` : 'No data yet'}</div>
+              </div>
+            </div>
+          )}
 
           {isMockSession && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
@@ -1947,98 +2063,64 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Meetups & Events</h1>
-            <p>Organize, schedule, and view Hacking Hub meetups.</p>
+            <p>The real, live Events tab members see, plus what's still waiting on your review below.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
-            {/* Create Meetup Form */}
-            <div className="glass-card" style={{ height: 'fit-content' }}>
-              <h3 style={{ marginBottom: '20px' }}>Create Event</h3>
-              <form onSubmit={handleAddMeetup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Event Title</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. Cyber War games"
-                    value={newMeetup.title}
-                    onChange={(e) => setNewMeetup({ ...newMeetup, title: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Date</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={newMeetup.date}
-                    onChange={(e) => setNewMeetup({ ...newMeetup, date: e.target.value })}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Time</label>
-                    <input
-                      type="time"
-                      className="form-input"
-                      value={newMeetup.time}
-                      onChange={(e) => setNewMeetup({ ...newMeetup, time: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Location</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="e.g. Discord"
-                      value={newMeetup.location}
-                      onChange={(e) => setNewMeetup({ ...newMeetup, location: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', marginTop: '8px' }}>
-                  <Plus size={16} /> Schedule Meetup
-                </button>
-              </form>
+          {/* Live Events - real, approved rows from community_events, the
+              exact same data the member-side Events tab reads. Read-only
+              here; members add their own via the Events tab, admins approve
+              or reject below. */}
+          <div className="glass-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>Live Events</h3>
+              <span className="badge badge-success">{liveCommunityEvents.length} Approved</span>
             </div>
-
-            {/* Meetup List */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h3>Event List</h3>
-                <span className="badge badge-success">{meetups.length} Total</span>
+            {isMockSession ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                Not available under Mock Admin - this reads real events from Supabase.
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {meetups.map((m) => (
+            ) : loadingCommunityEvents ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading...</p>
+            ) : liveCommunityEvents.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                Nothing approved and upcoming yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {liveCommunityEvents.map((ev) => (
                   <div
-                    key={m.id}
+                    key={ev.id}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '16px',
+                      gap: '12px',
+                      padding: '14px 16px',
                       borderRadius: 'var(--border-radius-md)',
                       background: 'rgba(255,255,255,0.02)',
                       border: '1px solid var(--border-color)',
+                      flexWrap: 'wrap',
                     }}
                   >
                     <div>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '4px' }}>{m.title}</h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {formatDate(m.date)} at {m.time} | <strong>{m.location}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{ev.type}</span>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{ev.title}</h4>
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        {formatDate(ev.date)}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'}
+                        {ev.createdBy && ` | Submitted by ${ev.createdBy}`}
                       </p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        <strong>{m.rsvps}</strong> RSVPs
-                      </span>
-                      <span className={`badge ${m.status === 'upcoming' ? 'badge-success' : 'badge-danger'}`}>
-                        {m.status}
-                      </span>
-                    </div>
+                    {isSafeUrl(ev.link) && (
+                      <a href={ev.link} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                        <Link size={13} /> Event Link
+                      </a>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Pending Community Events - member-submitted events awaiting approval */}
@@ -2221,139 +2303,178 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         </div>
       );
 
-    case '1on1s':
+    case 'insights': {
+      // Join date: prefers an admin-set manual start date (Members tab) over
+      // the real onboarding timestamp, which in turn falls back to first
+      // real payment date for anyone who joined before onboarding existed.
+      // Members with none of the three (never onboarded, never paid, no
+      // manual date set) are excluded from every duration stat below -
+      // there's no honest join-date signal for them, and fabricating one
+      // would be worse than omitting them.
+      const joinDateFor = (m) => {
+        const raw = m.profile?.manualStartDate || m.profile?.onboardedAt || m.firstPaymentDate;
+        return raw ? new Date(raw) : null;
+      };
+      const daysBetween = (a, b) => Math.round((b - a) / (1000 * 60 * 60 * 24));
+      const formatDays = (d) => (d === null ? '—' : d < 30 ? `${d} days` : `${(d / 30).toFixed(1)} months`);
+
+      // Retention: current members measured to today (their tenure so far,
+      // still running); departed members measured to when they actually left
+      // - blending the two into one number would understate how long people
+      // who are still here have already stuck around.
+      const currentMembers = memberRoster.filter((m) => m.status !== 'Left');
+      const departedMembers = memberRoster.filter((m) => m.status === 'Left');
+
+      const currentTenureDays = currentMembers
+        .map((m) => { const j = joinDateFor(m); return j ? daysBetween(j, today) : null; })
+        .filter((d) => d !== null && d >= 0);
+      const avgCurrentTenure = currentTenureDays.length
+        ? Math.round(currentTenureDays.reduce((a, b) => a + b, 0) / currentTenureDays.length)
+        : null;
+
+      const departedTenureDays = departedMembers
+        .map((m) => {
+          const j = joinDateFor(m);
+          const endRaw = m.profile?.leftAt || m.lastPaymentDate;
+          const end = endRaw ? new Date(endRaw) : null;
+          return j && end ? daysBetween(j, end) : null;
+        })
+        .filter((d) => d !== null && d >= 0);
+      const avgDepartedTenure = departedTenureDays.length
+        ? Math.round(departedTenureDays.reduce((a, b) => a + b, 0) / departedTenureDays.length)
+        : null;
+
+      // Time to employment: join date -> jobPlacedDate, only for members
+      // actually marked Job Placed with a real placement date on file.
+      const employmentDays = memberRoster
+        .filter((m) => m.profile?.jobReadiness === 'Job Placed' && m.profile?.jobPlacedDate)
+        .map((m) => { const j = joinDateFor(m); return j ? daysBetween(j, new Date(m.profile.jobPlacedDate)) : null; })
+        .filter((d) => d !== null && d >= 0);
+      const avgTimeToEmployment = employmentDays.length
+        ? Math.round(employmentDays.reduce((a, b) => a + b, 0) / employmentDays.length)
+        : null;
+
+      // Time to first certificate: cert_calendar.member is a free-text name,
+      // not an email (and created_by can be an admin who added it on the
+      // member's behalf, not the member themselves) - so this is a
+      // best-effort match against each member's display name, not a
+      // guaranteed join. Undercounts anyone whose name is formatted
+      // differently between the two tables.
+      const firstPassedCertByName = certs
+        .filter((c) => c.result === 'Passed')
+        .reduce((acc, c) => {
+          const key = c.member.trim().toLowerCase();
+          const d = new Date(c.date);
+          if (!acc[key] || d < acc[key]) acc[key] = d;
+          return acc;
+        }, {});
+      const firstCertDays = memberRoster
+        .map((m) => {
+          const firstPass = firstPassedCertByName[m.member.trim().toLowerCase()];
+          if (!firstPass) return null;
+          const j = joinDateFor(m);
+          return j ? daysBetween(j, firstPass) : null;
+        })
+        .filter((d) => d !== null && d >= 0);
+      const avgTimeToFirstCert = firstCertDays.length
+        ? Math.round(firstCertDays.reduce((a, b) => a + b, 0) / firstCertDays.length)
+        : null;
+
+      // Demographics - straight counts from member_profiles fields already
+      // loaded, sorted largest bucket first.
+      const bucketBy = (getKey) => {
+        const counts = {};
+        memberRoster.forEach((m) => {
+          const key = getKey(m) || 'Not set';
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      };
+      const ageBuckets = bucketBy((m) => m.profile?.age);
+      const genderBuckets = bucketBy((m) => m.profile?.gender);
+      const locationBuckets = bucketBy((m) => m.profile?.location);
+
+      const renderBreakdownBars = (buckets) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {buckets.map(([label, count]) => {
+            const pct = Math.round((count / memberRoster.length) * 100);
+            return (
+              <div key={label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '5px' }}>
+                  <span style={{ fontWeight: 600 }}>{label}</span>
+                  <strong style={{ color: 'var(--accent-cyan)' }}>{count} ({pct}%)</strong>
+                </div>
+                <div style={{ width: '100%', height: '7px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px' }}></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>1on1 Session Facilitator</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>Live Google Calendar sync and student coaching roadmap progress.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Insights</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>Retention, time-to-outcome, and who the community actually is - computed from real member data, not modeled.</p>
           </div>
 
-          {/* Mentor Appointment Booking Links */}
-          <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--accent-cyan)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Calendar size={20} color="var(--accent-cyan)" />
-                <h3 style={{ margin: 0 }}>Mentor Appointment Links</h3>
+          <div className="dashboard-grid" style={{ marginBottom: '32px' }}>
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Avg Tenure - Current Members</span>
+                <Clock size={20} color="var(--accent-cyan)" />
               </div>
-              <span className="badge badge-success">Live Google Appointment Slots</span>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{formatDays(avgCurrentTenure)}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Based on {currentTenureDays.length} of {currentMembers.length} still-here members with a known join date</div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
-              <div>
-                <strong>[REDACTED] (Lead Mentor & Founder)</strong>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Direct Booking Page: https://calendar.app.google/eKVRpXkHCKKcnhYT6</div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Avg Tenure Before Leaving</span>
+                <Flag size={20} color="var(--danger)" />
               </div>
-              <a
-                href="https://calendar.app.google/eKVRpXkHCKKcnhYT6"
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-primary"
-                style={{ fontSize: '0.8rem', padding: '6px 14px' }}
-              >
-                Open Google Calendar <ExternalLink size={14} />
-              </a>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{formatDays(avgDepartedTenure)}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Based on {departedTenureDays.length} of {departedMembers.length} departed members with known join/leave dates</div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Avg Time to Employment</span>
+                <Briefcase size={20} color="var(--success)" />
+              </div>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{formatDays(avgTimeToEmployment)}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Join date to placement date, {employmentDays.length} member{employmentDays.length === 1 ? '' : 's'} marked Job Placed with a date on file</div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Avg Time to First Cert</span>
+                <Award size={20} color="var(--accent-purple)" />
+              </div>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{formatDays(avgTimeToFirstCert)}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Approximate - matched by name against {firstCertDays.length} passed Cert Calendar entries</div>
             </div>
           </div>
 
-          {/* Live Google Calendar Feed */}
-          <div className="glass-card" style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Calendar size={22} color="var(--accent-cyan)" />
-                <h3 style={{ margin: 0 }}>Live Google Calendar 1on1s</h3>
-              </div>
-              {providerToken && (
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                  onClick={() => {
-                    setLoadingEvents(true);
-                    fetchCalendarEvents(providerToken)
-                      .then(setGoogleEvents)
-                      .catch(err => setEventsError(friendlyErrorMessage(err)))
-                      .finally(() => setLoadingEvents(false));
-                  }}
-                >
-                  <RefreshCw size={14} className={loadingEvents ? 'animate-spin' : ''} />
-                  Refresh
-                </button>
-              )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Age</h3>
+              {ageBuckets.length ? renderBreakdownBars(ageBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
             </div>
-
-            {!providerToken ? (
-              <div style={{ padding: '24px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-md)', border: '1px dashed var(--border-color)' }}>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                  Log in using <strong>Sign in with Google</strong> to grant Google Calendar permission and auto-sync your 1on1s live from <code>siya@hackinghub.co.za</code>.
-                </p>
-              </div>
-            ) : loadingEvents ? (
-              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                Fetching your Google Calendar 1on1 sessions...
-              </div>
-            ) : eventsError ? (
-              <div style={{ padding: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                Failed to load Google Calendar: {eventsError}
-              </div>
-            ) : googleEvents.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                No upcoming Google Calendar events found for <code>siya@hackinghub.co.za</code>.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-                {googleEvents.map((evt) => (
-                  <div
-                    key={evt.id}
-                    style={{
-                      padding: '16px',
-                      borderRadius: 'var(--border-radius-md)',
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid var(--border-color)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '12px',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600, marginBottom: '4px' }}>
-                        {evt.startFormatted}
-                      </div>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '6px' }}>{evt.title}</h4>
-                      {evt.attendees.length > 0 && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          <strong>Attendees:</strong> {evt.attendees.map(a => a.name || a.email).join(', ')}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
-                      {evt.meetLink && (
-                        <a
-                          href={evt.meetLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn btn-primary"
-                          style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-                        >
-                          <Video size={14} /> Join Call
-                        </a>
-                      )}
-                      <a
-                        href={evt.htmlLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-                      >
-                        <ExternalLink size={14} /> Google Calendar
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Gender</h3>
+              {genderBuckets.length ? renderBreakdownBars(genderBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
+            </div>
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Location</h3>
+              {locationBuckets.length ? renderBreakdownBars(locationBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
+            </div>
           </div>
         </div>
       );
+    }
 
     case 'certifications':
       return (

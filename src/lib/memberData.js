@@ -38,6 +38,8 @@ export async function fetchMemberProfiles() {
       exitFeedbackRating: row.exit_feedback_rating || null,
       exitFeedbackText: row.exit_feedback_text || '',
       leftAt: row.left_at || '',
+      onboardedAt: row.onboarded_at || '',
+      manualStartDate: row.manual_start_date || '',
     };
   });
   return byEmail;
@@ -64,6 +66,7 @@ export async function upsertMemberProfile(email, profile) {
     offboarding_reason: profile.offboardingReason || null,
     offboarding_notes: profile.offboardingNotes || null,
     offboarding_started_at: profile.offboardingStartedAt || null,
+    manual_start_date: profile.manualStartDate || null,
     updated_at: new Date().toISOString(),
     // exit_feedback_rating / exit_feedback_text / left_at are intentionally omitted -
     // those are only ever written by the member themselves via submit_exit_feedback(),

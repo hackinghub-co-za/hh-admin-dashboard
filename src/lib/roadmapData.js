@@ -67,6 +67,17 @@ export async function setRoadmapFoundationsApproval(email, approved) {
   if (error) throw error;
 }
 
+/** Admin: fetch every member's roadmap items in one call (RLS grants admins
+ * full visibility via is_admin()) - used to compute each member's percent
+ * complete without loading their checklist individually first. */
+export async function fetchAllRoadmapItems() {
+  const { data, error } = await supabase
+    .from('roadmap_items')
+    .select('id, member_email, phase, category, title, detail, completed, sort_order');
+  if (error) throw error;
+  return (data || []).map(mapRow);
+}
+
 /** Admin: fetch any member's roadmap items (RLS grants admins full visibility
  * via is_admin()). */
 export async function fetchRoadmapForMember(email) {

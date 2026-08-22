@@ -12,6 +12,7 @@ import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competi
 import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
+import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -555,6 +556,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     recordDailyLogin().then(setLoginStreak).catch((err) => console.error('Could not record login streak:', err));
   }, [isMockSession]);
 
+  // Member's own start date - view-only, only an admin can set it (Members
+  // tab). Falls back to their onboarding date if no admin has set one yet.
+  const [myStartDate, setMyStartDate] = useState(isMockSession ? '2026-02-14' : null);
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchMyStartDate().then(setMyStartDate).catch((err) => console.error('Could not load start date:', err));
+  }, [isMockSession]);
+
   // Matchmaker - opt-in pool + the member's own randomly-assigned group(s).
   const [optinPool, setOptinPool] = useState([]);
   // Starts empty even under Mock Member - a member starts un-opted-in and
@@ -825,7 +834,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showAddCertForm, setShowAddCertForm] = useState(false);
   const [addingCert, setAddingCert] = useState(false);
   const [addCertError, setAddCertError] = useState(null);
-  const [newCertForm, setNewCertForm] = useState({ member: '', cert: '', date: '', cohort: '' });
+  const [newCertForm, setNewCertForm] = useState({ member: '', cert: '', date: '' });
 
   useEffect(() => {
     if (isMockSession) return;
@@ -849,7 +858,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           member: newCertForm.member.trim(),
           cert: newCertForm.cert.trim(),
           date: newCertForm.date,
-          cohort: newCertForm.cohort.trim() || 'General',
+          cohort: 'General',
           result: 'Pending',
           createdBy: user?.email || 'you',
         };
@@ -859,12 +868,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           member: newCertForm.member.trim(),
           cert: newCertForm.cert.trim(),
           date: newCertForm.date,
-          cohort: newCertForm.cohort.trim(),
           createdBy: user?.email,
         });
         setCertCalendar(await fetchCertCalendar());
       }
-      setNewCertForm({ member: '', cert: '', date: '', cohort: '' });
+      setNewCertForm({ member: '', cert: '', date: '' });
       setShowAddCertForm(false);
     } catch (err) {
       setAddCertError(friendlyMemberErrorMessage(err));
@@ -1106,14 +1114,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     ? resources
     : resources.filter(r => r.category === resourceCategoryFilter);
 
-  const handlePayfastPay = (planName, amount, isSubscription = true) => {
-    const checkoutUrl = createPayfastCheckoutUrl({
-      itemName: `Hacking Hub - ${planName}`,
-      amount: amount,
-      subscriptionType: isSubscription ? 1 : 0,
-      frequency: 3, // monthly
-    });
-    window.location.href = checkoutUrl;
+  const [payfastLoadingTier, setPayfastLoadingTier] = useState(null);
+  const [payfastError, setPayfastError] = useState(null);
+
+  const handlePayfastPay = async (planName, amount, isSubscription = true) => {
+    setPayfastLoadingTier(planName);
+    setPayfastError(null);
+    try {
+      const checkoutUrl = await createPayfastCheckoutUrl({
+        itemName: `Hacking Hub - ${planName}`,
+        amount: amount,
+        subscriptionType: isSubscription ? 1 : 0,
+        frequency: 3, // monthly
+      });
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      setPayfastError(friendlyMemberErrorMessage(err));
+      setPayfastLoadingTier(null);
+    }
   };
 
   const roadmapCompletedCount = roadmapItems.filter(i => i.completed).length;
@@ -1862,6 +1880,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <div>
               <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome back, {firstName}!</h1>
               <p>Here is your current cybersecurity progression overview.</p>
+              {myStartDate && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Member since {formatDate(myStartDate)}</p>
+              )}
             </div>
             {loginStreak > 0 && (
               <div
@@ -3031,17 +3052,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     />
                   </div>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Cohort (optional)</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="e.g. SecPlus-Aug"
-                      value={newCertForm.cohort}
-                      onChange={(e) => setNewCertForm({ ...newCertForm, cohort: e.target.value })}
-                    />
-                  </div>
-
                   {addCertError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addCertError}</p>}
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
@@ -3475,7 +3485,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           </div>
 
-          <h3 style={{ marginBottom: '20px' }}>Your Plan & Upgrade Options</h3>
+          <h3 style={{ marginBottom: '12px' }}>Your Plan & Upgrade Options</h3>
+          {payfastError && (
+            <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{payfastError}</p>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
             {upgradeTiers.map((tier) => {
               const isCurrent = tier.rank === currentPlanRank;
@@ -3540,9 +3553,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <button
                         className="btn btn-primary"
                         style={{ width: '100%', justifyContent: 'center', ...(tier.btnStyle || {}) }}
+                        disabled={payfastLoadingTier === tier.name}
                         onClick={() => handlePayfastPay(tier.name, tier.amount)}
                       >
-                        Upgrade to {tier.name} <ExternalLink size={14} />
+                        {payfastLoadingTier === tier.name ? 'Redirecting to PayFast...' : <>Upgrade to {tier.name} <ExternalLink size={14} /></>}
                       </button>
                     )}
                   </div>
