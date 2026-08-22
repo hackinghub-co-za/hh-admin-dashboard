@@ -52,6 +52,16 @@ ON CONFLICT (id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('public.community_broadcasts', 'id'), 2, true);
 
+-- Corrects the row above for anyone who already ran this migration before the
+-- competition's real start date and prize tiers were finalized (was "24
+-- August" / a single "up to R10,000" placeholder) - the INSERT's
+-- ON CONFLICT DO NOTHING means editing the seed text alone wouldn't reach a
+-- database that already has this row.
+UPDATE public.community_broadcasts
+SET title = 'TryHackMe Competition kicks off 31 August:',
+    body = 'Complete as many rooms as you can this quarter — 1st place wins a R6,000 cert voucher, 2nd R3,000, 3rd R1,000. Get logging early once it opens.'
+WHERE id = 2;
+
 CREATE TABLE IF NOT EXISTS public.community_wins (
   id BIGSERIAL PRIMARY KEY,
   member_name TEXT NOT NULL,
