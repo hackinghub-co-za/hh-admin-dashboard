@@ -62,6 +62,7 @@ VALUES
     ('maso.ntlanga@gmail.com', 'Active', 'Maso.ntlanga'),
     ('mbulelobonanijm@gmail.com', 'Active', 'Mbulelobonanijm'),
     ('mimieportiadhladla@gmail.com', 'Active', 'Mimieportiadhladla'),
+    ('molokomonyepao0@gmail.com', 'Active', 'Moloko'),
     ('molvercallum@gmail.com', 'Active', 'Molvercallum'),
     ('monenecmasekoameng@gmail.com', 'Active', 'Monenecmasekoameng'),
     ('motholobakang4@gmail.com', 'Active', 'Motholobakang4'),
