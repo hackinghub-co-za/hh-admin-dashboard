@@ -17,13 +17,14 @@ const emptyForm = {
 export default function RecordEftPaymentModal({ activeMembers = [], onSave, onClose }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState(null);
+  const [memberQuery, setMemberQuery] = useState('');
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
-  const handlePickMember = (e) => {
-    const email = e.target.value;
-    if (!email) return;
-    const picked = activeMembers.find((m) => m.email === email);
+  const handleMemberQueryChange = (e) => {
+    const value = e.target.value;
+    setMemberQuery(value);
+    const picked = activeMembers.find((m) => `${m.member} (${m.email})` === value);
     if (picked) setForm({ ...form, member: picked.member, email: picked.email });
   };
 
@@ -106,12 +107,19 @@ export default function RecordEftPaymentModal({ activeMembers = [], onSave, onCl
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
               <Users size={13} /> Existing Active Member
             </label>
-            <select className="form-input" defaultValue="" onChange={handlePickMember}>
-              <option value="">— Pick a member to auto-fill name & email —</option>
+            <input
+              type="text"
+              className="form-input"
+              list="eft-active-members"
+              placeholder="Search by name or email to auto-fill —"
+              value={memberQuery}
+              onChange={handleMemberQueryChange}
+            />
+            <datalist id="eft-active-members">
               {activeMembers.map((m) => (
-                <option key={m.email} value={m.email}>{m.member} ({m.email})</option>
+                <option key={m.email} value={`${m.member} (${m.email})`} />
               ))}
-            </select>
+            </datalist>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
               Not listed (new or lapsed member)? Just type their name and email below.
             </p>
