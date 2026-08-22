@@ -33,9 +33,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // tested library here instead of re-implementing it a second time.
 import md5 from 'https://esm.sh/js-md5@0.8.3';
 
-// Matches PayFast's own encoding convention (and the one already used by
-// generatePayfastSignature in src/lib/payfast.js): standard URL-encoding
-// with spaces as '+' rather than '%20'.
+// Matches PayFast's own encoding convention (and the identical helper in
+// payfast-checkout/index.ts): standard URL-encoding with spaces as '+'
+// rather than '%20'.
 function pfEncode(value: string): string {
   return encodeURIComponent(value).replace(/%20/g, '+');
 }

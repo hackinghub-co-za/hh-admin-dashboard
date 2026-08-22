@@ -5,6 +5,11 @@ import { formatDate } from '../lib/dateFormat';
 
 export default function MemberProfileModal({ member, profile, onSave, onDelete, onClose, today }) {
   const [form, setForm] = useState({
+    // Defaults to the real first-payment date (still shown separately,
+    // read-only, as "First Payment" below) - editable here since it's wrong
+    // for anyone who joined before ever paying, or whose coaching
+    // relationship started on a genuinely different date.
+    startDate: profile?.manualStartDate || (member?.firstPaymentDate ? member.firstPaymentDate.split(' ')[0] : ''),
     age: profile?.age || '',
     gender: profile?.gender || '',
     location: profile?.location || '',
@@ -72,6 +77,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
     e.preventDefault();
     onSave(member.email, {
       ...form,
+      manualStartDate: form.startDate,
       moneyOwed: Number(form.moneyOwed) || 0,
       monthlyRemuneration: form.employmentStatus === 'Employed' ? (Number(form.monthlyRemuneration) || 0) : 0,
       jobTitle: form.employmentStatus === 'Employed' ? form.jobTitle : '',
@@ -173,7 +179,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
         >
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Calendar size={12} /> Start Date
+              <Calendar size={12} /> First Payment
             </div>
             <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
               {member.firstPaymentDate ? formatDate(member.firstPaymentDate.split(' ')[0]) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>No payment on record</span>}
@@ -221,6 +227,16 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
 
         {/* Editable profile fields */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <Calendar size={13} /> Start Date
+            </label>
+            <input type="date" className="form-input" value={form.startDate} onChange={update('startDate')} />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Defaults to their first payment date - override this if they joined before ever paying, or if their real start date is different. Drives tenure and time-to-outcome stats on the Insights tab.
+            </p>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Age</label>
