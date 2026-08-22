@@ -27,6 +27,7 @@ import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
 } from '../../lib/communityContentData';
+import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent } from '../../lib/eventsData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
@@ -67,6 +68,7 @@ import {
   Handshake,
   ListChecks,
   X,
+  Sparkles,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
@@ -894,6 +896,80 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       } catch (err) {
         setWinsError(friendlyErrorMessage(err));
         setWins((prev) => [...prev, win]);
+      }
+    }
+  };
+
+  // Suggested Content - real Supabase data for a real session, local-only
+  // demo state under Mock Admin. Replaces the member Dashboard's old
+  // "Billing Info" card, which was a blurred "Under Construction" stub.
+  const [suggestions, setSuggestions] = useState(isMockSession ? [
+    { id: 1, contentType: 'Article', title: 'What hiring managers actually look for on a junior SOC CV', url: '', active: true },
+  ] : []);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(!isMockSession);
+  const [suggestionsError, setSuggestionsError] = useState(null);
+  const [newSuggestion, setNewSuggestion] = useState({ contentType: 'Video', title: '', url: '' });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllSuggestedContent()
+      .then((data) => !cancelled && setSuggestions(data))
+      .catch((err) => !cancelled && setSuggestionsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingSuggestions(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleAddSuggestion = async (e) => {
+    e.preventDefault();
+    if (!newSuggestion.title.trim() || !newSuggestion.url.trim()) return;
+    const payload = { contentType: newSuggestion.contentType, title: newSuggestion.title.trim(), url: newSuggestion.url.trim() };
+    if (isMockSession) {
+      setSuggestions([{ id: Date.now(), ...payload, active: true }, ...suggestions]);
+    } else {
+      try {
+        const added = await addSuggestedContent({ ...payload, createdBy: user?.email });
+        setSuggestions([added, ...suggestions]);
+      } catch (err) {
+        setSuggestionsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setNewSuggestion({ contentType: 'Video', title: '', url: '' });
+  };
+
+  const [editingSuggestionId, setEditingSuggestionId] = useState(null);
+  const [editSuggestionForm, setEditSuggestionForm] = useState({ contentType: 'Video', title: '', url: '', active: true });
+
+  const startEditSuggestion = (s) => {
+    setEditingSuggestionId(s.id);
+    setEditSuggestionForm({ contentType: s.contentType, title: s.title, url: s.url, active: s.active });
+  };
+
+  const handleSaveSuggestionEdit = async (suggestion) => {
+    const payload = { contentType: editSuggestionForm.contentType, title: editSuggestionForm.title.trim(), url: editSuggestionForm.url.trim(), active: editSuggestionForm.active };
+    if (isMockSession) {
+      setSuggestions(suggestions.map((s) => (s.id === suggestion.id ? { ...s, ...payload } : s)));
+    } else {
+      try {
+        await updateSuggestedContent(suggestion.id, payload);
+        setSuggestions(suggestions.map((s) => (s.id === suggestion.id ? { ...s, ...payload } : s)));
+      } catch (err) {
+        setSuggestionsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setEditingSuggestionId(null);
+  };
+
+  const handleDeleteSuggestion = async (suggestion) => {
+    setSuggestions(suggestions.filter((s) => s.id !== suggestion.id));
+    if (!isMockSession) {
+      try {
+        await deleteSuggestedContent(suggestion.id);
+      } catch (err) {
+        setSuggestionsError(friendlyErrorMessage(err));
+        setSuggestions((prev) => [...prev, suggestion]);
       }
     }
   };
@@ -2798,7 +2874,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><Megaphone size={28} color="var(--accent-cyan)" /> Community Content</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>What members see on their Dashboard - the Community Broadcast feed and Recent Wins. Real content, editable here instead of a code change.</p>
+            <p style={{ color: 'var(--text-secondary)' }}>What members see on their Dashboard - the Community Broadcast feed, Recent Wins, and Suggested Content. Real content, editable here instead of a code change.</p>
           </div>
 
           {isMockSession && (
@@ -2907,6 +2983,74 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         {!w.active && <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>Inactive</span>}
                         <button onClick={() => startEditWin(w)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex' }} aria-label="Edit win"><Pencil size={14} /></button>
                         <button onClick={() => handleDeleteWin(w)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete win"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Suggested Content */}
+          <div className="glass-card" style={{ marginTop: '28px' }}>
+            <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={18} color="var(--accent-purple)" /> Suggested Content
+            </h3>
+            {suggestionsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{suggestionsError}</p>}
+
+            <form onSubmit={handleAddSuggestion} style={{ display: 'grid', gridTemplateColumns: '140px 1.5fr 2fr auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+              <select className="form-input" value={newSuggestion.contentType} onChange={(e) => setNewSuggestion({ ...newSuggestion, contentType: e.target.value })}>
+                <option value="Video">Video</option>
+                <option value="Article">Article</option>
+                <option value="TikTok">TikTok</option>
+                <option value="Meme">Meme</option>
+                <option value="Screenshot">Screenshot</option>
+                <option value="Other">Other</option>
+              </select>
+              <input className="form-input" value={newSuggestion.title} onChange={(e) => setNewSuggestion({ ...newSuggestion, title: e.target.value })} placeholder="Title, e.g. How to structure a SOC analyst CV" />
+              <input className="form-input" value={newSuggestion.url} onChange={(e) => setNewSuggestion({ ...newSuggestion, url: e.target.value })} placeholder="Link" />
+              <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', padding: '10px 16px' }}><Plus size={14} /> Add</button>
+            </form>
+
+            {loadingSuggestions ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+            ) : suggestions.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nothing suggested yet - members will see an empty state.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {suggestions.map((s) =>
+                  editingSuggestionId === s.id ? (
+                    <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '140px 1.5fr 2fr auto', gap: '10px', alignItems: 'center', padding: '10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
+                      <select className="form-input" value={editSuggestionForm.contentType} onChange={(e) => setEditSuggestionForm({ ...editSuggestionForm, contentType: e.target.value })}>
+                        <option value="Video">Video</option>
+                        <option value="Article">Article</option>
+                        <option value="TikTok">TikTok</option>
+                        <option value="Meme">Meme</option>
+                        <option value="Screenshot">Screenshot</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      <input className="form-input" value={editSuggestionForm.title} onChange={(e) => setEditSuggestionForm({ ...editSuggestionForm, title: e.target.value })} />
+                      <input className="form-input" value={editSuggestionForm.url} onChange={(e) => setEditSuggestionForm({ ...editSuggestionForm, url: e.target.value })} />
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => handleSaveSuggestionEdit(s)}>Save</button>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => setEditingSuggestionId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.62rem', marginRight: '8px' }}>{s.contentType}</span>
+                        <strong>{s.title}</strong>
+                        {isSafeUrl(s.url) && (
+                          <div style={{ marginTop: '2px' }}>
+                            <a href={s.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', fontSize: '0.78rem' }}>{s.url}</a>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                        {!s.active && <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>Inactive</span>}
+                        <button onClick={() => startEditSuggestion(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex' }} aria-label="Edit suggestion"><Pencil size={14} /></button>
+                        <button onClick={() => handleDeleteSuggestion(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete suggestion"><Trash2 size={14} /></button>
                       </div>
                     </div>
                   )

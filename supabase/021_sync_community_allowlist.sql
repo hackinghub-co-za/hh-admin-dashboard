@@ -17,11 +17,23 @@
 -- that's fine there since those are dedicated test accounts, not real members
 -- who may have already personalized their profile).
 
+-- Awonke's email changed to [REDACTED] - this has to run BEFORE
+-- the seed below, not after. The seed's VALUES list already includes
+-- [REDACTED] directly, so a rename attempted afterward would try
+-- to move this row onto a PK the seed had already inserted, which is exactly
+-- the "duplicate key value violates unique constraint" error this caused
+-- the first time. Renaming first means the seed's ON CONFLICT just updates
+-- this same (already-renamed) row instead of colliding with it - and since
+-- this only touches the email column, every other field already on the row
+-- (roadmap_track, location, etc.) carries over untouched rather than being
+-- lost the way a delete-and-reinsert would lose it.
+UPDATE public.member_profiles SET email = '[REDACTED]'
+WHERE email = '[REDACTED]';
+
 INSERT INTO public.member_profiles (email, status, full_name)
 VALUES
     ('[REDACTED]', 'Active', 'Akahopewell28'),
     ('[REDACTED]', 'Active', 'Asandancube070'),
-    ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Bmemthimunye85'),
     ('[REDACTED]', 'Active', 'Chiomaolebuike14'),
     ('[REDACTED]', 'Active', 'Clyde15sello'),
@@ -88,6 +100,7 @@ VALUES
     ('[REDACTED]', 'Active', 'Sizwezwane026'),
     ('[REDACTED]', 'Active', 'Sshabangu061'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
+    ('[REDACTED]', 'Active', 'Wandi'),
     ('[REDACTED]', 'Active', 'Thakgalangmphaila'),
     ('[REDACTED]', 'Active', 'Thatopilusa97'),
     ('[REDACTED]', 'Active', 'Timothyadams3012002'),
@@ -97,6 +110,7 @@ VALUES
     ('[REDACTED]', 'Active', 'Tshireletsomoeti062'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Ululamilemabunda'),
+    ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Wafs2damax'),
     ('[REDACTED]', 'Active', 'Zanele.k.mpofu'),

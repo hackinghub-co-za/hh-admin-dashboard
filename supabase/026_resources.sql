@@ -31,11 +31,13 @@
 -- given for them, and a resource card with no link renders as a disabled
 -- "Coming Soon" button - so rather than publish a broken-looking card for
 -- content that's actually available, they're just named as further reading
+-- (PocketPrep has since gotten a real link and its own card further down;
+-- Open-exam-prep hasn't, so it's still only mentioned this way)
 -- inside the overview entry's description instead of getting their own card.
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id BIGSERIAL PRIMARY KEY,
-  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates')),
+  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy')),
   title TEXT NOT NULL,
   format TEXT,
   description TEXT,
@@ -43,6 +45,13 @@ CREATE TABLE IF NOT EXISTS public.resources (
   created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Widens the category CHECK for a database where this table already existed
+-- before 'LinkedIn Strategy' was added - the inline CHECK above only takes
+-- effect on a fresh CREATE TABLE, not an existing one.
+ALTER TABLE public.resources DROP CONSTRAINT IF EXISTS resources_category_check;
+ALTER TABLE public.resources ADD CONSTRAINT resources_category_check
+  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy'));
 
 ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 
@@ -113,38 +122,61 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'HH Interview Playbook'
 );
 
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
+-- The 3 separate Security+ cards below (official overview, Professor
+-- Messer's course, ExamCompass practice tests) were consolidated into one
+-- in-app guide, same move as the LinkedIn Playbook - one place with all 3
+-- real links instead of 3 separate cards to click through. Removed here so a
+-- database that already ran the old inserts doesn't end up with both.
+DELETE FROM public.resources WHERE title IN (
   'CompTIA Security+',
-  'Certification',
-  'A highly recognized, vendor-neutral certification for starting a career in cybersecurity - covers core security principles, concepts, and best practices without tying you to one specific technology or platform. Price: R5,412. Recommended study duration: 4 to 12 weeks. Members have also used Open-exam-prep and PocketPrep for extra practice questions.',
-  'https://www.comptia.org/en-us/certifications/security/#overview',
-  NULL
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.resources WHERE title = 'CompTIA Security+'
-);
-
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
   'Professor Messer — Security+ Video Course',
-  'Video Playlist',
-  'Free, full-length CompTIA Security+ video course covering every exam objective, taught by Professor Messer.',
-  'https://www.youtube.com/playlist?list=PLG49S3nxzAnl4QDVqK-hOnoqcSKEIDDuv',
+  'ExamCompass — Security+ Practice Tests'
+);
+
+-- Content (official overview, video course, and practice test links) is
+-- hardcoded as an in-app article in MemberPortal.jsx
+-- (SecurityPlusGuideModal.jsx), same pattern as the LinkedIn Playbook - this
+-- row just catalogs it in Resources with a short teaser; the "Read Guide"
+-- button opens the real content, with real clickable links, in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'CompTIA Security+ Study Guide',
+  'Guide',
+  'What it costs, how long to study, and every free resource members actually use - official overview, Professor Messer''s full video course, ExamCompass practice tests, and PocketPrep.',
+  NULL,
   NULL
 WHERE NOT EXISTS (
-  SELECT 1 FROM public.resources WHERE title = 'Professor Messer — Security+ Video Course'
+  SELECT 1 FROM public.resources WHERE title = 'CompTIA Security+ Study Guide'
+);
+
+-- Unlike every other link-less entry above, this one isn't a name with no
+-- link to give it - it's an original guide with real content, so a
+-- "Coming Soon" disabled button would misrepresent it as unfinished. The
+-- full guide is hardcoded as an in-app article in MemberPortal.jsx
+-- (LINKEDIN_PLAYBOOK_SECTIONS) rather than a Google Doc link like the HH
+-- Interview Playbook above - this row just catalogs it in Resources with a
+-- short teaser; the "Read Guide" button opens the real content in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'LinkedIn Strategy',
+  'The Hacking Hub LinkedIn Playbook',
+  'Guide',
+  'Photo, banner, headline, About section, posting cadence, and what to avoid - the full checklist for a LinkedIn profile that actually gets you noticed.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'The Hacking Hub LinkedIn Playbook'
 );
 
 INSERT INTO public.resources (category, title, format, description, link, created_by)
 SELECT
   'Cert Prep',
-  'ExamCompass — Security+ Practice Tests',
-  'Practice Test',
-  'Free Security+ practice tests to check exam readiness before booking the real thing.',
-  'https://www.examcompass.com/comptia/security-plus-certification/free-security-plus-practice-tests',
+  'PocketPrep',
+  'App',
+  'Mobile and web app for studying popular ISC2, CompTIA, and Cisco exams.',
+  'https://study.pocketprep.com/study',
   NULL
 WHERE NOT EXISTS (
-  SELECT 1 FROM public.resources WHERE title = 'ExamCompass — Security+ Practice Tests'
+  SELECT 1 FROM public.resources WHERE title = 'PocketPrep'
 );

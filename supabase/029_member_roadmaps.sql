@@ -460,6 +460,13 @@ BEGIN
   END IF;
 END $$;
 
+-- Awonke's email changed to [REDACTED]
+-- (021_sync_community_allowlist.sql) - renames any already-seeded roadmap
+-- rows in place first, so re-running this file after the email change
+-- doesn't leave them orphaned under the old email. Everything below already
+-- uses the new email directly.
+UPDATE public.roadmap_items SET member_email = '[REDACTED]' WHERE member_email = '[REDACTED]';
+
 -- [REDACTED] ([REDACTED]) - Offensive Security track,
 -- Pen Testing specialization.
 UPDATE public.member_profiles SET roadmap_track = 'Offensive Security' WHERE email = '[REDACTED]';
