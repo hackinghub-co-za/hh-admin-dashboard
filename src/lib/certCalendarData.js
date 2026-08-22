@@ -9,7 +9,7 @@ import { supabase } from './supabase';
 export async function fetchCertCalendar() {
   const { data, error } = await supabase
     .from('cert_calendar')
-    .select('id, member, cert_name, date, cohort, result, created_by')
+    .select('id, member, cert_name, date, cohort, result, created_by, member_email')
     .order('date', { ascending: true });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -20,13 +20,18 @@ export async function fetchCertCalendar() {
     cohort: row.cohort || 'General',
     result: row.result,
     createdBy: row.created_by || '',
+    memberEmail: row.member_email || '',
   }));
 }
 
 /** Adds a new cert calendar entry, self-attributed to the current member (RLS
- * enforces created_by can only ever be the caller's own email, and result
- * always starts 'Pending'). */
-export async function addCertCalendarEntry({ member, cert, date, cohort, createdBy }) {
+ * enforces created_by AND member_email can only ever be the caller's own
+ * email for a self-submission, and result always starts 'Pending').
+ * memberEmail is the actual certified member's email - callers must pass it
+ * explicitly rather than relying on a fallback here, since defaulting to
+ * createdBy would be wrong whenever an admin adds an entry on someone else's
+ * behalf (createdBy would be the admin's own email, not the member's). */
+export async function addCertCalendarEntry({ member, cert, date, cohort, createdBy, memberEmail }) {
   const { data, error } = await supabase
     .from('cert_calendar')
     .insert({
@@ -35,6 +40,7 @@ export async function addCertCalendarEntry({ member, cert, date, cohort, created
       date,
       cohort: cohort || null,
       created_by: createdBy.toLowerCase(),
+      member_email: memberEmail ? memberEmail.toLowerCase() : null,
     })
     .select()
     .single();
@@ -47,6 +53,7 @@ export async function addCertCalendarEntry({ member, cert, date, cohort, created
     cohort: data.cohort || 'General',
     result: data.result,
     createdBy: data.created_by || '',
+    memberEmail: data.member_email || '',
   };
 }
 
@@ -60,7 +67,7 @@ export async function updateCertCalendarResult(id, result) {
 /** Admin-only: edits any field of an existing cert calendar entry (not just
  * the result). RLS (admins manage cert calendar) rejects this for non-admins
  * - a member can only ever add their own entry, never edit one. */
-export async function updateCertCalendarEntry(id, { member, cert, date, cohort, result }) {
+export async function updateCertCalendarEntry(id, { member, cert, date, cohort, result, memberEmail }) {
   const { error } = await supabase
     .from('cert_calendar')
     .update({
@@ -69,6 +76,7 @@ export async function updateCertCalendarEntry(id, { member, cert, date, cohort, 
       date,
       cohort: cohort || null,
       result,
+      member_email: memberEmail ? memberEmail.toLowerCase() : null,
     })
     .eq('id', id);
   if (error) throw error;
