@@ -154,21 +154,45 @@ export async function fetchEftPayments() {
   }));
 }
 
-/** Insert a manually-recorded EFT payment. */
-export async function insertEftPayment(payment) {
-  const { error } = await supabase.from('eft_payments').insert({
-    pf_id: payment.pfId,
-    member: payment.member,
-    email: payment.email,
-    plan: payment.plan,
-    amount: payment.amount,
-    fee: payment.fee || 0,
-    net: payment.net,
-    funding_type: payment.fundingType || 'EFT',
-    date: payment.date,
-    status: payment.status || 'COMPLETE',
-    bank_reference: payment.bankReference || null,
-    notes: payment.notes || null,
-  });
+/** Delete a manually-recorded EFT payment. `id` is the raw eft_payments.id - callers using the mapped payments list (fetchEftPayments) must subtract the 10000 offset first. */
+export async function deleteEftPayment(id) {
+  const { error } = await supabase.from('eft_payments').delete().eq('id', id);
   if (error) throw error;
+}
+
+/** Insert a manually-recorded EFT payment. Returns the saved row, mapped the same way fetchEftPayments does, so the caller can trust its id for a later delete. */
+export async function insertEftPayment(payment) {
+  const { data, error } = await supabase
+    .from('eft_payments')
+    .insert({
+      pf_id: payment.pfId,
+      member: payment.member,
+      email: payment.email,
+      plan: payment.plan,
+      amount: payment.amount,
+      fee: payment.fee || 0,
+      net: payment.net,
+      funding_type: payment.fundingType || 'EFT',
+      date: payment.date,
+      status: payment.status || 'COMPLETE',
+      bank_reference: payment.bankReference || null,
+      notes: payment.notes || null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return {
+    id: 10000 + data.id,
+    pfId: data.pf_id,
+    member: data.member,
+    email: data.email,
+    type: 'Funds Received',
+    plan: data.plan,
+    amount: Number(data.amount),
+    fee: Number(data.fee) || 0,
+    net: Number(data.net),
+    fundingType: data.funding_type || 'EFT',
+    date: data.date,
+    status: data.status || 'COMPLETE',
+  };
 }

@@ -16,6 +16,7 @@ import {
   insertManualMember,
   fetchEftPayments,
   insertEftPayment,
+  deleteEftPayment,
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
 import { fetchAllReferrals } from '../../lib/referralsData';
@@ -1111,10 +1112,9 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // EFT payments land straight in the same `payments` list as PayFast transactions,
   // tagged with fundingType 'EFT' - so revenue totals, the audit table, and each
   // member's spend all pick them up automatically, no separate accounting needed.
-  const handleRecordEftPayment = (form) => {
+  const handleRecordEftPayment = async (form) => {
     const amount = Number(form.amount) || 0;
-    const newPayment = {
-      id: payments.length + 1,
+    const basePayment = {
       pfId: `EFT-${form.bankReference.trim() || Date.now()}`,
       member: form.member.trim(),
       email: form.email.trim(),
@@ -1129,9 +1129,34 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       bankReference: form.bankReference || undefined,
       notes: form.notes || undefined,
     };
-    setPayments((prev) => [newPayment, ...prev]);
+    if (isMockSession) {
+      setPayments((prev) => [{ id: Date.now(), ...basePayment }, ...prev]);
+      return;
+    }
+    try {
+      const saved = await insertEftPayment(basePayment);
+      setPayments((prev) => [saved, ...prev]);
+    } catch (err) {
+      setSavedMemberDataError(friendlyErrorMessage(err));
+    }
+  };
+
+  // EFT rows are admin-entered, not a real gateway record like PayFast, so
+  // deleting one just corrects a mistake (e.g. a duplicate entry) rather than
+  // hiding a real charge - PayFast-sourced rows deliberately have no delete
+  // path here for that reason. `payment.id` is the mapped `10000 + real id`
+  // from fetchEftPayments/insertEftPayment, so it has to be un-offset before
+  // hitting the table.
+  const handleDeleteEftPayment = async (payment) => {
+    if (!window.confirm(`Delete this EFT payment of R${payment.amount.toFixed(2)} from ${payment.member}? This can't be undone.`)) return;
+    setPayments((prev) => prev.filter((p) => p.id !== payment.id));
     if (!isMockSession) {
-      insertEftPayment(newPayment).catch((err) => setSavedMemberDataError(friendlyErrorMessage(err)));
+      try {
+        await deleteEftPayment(payment.id - 10000);
+      } catch (err) {
+        setSavedMemberDataError(friendlyErrorMessage(err));
+        setPayments((prev) => [payment, ...prev]);
+      }
     }
   };
 
@@ -3387,6 +3412,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Gross</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Fee</th>
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Net Payout</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -3411,6 +3437,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     <td style={{ padding: '16px 12px', fontWeight: 700, color: '#fff' }}>R {p.amount.toFixed(2)}</td>
                     <td style={{ padding: '16px 12px', color: 'var(--warning)', fontSize: '0.85rem' }}>-R {(p.fee || 0).toFixed(2)}</td>
                     <td style={{ padding: '16px 12px', fontWeight: 700, color: 'var(--success)' }}>R {(p.net || (p.amount - (p.fee || 0))).toFixed(2)}</td>
+                    <td style={{ padding: '16px 12px' }}>
+                      {p.fundingType === 'EFT' && (
+                        <button onClick={() => handleDeleteEftPayment(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'flex' }} aria-label="Delete EFT payment">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
