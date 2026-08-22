@@ -90,6 +90,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [certEventsError, setCertEventsError] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [hoveredTrendMonth, setHoveredTrendMonth] = useState(null);
 
   // Roadmaps tab - one member's checklist at a time, admin-authored. Real
   // Supabase data for a real session (RLS grants admins full visibility via
@@ -1034,6 +1035,14 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // consistent with the transaction data rather than drifting with wall-clock time.
   const today = new Date('2026-08-07');
 
+  // The real wall-clock date, for windows that need to genuinely track "now" -
+  // upcoming renewal countdowns and rolling revenue windows (MRR, weekly) -
+  // rather than the frozen export-date anchor above. Live/EFT payments are
+  // recorded with real dates, so measuring "trailing 30 days" or "days until
+  // renewal" against the frozen anchor made those tiles drift stale instead
+  // of updating as new transactions came in.
+  const realNow = new Date();
+
   // "Passed" is only counted once someone has explicitly marked the result - an
   // exam date simply being in the past doesn't mean it was taken, let alone passed.
   const certsPassedThisMonth = certs.filter(c => {
@@ -1059,7 +1068,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   );
 
   // Recurring revenue run-rate: Basic Access + Monthly Operative payments in the trailing 30 days
-  const last30DaysStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const last30DaysStart = new Date(realNow.getTime() - 30 * 24 * 60 * 60 * 1000);
   const monthlyRecurringRevenue = payments
     .filter(p => (p.plan === 'Monthly Operative' || p.plan === 'Basic Access') && new Date(p.date) >= last30DaysStart)
     .reduce((acc, p) => acc + p.amount, 0);
@@ -1093,15 +1102,27 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // Refunded transactions (Funds Received Reversals)
   const refundCount = payments.filter(p => p.type === 'Funds Received (Reversal)').length;
 
-  // Monthly gross revenue trend, computed directly from the transaction history
-  const mrrTrendMonths = ['2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'];
-  const mrrTrend = mrrTrendMonths.map(month => ({
-    label: new Date(`${month}-01`).toLocaleDateString('en-ZA', { month: 'short' }),
-    value: payments
-      .filter(p => p.type === 'Funds Received' && p.date.startsWith(month))
-      .reduce((acc, p) => acc + p.amount, 0),
-  }));
-  const mrrTrendMax = Math.max(...mrrTrend.map(m => m.value), 1);
+  // Monthly gross revenue trend, split by funding source, computed directly
+  // from the transaction history (PayFast card payments vs. manually-recorded
+  // EFT bank transfers).
+  const revenueTrendMonths = ['2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'];
+  const revenueTrend = revenueTrendMonths.map(month => {
+    const monthPayments = payments.filter(p => p.type === 'Funds Received' && p.date.startsWith(month));
+    const payfast = monthPayments.filter(p => p.fundingType !== 'EFT').reduce((acc, p) => acc + p.amount, 0);
+    const eft = monthPayments.filter(p => p.fundingType === 'EFT').reduce((acc, p) => acc + p.amount, 0);
+    return {
+      month,
+      label: new Date(`${month}-01`).toLocaleDateString('en-ZA', { month: 'short' }),
+      payfast,
+      eft,
+      total: payfast + eft,
+    };
+  });
+  const revenueTrendMax = Math.max(...revenueTrend.map(m => m.total), 1);
+  // Round the axis top up to a clean step so the y-axis ticks read as round
+  // numbers (R5,000 / R10,000 / ...) instead of an arbitrary max value.
+  const revenueTrendStep = revenueTrendMax <= 5000 ? 1000 : revenueTrendMax <= 20000 ? 5000 : revenueTrendMax <= 50000 ? 10000 : 20000;
+  const revenueTrendNiceMax = Math.max(revenueTrendStep, Math.ceil(revenueTrendMax / revenueTrendStep) * revenueTrendStep);
 
   const filteredPayments = payments
     .filter(p =>
@@ -1296,14 +1317,108 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginTop: '32px' }}>
             {/* Quick Chart */}
             <div className="glass-card">
-              <h3 style={{ marginBottom: '24px' }}>Gross Revenue Trend (ZAR)</h3>
-              <div style={{ height: '200px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px', padding: '10px 0' }}>
-                {mrrTrend.map((m, idx) => (
-                  <div key={idx} style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '100%', height: `${(m.value / mrrTrendMax) * 160}px`, background: 'linear-gradient(to top, var(--accent-purple), var(--accent-cyan))', borderRadius: '4px' }}></div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{m.label}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <h3 style={{ margin: 0 }}>Gross Revenue Trend (ZAR)</h3>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'var(--accent-cyan)', display: 'inline-block', flexShrink: 0 }} />
+                    PayFast
                   </div>
-                ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'var(--warning)', display: 'inline-block', flexShrink: 0 }} />
+                    EFT
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {/* Y-axis ticks */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '160px', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textAlign: 'right', minWidth: '54px' }}>
+                  <span>R {revenueTrendNiceMax.toLocaleString('en-ZA')}</span>
+                  <span>R {Math.round(revenueTrendNiceMax / 2).toLocaleString('en-ZA')}</span>
+                  <span>R 0</span>
+                </div>
+
+                {/* Plot area */}
+                <div style={{ position: 'relative', flex: 1 }}>
+                  {/* Recessive gridlines */}
+                  <div style={{ position: 'absolute', inset: 0, height: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
+                    <div style={{ borderTop: '1px solid var(--border-color)' }} />
+                    <div style={{ borderTop: '1px solid var(--border-color)' }} />
+                    <div style={{ borderTop: '1px solid var(--border-color)' }} />
+                  </div>
+
+                  <div style={{ height: '160px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px', position: 'relative' }}>
+                    {revenueTrend.map((m) => {
+                      const payfastHeight = (m.payfast / revenueTrendNiceMax) * 160;
+                      const eftHeight = (m.eft / revenueTrendNiceMax) * 160;
+                      const isHovered = hoveredTrendMonth === m.month;
+                      return (
+                        <div
+                          key={m.month}
+                          style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', position: 'relative' }}
+                          onMouseEnter={() => setHoveredTrendMonth(m.month)}
+                          onMouseLeave={() => setHoveredTrendMonth(null)}
+                        >
+                          {isHovered && (
+                            <div
+                              role="tooltip"
+                              style={{
+                                position: 'absolute',
+                                bottom: `${payfastHeight + eftHeight + 30}px`,
+                                background: 'var(--bg-primary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 'var(--border-radius-sm)',
+                                padding: '10px 14px',
+                                fontSize: '0.78rem',
+                                whiteSpace: 'nowrap',
+                                zIndex: 10,
+                                boxShadow: 'var(--glass-shadow)',
+                              }}
+                            >
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>{m.label} 2026</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', color: 'var(--text-secondary)' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ width: '8px', height: '2px', background: 'var(--accent-cyan)', display: 'inline-block' }} /> PayFast
+                                </span>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>R {m.payfast.toLocaleString('en-ZA')}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ width: '8px', height: '2px', background: 'var(--warning)', display: 'inline-block' }} /> EFT
+                                </span>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>R {m.eft.toLocaleString('en-ZA')}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', borderTop: '1px solid var(--border-color)', marginTop: '6px', paddingTop: '6px' }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>Total</span>
+                                <span style={{ color: 'var(--success)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>R {m.total.toLocaleString('en-ZA')}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px', fontVariantNumeric: 'tabular-nums' }}>
+                            {m.total > 0 ? `R${Math.round(m.total).toLocaleString('en-ZA')}` : 'R 0'}
+                          </span>
+
+                          <div style={{ width: '22px', display: 'flex', flexDirection: 'column', filter: isHovered ? 'brightness(1.2)' : 'none', transition: 'filter 0.15s ease' }}>
+                            {m.eft > 0 && (
+                              <div style={{ width: '100%', height: `${Math.max(eftHeight, 3)}px`, background: 'var(--warning)', borderRadius: '4px 4px 0 0' }} />
+                            )}
+                            {m.payfast > 0 && m.eft > 0 && <div style={{ height: '2px', background: 'var(--bg-primary)' }} />}
+                            {m.payfast > 0 && (
+                              <div style={{ width: '100%', height: `${Math.max(payfastHeight, 3)}px`, background: 'var(--accent-cyan)', borderRadius: m.eft > 0 ? '0' : '4px 4px 0 0' }} />
+                            )}
+                            {m.total === 0 && (
+                              <div style={{ width: '100%', height: '2px', background: 'var(--border-color)' }} />
+                            )}
+                          </div>
+
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '8px' }}>{m.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -3142,13 +3257,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         .filter(p => p.date.startsWith('2026-08'))
         .reduce((acc, p) => acc + p.amount, 0);
 
-      const past7DaysCutoff = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const past7DaysCutoff = new Date(realNow.getTime() - 7 * 24 * 60 * 60 * 1000);
       const weeklyRevenue = payments
         .filter(p => new Date(p.date) >= past7DaysCutoff)
         .reduce((acc, p) => acc + p.amount, 0);
 
-      // Last 5 PayFast Transactions
-      const last5Transactions = payments.slice(0, 5);
+      // Last 5 Transactions, newest first - `payments` isn't kept in date order
+      // (it's assembled from separate live/EFT/historical sources), so this has
+      // to sort explicitly rather than trust array position.
+      const last5Transactions = [...payments]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 5);
 
       // Next 5 Upcoming Recurring Payments (Calculated 30 days after each member's MOST
       // RECENT payment date). Only plans that actually renew monthly qualify - Permanent
@@ -3171,7 +3290,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           const lastDate = new Date(p.date);
           const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
           const nextDateStr = nextDate.toISOString().split('T')[0];
-          const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
+          const daysUntil = Math.ceil((nextDate - realNow) / (1000 * 60 * 60 * 24));
           return {
             id: p.id,
             member: p.member,
@@ -3236,12 +3355,12 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
           {/* Last 5 Transactions & Next 5 Upcoming Renewals */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
-            {/* Last 5 PayFast Transactions */}
+            {/* Last 5 Transactions */}
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <CreditCard size={20} color="var(--success)" />
-                  <h3 style={{ margin: 0 }}>Last 5 PayFast Transactions</h3>
+                  <h3 style={{ margin: 0 }}>Last 5 Transactions</h3>
                 </div>
                 <span className="badge badge-success">Processed</span>
               </div>
