@@ -62,6 +62,7 @@ VALUES
     ('[REDACTED]', 'Active', 'Maso.ntlanga'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Mimieportiadhladla'),
+    ('[REDACTED]', 'Active', 'Moloko'),
     ('[REDACTED]', 'Active', 'Molvercallum'),
     ('[REDACTED]', 'Active', 'Monenecmasekoameng'),
     ('[REDACTED]', 'Active', 'Motholobakang4'),
