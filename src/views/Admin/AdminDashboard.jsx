@@ -597,6 +597,8 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   };
 
   const handleUpdateCertResult = async (id, result) => {
+    const cert = certs.find((c) => c.id === id);
+    const justPassed = result === 'Passed' && cert?.result !== 'Passed';
     setCerts(certs.map(c => c.id === id ? { ...c, result } : c));
     if (!isMockSession) {
       try {
@@ -605,6 +607,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         setCertsError(friendlyErrorMessage(err));
       }
     }
+    if (justPassed && cert) announceCertWin({ ...cert, result });
   };
 
   const [editingCertId, setEditingCertId] = useState(null);
@@ -617,6 +620,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
   const handleSaveCertEdit = async (cert) => {
     const updated = { ...cert, ...editCertForm };
+    const justPassed = updated.result === 'Passed' && cert.result !== 'Passed';
     if (isMockSession) {
       setCerts(certs.map((c) => (c.id === cert.id ? updated : c)));
     } else {
@@ -629,6 +633,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       }
     }
     setEditingCertId(null);
+    if (justPassed) announceCertWin(updated);
   };
 
   const handleDeleteCert = async (cert) => {
@@ -832,6 +837,29 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       }
     }
     setNewWin({ member: '', achievement: '', achievedDate: '', linkedinUrl: '' });
+  };
+
+  // Fires the moment a cert calendar entry is marked Passed, so a Recent Win
+  // announcement doesn't depend on an admin remembering to add one by hand.
+  // Uses the exam date as achievedDate (when the pass actually happened, not
+  // whenever someone got around to marking it) - same as every other seeded win.
+  const announceCertWin = async (cert) => {
+    const payload = {
+      member: cert.member,
+      achievement: `passed ${cert.cert}`,
+      achievedDate: cert.date,
+      linkedinUrl: '',
+    };
+    if (isMockSession) {
+      setWins((prev) => [{ id: Date.now(), ...payload, active: true }, ...prev].sort((a, b) => new Date(b.achievedDate) - new Date(a.achievedDate)));
+    } else {
+      try {
+        const added = await addCommunityWin({ ...payload, createdBy: user?.email });
+        setWins((prev) => [added, ...prev].sort((a, b) => new Date(b.achievedDate) - new Date(a.achievedDate)));
+      } catch (err) {
+        setWinsError(friendlyErrorMessage(err));
+      }
+    }
   };
 
   const [editingWinId, setEditingWinId] = useState(null);
@@ -2985,8 +3013,14 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               {certsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{certsError}</p>}
               {loadingCerts && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>Loading cert calendar...</p>}
 
+              {/* Passed exams sink to the bottom - this section is about what's
+                  still upcoming, so a resolved cert shouldn't compete for the
+                  same visual priority as one still awaiting a result. */}
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                {certs.map((c) => {
+                {[...certs]
+                  .sort((a, b) => (a.result === 'Passed' ? 1 : 0) - (b.result === 'Passed' ? 1 : 0))
+                  .map((c) => {
                   const targetDate = new Date(c.date);
                   const today = new Date();
                   const diffTime = targetDate - today;
