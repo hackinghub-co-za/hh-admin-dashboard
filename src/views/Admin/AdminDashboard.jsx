@@ -877,11 +877,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [loadingLivePayments, setLoadingLivePayments] = useState(!isMockSession);
   const [livePaymentsError, setLivePaymentsError] = useState(null);
 
+  // This effect and the EFT one below both write to `payments` on every
+  // dataRefreshKey bump, with no ordering guarantee between them. Each one
+  // only ever replaces its own slice (filtering the other's rows back in
+  // rather than clobbering `prev`) so neither can wipe the other out or pile
+  // up duplicates across refreshes - EFT-only payers were dropping out of
+  // "Active" status whenever this effect happened to resolve last.
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
     fetchPayfastPayments()
-      .then((live) => !cancelled && setPayments([...live, ...payfastTransactionsData]))
+      .then((live) => !cancelled && setPayments((prev) => [...live, ...payfastTransactionsData, ...prev.filter((p) => p.fundingType === 'EFT')]))
       .catch((err) => !cancelled && setLivePaymentsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingLivePayments(false));
     return () => { cancelled = true; };
@@ -905,7 +911,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         if (cancelled) return;
         setMemberProfiles(profiles);
         setManualMembers(manual);
-        if (eft.length) setPayments((prev) => [...eft, ...prev]);
+        setPayments((prev) => [...eft, ...prev.filter((p) => p.fundingType !== 'EFT')]);
         setDeletedEmails(new Set(deleted));
       })
       .catch((err) => !cancelled && setSavedMemberDataError(friendlyErrorMessage(err)))
@@ -1018,7 +1024,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       bankReference: form.bankReference || undefined,
       notes: form.notes || undefined,
     };
-    setPayments([newPayment, ...payments]);
+    setPayments((prev) => [newPayment, ...prev]);
     if (!isMockSession) {
       insertEftPayment(newPayment).catch((err) => setSavedMemberDataError(friendlyErrorMessage(err)));
     }
@@ -1097,12 +1103,14 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   }));
   const mrrTrendMax = Math.max(...mrrTrend.map(m => m.value), 1);
 
-  const filteredPayments = payments.filter(p =>
-    p.member.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.pfId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.plan.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPayments = payments
+    .filter(p =>
+      p.member.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.pfId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.plan.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   // Member roster: one row per distinct payer, aggregated from the real transaction
   // history (name, email, tenure, plan, and total spend). Demographic/profile fields
@@ -3118,7 +3126,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
           {showEftModal && (
             <RecordEftPaymentModal
-              activeMembers={memberRoster.filter(m => m.status === 'Active')}
+              members={memberRoster}
               onSave={handleRecordEftPayment}
               onClose={() => setShowEftModal(false)}
             />
