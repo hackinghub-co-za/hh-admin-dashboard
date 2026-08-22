@@ -117,8 +117,9 @@ const MENTORS = [
     photo: '/mentors/nonhlanhla-zwane-headshot.jpeg',
     badge: 'COMMUNITY MENTOR',
     badgeClass: 'badge-warning',
-    sideNote: 'Synced via Siya',
+    sideNote: 'Book Directly',
     bio: 'Data Security & AI.',
+    bookingUrl: 'https://calendly.com/nonhlanhlakamangethe/30min',
   },
   {
     id: 'nokulunga',
@@ -2348,13 +2349,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
                 <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   <a
-                    href={MENTOR_CALENDAR_URL}
+                    href={m.bookingUrl || MENTOR_CALENDAR_URL}
                     target="_blank"
                     rel="noreferrer"
                     className={`btn ${m.primary ? 'btn-primary' : 'btn-secondary'}`}
                     style={{ width: '100%', justifyContent: 'center' }}
                   >
-                    <Calendar size={16} /> {m.primary ? 'Book 1on1 on Google Calendar' : 'Schedule Slot'} <ExternalLink size={14} />
+                    <Calendar size={16} /> {m.primary ? 'Book 1on1 on Google Calendar' : m.bookingUrl ? 'Book 1on1 Directly' : 'Schedule Slot'} <ExternalLink size={14} />
                   </a>
                 </div>
               </div>
