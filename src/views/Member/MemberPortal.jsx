@@ -13,6 +13,7 @@ import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack, fetchMyRoadma
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { fetchMyStartDate } from '../../lib/startDateData';
+import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -166,6 +167,23 @@ function daysUntilEvent(dateStr) {
   return Math.round((eventDate - now) / (1000 * 60 * 60 * 24));
 }
 
+// Recent Wins used to carry a static "Today"/"Recently" label that was
+// accurate once and then just sat there. This computes a live one from the
+// real achieved_date instead, so it stays honest as time passes.
+function relativeWinDateLabel(dateStr) {
+  const daysAgo = -daysUntilEvent(dateStr);
+  if (daysAgo <= 0) return 'Today';
+  if (daysAgo === 1) return 'Yesterday';
+  if (daysAgo < 7) return `${daysAgo} days ago`;
+  if (daysAgo < 30) { const weeks = Math.floor(daysAgo / 7); return `${weeks} week${weeks === 1 ? '' : 's'} ago`; }
+  return formatDate(dateStr);
+}
+
+// Recent Wins cards no longer store their own color - assigned from this
+// palette by position instead, so admins adding a win never have to think
+// about theming.
+const WIN_AVATAR_COLORS = ['var(--accent-purple)', 'var(--accent-cyan)', 'var(--success)', 'var(--warning)'];
+
 function formatEventCountdown(days) {
   if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`;
   if (days === 0) return 'Today';
@@ -243,19 +261,17 @@ const MOCK_LEADERBOARD = [
   { email: 'lindokuhle@example.com', member: 'Lindokuhle Dube', rooms: 5, daysLogged: 8 },
 ];
 
-// Dashboard "Community Broadcast" feed - only one shows at a time, auto-rotating
-// (see broadcastIndex state below), rather than all listed at once.
-const COMMUNITY_BROADCASTS = [
-  { emoji: '🤝', title: 'Matchmaker is live:', body: "Opt in and get randomly grouped with 1-3 other members for a project or presentation. Head to Matchmaker → Count Me In." },
-  { emoji: '🏆', title: 'TryHackMe Competition kicks off 24 August:', body: 'Complete as many rooms as you can this quarter for a shot at the bigger prizes — top 3 finishers win cert vouchers up to R10,000. Get logging early once it opens.' },
+// Community Broadcast and Recent Wins are real Supabase data now
+// (044_community_content.sql) - these are only the Mock Member fallback,
+// since there's no real session to fetch from under mock.
+const MOCK_COMMUNITY_BROADCASTS = [
+  { id: 1, emoji: '🤝', title: 'Matchmaker is live:', body: "Opt in and get randomly grouped with 1-3 other members for a project or presentation. Head to Matchmaker → Count Me In." },
+  { id: 2, emoji: '🏆', title: 'TryHackMe Competition kicks off 31 August:', body: 'Complete as many rooms as you can this quarter — 1st place wins a R6,000 cert voucher, 2nd R3,000, 3rd R1,000. Get logging early once it opens.' },
 ];
 
-// Recent member wins - certs, job placements, whatever's worth celebrating.
-// linkedinUrl is optional; where there's no specific post to link to, the
-// member's name just renders as plain text instead of a fabricated link.
-const communityVictories = [
-  { id: 1, member: 'Philisiwe N.', achievement: 'earned SC-900: Security, Compliance & Identity Fundamentals', date: 'Today', avatarColor: 'var(--accent-purple)', linkedinUrl: 'https://www.linkedin.com/posts/philisiwe-ncube-258263360_sc900-microsoftcertified-cybersecurity-activity-7494082635091251201-xzT6' },
-  { id: 2, member: 'Kiolin', achievement: 'landed a Software Developer internship', date: 'Recently', avatarColor: 'var(--accent-cyan)', linkedinUrl: 'https://www.linkedin.com/in/kiolinharisanker/' },
+const MOCK_COMMUNITY_WINS = [
+  { id: 1, member: 'Philisiwe N.', achievement: 'earned SC-900: Security, Compliance & Identity Fundamentals', achievedDate: '2026-08-20', linkedinUrl: 'https://www.linkedin.com/posts/philisiwe-ncube-258263360_sc900-microsoftcertified-cybersecurity-activity-7494082635091251201-xzT6' },
+  { id: 2, member: 'Kiolin', achievement: 'landed a Software Developer internship', achievedDate: '2026-08-15', linkedinUrl: 'https://www.linkedin.com/in/kiolinharisanker/' },
 ];
 
 const SIYA_EMAIL = 'siya@hackinghub.co.za';
@@ -264,16 +280,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [selectedCert, setSelectedCert] = useState(null);
   const firstName = (user?.user_metadata?.full_name || user?.email || 'there').trim().split(' ')[0];
 
-  // Community Broadcast auto-rotates through COMMUNITY_BROADCASTS one at a time
-  // rather than listing every update at once.
+  // Community Broadcast - real Supabase data for a real session, local-only
+  // demo state under Mock Member. Auto-rotates one at a time rather than
+  // listing every update at once.
+  const [communityBroadcasts, setCommunityBroadcasts] = useState(isMockSession ? MOCK_COMMUNITY_BROADCASTS : []);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCommunityBroadcasts().then((data) => !cancelled && setCommunityBroadcasts(data)).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession]);
   const [broadcastIndex, setBroadcastIndex] = useState(0);
   useEffect(() => {
-    if (COMMUNITY_BROADCASTS.length <= 1) return;
+    if (communityBroadcasts.length <= 1) return;
     const interval = setInterval(() => {
-      setBroadcastIndex((i) => (i + 1) % COMMUNITY_BROADCASTS.length);
+      setBroadcastIndex((i) => (i + 1) % communityBroadcasts.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [communityBroadcasts.length]);
   // Tracks which mentor photos have failed to load (e.g. not uploaded to
   // public/mentors/ yet) so those cards fall back to a plain avatar icon.
   const [mentorPhotoErrors, setMentorPhotoErrors] = useState({});
@@ -659,17 +683,25 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  // Recent Certification Victories auto-rotates through communityVictories one
-  // at a time (same "single visible tile, moving feed" pattern as the
-  // Community Broadcast card above), on its own independent 5s timer.
+  // Recent Wins - real Supabase data for a real session, local-only demo
+  // state under Mock Member. Auto-rotates one at a time (same "single
+  // visible tile, moving feed" pattern as the Community Broadcast card
+  // above), on its own independent 5s timer.
+  const [communityWins, setCommunityWins] = useState(isMockSession ? MOCK_COMMUNITY_WINS : []);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCommunityWins().then((data) => !cancelled && setCommunityWins(data)).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession]);
   const [victoryIndex, setVictoryIndex] = useState(0);
   useEffect(() => {
-    if (communityVictories.length <= 1) return;
+    if (communityWins.length <= 1) return;
     const interval = setInterval(() => {
-      setVictoryIndex((i) => (i + 1) % communityVictories.length);
+      setVictoryIndex((i) => (i + 1) % communityWins.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [communityWins.length]);
 
   // All upcoming events members can attend, across every category
   const [eventTypeFilter, setEventTypeFilter] = useState('All');
@@ -861,6 +893,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           cohort: 'General',
           result: 'Pending',
           createdBy: user?.email || 'you',
+          memberEmail: user?.email || '',
         };
         setCertCalendar((prev) => [...prev, mockEntry].sort((a, b) => new Date(a.date) - new Date(b.date)));
       } else {
@@ -869,6 +902,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           cert: newCertForm.cert.trim(),
           date: newCertForm.date,
           createdBy: user?.email,
+          memberEmail: user?.email,
         });
         setCertCalendar(await fetchCertCalendar());
       }
@@ -940,13 +974,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const currentCompetition = {
     title: 'Q3 2026 Community CTF Sprint',
     platform: 'TryHackMe',
-    startDate: '2026-08-24',
-    endDate: '2026-10-16', // last Friday of the ~8-week run
+    startDate: '2026-08-31',
+    endDate: '2026-10-23', // last Friday of the ~8-week run
     description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Standings are ranked by days logged — top 3 finishers win prizes.',
     prizes: [
-      { place: '1st', reward: 'Any certification voucher, up to R10,000' },
-      { place: '2nd', reward: 'Any certification voucher, up to R5,000' },
-      { place: '3rd', reward: 'Any certification voucher, up to R2,000' },
+      { place: '1st', reward: 'Any certification voucher, up to R6,000' },
+      { place: '2nd', reward: 'Any certification voucher, up to R3,000' },
+      { place: '3rd', reward: 'Any certification voucher, up to R1,000' },
     ],
   };
 
@@ -1968,43 +2002,49 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <Megaphone size={18} color="var(--warning)" />
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--warning)', textTransform: 'uppercase' }}>Community Broadcast</span>
               </div>
-              <div
-                key={broadcastIndex}
-                className="broadcast-fade"
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  padding: '12px',
-                  background: 'rgba(255,255,255,0.02)',
-                  borderRadius: 'var(--border-radius-sm)',
-                  border: '1px solid var(--border-color)',
-                  fontSize: '0.85rem',
-                }}
-              >
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{COMMUNITY_BROADCASTS[broadcastIndex].emoji} {COMMUNITY_BROADCASTS[broadcastIndex].title}</span>
-                <span style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>{COMMUNITY_BROADCASTS[broadcastIndex].body}</span>
-              </div>
-              {COMMUNITY_BROADCASTS.length > 1 && (
-                <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                  {COMMUNITY_BROADCASTS.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setBroadcastIndex(i)}
-                      aria-label={`Show broadcast ${i + 1}`}
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        border: 'none',
-                        padding: 0,
-                        cursor: 'pointer',
-                        background: i === broadcastIndex ? 'var(--warning)' : 'rgba(255,255,255,0.15)',
-                      }}
-                    />
-                  ))}
-                </div>
+              {communityBroadcasts.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nothing to announce right now.</p>
+              ) : (
+                <>
+                  <div
+                    key={broadcastIndex}
+                    className="broadcast-fade"
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      padding: '12px',
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 'var(--border-radius-sm)',
+                      border: '1px solid var(--border-color)',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{communityBroadcasts[broadcastIndex]?.emoji} {communityBroadcasts[broadcastIndex]?.title}</span>
+                    <span style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>{communityBroadcasts[broadcastIndex]?.body}</span>
+                  </div>
+                  {communityBroadcasts.length > 1 && (
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                      {communityBroadcasts.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setBroadcastIndex(i)}
+                          aria-label={`Show broadcast ${i + 1}`}
+                          style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            background: i === broadcastIndex ? 'var(--warning)' : 'rgba(255,255,255,0.15)',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -2019,61 +2059,67 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <Award size={18} color="var(--accent-purple)" />
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>Recent Wins</span>
               </div>
-              <div
-                key={communityVictories[victoryIndex].id}
-                className="victory-slide"
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '12px',
-                  background: 'rgba(255,255,255,0.02)',
-                  borderRadius: 'var(--border-radius-sm)',
-                  border: '1px solid var(--border-color)',
-                  fontSize: '0.85rem',
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: communityVictories[victoryIndex].avatarColor, flexShrink: 0 }}></div>
-                  {communityVictories[victoryIndex].linkedinUrl ? (
-                    <a
-                      href={communityVictories[victoryIndex].linkedinUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ color: 'var(--text-primary)', fontWeight: 700, textDecoration: 'none' }}
-                      title="View on LinkedIn"
-                    >
-                      {communityVictories[victoryIndex].member}
-                    </a>
-                  ) : (
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{communityVictories[victoryIndex].member}</span>
-                  )}
-                </div>
-                <span style={{ color: 'var(--text-secondary)' }}>{communityVictories[victoryIndex].achievement}</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{communityVictories[victoryIndex].date}</span>
-              </div>
-              {communityVictories.length > 1 && (
-                <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                  {communityVictories.map((v, i) => (
-                    <button
-                      key={v.id}
-                      onClick={() => setVictoryIndex(i)}
-                      aria-label={`Show victory ${i + 1}`}
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        border: 'none',
-                        padding: 0,
-                        cursor: 'pointer',
-                        background: i === victoryIndex ? 'var(--accent-purple)' : 'rgba(255,255,255,0.15)',
-                      }}
+              {communityWins.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No wins posted yet.</p>
+              ) : (
+                <>
+                  <div
+                    key={communityWins[victoryIndex]?.id}
+                    className="victory-slide"
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '12px',
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 'var(--border-radius-sm)',
+                      border: '1px solid var(--border-color)',
+                      fontSize: '0.85rem',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: WIN_AVATAR_COLORS[victoryIndex % WIN_AVATAR_COLORS.length], flexShrink: 0 }}></div>
+                      {isSafeUrl(communityWins[victoryIndex]?.linkedinUrl) ? (
+                        <a
+                          href={communityWins[victoryIndex].linkedinUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: 'var(--text-primary)', fontWeight: 700, textDecoration: 'none' }}
+                          title="View on LinkedIn"
+                        >
+                          {communityWins[victoryIndex]?.member}
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{communityWins[victoryIndex]?.member}</span>
+                      )}
+                    </div>
+                    <span style={{ color: 'var(--text-secondary)' }}>{communityWins[victoryIndex]?.achievement}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{communityWins[victoryIndex] && relativeWinDateLabel(communityWins[victoryIndex].achievedDate)}</span>
+                  </div>
+                  {communityWins.length > 1 && (
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                      {communityWins.map((v, i) => (
+                        <button
+                          key={v.id}
+                          onClick={() => setVictoryIndex(i)}
+                          aria-label={`Show victory ${i + 1}`}
+                          style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            background: i === victoryIndex ? 'var(--accent-purple)' : 'rgba(255,255,255,0.15)',
+                          }}
                     />
                   ))}
                 </div>
+              )}
+                </>
               )}
             </div>
           </div>

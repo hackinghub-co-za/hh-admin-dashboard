@@ -133,6 +133,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'finances', label: 'Finances', icon: DollarSign },
         { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'insights', label: 'Insights', icon: BarChart3 },
+        { id: 'community-content', label: 'Community Content', icon: Megaphone },
       ]
     : [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },

@@ -23,6 +23,10 @@ import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
+import {
+  fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
+  fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
+} from '../../lib/communityContentData';
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent } from '../../lib/eventsData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
@@ -44,6 +48,7 @@ import {
   ExternalLink,
   RefreshCw,
   Award,
+  Megaphone,
   Info,
   Download,
   Link,
@@ -560,7 +565,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
-  const [newCert, setNewCert] = useState({ member: '', cert: '', date: '', cohort: '' });
+  const [newCert, setNewCert] = useState({ member: '', cert: '', date: '', cohort: '', memberEmail: '' });
 
   const handleAddCert = async (e) => {
     e.preventDefault();
@@ -575,18 +580,19 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           date: newCert.date,
           cohort: newCert.cohort || 'General',
           result: 'Pending',
+          memberEmail: newCert.memberEmail,
         },
       ]);
     } else {
       try {
-        await addCertCalendarEntry({ member: newCert.member, cert: newCert.cert, date: newCert.date, cohort: newCert.cohort, createdBy: user?.email });
+        await addCertCalendarEntry({ member: newCert.member, cert: newCert.cert, date: newCert.date, cohort: newCert.cohort, createdBy: user?.email, memberEmail: newCert.memberEmail });
         setCerts(await fetchCertCalendar());
       } catch (err) {
         setCertsError(friendlyErrorMessage(err));
         return;
       }
     }
-    setNewCert({ member: '', cert: '', date: '', cohort: '' });
+    setNewCert({ member: '', cert: '', date: '', cohort: '', memberEmail: '' });
   };
 
   const handleUpdateCertResult = async (id, result) => {
@@ -601,11 +607,11 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   };
 
   const [editingCertId, setEditingCertId] = useState(null);
-  const [editCertForm, setEditCertForm] = useState({ member: '', cert: '', date: '', cohort: '', result: 'Pending' });
+  const [editCertForm, setEditCertForm] = useState({ member: '', cert: '', date: '', cohort: '', result: 'Pending', memberEmail: '' });
 
   const startEditCert = (c) => {
     setEditingCertId(c.id);
-    setEditCertForm({ member: c.member, cert: c.cert, date: c.date, cohort: c.cohort || '', result: c.result || 'Pending' });
+    setEditCertForm({ member: c.member, cert: c.cert, date: c.date, cohort: c.cohort || '', result: c.result || 'Pending', memberEmail: c.memberEmail || '' });
   };
 
   const handleSaveCertEdit = async (cert) => {
@@ -714,6 +720,151 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       } catch (err) {
         setExpensesError(friendlyErrorMessage(err));
         setExpenses((prev) => [...prev, expense]);
+      }
+    }
+  };
+
+  // Community Broadcast & Recent Wins - the Dashboard content admins curate,
+  // real Supabase data for a real session, local-only demo state under Mock
+  // Admin. Both used to be hardcoded arrays in MemberPortal.jsx.
+  const [broadcasts, setBroadcasts] = useState(isMockSession ? [
+    { id: 1, emoji: '🤝', title: 'Matchmaker is live:', body: 'Opt in and get randomly grouped with 1-3 other members for a project or presentation.', sortOrder: 10, active: true },
+  ] : []);
+  const [loadingBroadcasts, setLoadingBroadcasts] = useState(!isMockSession);
+  const [broadcastsError, setBroadcastsError] = useState(null);
+  const [newBroadcast, setNewBroadcast] = useState({ emoji: '', title: '', body: '', sortOrder: '' });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllCommunityBroadcasts()
+      .then((data) => !cancelled && setBroadcasts(data))
+      .catch((err) => !cancelled && setBroadcastsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingBroadcasts(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleAddBroadcast = async (e) => {
+    e.preventDefault();
+    if (!newBroadcast.title.trim() || !newBroadcast.body.trim()) return;
+    const payload = { emoji: newBroadcast.emoji.trim(), title: newBroadcast.title.trim(), body: newBroadcast.body.trim(), sortOrder: Number(newBroadcast.sortOrder) || 0 };
+    if (isMockSession) {
+      setBroadcasts([...broadcasts, { id: Date.now(), ...payload, active: true }].sort((a, b) => a.sortOrder - b.sortOrder));
+    } else {
+      try {
+        const added = await addCommunityBroadcast({ ...payload, createdBy: user?.email });
+        setBroadcasts([...broadcasts, added].sort((a, b) => a.sortOrder - b.sortOrder));
+      } catch (err) {
+        setBroadcastsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setNewBroadcast({ emoji: '', title: '', body: '', sortOrder: '' });
+  };
+
+  const [editingBroadcastId, setEditingBroadcastId] = useState(null);
+  const [editBroadcastForm, setEditBroadcastForm] = useState({ emoji: '', title: '', body: '', sortOrder: '', active: true });
+
+  const startEditBroadcast = (b) => {
+    setEditingBroadcastId(b.id);
+    setEditBroadcastForm({ emoji: b.emoji, title: b.title, body: b.body, sortOrder: String(b.sortOrder), active: b.active });
+  };
+
+  const handleSaveBroadcastEdit = async (broadcast) => {
+    const payload = { emoji: editBroadcastForm.emoji.trim(), title: editBroadcastForm.title.trim(), body: editBroadcastForm.body.trim(), sortOrder: Number(editBroadcastForm.sortOrder) || 0, active: editBroadcastForm.active };
+    if (isMockSession) {
+      setBroadcasts(broadcasts.map((b) => (b.id === broadcast.id ? { ...b, ...payload } : b)));
+    } else {
+      try {
+        await updateCommunityBroadcast(broadcast.id, payload);
+        setBroadcasts(broadcasts.map((b) => (b.id === broadcast.id ? { ...b, ...payload } : b)));
+      } catch (err) {
+        setBroadcastsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setEditingBroadcastId(null);
+  };
+
+  const handleDeleteBroadcast = async (broadcast) => {
+    setBroadcasts(broadcasts.filter((b) => b.id !== broadcast.id));
+    if (!isMockSession) {
+      try {
+        await deleteCommunityBroadcast(broadcast.id);
+      } catch (err) {
+        setBroadcastsError(friendlyErrorMessage(err));
+        setBroadcasts((prev) => [...prev, broadcast]);
+      }
+    }
+  };
+
+  const [wins, setWins] = useState(isMockSession ? [
+    { id: 1, member: 'Philisiwe N.', achievement: 'earned SC-900: Security, Compliance & Identity Fundamentals', achievedDate: '2026-08-20', linkedinUrl: '', active: true },
+  ] : []);
+  const [loadingWins, setLoadingWins] = useState(!isMockSession);
+  const [winsError, setWinsError] = useState(null);
+  const [newWin, setNewWin] = useState({ member: '', achievement: '', achievedDate: '', linkedinUrl: '' });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllCommunityWins()
+      .then((data) => !cancelled && setWins(data))
+      .catch((err) => !cancelled && setWinsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingWins(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleAddWin = async (e) => {
+    e.preventDefault();
+    if (!newWin.member.trim() || !newWin.achievement.trim() || !newWin.achievedDate) return;
+    const payload = { member: newWin.member.trim(), achievement: newWin.achievement.trim(), achievedDate: newWin.achievedDate, linkedinUrl: newWin.linkedinUrl.trim() };
+    if (isMockSession) {
+      setWins([{ id: Date.now(), ...payload, active: true }, ...wins].sort((a, b) => new Date(b.achievedDate) - new Date(a.achievedDate)));
+    } else {
+      try {
+        const added = await addCommunityWin({ ...payload, createdBy: user?.email });
+        setWins([added, ...wins].sort((a, b) => new Date(b.achievedDate) - new Date(a.achievedDate)));
+      } catch (err) {
+        setWinsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setNewWin({ member: '', achievement: '', achievedDate: '', linkedinUrl: '' });
+  };
+
+  const [editingWinId, setEditingWinId] = useState(null);
+  const [editWinForm, setEditWinForm] = useState({ member: '', achievement: '', achievedDate: '', linkedinUrl: '', active: true });
+
+  const startEditWin = (w) => {
+    setEditingWinId(w.id);
+    setEditWinForm({ member: w.member, achievement: w.achievement, achievedDate: w.achievedDate, linkedinUrl: w.linkedinUrl, active: w.active });
+  };
+
+  const handleSaveWinEdit = async (win) => {
+    const payload = { member: editWinForm.member.trim(), achievement: editWinForm.achievement.trim(), achievedDate: editWinForm.achievedDate, linkedinUrl: editWinForm.linkedinUrl.trim(), active: editWinForm.active };
+    if (isMockSession) {
+      setWins(wins.map((w) => (w.id === win.id ? { ...w, ...payload } : w)));
+    } else {
+      try {
+        await updateCommunityWin(win.id, payload);
+        setWins(wins.map((w) => (w.id === win.id ? { ...w, ...payload } : w)));
+      } catch (err) {
+        setWinsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setEditingWinId(null);
+  };
+
+  const handleDeleteWin = async (win) => {
+    setWins(wins.filter((w) => w.id !== win.id));
+    if (!isMockSession) {
+      try {
+        await deleteCommunityWin(win.id);
+      } catch (err) {
+        setWinsError(friendlyErrorMessage(err));
+        setWins((prev) => [...prev, win]);
       }
     }
   };
@@ -2354,28 +2505,40 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         ? Math.round(employmentDays.reduce((a, b) => a + b, 0) / employmentDays.length)
         : null;
 
-      // Time to first certificate: cert_calendar.member is a free-text name,
-      // not an email (and created_by can be an admin who added it on the
-      // member's behalf, not the member themselves) - so this is a
-      // best-effort match against each member's display name, not a
-      // guaranteed join. Undercounts anyone whose name is formatted
+      // Time to first certificate: prefers an exact match on
+      // cert_calendar.member_email (43_cert_calendar_member_email.sql) -
+      // always exact for a member's own self-submitted entry, and exact for
+      // an admin-added one wherever the admin filled in the email. Falls
+      // back to matching cert_calendar.member (a free-text name) against
+      // each member's display name for older entries with no email on
+      // file - approximate, and undercounts anyone whose name is formatted
       // differently between the two tables.
-      const firstPassedCertByName = certs
-        .filter((c) => c.result === 'Passed')
-        .reduce((acc, c) => {
-          const key = c.member.trim().toLowerCase();
-          const d = new Date(c.date);
-          if (!acc[key] || d < acc[key]) acc[key] = d;
-          return acc;
-        }, {});
-      const firstCertDays = memberRoster
+      const passedCerts = certs.filter((c) => c.result === 'Passed');
+      const firstPassedCertByEmail = passedCerts.reduce((acc, c) => {
+        if (!c.memberEmail) return acc;
+        const key = c.memberEmail.toLowerCase();
+        const d = new Date(c.date);
+        if (!acc[key] || d < acc[key]) acc[key] = d;
+        return acc;
+      }, {});
+      const firstPassedCertByName = passedCerts.reduce((acc, c) => {
+        const key = c.member.trim().toLowerCase();
+        const d = new Date(c.date);
+        if (!acc[key] || d < acc[key]) acc[key] = d;
+        return acc;
+      }, {});
+      const certMatches = memberRoster
         .map((m) => {
-          const firstPass = firstPassedCertByName[m.member.trim().toLowerCase()];
+          const byEmail = firstPassedCertByEmail[m.email.toLowerCase()];
+          const firstPass = byEmail || firstPassedCertByName[m.member.trim().toLowerCase()];
           if (!firstPass) return null;
           const j = joinDateFor(m);
-          return j ? daysBetween(j, firstPass) : null;
+          const days = j ? daysBetween(j, firstPass) : null;
+          return days !== null && days >= 0 ? { days, exact: !!byEmail } : null;
         })
-        .filter((d) => d !== null && d >= 0);
+        .filter((entry) => entry !== null);
+      const firstCertDays = certMatches.map((entry) => entry.days);
+      const exactCertMatches = certMatches.filter((entry) => entry.exact).length;
       const avgTimeToFirstCert = firstCertDays.length
         ? Math.round(firstCertDays.reduce((a, b) => a + b, 0) / firstCertDays.length)
         : null;
@@ -2454,7 +2617,10 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 <Award size={20} color="var(--accent-purple)" />
               </div>
               <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{formatDays(avgTimeToFirstCert)}</h2>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Approximate - matched by name against {firstCertDays.length} passed Cert Calendar entries</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {firstCertDays.length} member{firstCertDays.length === 1 ? '' : 's'} with a passed cert
+                {firstCertDays.length > 0 && ` (${exactCertMatches} exact by email, ${firstCertDays.length - exactCertMatches} approximate by name)`}
+              </div>
             </div>
           </div>
 
@@ -2475,6 +2641,130 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         </div>
       );
     }
+
+    case 'community-content':
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><Megaphone size={28} color="var(--accent-cyan)" /> Community Content</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>What members see on their Dashboard - the Community Broadcast feed and Recent Wins. Real content, editable here instead of a code change.</p>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — changes here are local only and will be lost on your next login.
+            </div>
+          )}
+
+          {/* Community Broadcast */}
+          <div className="glass-card" style={{ marginBottom: '28px' }}>
+            <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Megaphone size={18} color="var(--warning)" /> Community Broadcast
+            </h3>
+            {broadcastsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{broadcastsError}</p>}
+
+            <form onSubmit={handleAddBroadcast} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 2fr 90px auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+              <input className="form-input" value={newBroadcast.emoji} onChange={(e) => setNewBroadcast({ ...newBroadcast, emoji: e.target.value })} placeholder="🎯" />
+              <input className="form-input" value={newBroadcast.title} onChange={(e) => setNewBroadcast({ ...newBroadcast, title: e.target.value })} placeholder="Title, e.g. Sprint 4 Active:" />
+              <input className="form-input" value={newBroadcast.body} onChange={(e) => setNewBroadcast({ ...newBroadcast, body: e.target.value })} placeholder="Body text" />
+              <input type="number" className="form-input" value={newBroadcast.sortOrder} onChange={(e) => setNewBroadcast({ ...newBroadcast, sortOrder: e.target.value })} placeholder="Order" />
+              <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', padding: '10px 16px' }}><Plus size={14} /> Add</button>
+            </form>
+
+            {loadingBroadcasts ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+            ) : broadcasts.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nothing posted yet - members will see an empty state.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {broadcasts.map((b) =>
+                  editingBroadcastId === b.id ? (
+                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 2fr 90px auto', gap: '10px', alignItems: 'center', padding: '10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
+                      <input className="form-input" value={editBroadcastForm.emoji} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, emoji: e.target.value })} />
+                      <input className="form-input" value={editBroadcastForm.title} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, title: e.target.value })} />
+                      <input className="form-input" value={editBroadcastForm.body} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, body: e.target.value })} />
+                      <input type="number" className="form-input" value={editBroadcastForm.sortOrder} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, sortOrder: e.target.value })} />
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => handleSaveBroadcastEdit(b)}>Save</button>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => setEditingBroadcastId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        <strong>{b.emoji} {b.title}</strong>
+                        <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>{b.body}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                        {!b.active && <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>Inactive</span>}
+                        <button onClick={() => startEditBroadcast(b)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex' }} aria-label="Edit broadcast"><Pencil size={14} /></button>
+                        <button onClick={() => handleDeleteBroadcast(b)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete broadcast"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Wins */}
+          <div className="glass-card">
+            <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Award size={18} color="var(--accent-purple)" /> Recent Wins
+            </h3>
+            {winsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{winsError}</p>}
+
+            <form onSubmit={handleAddWin} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 140px 1fr auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+              <input className="form-input" value={newWin.member} onChange={(e) => setNewWin({ ...newWin, member: e.target.value })} placeholder="Member name" />
+              <input className="form-input" value={newWin.achievement} onChange={(e) => setNewWin({ ...newWin, achievement: e.target.value })} placeholder="e.g. earned CompTIA Security+" />
+              <input type="date" className="form-input" value={newWin.achievedDate} onChange={(e) => setNewWin({ ...newWin, achievedDate: e.target.value })} />
+              <input className="form-input" value={newWin.linkedinUrl} onChange={(e) => setNewWin({ ...newWin, linkedinUrl: e.target.value })} placeholder="LinkedIn link (optional)" />
+              <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', padding: '10px 16px' }}><Plus size={14} /> Add</button>
+            </form>
+
+            {loadingWins ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+            ) : wins.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No wins posted yet - members will see an empty state.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {wins.map((w) =>
+                  editingWinId === w.id ? (
+                    <div key={w.id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 140px 1fr auto', gap: '10px', alignItems: 'center', padding: '10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
+                      <input className="form-input" value={editWinForm.member} onChange={(e) => setEditWinForm({ ...editWinForm, member: e.target.value })} />
+                      <input className="form-input" value={editWinForm.achievement} onChange={(e) => setEditWinForm({ ...editWinForm, achievement: e.target.value })} />
+                      <input type="date" className="form-input" value={editWinForm.achievedDate} onChange={(e) => setEditWinForm({ ...editWinForm, achievedDate: e.target.value })} />
+                      <input className="form-input" value={editWinForm.linkedinUrl} onChange={(e) => setEditWinForm({ ...editWinForm, linkedinUrl: e.target.value })} />
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => handleSaveWinEdit(w)}>Save</button>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => setEditingWinId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        <strong>{w.member}</strong> {w.achievement}
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '2px' }}>
+                          {formatDate(w.achievedDate)}
+                          {isSafeUrl(w.linkedinUrl) && (
+                            <a href={w.linkedinUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', marginLeft: '8px' }}>LinkedIn</a>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                        {!w.active && <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>Inactive</span>}
+                        <button onClick={() => startEditWin(w)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex' }} aria-label="Edit win"><Pencil size={14} /></button>
+                        <button onClick={() => handleDeleteWin(w)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete win"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
 
     case 'certifications':
       return (
@@ -2511,6 +2801,19 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     value={newCert.member}
                     onChange={(e) => setNewCert({ ...newCert, member: e.target.value })}
                   />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Member Email (optional)</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="e.g. sanele@gmail.com"
+                    value={newCert.memberEmail}
+                    onChange={(e) => setNewCert({ ...newCert, memberEmail: e.target.value })}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Makes "time to first cert" on Insights exact instead of matched by name.
+                  </p>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification Title</label>
@@ -2571,6 +2874,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     return (
                       <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <input className="form-input" value={editCertForm.member} onChange={(e) => setEditCertForm({ ...editCertForm, member: e.target.value })} placeholder="Member name" />
+                        <input type="email" className="form-input" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })} placeholder="Member email (optional)" />
                         <input className="form-input" value={editCertForm.cert} onChange={(e) => setEditCertForm({ ...editCertForm, cert: e.target.value })} placeholder="Certification" />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                           <input type="date" className="form-input" value={editCertForm.date} onChange={(e) => setEditCertForm({ ...editCertForm, date: e.target.value })} />

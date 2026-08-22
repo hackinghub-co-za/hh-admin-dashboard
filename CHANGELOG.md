@@ -20,12 +20,33 @@ saved in their browser's `localStorage`.
 
 ## 2026.08.20
 
+### Added
+- **Community Content tab** — Community Broadcast and Recent Wins were
+  hardcoded arrays in `MemberPortal.jsx`; every update needed a code change
+  and a deploy. Both are real tables now (`community_broadcasts`,
+  `community_wins`), with full admin CRUD from a new "Community Content"
+  tab - members only ever see active rows. Recent Wins also gained a real
+  `achieved_date` instead of a static "Today"/"Recently" label - the member
+  Dashboard now computes a live relative label from it ("Today", "3 days
+  ago", "1 week ago"...), so it stays honest as time passes instead of
+  going stale the moment it's written. (`044_community_content.sql`)
+- **Cert Calendar member email** — `cert_calendar.member` was always a
+  free-text name, so Insights' "time to first cert" had to match it against
+  each member's roster display name - approximate, and it undercounts
+  anyone whose name is formatted differently between the two tables. A
+  member's own self-submitted entry now records their real email
+  automatically (enforced server-side, same as `created_by`); admins get an
+  optional "Member Email" field on the Add/Edit Cert forms for entries added
+  on someone else's behalf. Insights now matches by email first wherever
+  it's on file, falling back to name-matching only for older entries
+  without one, and the Insights card states exactly how many of each it
+  used. Backfilled from `created_by` for existing self-submitted rows.
+  (`024_cert_calendar.sql`)
+
 ### Changed
 - Member Cert Calendar: removed the "Cohort" field from the "Add to Cert
   Calendar" form - new entries default to "General" instead. Existing
   entries with a real cohort are untouched.
-
-### Added
 - **Room Logs stats** — five stat cards on the admin Room Logs tab, scoped to
   Approved logs only (Pending/Rejected haven't actually been credited, so
   counting them would overstate real activity): total rooms completed and
