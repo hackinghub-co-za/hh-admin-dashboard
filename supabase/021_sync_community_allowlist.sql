@@ -42,6 +42,7 @@ VALUES
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Dilemomolaoa'),
     ('[REDACTED]', 'Active', 'Elricomhalo'),
+    ('[REDACTED]', 'Active', 'Tshegofatso'),
     ('[REDACTED]', 'Active', '[REDACTED]'),
     ('[REDACTED]', 'Active', 'Fancymogale4'),
     ('[REDACTED]', 'Active', 'Fortunatenkully'),

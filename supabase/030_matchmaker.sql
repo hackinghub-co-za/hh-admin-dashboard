@@ -130,7 +130,10 @@ BEGIN
   )
   SELECT count(*) INTO v_groups_created FROM inserted;
 
-  DELETE FROM public.matchmaker_optins;
+  -- Supabase rejects a WHERE-less DELETE outright ("DELETE requires a WHERE
+  -- clause") even inside a SECURITY DEFINER function - WHERE true is
+  -- functionally identical to no WHERE clause, just explicit about it.
+  DELETE FROM public.matchmaker_optins WHERE true;
 
   RETURN v_groups_created;
 END;
