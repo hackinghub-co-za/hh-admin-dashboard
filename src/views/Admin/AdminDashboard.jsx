@@ -105,9 +105,9 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [loadingRoadmapItems, setLoadingRoadmapItems] = useState(false);
   const [roadmapItemsError, setRoadmapItemsError] = useState(null);
   const [showAddRoadmapItemForm, setShowAddRoadmapItemForm] = useState(false);
-  const [newRoadmapItem, setNewRoadmapItem] = useState({ phase: 'Core Foundations', category: '', title: '', detail: '' });
+  const [newRoadmapItem, setNewRoadmapItem] = useState({ phase: 'Core Foundations', category: '', title: '', detail: '', dueDate: '' });
   const [editingRoadmapItemId, setEditingRoadmapItemId] = useState(null);
-  const [editRoadmapItemForm, setEditRoadmapItemForm] = useState({ phase: '', category: '', title: '', detail: '' });
+  const [editRoadmapItemForm, setEditRoadmapItemForm] = useState({ phase: '', category: '', title: '', detail: '', dueDate: '' });
   // Mock Admin only - keeps locally-added/edited items around when switching
   // between members, since there's no real session to persist them to.
   const [mockRoadmapItemsByEmail, setMockRoadmapItemsByEmail] = useState({});
@@ -169,7 +169,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         return;
       }
     }
-    setNewRoadmapItem({ phase: 'Core Foundations', category: '', title: '', detail: '' });
+    setNewRoadmapItem({ phase: 'Core Foundations', category: '', title: '', detail: '', dueDate: '' });
     setShowAddRoadmapItemForm(false);
   };
 
@@ -278,7 +278,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
   const startEditRoadmapItem = (item) => {
     setEditingRoadmapItemId(item.id);
-    setEditRoadmapItemForm({ phase: item.phase, category: item.category, title: item.title, detail: item.detail });
+    setEditRoadmapItemForm({ phase: item.phase, category: item.category, title: item.title, detail: item.detail, dueDate: item.dueDate || '' });
   };
 
   const handleSaveRoadmapItemEdit = async (item) => {
@@ -1886,6 +1886,21 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       const missingSpecializationCount = specializationCatalog
         ? specializationCatalog.items.length - roadmapItems.filter((i) => i.phase === 'Specialization' && i.category === specializationCatalog.category).length
         : 0;
+
+      // Every active member who's hit the Specialization completion count but
+      // hasn't been approved yet, across the whole roster - not just whoever
+      // happens to be selected. This is the "awaiting approval" queue that
+      // was previously invisible unless you opened each member's roadmap one
+      // by one to check.
+      const awaitingApprovalMembers = activeRoadmapRoster
+        .map((m) => {
+          const items = roadmapItemsByEmail[m.email.toLowerCase()] || [];
+          const doneCount = items.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title) && i.completed).length;
+          return { member: m, doneCount };
+        })
+        .filter(({ member, doneCount }) => doneCount >= SPECIALIZATION_UNLOCK_MIN && !member.profile?.roadmapFoundationsApproved)
+        .sort((a, b) => b.doneCount - a.doneCount);
+
       const phaseGroups = ROADMAP_PHASES.map((phase) => ({
         phase,
         categories: [...new Set(roadmapItems.filter((i) => i.phase === phase).map((i) => i.category))].map((category) => ({
@@ -2096,7 +2111,10 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                                             <input className="form-input" value={editRoadmapItemForm.category} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, category: e.target.value })} placeholder="Category" />
                                           </div>
                                           <input className="form-input" value={editRoadmapItemForm.title} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, title: e.target.value })} placeholder="Item title" />
-                                          <input className="form-input" value={editRoadmapItemForm.detail} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, detail: e.target.value })} placeholder="Detail (optional) - e.g. 9/20 collections, by 28 Aug" />
+                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                            <input className="form-input" value={editRoadmapItemForm.detail} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, detail: e.target.value })} placeholder="Detail (optional) - e.g. 9/20 collections" />
+                                            <input type="date" className="form-input" value={editRoadmapItemForm.dueDate} onChange={(e) => setEditRoadmapItemForm({ ...editRoadmapItemForm, dueDate: e.target.value })} />
+                                          </div>
                                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                                             <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setEditingRoadmapItemId(null)}>Cancel</button>
                                             <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSaveRoadmapItemEdit(item)}>Save</button>
@@ -2109,7 +2127,11 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                                           </button>
                                           <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{ fontSize: '0.9rem', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.title}</div>
-                                            {item.detail && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.detail}</div>}
+                                            {(item.detail || item.dueDate) && (
+                                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                {item.detail}{item.detail && item.dueDate ? ' · ' : ''}{item.dueDate && `Due ${formatDate(item.dueDate)}`}
+                                              </div>
+                                            )}
                                           </div>
                                           <button onClick={() => startEditRoadmapItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }} aria-label="Edit item">
                                             <Pencil size={15} />
@@ -2151,9 +2173,15 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Item title</label>
                         <input className="form-input" value={newRoadmapItem.title} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, title: e.target.value })} placeholder="e.g. CompTIA Security+" required />
                       </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Detail (optional)</label>
-                        <input className="form-input" value={newRoadmapItem.detail} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, detail: e.target.value })} placeholder="e.g. 9/20 collections, by 28th of August" />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Detail (optional)</label>
+                          <input className="form-input" value={newRoadmapItem.detail} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, detail: e.target.value })} placeholder="e.g. 9/20 collections" />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Due date (optional)</label>
+                          <input type="date" className="form-input" value={newRoadmapItem.dueDate} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, dueDate: e.target.value })} />
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button type="button" className="btn btn-secondary" style={{ fontSize: '0.82rem' }} onClick={() => setShowAddRoadmapItemForm(false)}>Cancel</button>
@@ -2180,6 +2208,44 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 </>
               )}
             </div>
+          </div>
+
+          {/* Roadmaps Awaiting Approval - every active member who's hit the
+              Specialization completion count, across the whole roster, not
+              just whoever happens to be selected above. Previously this was
+              only visible one member at a time, by opening each roadmap to
+              check. */}
+          <div className="glass-card" style={{ marginTop: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <ListChecks size={18} color="var(--warning)" />
+              <h3 style={{ margin: 0 }}>Roadmaps Awaiting Approval</h3>
+              {awaitingApprovalMembers.length > 0 && (
+                <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>{awaitingApprovalMembers.length}</span>
+              )}
+            </div>
+            {awaitingApprovalMembers.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nothing waiting on you right now.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {awaitingApprovalMembers.map(({ member, doneCount }) => (
+                  <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.member}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{member.email} · {member.profile?.roadmapTrack || 'No track assigned'}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{doneCount}/{CORE_FOUNDATIONS_CATALOG.length} Core Foundations</span>
+                      <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => loadRoadmapForMember(member.email)}>
+                        View
+                      </button>
+                      <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} disabled={savingFoundationsApproval} onClick={() => handleToggleFoundationsApproval(member.email, true)}>
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       );

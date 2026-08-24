@@ -9,17 +9,19 @@
 -- Foundations" phase and a "Specialization" phase, further grouped by a
 -- free-text category (e.g. "Certifications", "Networking", "Red Teaming").
 --
--- Admins fully author the checklist (title, detail, phase, category,
--- ordering) - a member can only ever mark their own items done/not done,
--- never edit the plan itself. A member's row-level UPDATE policy can't
--- express "this column only" - authenticated already has full table
+-- Admins fully author the checklist (title, phase, category, ordering) - a
+-- member can mark their own items done/not done and self-report progress
+-- (detail) and a due_date on them, but never touch the plan itself (title,
+-- phase, category, or anyone else's row). A member's row-level UPDATE policy
+-- can't express "these columns only" - authenticated already has full table
 -- privileges by Supabase's own default, same as every other table in this
 -- project, so a plain RLS UPDATE policy here would let a member rewrite
--- their own title/detail/phase, not just toggle completion. Instead the
--- toggle goes through toggle_my_roadmap_item() below, the same
--- SECURITY DEFINER + explicit-ownership-check pattern already used for
--- rsvp_for_event() and submit_exit_feedback() - it only ever touches
--- `completed`, no matter what a client sends.
+-- their own title/phase/category too, not just completed/detail/due_date.
+-- Instead both writes go through SECURITY DEFINER functions below
+-- (toggle_my_roadmap_item, update_my_roadmap_item_progress), the same
+-- explicit-ownership-check pattern already used for rsvp_for_event() and
+-- submit_exit_feedback() - each only ever touches its own specific columns,
+-- no matter what a client sends.
 --
 -- member_profiles.specialty (a member's self-described "about me" badge,
 -- SPECIALTIES in src/lib/memberOptions.js) is kept in the same vocabulary as
@@ -42,11 +44,16 @@ CREATE TABLE IF NOT EXISTS public.roadmap_items (
   category TEXT NOT NULL,
   title TEXT NOT NULL,
   detail TEXT,
+  due_date DATE,
   completed BOOLEAN NOT NULL DEFAULT false,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Adds due_date to a database where this table already existed - the inline
+-- column above only takes effect on a fresh CREATE TABLE.
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS due_date DATE;
 
 ALTER TABLE public.roadmap_items ENABLE ROW LEVEL SECURITY;
 
@@ -82,6 +89,25 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.toggle_my_roadmap_item(BIGINT, BOOLEAN) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.toggle_my_roadmap_item(BIGINT, BOOLEAN) FROM PUBLIC, anon;
+
+-- Same pattern as toggle_my_roadmap_item() above, widened to also let a
+-- member self-report how far along one of their own items is (a number or
+-- percentage, e.g. "3/6" or "45%" - reuses the existing `detail` column
+-- rather than adding a second free-text field for the same idea) and set its
+-- due date. Still never touches title/phase/category/completed, and still
+-- only ever the caller's own row.
+CREATE OR REPLACE FUNCTION public.update_my_roadmap_item_progress(p_item_id BIGINT, p_detail TEXT, p_due_date DATE)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.roadmap_items
+  SET detail = p_detail, due_date = p_due_date, updated_at = timezone('utc'::text, now())
+  WHERE id = p_item_id AND member_email = lower(auth.jwt() ->> 'email');
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.update_my_roadmap_item_progress(BIGINT, TEXT, DATE) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.update_my_roadmap_item_progress(BIGINT, TEXT, DATE) FROM PUBLIC, anon;
 
 -- member_profiles has no member-facing SELECT policy at all (see
 -- 010_member_directory.sql's get_member_directory() for why - the table

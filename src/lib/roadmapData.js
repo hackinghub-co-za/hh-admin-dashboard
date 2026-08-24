@@ -15,6 +15,7 @@ function mapRow(row) {
     category: row.category,
     title: row.title,
     detail: row.detail || '',
+    dueDate: row.due_date || null,
     completed: !!row.completed,
     sortOrder: row.sort_order || 0,
   };
@@ -24,7 +25,7 @@ function mapRow(row) {
 export async function fetchMyRoadmap() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, completed, sort_order')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order')
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });
   if (error) throw error;
@@ -35,6 +36,18 @@ export async function fetchMyRoadmap() {
  * only ever writes `completed`. */
 export async function toggleMyRoadmapItem(itemId, completed) {
   const { error } = await supabase.rpc('toggle_my_roadmap_item', { p_item_id: itemId, p_completed: completed });
+  if (error) throw error;
+}
+
+/** Self-report progress (a number or percentage, e.g. "3/6" or "45%") and a
+ * due date on one of the caller's own items - the RPC enforces ownership and
+ * only ever writes `detail`/`due_date`. */
+export async function updateMyRoadmapItemProgress(itemId, { detail, dueDate }) {
+  const { error } = await supabase.rpc('update_my_roadmap_item_progress', {
+    p_item_id: itemId,
+    p_detail: detail || null,
+    p_due_date: dueDate || null,
+  });
   if (error) throw error;
 }
 
@@ -73,7 +86,7 @@ export async function setRoadmapFoundationsApproval(email, approved) {
 export async function fetchAllRoadmapItems() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, completed, sort_order');
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order');
   if (error) throw error;
   return (data || []).map(mapRow);
 }
@@ -83,7 +96,7 @@ export async function fetchAllRoadmapItems() {
 export async function fetchRoadmapForMember(email) {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, completed, sort_order')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order')
     .eq('member_email', email.toLowerCase())
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });
@@ -92,7 +105,7 @@ export async function fetchRoadmapForMember(email) {
 }
 
 /** Admin: add a new roadmap item for a member. */
-export async function addRoadmapItem({ memberEmail, phase, category, title, detail, sortOrder }) {
+export async function addRoadmapItem({ memberEmail, phase, category, title, detail, dueDate, sortOrder }) {
   const { data, error } = await supabase
     .from('roadmap_items')
     .insert({
@@ -101,6 +114,7 @@ export async function addRoadmapItem({ memberEmail, phase, category, title, deta
       category,
       title,
       detail: detail || null,
+      due_date: dueDate || null,
       sort_order: sortOrder || 0,
     })
     .select()
@@ -110,7 +124,7 @@ export async function addRoadmapItem({ memberEmail, phase, category, title, deta
 }
 
 /** Admin: edit an existing item's plan fields (and/or its completion). */
-export async function updateRoadmapItem(itemId, { phase, category, title, detail, completed, sortOrder }) {
+export async function updateRoadmapItem(itemId, { phase, category, title, detail, dueDate, completed, sortOrder }) {
   const { error } = await supabase
     .from('roadmap_items')
     .update({
@@ -118,6 +132,7 @@ export async function updateRoadmapItem(itemId, { phase, category, title, detail
       category,
       title,
       detail: detail || null,
+      due_date: dueDate || null,
       completed,
       sort_order: sortOrder || 0,
       updated_at: new Date().toISOString(),

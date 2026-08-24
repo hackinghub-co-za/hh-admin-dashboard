@@ -11,7 +11,7 @@ import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarD
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
-import { fetchMyRoadmap, toggleMyRoadmapItem, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved } from '../../lib/roadmapData';
+import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { fetchMyStartDate } from '../../lib/startDateData';
@@ -246,9 +246,9 @@ const MOCK_RESOURCES = [
 // the mock experience matches what a real assigned roadmap looks like.
 const MOCK_ROADMAP_TRACK = 'Offensive Security';
 const MOCK_ROADMAP_ITEMS = [
-  { id: 1, phase: 'Core Foundations', category: 'Certifications', title: 'Immersive Labs', detail: '9/20 collections · by end of August', completed: false, sortOrder: 10 },
-  { id: 2, phase: 'Core Foundations', category: 'Certifications', title: 'CISCO Junior Cyber Pathway', detail: '1/6 courses', completed: false, sortOrder: 20 },
-  { id: 3, phase: 'Core Foundations', category: 'Certifications', title: 'CompTIA Security+', detail: 'by 28th of August', completed: false, sortOrder: 30 },
+  { id: 1, phase: 'Core Foundations', category: 'Certifications', title: 'Immersive Labs', detail: '9/20 collections', dueDate: '2026-08-31', completed: false, sortOrder: 10 },
+  { id: 2, phase: 'Core Foundations', category: 'Certifications', title: 'CISCO Junior Cyber Pathway', detail: '1/6 courses', dueDate: null, completed: false, sortOrder: 20 },
+  { id: 3, phase: 'Core Foundations', category: 'Certifications', title: 'CompTIA Security+', detail: '', dueDate: '2026-08-28', completed: false, sortOrder: 30 },
   { id: 4, phase: 'Core Foundations', category: 'Networking', title: 'Get to 1000 LinkedIn connections', detail: '307/1000', completed: false, sortOrder: 10 },
   { id: 5, phase: 'Core Foundations', category: 'Networking', title: 'Add banner and fix headshot', detail: '', completed: true, sortOrder: 20 },
   { id: 6, phase: 'Core Foundations', category: 'Networking', title: 'Post once a week', detail: 'THM Medium-level room with a write-up', completed: false, sortOrder: 30 },
@@ -629,6 +629,23 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     } catch (err) {
       setRoadmapError(friendlyMemberErrorMessage(err));
       setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+    }
+  };
+
+  // Lets a member self-report progress (a number or percentage) and a due
+  // date on their own Core Foundations items - updates the field locally as
+  // they type/pick, then persists via the update_my_roadmap_item_progress
+  // RPC (same ownership-scoped pattern as toggling completion above).
+  const handleRoadmapItemFieldChange = (itemId, field, value) => {
+    setRoadmapItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, [field]: value } : i)));
+  };
+
+  const handleSaveMyRoadmapItemProgress = async (item) => {
+    if (isMockSession) return;
+    try {
+      await updateMyRoadmapItemProgress(item.id, { detail: item.detail, dueDate: item.dueDate });
+    } catch (err) {
+      setRoadmapError(friendlyMemberErrorMessage(err));
     }
   };
 
@@ -1882,7 +1899,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                               ) : (
                                 <Square size={18} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '1px' }} />
                               )}
-                              <div style={{ minWidth: 0 }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
                                 <div style={{
                                   fontSize: '0.9rem',
                                   textDecoration: item.completed ? 'line-through' : 'none',
@@ -1891,7 +1908,32 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 }}>
                                   {item.title}
                                 </div>
-                                {item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>}
+                                {g.phase === 'Core Foundations' ? (
+                                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                                    <input
+                                      type="text"
+                                      value={item.detail || ''}
+                                      onChange={(e) => handleRoadmapItemFieldChange(item.id, 'detail', e.target.value)}
+                                      onBlur={() => handleSaveMyRoadmapItemProgress(item)}
+                                      placeholder="Your progress, e.g. 3/6 or 45%"
+                                      className="form-input"
+                                      style={{ fontSize: '0.75rem', padding: '5px 8px', width: '150px' }}
+                                    />
+                                    <input
+                                      type="date"
+                                      value={item.dueDate || ''}
+                                      onChange={(e) => {
+                                        const dueDate = e.target.value;
+                                        handleRoadmapItemFieldChange(item.id, 'dueDate', dueDate);
+                                        handleSaveMyRoadmapItemProgress({ ...item, dueDate });
+                                      }}
+                                      className="form-input"
+                                      style={{ fontSize: '0.75rem', padding: '5px 8px', width: '140px' }}
+                                    />
+                                  </div>
+                                ) : (
+                                  item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>
+                                )}
                               </div>
                             </div>
                           ))}
