@@ -22,7 +22,14 @@ const corsHeaders = {
 const MAX_MESSAGE_LENGTH = 2000;
 const DAILY_MESSAGE_CAP = 40;
 const HISTORY_WINDOW = 12;
-const GEMINI_MODEL = 'gemini-2.0-flash';
+// Pinned rather than 'gemini-flash-latest' - live-tested both on 2026-08-27:
+// gemini-2.0-flash (the previous pin) is fully shut down (404, "no longer
+// available"); gemini-flash-latest resolves to something real but returned
+// 503 "high demand" on 5/5 consecutive tries; this exact version returned a
+// clean success on the first try. A pinned version will eventually need
+// bumping again when Google deprecates it - that's a known, accepted cost,
+// preferable to depending on whatever '-latest' happens to point at today.
+const GEMINI_MODEL = 'gemini-3.6-flash';
 
 // Static facts about how Hacking Hub actually works, pulled from what's real in
 // this app (Member Portal tabs) rather than invented - kept short and factual so
@@ -162,10 +169,14 @@ Deno.serve(async (req) => {
     ];
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // The ?key= query-param style only works with the old "standard key"
+        // type - Google's phasing that out entirely by September 2026 in
+        // favor of "auth keys" (what every new key from AI Studio is now),
+        // which authenticate via this header instead.
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: buildSystemPrompt(profile) }] },
           contents: geminiContents,

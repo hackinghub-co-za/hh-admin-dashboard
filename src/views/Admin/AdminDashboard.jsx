@@ -5,7 +5,7 @@ import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
 import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -1410,6 +1410,28 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     .filter(({ doneCount, daysSinceJoined }) => doneCount < ONBOARDING_STEPS.length && daysSinceJoined !== null && daysSinceJoined <= ONBOARDING_QUEUE_WINDOW_DAYS)
     .sort((a, b) => a.doneCount - b.doneCount);
 
+  // Most recent roadmap item touch per member, keyed by lowercased email -
+  // feeds the "Stale Roadmaps" queue below. Same threshold the member's own
+  // dashboard banner uses (ROADMAP_STALE_AFTER_DAYS), so both sides agree on
+  // what "gone quiet" means.
+  const roadmapLastTouchedByEmail = allRoadmapItems.reduce((acc, item) => {
+    const key = item.memberEmail.toLowerCase();
+    if (item.updatedAt && (!acc[key] || new Date(item.updatedAt) > new Date(acc[key]))) acc[key] = item.updatedAt;
+    return acc;
+  }, {});
+
+  // Excludes members with no roadmap items at all - that's "nothing
+  // assigned yet," a different problem from "assigned but gone quiet."
+  const staleRoadmaps = memberRoster
+    .filter((m) => m.status === 'Active')
+    .map((m) => {
+      const lastTouchedAt = roadmapLastTouchedByEmail[m.email.toLowerCase()] || null;
+      const daysSinceTouch = lastTouchedAt ? Math.floor((today - new Date(lastTouchedAt)) / (1000 * 60 * 60 * 24)) : null;
+      return { member: m, daysSinceTouch };
+    })
+    .filter(({ daysSinceTouch }) => daysSinceTouch !== null && daysSinceTouch >= ROADMAP_STALE_AFTER_DAYS)
+    .sort((a, b) => b.daysSinceTouch - a.daysSinceTouch);
+
   // Counted from an explicit "Date Placed" field, not just who's currently marked
   // Job Placed - that would answer "how many are placed right now", not "this year".
   const jobPlacementsThisYear = memberRoster.filter(m =>
@@ -1724,6 +1746,43 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Stale Roadmaps - active members whose roadmap hasn't been
+              touched in ROADMAP_STALE_AFTER_DAYS, so a coach can reach out
+              directly instead of relying only on the member's own in-app
+              nudge. Excludes anyone with no roadmap assigned yet - that's a
+              different problem (see staleRoadmaps above). */}
+          <div className="glass-card" style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <Milestone size={18} color="var(--warning)" />
+              <h3 style={{ margin: 0 }}>Stale Roadmaps</h3>
+              {staleRoadmaps.length > 0 && (
+                <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>{staleRoadmaps.length}</span>
+              )}
+            </div>
+            {staleRoadmaps.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                No active member has gone {ROADMAP_STALE_AFTER_DAYS}+ days without touching their roadmap.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {staleRoadmaps.map(({ member, daysSinceTouch }) => (
+                  <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.member}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{member.email} · {member.profile?.roadmapTrack || 'No track assigned'}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>{daysSinceTouch}d quiet</span>
+                      <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setSelectedMemberEmail(member.email)}>
+                        View
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

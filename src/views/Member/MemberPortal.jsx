@@ -4,6 +4,7 @@ import CertDetailsModal from '../../components/CertDetailsModal';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
 import PortalTourModal from '../../components/PortalTourModal';
+import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
@@ -21,7 +22,7 @@ import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment } from '../../lib/billingData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -83,6 +84,7 @@ import {
   PlayCircle,
   ChevronDown,
   ChevronUp,
+  X,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -191,6 +193,55 @@ function daysUntilEvent(dateStr) {
   return Math.round((eventDate - now) / (1000 * 60 * 60 * 24));
 }
 
+// A short synthesized "level up" chime for the Specialization-unlocked
+// celebration - two ascending notes via raw oscillators, same zero-dependency
+// technique OnboardingSequence's background loop uses, just a one-shot
+// instead of a continuous loop. Fired from a real click, so autoplay
+// restrictions don't apply. Never throws into the caller - sound is a bonus
+// on top of the celebration modal, not a requirement for it to show.
+function playSpecializationChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    [
+      { freq: 523.25, start: 0 }, // C5
+      { freq: 783.99, start: 0.11 }, // G5 - a rising fifth reads as "leveled up"
+    ].forEach(({ freq, start }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now + start);
+      gain.gain.exponentialRampToValueAtTime(0.09, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + 0.45);
+    });
+  } catch {
+    // Web Audio can throw in odd environments (no support, blocked policy) -
+    // not worth failing the actual celebration over.
+  }
+}
+
+// Rotating quote bank for the Specialization-unlocked celebration - keeps it
+// from feeling identical every time it fires across the whole community.
+const SPECIALIZATION_QUOTES = [
+  'Core Foundations: cleared. Specialization: unlocked.',
+  'Six down. The real work starts now.',
+  "You didn't get lucky. You did the reps.",
+  "Foundation's solid. Time to specialize.",
+  "That's the boring part done. The interesting part starts here.",
+  "Certs don't lie. You're ready for what's next.",
+];
+
+function randomSpecializationQuote() {
+  return SPECIALIZATION_QUOTES[Math.floor(Math.random() * SPECIALIZATION_QUOTES.length)];
+}
+
 // Recent Wins used to carry a static "Today"/"Recently" label that was
 // accurate once and then just sat there. This computes a live one from the
 // real achieved_date instead, so it stays honest as time passes.
@@ -258,19 +309,24 @@ const MOCK_RESOURCES = [
 // (Offensive Security track, Core Foundations + Specialization phases) so
 // the mock experience matches what a real assigned roadmap looks like.
 const MOCK_ROADMAP_TRACK = 'Offensive Security';
+// 20 days old - past ROADMAP_STALE_AFTER_DAYS (14), so Mock Member also
+// demonstrates the "gone quiet" dashboard banner out of the box.
+const MOCK_ROADMAP_LAST_TOUCHED = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
 const MOCK_ROADMAP_ITEMS = [
-  { id: 1, phase: 'Core Foundations', category: 'Certifications', title: 'Immersive Labs', detail: '9/20 collections', dueDate: '2026-08-31', completed: false, sortOrder: 10 },
-  { id: 2, phase: 'Core Foundations', category: 'Certifications', title: 'CISCO Junior Cyber Pathway', detail: '1/6 courses', dueDate: null, completed: false, sortOrder: 20 },
-  { id: 3, phase: 'Core Foundations', category: 'Certifications', title: 'CompTIA Security+', detail: '', dueDate: '2026-08-28', completed: false, sortOrder: 30 },
-  { id: 4, phase: 'Core Foundations', category: 'Networking', title: 'Get to 1000 LinkedIn connections', detail: '307/1000', completed: false, sortOrder: 10 },
-  { id: 5, phase: 'Core Foundations', category: 'Networking', title: 'Add banner and fix headshot', detail: '', completed: true, sortOrder: 20 },
-  { id: 6, phase: 'Core Foundations', category: 'Networking', title: 'Post once a week', detail: 'THM Medium-level room with a write-up', completed: false, sortOrder: 30 },
-  { id: 7, phase: 'Core Foundations', category: 'Networking', title: 'Attend events/webinars', detail: '', completed: false, sortOrder: 40 },
-  { id: 8, phase: 'Specialization', category: 'Red Teaming', title: 'THM Junior Pentester', detail: '100% complete', completed: true, sortOrder: 10 },
-  { id: 9, phase: 'Specialization', category: 'Red Teaming', title: 'Burp Suite Practitioner Certification', detail: '', completed: false, sortOrder: 20 },
-  { id: 10, phase: 'Specialization', category: 'Red Teaming', title: 'eJPT', detail: '', completed: false, sortOrder: 30 },
-  { id: 11, phase: 'Specialization', category: 'Red Teaming', title: 'THM Offensive Pentesting', detail: '34% complete, with write-ups', completed: false, sortOrder: 40 },
-  { id: 12, phase: 'Specialization', category: 'Red Teaming', title: 'OSCP', detail: '', completed: false, sortOrder: 50 },
+  { id: 1, phase: 'Core Foundations', category: 'Certifications', title: 'Immersive Labs', detail: '9/20 collections', dueDate: '2026-08-31', completed: true, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 2, phase: 'Core Foundations', category: 'Certifications', title: 'CISCO Junior Cyber Pathway', detail: '1/6 courses', dueDate: null, completed: true, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 3, phase: 'Core Foundations', category: 'Certifications', title: 'CompTIA Security+', detail: '', dueDate: '2026-08-28', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 13, phase: 'Core Foundations', category: 'Certifications', title: 'AZ-900', detail: '', completed: true, sortOrder: 35, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 14, phase: 'Core Foundations', category: 'Certifications', title: 'AI-901', detail: '', completed: true, sortOrder: 36, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 4, phase: 'Core Foundations', category: 'Networking', title: 'Get to 1000 LinkedIn connections', detail: '307/1000', completed: false, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 5, phase: 'Core Foundations', category: 'Networking', title: 'Add banner and fix headshot', detail: '', completed: true, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 6, phase: 'Core Foundations', category: 'Networking', title: 'Post once a week', detail: 'THM Medium-level room with a write-up', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 7, phase: 'Core Foundations', category: 'Networking', title: 'Attend events/webinars', detail: '', completed: false, sortOrder: 40, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 8, phase: 'Specialization', category: 'Red Teaming', title: 'THM Junior Pentester', detail: '100% complete', completed: true, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 9, phase: 'Specialization', category: 'Red Teaming', title: 'Burp Suite Practitioner Certification', detail: '', completed: false, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 10, phase: 'Specialization', category: 'Red Teaming', title: 'eJPT', detail: '', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 11, phase: 'Specialization', category: 'Red Teaming', title: 'THM Offensive Pentesting', detail: '34% complete, with write-ups', completed: false, sortOrder: 40, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 12, phase: 'Specialization', category: 'Red Teaming', title: 'OSCP', detail: '', completed: false, sortOrder: 50, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
 ];
 
 
@@ -653,6 +709,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [roadmapFoundationsApproved, setRoadmapFoundationsApproved] = useState(false);
   const [loadingRoadmap, setLoadingRoadmap] = useState(!isMockSession);
   const [roadmapError, setRoadmapError] = useState(null);
+  // Dismissing the "gone quiet" banner is session-only, not persisted - it
+  // comes back next login if the roadmap is still stale, rather than being
+  // silence-able forever with one click.
+  const [roadmapNudgeDismissed, setRoadmapNudgeDismissed] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -669,9 +729,31 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
+  // Fires once, the moment this toggle pushes the Core Foundations count
+  // from below the Specialization threshold to at/above it - not on every
+  // checkbox, and not again on a later toggle once already past it.
+  const [specializationCelebration, setSpecializationCelebration] = useState(null);
+
   const handleToggleMyRoadmapItem = async (item) => {
-    const updated = { ...item, completed: !item.completed };
-    setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+    // updatedAt is bumped optimistically too - the toggle RPC sets it
+    // server-side to the same effect, and doing it here means the "gone
+    // quiet" banner clears the moment a member actually touches their
+    // roadmap, not just after the next refetch.
+    const updated = { ...item, completed: !item.completed, updatedAt: new Date().toISOString() };
+    const nextItems = roadmapItems.map((i) => (i.id === item.id ? updated : i));
+    setRoadmapItems(nextItems);
+
+    if (updated.completed) {
+      const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
+      const isCoreFoundationCert = (i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title);
+      const doneBefore = roadmapItems.filter(isCoreFoundationCert).filter((i) => i.completed).length;
+      const doneAfter = nextItems.filter(isCoreFoundationCert).filter((i) => i.completed).length;
+      if (doneBefore < SPECIALIZATION_UNLOCK_MIN && doneAfter >= SPECIALIZATION_UNLOCK_MIN) {
+        playSpecializationChime();
+        setSpecializationCelebration(randomSpecializationQuote());
+      }
+    }
+
     if (isMockSession) return;
     try {
       await toggleMyRoadmapItem(item.id, updated.completed);
@@ -690,6 +772,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   };
 
   const handleSaveMyRoadmapItemProgress = async (item) => {
+    // Reporting progress counts as touching the roadmap too - same
+    // "gone quiet" reasoning as the completion toggle above.
+    setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, updatedAt: new Date().toISOString() } : i)));
     if (isMockSession) return;
     try {
       await updateMyRoadmapItemProgress(item.id, { detail: item.detail, dueDate: item.dueDate });
@@ -2010,6 +2095,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               )}
             </div>
           )}
+
+          {specializationCelebration && (
+            <SpecializationUnlockedModal quote={specializationCelebration} onClose={() => setSpecializationCelebration(null)} />
+          )}
         </div>
       );
     }
@@ -2078,7 +2167,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       );
     }
 
-    case 'dashboard':
+    case 'dashboard': {
+      // "Gone quiet" nudge - the most recent touch across the member's own
+      // roadmap items, compared against the shared staleness threshold. No
+      // items at all (nothing assigned yet) is a different situation, not
+      // this one, so it's excluded rather than reading as "stale."
+      const roadmapLastTouchedAt = roadmapItems.reduce((latest, i) => (
+        i.updatedAt && (!latest || new Date(i.updatedAt) > new Date(latest)) ? i.updatedAt : latest
+      ), null);
+      const daysSinceRoadmapTouch = roadmapLastTouchedAt
+        ? Math.floor((new Date() - new Date(roadmapLastTouchedAt)) / (1000 * 60 * 60 * 24))
+        : null;
+      const roadmapIsStale = roadmapItems.length > 0 && daysSinceRoadmapTouch !== null && daysSinceRoadmapTouch >= ROADMAP_STALE_AFTER_DAYS;
+
       return (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '32px' }}>
@@ -2243,6 +2344,41 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 handleCompleteOnboardingStep('portal_tour');
               }}
             />
+          )}
+
+          {roadmapIsStale && !roadmapNudgeDismissed && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '14px 16px',
+                marginBottom: '24px',
+                borderRadius: 'var(--border-radius-md)',
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.2)',
+              }}
+            >
+              <AlertTriangle size={17} color="var(--warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                  It's been {daysSinceRoadmapTouch} days since you touched your roadmap.
+                </p>
+                <p style={{ margin: '4px 0 10px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  No judgment — pick up wherever you left off.
+                </p>
+                <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => setActiveTab?.('roadmap')}>
+                  Go to My Roadmap
+                </button>
+              </div>
+              <button
+                onClick={() => setRoadmapNudgeDismissed(true)}
+                aria-label="Dismiss"
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', flexShrink: 0 }}
+              >
+                <X size={16} />
+              </button>
+            </div>
           )}
 
           {/* TOP PANEL: Community Feed, Upcoming Events & Certification Victories */}
@@ -2592,8 +2728,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             </div>
           </div>
+
+          {specializationCelebration && (
+            <SpecializationUnlockedModal quote={specializationCelebration} onClose={() => setSpecializationCelebration(null)} />
+          )}
         </div>
       );
+    }
 
     case 'meetings': {
       // A quick email nudge, not a tracked request queue - just pre-fills the

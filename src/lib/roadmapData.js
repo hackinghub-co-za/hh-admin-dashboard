@@ -18,6 +18,7 @@ function mapRow(row) {
     dueDate: row.due_date || null,
     completed: !!row.completed,
     sortOrder: row.sort_order || 0,
+    updatedAt: row.updated_at || null,
   };
 }
 
@@ -25,7 +26,7 @@ function mapRow(row) {
 export async function fetchMyRoadmap() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at')
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });
   if (error) throw error;
@@ -86,7 +87,7 @@ export async function setRoadmapFoundationsApproval(email, approved) {
 export async function fetchAllRoadmapItems() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order');
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at');
   if (error) throw error;
   return (data || []).map(mapRow);
 }
@@ -96,7 +97,7 @@ export async function fetchAllRoadmapItems() {
 export async function fetchRoadmapForMember(email) {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at')
     .eq('member_email', email.toLowerCase())
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });

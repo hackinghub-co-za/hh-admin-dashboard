@@ -123,3 +123,93 @@ AS $$
 $$;
 GRANT EXECUTE ON FUNCTION public.get_my_roadmap_track() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_my_roadmap_track() FROM PUBLIC, anon;
+
+-- =========================================================================
+-- "GONE QUIET" EMAIL REMINDER (Feature C of the roadmap accountability
+-- plan) - reaches a member who's stopped opening the portal entirely, which
+-- the in-app banner above structurally can't do. Sent by
+-- supabase/functions/roadmap-reminder-email, triggered daily by pg_cron
+-- (see 047_roadmap_reminder_cron.sql).
+-- =========================================================================
+
+-- sent_at gates against re-sending every single day while a member stays
+-- stale - the reminder function only re-sends once it's been
+-- ROADMAP_EMAIL_REMINDER_AFTER_DAYS again since the last send, not every
+-- cron run. opted_out is a one-click, no-login-required unsubscribe.
+ALTER TABLE public.member_profiles
+  ADD COLUMN IF NOT EXISTS roadmap_reminder_sent_at TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS roadmap_reminder_opted_out BOOLEAN NOT NULL DEFAULT false;
+
+-- Anonymous, no-token unsubscribe - has to work from a cold click in an
+-- email client with no Supabase session at all, unlike every other write in
+-- this project. Skips the usual ownership-token dance deliberately: the
+-- worst case of someone unsubscribing a member they don't own is that
+-- member keeps getting nudged via the in-app banner instead of email - no
+-- security or financial exposure, so the extra complexity isn't worth it.
+CREATE OR REPLACE FUNCTION public.unsubscribe_from_roadmap_reminders(p_email TEXT)
+RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  UPDATE public.member_profiles
+  SET roadmap_reminder_opted_out = true
+  WHERE email = lower(p_email);
+$$;
+GRANT EXECUTE ON FUNCTION public.unsubscribe_from_roadmap_reminders(TEXT) TO anon, authenticated;
+
+-- Everything the reminder function needs to decide who to email, computed
+-- server-side rather than joined client-side in Deno - much cheaper than
+-- fetching every member_profiles row plus every roadmap_items row and
+-- joining them in JS for what's really a single aggregate query. Callable by
+-- the service role (the edge function; bypasses this check entirely, same
+-- as every other SECURITY DEFINER function in this project once called via
+-- the service-role client) or by an admin - never by an ordinary member,
+-- since this reveals exactly who's struggling.
+CREATE OR REPLACE FUNCTION public.get_stale_roadmap_members_for_reminder(p_stale_after_days INT)
+RETURNS TABLE (email TEXT, full_name TEXT, job_readiness TEXT, days_since_touch INT)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() = 'authenticated' AND NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can view this.';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    mp.email,
+    mp.full_name,
+    mp.job_readiness,
+    EXTRACT(DAY FROM (timezone('utc'::text, now()) - MAX(ri.updated_at)))::INT AS days_since_touch
+  FROM public.member_profiles mp
+  JOIN public.roadmap_items ri ON ri.member_email = mp.email
+  WHERE mp.status IN ('Active', 'Active (Permanent)')
+    AND mp.roadmap_reminder_opted_out = false
+    AND (
+      mp.roadmap_reminder_sent_at IS NULL
+      OR mp.roadmap_reminder_sent_at < timezone('utc'::text, now()) - (p_stale_after_days || ' days')::interval
+    )
+  GROUP BY mp.email, mp.full_name, mp.job_readiness
+  HAVING MAX(ri.updated_at) < timezone('utc'::text, now()) - (p_stale_after_days || ' days')::interval;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_stale_roadmap_members_for_reminder(INT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_stale_roadmap_members_for_reminder(INT) FROM PUBLIC, anon;
+
+-- Records that a reminder actually went out - same admin-or-service-role
+-- gate as above, so an ordinary member can't suppress another member's
+-- reminders without going through the real unsubscribe path.
+CREATE OR REPLACE FUNCTION public.mark_roadmap_reminder_sent(p_email TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() = 'authenticated' AND NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can do this.';
+  END IF;
+
+  UPDATE public.member_profiles
+  SET roadmap_reminder_sent_at = timezone('utc'::text, now())
+  WHERE email = lower(p_email);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.mark_roadmap_reminder_sent(TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.mark_roadmap_reminder_sent(TEXT) FROM PUBLIC, anon;

@@ -128,3 +128,17 @@ export const LAPSED_AFTER_DAYS = 45;
 
 // A member's "Last 1on1 Meeting" is flagged once it's this many days old.
 export const MEETING_OVERDUE_AFTER_DAYS = 30;
+
+// A member's roadmap is flagged "gone quiet" once the most recent item
+// update is this many days old - shared by the member-facing dashboard
+// banner and the admin Stale Roadmaps queue so both sides agree on what
+// "stale" means.
+export const ROADMAP_STALE_AFTER_DAYS = 14;
+
+// The email escalation (supabase/functions/roadmap-reminder-email) only
+// fires at a longer threshold than the in-app nudge above - email is for
+// someone who's genuinely stopped opening the portal, not everyone who
+// crosses the softer in-app threshold. Keep this in sync with
+// EMAIL_REMINDER_AFTER_DAYS in that function - it can't literally import
+// this file (separate Deno runtime).
+export const ROADMAP_EMAIL_REMINDER_AFTER_DAYS = 30;
