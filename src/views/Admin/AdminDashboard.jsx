@@ -4,6 +4,7 @@ import CertDetailsModal from '../../components/CertDetailsModal';
 import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
 import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
+import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import payfastTransactionsData from '../../data/payfastTransactions.json';
 import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -464,6 +465,9 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [selectedMemberEmail, setSelectedMemberEmail] = useState(null);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [memberStatusFilter, setMemberStatusFilter] = useState('all');
+  // 'grid' (the original flat card grid) or 'domain' (grouped by
+  // Specialization track - see GroupedMemberDirectory).
+  const [memberViewMode, setMemberViewMode] = useState('grid');
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   // Refer a Friend submissions - real Supabase data for a real session, a
@@ -1651,7 +1655,109 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         </div>
       );
 
-    case 'members':
+    case 'members': {
+      // Extracted so the exact same card renders both in the flat grid
+      // below and inside an expanded group in the "By Domain" view - one
+      // card design to maintain, not two.
+      const renderMemberCard = (m) => {
+        const initials = m.member
+          .split(' ')
+          .map((part) => part[0])
+          .filter(Boolean)
+          .slice(0, 2)
+          .join('')
+          .toUpperCase();
+
+        return (
+          <div
+            onClick={() => setSelectedMemberEmail(m.email)}
+            className="hover-glow"
+            style={{
+              padding: '20px',
+              borderRadius: 'var(--border-radius-md)',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid var(--border-color)',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  color: '#12132b',
+                  flexShrink: 0,
+                }}
+              >
+                {initials}
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.member}</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <span className={`badge ${m.status === 'Left' ? 'badge-danger' : (m.status === 'Lapsed' || m.status === 'Leaving') ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>{m.status}</span>
+              <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.lastPlan}</span>
+              <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{m.profile?.specialty && m.profile.specialty !== 'Not Set' ? m.profile.specialty : 'Specialty not set'}</span>
+              {m.profile?.employmentStatus && m.profile.employmentStatus !== 'Not Set' && (
+                <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.profile.employmentStatus}</span>
+              )}
+            </div>
+
+            {(m.profile?.location || m.profile?.linkedin || m.profile?.phone || m.lastMeetingDate || (m.profile?.employmentStatus === 'Employed' && m.profile?.jobTitle)) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                {m.profile?.employmentStatus === 'Employed' && m.profile?.jobTitle && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Building2 size={12} /> {m.profile.jobTitle}</span>
+                )}
+                {m.profile?.location && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> {m.profile.location}</span>}
+                {m.profile?.phone && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={12} /> {m.profile.phone}</span>}
+                {m.profile?.linkedin && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Link size={12} /> LinkedIn on file</span>}
+                {m.lastMeetingDate && (() => {
+                  const daysSinceMeeting = Math.floor((today - new Date(m.lastMeetingDate)) / (1000 * 60 * 60 * 24));
+                  const overdue = daysSinceMeeting > MEETING_OVERDUE_AFTER_DAYS;
+                  return (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: overdue ? 'var(--danger)' : 'inherit', fontWeight: overdue ? 600 : 400 }}>
+                      {overdue ? <Flag size={12} color="var(--danger)" /> : <Calendar size={12} />}
+                      Last 1on1: {formatDate(m.lastMeetingDate)}
+                      {overdue && ` (${daysSinceMeeting}d ago)`}
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '12px', fontSize: '0.8rem' }}>
+              <div>
+                <div style={{ color: 'var(--text-muted)' }}>Months in HH</div>
+                <strong>{m.monthsInHH}</strong>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-muted)' }}>Total Spent</div>
+                <strong style={{ color: 'var(--success)' }}>R {m.totalSpent.toLocaleString('en-ZA', { minimumFractionDigits: 0 })}</strong>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-muted)' }}>Owed</div>
+                <strong style={{ color: m.profile?.moneyOwed ? 'var(--warning)' : 'var(--text-secondary)' }}>
+                  R {(m.profile?.moneyOwed || 0).toLocaleString('en-ZA', { minimumFractionDigits: 0 })}
+                </strong>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
       return (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px', flexWrap: 'wrap' }}>
@@ -1811,109 +1917,41 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 </button>
               ))}
             </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setMemberViewMode('grid')}
+                className={`btn ${memberViewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              >
+                <Users size={14} /> Grid
+              </button>
+              <button
+                onClick={() => setMemberViewMode('domain')}
+                className={`btn ${memberViewMode === 'domain' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              >
+                <Milestone size={14} /> By Domain
+              </button>
+            </div>
           </div>
 
+          {memberViewMode === 'domain' ? (
+            <GroupedMemberDirectory
+              members={filteredMemberRoster}
+              getEmail={(m) => m.email}
+              getName={(m) => m.member}
+              getTrack={(m) => m.profile?.roadmapTrack || null}
+              onSelectMember={(m) => setSelectedMemberEmail(m.email)}
+              renderCard={renderMemberCard}
+            />
+          ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-            {filteredMemberRoster.map((m) => {
-              const initials = m.member
-                .split(' ')
-                .map((part) => part[0])
-                .filter(Boolean)
-                .slice(0, 2)
-                .join('')
-                .toUpperCase();
-
-              return (
-                <div
-                  key={m.email}
-                  onClick={() => setSelectedMemberEmail(m.email)}
-                  className="hover-glow"
-                  style={{
-                    padding: '20px',
-                    borderRadius: 'var(--border-radius-md)',
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid var(--border-color)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '14px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '42px',
-                        height: '42px',
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: '0.9rem',
-                        color: '#12132b',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {initials}
-                    </div>
-                    <div style={{ overflow: 'hidden' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.member}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    <span className={`badge ${m.status === 'Left' ? 'badge-danger' : (m.status === 'Lapsed' || m.status === 'Leaving') ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>{m.status}</span>
-                    <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.lastPlan}</span>
-                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{m.profile?.specialty && m.profile.specialty !== 'Not Set' ? m.profile.specialty : 'Specialty not set'}</span>
-                    {m.profile?.employmentStatus && m.profile.employmentStatus !== 'Not Set' && (
-                      <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.profile.employmentStatus}</span>
-                    )}
-                  </div>
-
-                  {(m.profile?.location || m.profile?.linkedin || m.profile?.phone || m.lastMeetingDate || (m.profile?.employmentStatus === 'Employed' && m.profile?.jobTitle)) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                      {m.profile?.employmentStatus === 'Employed' && m.profile?.jobTitle && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Building2 size={12} /> {m.profile.jobTitle}</span>
-                      )}
-                      {m.profile?.location && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> {m.profile.location}</span>}
-                      {m.profile?.phone && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={12} /> {m.profile.phone}</span>}
-                      {m.profile?.linkedin && <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Link size={12} /> LinkedIn on file</span>}
-                      {m.lastMeetingDate && (() => {
-                        const daysSinceMeeting = Math.floor((today - new Date(m.lastMeetingDate)) / (1000 * 60 * 60 * 24));
-                        const overdue = daysSinceMeeting > MEETING_OVERDUE_AFTER_DAYS;
-                        return (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: overdue ? 'var(--danger)' : 'inherit', fontWeight: overdue ? 600 : 400 }}>
-                            {overdue ? <Flag size={12} color="var(--danger)" /> : <Calendar size={12} />}
-                            Last 1on1: {formatDate(m.lastMeetingDate)}
-                            {overdue && ` (${daysSinceMeeting}d ago)`}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '12px', fontSize: '0.8rem' }}>
-                    <div>
-                      <div style={{ color: 'var(--text-muted)' }}>Months in HH</div>
-                      <strong>{m.monthsInHH}</strong>
-                    </div>
-                    <div>
-                      <div style={{ color: 'var(--text-muted)' }}>Total Spent</div>
-                      <strong style={{ color: 'var(--success)' }}>R {m.totalSpent.toLocaleString('en-ZA', { minimumFractionDigits: 0 })}</strong>
-                    </div>
-                    <div>
-                      <div style={{ color: 'var(--text-muted)' }}>Owed</div>
-                      <strong style={{ color: m.profile?.moneyOwed ? 'var(--warning)' : 'var(--text-secondary)' }}>
-                        R {(m.profile?.moneyOwed || 0).toLocaleString('en-ZA', { minimumFractionDigits: 0 })}
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {filteredMemberRoster.map((m) => (
+              <div key={m.email}>{renderMemberCard(m)}</div>
+            ))}
           </div>
+          )}
 
           {/* Refer a Friend submissions - who members have referred to the
               community, and who referred them. */}
@@ -1996,6 +2034,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           )}
         </div>
       );
+    }
 
     case 'roadmaps': {
       const roadmapSelected = roadmapMemberEmail
@@ -3474,7 +3513,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                               <span className="badge badge-danger">Failed</span>
                             ) : (
                               <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
-                                {daysLeft > 0 ? `${daysLeft} Days Left` : daysLeft === 0 ? 'Exam Today!' : 'Awaiting Result'}
+                                {daysLeft > 0 ? `${daysLeft} Day${daysLeft === 1 ? '' : 's'} Left` : daysLeft === 0 ? 'Exam Today!' : 'Awaiting Result'}
                               </span>
                             )}
                             <button onClick={(e) => { e.stopPropagation(); startEditCert(c); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }} aria-label="Edit entry">

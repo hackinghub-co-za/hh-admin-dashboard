@@ -175,20 +175,25 @@ function formatEvent(event) {
 }
 
 /**
- * Finds the soonest upcoming event organized by a specific email (e.g. the
- * member's next 1on1, which shows up on their own calendar as an event siya
- * organized and invited them to). `events` should already be sorted
- * soonest-first (fetchCalendarEvents orders by startTime). Only considers
- * events starting within `withinDays` days from now - a meeting further out
- * than that isn't "next" in any useful sense for a dashboard widget.
+ * Finds the soonest upcoming event organized by any of one or more mentor
+ * emails (e.g. the member's next 1on1, which shows up on their own calendar
+ * as an event a mentor organized and invited them to). Accepts either a
+ * single email or an array - originally only ever took Siya's, which meant
+ * a real session booked with any other real mentor (Nonhlanhla, Nokulunga,
+ * Momelezi) was invisible to this check entirely, showing "nothing booked"
+ * on a member's dashboard even when they had a real upcoming session with
+ * someone else. `events` should already be sorted soonest-first
+ * (fetchCalendarEvents orders by startTime). Only considers events starting
+ * within `withinDays` days from now - a meeting further out than that isn't
+ * "next" in any useful sense for a dashboard widget.
  */
-export function findNextMeetingWithOrganizer(events, organizerEmail, withinDays = 30) {
+export function findNextMeetingWithOrganizer(events, organizerEmails, withinDays = 30) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() + withinDays);
-  const targetEmail = organizerEmail.toLowerCase();
+  const targets = new Set((Array.isArray(organizerEmails) ? organizerEmails : [organizerEmails]).map((e) => e.toLowerCase()));
   return (
     events.find((evt) => {
-      if (evt.organizerEmail !== targetEmail || evt.status === 'cancelled' || !evt.start) return false;
+      if (!targets.has(evt.organizerEmail) || evt.status === 'cancelled' || !evt.start) return false;
       const startDate = new Date(evt.start);
       return startDate <= cutoff;
     }) || null

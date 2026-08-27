@@ -142,3 +142,75 @@ export const ROADMAP_STALE_AFTER_DAYS = 14;
 // EMAIL_REMINDER_AFTER_DAYS in that function - it can't literally import
 // this file (separate Deno runtime).
 export const ROADMAP_EMAIL_REMINDER_AFTER_DAYS = 30;
+
+// ============================================================================
+// MEMBERS DIRECTORY - GROUPED BY DOMAIN VIEW
+// ============================================================================
+
+// The Team - founder + mentors, shown in their own group ahead of the
+// Specialization tracks in both the admin and member Members views. Small
+// and rarely changes membership, so it's a plain constant here rather than
+// a database table or admin-editable setting - the same "just hardcode it,
+// it barely changes" treatment gemma-chat/index.ts's FAQ_KNOWLEDGE gives
+// mentor info. Same four people as the real MENTORS list in
+// MemberPortal.jsx's Book a 1on1 screen. Nokulunga's real email isn't
+// confirmed yet (2026-08) - add her here once it is; until then she just
+// won't show up in this grouped view, same as anyone else with no matching
+// row. Extend this array (by email, lowercase) as mentors change - the
+// display name always comes from that person's own real profile, never
+// duplicated here.
+export const TEAM_MEMBERS = [
+  { email: 'siya@hackinghub.co.za', role: 'Founder' },
+  { email: 'nonhlanhlakamangethe@gmail.com', role: 'Community Mentor · Data Security & AI' },
+  { email: 'kmchunu029@gmail.com', role: 'Community Mentor · Red Teaming' },
+];
+
+// One accent hue per track, reused for both the compact group card's accent
+// border and its avatar-stack tint - keeps a track visually identifiable at
+// a glance across the whole grouped view. Offensive Security gets the
+// product's own accent-cyan since it's the flagship track; the rest are
+// hues already used elsewhere in this app (release-note group colors) so
+// nothing here is a freshly invented palette.
+export const TRACK_COLORS = {
+  'Offensive Security': '#5ee37a',
+  'SOC': '#3b82f6',
+  'Cloud Security': '#22d3ee',
+  'DevSecOps': '#a78bfa',
+  'IAM': '#f5b942',
+  'AI Security': '#f472b6',
+};
+export const OTHER_GROUP_COLOR = '#94a3b8';
+export const TEAM_GROUP_COLOR = '#f5b942';
+
+/**
+ * Splits a flat member list into { team, tracks, other } for the grouped
+ * directory view - team matched by email against TEAM_MEMBERS, then each
+ * real ROADMAP_TRACKS entry (excluding the "Not Assigned" placeholder
+ * value), then "other" for anyone left with no track assigned at all.
+ * `getEmail`/`getTrack` adapt this to whichever shape of member object the
+ * caller has (the admin roster and the member-facing directory use
+ * different field names for the same underlying data).
+ */
+export function groupMembersByDomain(members, getEmail, getTrack) {
+  const teamEmails = new Set(TEAM_MEMBERS.map((t) => t.email.toLowerCase()));
+  const team = [];
+  const tracks = {};
+  ROADMAP_TRACKS.filter((t) => t !== 'Not Assigned').forEach((t) => { tracks[t] = []; });
+  const other = [];
+
+  (members || []).forEach((m) => {
+    const email = (getEmail(m) || '').toLowerCase();
+    if (teamEmails.has(email)) {
+      team.push(m);
+      return;
+    }
+    const track = getTrack(m);
+    if (track && tracks[track]) {
+      tracks[track].push(m);
+    } else {
+      other.push(m);
+    }
+  });
+
+  return { team, tracks, other };
+}

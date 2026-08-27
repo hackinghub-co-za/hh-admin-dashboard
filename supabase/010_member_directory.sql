@@ -109,6 +109,11 @@ CREATE POLICY "members delete own headshot"
 -- active-ish members (excludes 'Left') who are themselves an approved member
 -- (is_member_allowed) and who've actually set a full_name (otherwise they show
 -- up as an unhelpful "Unnamed member" card).
+-- roadmap_track added for the "grouped by domain" directory view - the
+-- track itself is admin-assigned, not sensitive (a member already sees
+-- their own via My Roadmap, and it's the same value shown in the admin
+-- Members tab), so exposing it alongside the already-public specialty badge
+-- doesn't cross the sensitivity line the rest of this function draws.
 DROP FUNCTION IF EXISTS public.get_member_directory();
 CREATE FUNCTION public.get_member_directory()
 RETURNS TABLE (
@@ -128,7 +133,8 @@ RETURNS TABLE (
   specialty TEXT,
   job_readiness TEXT,
   employment_status TEXT,
-  job_title TEXT
+  job_title TEXT,
+  roadmap_track TEXT
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -137,7 +143,7 @@ STABLE
 AS $$
   SELECT email, full_name, about, location, linkedin, tryhackme_username, headshot_url,
          github_url, tiktok_url, website_url, years_experience, certifications, fun_fact,
-         specialty, job_readiness, employment_status, job_title
+         specialty, job_readiness, employment_status, job_title, roadmap_track
   FROM public.member_profiles
   WHERE status != 'Left'
     AND full_name IS NOT NULL
@@ -155,8 +161,17 @@ REVOKE EXECUTE ON FUNCTION public.get_member_directory() FROM anon;
 -- (backfilled in 004_member_access_control.sql, or created by an admin), so a
 -- caller with no existing row just matches zero rows and no-ops, rather than
 -- being able to self-provision a brand-new 'Active' membership row.
-DROP FUNCTION IF EXISTS public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT);
-CREATE FUNCTION public.update_my_directory_profile(
+--
+-- CREATE OR REPLACE, not DROP+CREATE - this file used to pair a DROP
+-- FUNCTION IF EXISTS with a bare CREATE FUNCTION here (needed only when a
+-- revision actually changes the argument list, which CREATE OR REPLACE
+-- can't do), but that DROP line's signature was never updated when
+-- years_experience/certifications/fun_fact were added. It matched nothing
+-- live, silently no-opped, and left the real CREATE colliding with the
+-- function that already existed - "already exists with same argument
+-- types". CREATE OR REPLACE is exactly the right tool when the signature
+-- isn't changing, and sidesteps this whole class of bug.
+CREATE OR REPLACE FUNCTION public.update_my_directory_profile(
   p_full_name TEXT,
   p_about TEXT,
   p_location TEXT,

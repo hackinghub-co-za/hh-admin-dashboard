@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LayoutDashboard,
   Calendar,
@@ -30,12 +31,52 @@ const LAST_SEEN_RELEASE_KEY = 'hh_last_seen_release';
 // Icon-only rail - every interactive item reveals its label as a tooltip on
 // hover rather than showing text inline, so the sidebar stays a fixed narrow
 // width instead of pushing page content around.
+//
+// The tooltip renders through a portal into document.body rather than as a
+// normal absolutely-positioned child here - the nav list below sets
+// overflowY: 'auto' (needed so a long list of items scrolls instead of
+// overflowing the screen on shorter viewports), and per the CSS spec,
+// setting only one overflow axis forces the other axis to behave as 'auto'
+// too rather than staying 'visible'. That silently clipped every tooltip
+// the moment it tried to extend past the ~76px sidebar width, well before
+// this had any text visible - a real, confirmed bug, not a hypothetical
+// one. Rendering into document.body via a portal sidesteps that clipping
+// entirely; position is computed from the button's own screen position on
+// hover instead of relying on a CSS-relative ancestor.
 function TooltipButton({ id, icon: Icon, label, active, danger, badge, hoveredId, onHover, onLeave, onClick }) {
   const isHovered = hoveredId === id;
+  const buttonRef = useRef(null);
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
+
+  const measure = () => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) setTooltipPos({ top: rect.top + rect.height / 2, left: rect.right + 10 });
+  };
+
+  const handleEnter = () => {
+    onHover(id);
+    measure();
+  };
+
+  // The nav list scrolls (overflowY: 'auto', for a list long enough to
+  // outgrow a short viewport) - without this, hovering a button then
+  // scrolling the list without moving the mouse leaves the portaled
+  // tooltip anchored to where the button used to be, no longer where it
+  // now is. Capture-phase listening on window catches the nav's internal
+  // scroll even though scroll events don't normally bubble.
+  useEffect(() => {
+    if (!isHovered) return undefined;
+    window.addEventListener('scroll', measure, true);
+    return () => window.removeEventListener('scroll', measure, true);
+  }, [isHovered]);
+
   return (
-    <div style={{ position: 'relative' }} onMouseEnter={() => onHover(id)} onMouseLeave={onLeave}>
+    <>
       <button
+        ref={buttonRef}
         onClick={onClick}
+        onMouseEnter={handleEnter}
+        onMouseLeave={onLeave}
         aria-label={label}
         style={{
           position: 'relative',
@@ -69,32 +110,35 @@ function TooltipButton({ id, icon: Icon, label, active, danger, badge, hoveredId
           />
         )}
       </button>
-      <span
-        role="tooltip"
-        style={{
-          position: 'absolute',
-          left: 'calc(100% + 10px)',
-          top: '50%',
-          transform: isHovered ? 'translateY(-50%) translateX(0)' : 'translateY(-50%) translateX(-6px)',
-          whiteSpace: 'nowrap',
-          padding: '6px 12px',
-          borderRadius: 'var(--border-radius-sm)',
-          background: 'var(--bg-primary)',
-          border: '1px solid var(--border-color)',
-          boxShadow: 'var(--glass-shadow)',
-          color: danger ? 'var(--danger)' : 'var(--text-primary)',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          fontFamily: 'var(--font-sans)',
-          pointerEvents: 'none',
-          opacity: isHovered ? 1 : 0,
-          transition: 'opacity 0.15s ease, transform 0.15s ease',
-          zIndex: 200,
-        }}
-      >
-        {label}
-      </span>
-    </div>
+      {createPortal(
+        <span
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            top: tooltipPos.top,
+            left: tooltipPos.left,
+            transform: isHovered ? 'translateY(-50%) translateX(0)' : 'translateY(-50%) translateX(-6px)',
+            whiteSpace: 'nowrap',
+            padding: '6px 12px',
+            borderRadius: 'var(--border-radius-sm)',
+            background: 'var(--bg-primary)',
+            border: '1px solid var(--border-color)',
+            boxShadow: 'var(--glass-shadow)',
+            color: danger ? 'var(--danger)' : 'var(--text-primary)',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            fontFamily: 'var(--font-sans)',
+            pointerEvents: 'none',
+            opacity: isHovered ? 1 : 0,
+            transition: 'opacity 0.15s ease, transform 0.15s ease',
+            zIndex: 200,
+          }}
+        >
+          {label}
+        </span>,
+        document.body
+      )}
+    </>
   );
 }
 

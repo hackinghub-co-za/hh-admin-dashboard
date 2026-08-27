@@ -30,6 +30,7 @@ export async function fetchMemberDirectory() {
     jobReadiness: row.job_readiness || 'Not Started',
     employmentStatus: row.employment_status || 'Not Set',
     jobTitle: row.job_title || '',
+    roadmapTrack: row.roadmap_track || null,
   }));
 }
 

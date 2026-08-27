@@ -34,8 +34,13 @@ const GEMINI_MODEL = 'gemini-3.6-flash';
 // Static facts about how Hacking Hub actually works, pulled from what's real in
 // this app (Member Portal tabs) rather than invented - kept short and factual so
 // Gemma doesn't need to guess or hallucinate community details.
+// Mentor roster corrected 2026-08 (confirmed with founder) - matches the real
+// MENTORS list in MemberPortal.jsx's Book a 1on1 screen, not a separate,
+// driftable copy. The previous version named a fictional "Jaco du Toit" as a
+// real bookable mentor, which was live, factually wrong, member-facing
+// content until this fix.
 const FAQ_KNOWLEDGE = `
-- 1-on-1 mentoring: members book sessions directly via Google Calendar with [REDACTED] (Lead Mentor - cybersecurity strategy, career roadmaps, OSCP coaching, code reviews) or Jaco du Toit (Senior Pentester - Active Directory exploitation, network pentesting, CTF walkthroughs). Sessions overdue past 30 days get flagged for admin follow-up.
+- 1-on-1 mentoring: members book sessions directly via Google Calendar with [REDACTED] (Lead Mentor & Founder - cybersecurity strategy, career roadmaps, OSCP coaching, SOC, cloud security, DevSecOps, and code reviews), or with community mentors Nonhlanhla (data security & AI), Nokulunga (digital forensics/DFIR), or Momelezi (red teaming/ethical hacking). Sessions overdue past 30 days get flagged for admin follow-up.
 - Events: HH Meetups, industry tech events, and casual Sunday Catchups, all listed under the Events tab.
 - Job Board: full-time, contract, and internship roles sourced from Hacking Hub's employer network and job placement partners.
 - Resources tab: cert prep material, role-specific roadmaps, podcasts, books, interview playbooks, and CV templates.
