@@ -6,6 +6,38 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.08.27',
+    date: '2026-08-27',
+    headline: "Your roadmap now has your back.",
+    intro: "Three new things watching your Roadmap progress — a real celebration when you clear Core Foundations, a gentle nudge if it's been a while, and an email from Gemma if you've been away for good.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🏆',
+            title: 'Clearing Core Foundations now feels like it',
+            body: "Check off your 5th Core Foundations cert and you'll get a real moment for it — a sound, a message, and confirmation you've qualified for Specialization.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '👋',
+            title: "\"It's been a while\" nudge",
+            body: "Haven't touched your Roadmap in 2 weeks? A quiet, dismissible reminder shows up on your Dashboard — no judgment, just a nudge back to where you left off.",
+            where: 'Dashboard',
+          },
+          {
+            icon: '📬',
+            title: 'Gemma checks in by email',
+            body: "If your Roadmap goes quiet for a month, Gemma sends a short, encouraging email nudging you back — with a one-click unsubscribe if you'd rather not get them.",
+            where: 'your inbox, only if it applies to you',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.08.22',
     date: '2026-08-22',
     headline: "Your subscription page is finally real.",
