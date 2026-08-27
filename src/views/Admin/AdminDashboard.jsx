@@ -17,6 +17,7 @@ import {
   fetchEftPayments,
   insertEftPayment,
   deleteEftPayment,
+  grantMemberPortalAccess,
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
 import { fetchAllReferrals } from '../../lib/referralsData';
@@ -31,6 +32,7 @@ import {
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent } from '../../lib/eventsData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
+import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
@@ -130,6 +132,22 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     let cancelled = false;
     fetchAllRoadmapItems()
       .then((data) => !cancelled && setAllRoadmapItems(data))
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  // Every member's onboarding checklist progress, fetched once for the "New
+  // Members Onboarding" queue on the Members tab. Real session only - Mock
+  // Admin has no real session for these rows to exist against, so the queue
+  // just renders empty under Mock Admin rather than fabricating progress for
+  // real payer names.
+  const [allOnboardingSteps, setAllOnboardingSteps] = useState([]);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllOnboardingSteps()
+      .then((data) => !cancelled && setAllOnboardingSteps(data))
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
@@ -1136,6 +1154,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     try {
       const saved = await insertEftPayment(basePayment);
       setPayments((prev) => [saved, ...prev]);
+      // Grants/reactivates portal access for whoever this payment is for -
+      // previously this required a separate manual step (or was missed
+      // entirely). The payment itself is already saved at this point, so a
+      // grant failure surfaces as a warning rather than losing the payment.
+      try {
+        await grantMemberPortalAccess(basePayment.email, basePayment.member);
+      } catch (grantErr) {
+        setSavedMemberDataError(
+          `Payment saved, but granting portal access to ${basePayment.member} failed - check the Members tab: ${friendlyErrorMessage(grantErr)}`
+        );
+      }
     } catch (err) {
       setSavedMemberDataError(friendlyErrorMessage(err));
     }
@@ -1353,6 +1382,33 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     acc[m.status] = (acc[m.status] || 0) + 1;
     return acc;
   }, {});
+
+  // Onboarding checklist progress, keyed by lowercased email - feeds the
+  // "New Members Onboarding" queue on the Members tab below.
+  const onboardingProgressByEmail = allOnboardingSteps.reduce((acc, row) => {
+    const key = row.member_email.toLowerCase();
+    acc[key] = acc[key] || {};
+    acc[key][row.step_key] = row.completed_at;
+    return acc;
+  }, {});
+
+  // Only members who joined recently and haven't finished the checklist -
+  // without this window the queue would list the entire multi-year active
+  // roster at "0/6 done" forever, since checklist rows only exist from when
+  // this feature shipped onward. "Joined" falls back to onboarded_at (first
+  // login) for allowlist-only members who have no payment at all.
+  const ONBOARDING_QUEUE_WINDOW_DAYS = 30;
+  const newMembersOnboarding = memberRoster
+    .filter((m) => m.status === 'Active')
+    .map((m) => {
+      const steps = onboardingProgressByEmail[m.email.toLowerCase()] || {};
+      const doneCount = ONBOARDING_STEPS.filter((s) => !!steps[s.key]).length;
+      const joinedAt = m.firstPaymentDate || m.profile?.onboardedAt || null;
+      const daysSinceJoined = joinedAt ? Math.floor((today - new Date(joinedAt)) / (1000 * 60 * 60 * 24)) : null;
+      return { member: m, doneCount, steps, daysSinceJoined };
+    })
+    .filter(({ doneCount, daysSinceJoined }) => doneCount < ONBOARDING_STEPS.length && daysSinceJoined !== null && daysSinceJoined <= ONBOARDING_QUEUE_WINDOW_DAYS)
+    .sort((a, b) => a.doneCount - b.doneCount);
 
   // Counted from an explicit "Date Placed" field, not just who's currently marked
   // Job Placed - that would answer "how many are placed right now", not "this year".
@@ -1625,6 +1681,52 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               Last 1on1 dates matched by attendee email against your Google Calendar since Jan 2026 — a member booked under a different email won't be caught.
             </p>
           )}
+
+          {/* New Members Onboarding - anyone who joined in the last 30 days
+              and hasn't finished the checklist (watch the video, book a
+              1-on-1, join WhatsApp, etc.), across the whole roster - not
+              just whoever's card happens to be open. Previously this was
+              completely invisible; a stalled new member had no signal at
+              all on the admin side. */}
+          <div className="glass-card" style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <Sparkles size={18} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>New Members Onboarding</h3>
+              {newMembersOnboarding.length > 0 && (
+                <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>{newMembersOnboarding.length}</span>
+              )}
+            </div>
+            {newMembersOnboarding.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Nobody who joined in the last {ONBOARDING_QUEUE_WINDOW_DAYS} days is still mid-checklist.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {newMembersOnboarding.map(({ member, doneCount, steps, daysSinceJoined }) => {
+                  const pendingLabels = ONBOARDING_STEPS.filter((s) => !steps[s.key]).map((s) => s.label);
+                  return (
+                    <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.member}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          {member.email} · joined {daysSinceJoined === 0 ? 'today' : `${daysSinceJoined}d ago`}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          Pending: {pendingLabels.join(', ')}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{doneCount}/{ONBOARDING_STEPS.length} done</span>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setSelectedMemberEmail(member.email)}>
+                          View
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
             <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', flexGrow: 1 }}>

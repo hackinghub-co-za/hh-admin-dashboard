@@ -125,3 +125,46 @@ VALUES
     ('[REDACTED]', 'Active'),
     ('[REDACTED]', 'Active')
 ON CONFLICT (email) DO NOTHING;
+
+-- =========================================================================
+-- PART 3: GRANT ACCESS ON PAYMENT
+-- =========================================================================
+-- Until now, a payment (PayFast or an admin-recorded EFT) never actually
+-- created or reactivated a member_profiles row - an admin had to notice the
+-- new payer and add them by hand (or via a one-off migration like Part 2
+-- above) before they could sign in at all. This is the single function both
+-- payfast-webhook (via the service role, which bypasses RLS entirely) and
+-- the admin dashboard's "Record EFT Payment" flow call after a successful
+-- payment, so there's one grant path instead of two different manual ones.
+--
+-- Only ever writes email/full_name/status - never money_owed, roadmap,
+-- offboarding fields, etc. - so it's safe to call on every single payment,
+-- including a member's 10th monthly renewal, without clobbering anything an
+-- admin or the member has already filled in. full_name only fills in when
+-- empty, so a self-chosen directory name (or an admin-corrected one) never
+-- gets overwritten by whatever name happened to be on a given PayFast
+-- checkout.
+CREATE OR REPLACE FUNCTION public.grant_member_portal_access(p_email TEXT, p_full_name TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  -- The service role (payfast-webhook) has no 'authenticated' JWT role, so
+  -- this only gates real authenticated callers - i.e. it stops any signed-in
+  -- non-admin member from granting themselves or anyone else access, while
+  -- leaving the webhook and admin-authenticated calls both allowed.
+  IF auth.role() = 'authenticated' AND NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can grant member portal access.';
+  END IF;
+
+  INSERT INTO public.member_profiles (email, full_name, status)
+  VALUES (lower(p_email), NULLIF(trim(p_full_name), ''), 'Active')
+  ON CONFLICT (email) DO UPDATE SET
+    status = 'Active',
+    full_name = COALESCE(NULLIF(trim(member_profiles.full_name), ''), EXCLUDED.full_name),
+    updated_at = timezone('utc'::text, now());
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.grant_member_portal_access(TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.grant_member_portal_access(TEXT, TEXT) FROM PUBLIC, anon;

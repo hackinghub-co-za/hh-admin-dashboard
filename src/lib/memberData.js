@@ -75,6 +75,21 @@ export async function upsertMemberProfile(email, profile) {
   if (error) throw error;
 }
 
+/**
+ * Grants (or reactivates) a member's portal access after a payment, via the
+ * DB-side grant_member_portal_access() function - creates their
+ * member_profiles row if it doesn't exist yet, or flips status back to
+ * Active if they'd lapsed/left, without touching any other field. Safe to
+ * call after every payment, including renewals.
+ */
+export async function grantMemberPortalAccess(email, fullName) {
+  const { error } = await supabase.rpc('grant_member_portal_access', {
+    p_email: email.toLowerCase(),
+    p_full_name: fullName || null,
+  });
+  if (error) throw error;
+}
+
 /** Admin-only, and only meant to be called for a member already marked
  * 'Left': permanently deletes their member_profiles row AND records their
  * email in deleted_members so they're filtered out of the roster everywhere

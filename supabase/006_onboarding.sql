@@ -39,3 +39,65 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.mark_onboarding_complete() TO authenticated;
+
+-- =========================================================================
+-- PART 2: THE ONBOARDING CHECKLIST
+-- =========================================================================
+-- onboarded_at/has_completed_onboarding above only ever tracked one thing -
+-- has this member seen the first-login intro sequence at all - which is
+-- still exactly what it's for (gating whether OnboardingSequence plays on
+-- login). What it can't do is track the actual list of things a new member
+-- needs to get done (watch the intro video, book their first 1-on-1, join
+-- WhatsApp, etc.) as separate, resumable, admin-visible steps - today
+-- that's just a row of links on one screen with no memory of what's been
+-- clicked. This table is that memory: one row per member per step, created
+-- the moment they complete it.
+--
+-- A narrow (member_email, step_key) table rather than one boolean column
+-- per step - adding a new checklist step later is a code change, not a
+-- migration, and "how many of N steps has this member finished" is a
+-- trivial count() instead of a wide, ever-growing row.
+CREATE TABLE IF NOT EXISTS public.member_onboarding_steps (
+  member_email TEXT NOT NULL,
+  step_key TEXT NOT NULL CHECK (step_key IN (
+    'watch_video', 'book_1on1', 'join_whatsapp', 'install_calendar', 'setup_profile', 'portal_tour'
+  )),
+  completed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
+  PRIMARY KEY (member_email, step_key)
+);
+
+ALTER TABLE public.member_onboarding_steps ENABLE ROW LEVEL SECURITY;
+
+-- Members can read their own progress directly - nothing sensitive here,
+-- just which of their own steps are done. Writes deliberately don't get a
+-- matching INSERT policy: they only ever happen through the function below,
+-- which pins step_key to the fixed vocabulary above and completed_at to the
+-- server clock rather than trusting either from the client.
+DROP POLICY IF EXISTS "members read own onboarding steps" ON public.member_onboarding_steps;
+CREATE POLICY "members read own onboarding steps"
+  ON public.member_onboarding_steps FOR SELECT
+  TO authenticated
+  USING (member_email = lower(auth.jwt() ->> 'email'));
+
+DROP POLICY IF EXISTS "admins manage onboarding steps" ON public.member_onboarding_steps;
+CREATE POLICY "admins manage onboarding steps"
+  ON public.member_onboarding_steps FOR ALL
+  USING (public.is_admin(auth.uid()));
+
+-- Self-service completion, scoped to only the caller's own row - same
+-- ownership pattern as every other member-submitted table in this project.
+-- Idempotent (ON CONFLICT DO NOTHING) so replaying a step (e.g. re-clicking
+-- an already-completed checklist item) is a harmless no-op, not an error.
+CREATE OR REPLACE FUNCTION public.mark_my_onboarding_step_complete(p_step_key TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.member_onboarding_steps (member_email, step_key)
+  VALUES (lower(auth.jwt() ->> 'email'), p_step_key)
+  ON CONFLICT (member_email, step_key) DO NOTHING;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.mark_my_onboarding_step_complete(TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.mark_my_onboarding_step_complete(TEXT) FROM PUBLIC, anon;

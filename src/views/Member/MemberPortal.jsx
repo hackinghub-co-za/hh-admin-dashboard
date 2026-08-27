@@ -3,6 +3,7 @@ import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
+import PortalTourModal from '../../components/PortalTourModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
@@ -18,6 +19,7 @@ import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment } from '../../lib/billingData';
+import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -77,9 +79,20 @@ import {
   Handshake,
   Lock,
   UserPlus,
+  MessageCircle,
+  PlayCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
+
+// A couple of steps pre-checked so the Mock Member demo shows both states at
+// once (done vs. still open) instead of either an empty or a fully-ticked list.
+const MOCK_ONBOARDING_STEPS = {
+  join_whatsapp: '2026-08-01T09:00:00Z',
+  install_calendar: '2026-08-01T09:05:00Z',
+};
 
 const MOCK_REVIEWS = [
   {
@@ -439,6 +452,42 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setSubmittingReview(false);
     }
   };
+  // Onboarding checklist - real Supabase data for a real session, local demo
+  // progress under Mock Member (a couple of steps pre-checked, the rest open)
+  // since there's no real session to persist against.
+  const [onboardingSteps, setOnboardingSteps] = useState(isMockSession ? MOCK_ONBOARDING_STEPS : {});
+  const [onboardingStepError, setOnboardingStepError] = useState(null);
+  const [expandedOnboardingStep, setExpandedOnboardingStep] = useState(null);
+  const [onboardingChecklistCollapsed, setOnboardingChecklistCollapsed] = useState(false);
+  const [showPortalTour, setShowPortalTour] = useState(false);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyOnboardingSteps()
+      .then((data) => !cancelled && setOnboardingSteps(data))
+      .catch((err) => !cancelled && setOnboardingStepError(friendlyMemberErrorMessage(err)));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleCompleteOnboardingStep = async (stepKey) => {
+    const alreadyDone = !!onboardingSteps[stepKey];
+    setOnboardingSteps((prev) => ({ ...prev, [stepKey]: new Date().toISOString() }));
+    if (isMockSession || alreadyDone) return;
+    try {
+      await markMyOnboardingStepComplete(stepKey);
+    } catch (err) {
+      setOnboardingStepError(friendlyMemberErrorMessage(err));
+      setOnboardingSteps((prev) => {
+        const next = { ...prev };
+        delete next[stepKey];
+        return next;
+      });
+    }
+  };
+
+  const onboardingComplete = ONBOARDING_STEPS.every((s) => !!onboardingSteps[s.key]);
+
   // Member directory - real Supabase data (via get_member_directory, which only
   // ever returns a hand-picked safe column set) for a real session, local mock
   // roster under Mock Member since there's no real session to call the RPC with.
@@ -2064,6 +2113,137 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             )}
           </div>
+
+          {/* Getting Started checklist - shown until every onboarding step is
+              done, then never again. Resumable across sessions (persisted via
+              member_onboarding_steps), unlike the one-shot first-login intro. */}
+          {!onboardingComplete && (
+            <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--accent-cyan)' }}>
+              <div
+                onClick={() => setOnboardingChecklistCollapsed((c) => !c)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Sparkles size={18} color="var(--accent-cyan)" />
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Getting Started</h3>
+                  <span className="badge badge-success">
+                    {ONBOARDING_STEPS.filter((s) => !!onboardingSteps[s.key]).length} / {ONBOARDING_STEPS.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  aria-label={onboardingChecklistCollapsed ? 'Expand checklist' : 'Collapse checklist'}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+                >
+                  {onboardingChecklistCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </button>
+              </div>
+
+              {!onboardingChecklistCollapsed && (
+                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {onboardingStepError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{onboardingStepError}</p>}
+                  {[
+                    {
+                      key: 'watch_video',
+                      icon: PlayCircle,
+                      label: 'Watch the onboarding video',
+                      actionLabel: expandedOnboardingStep === 'watch_video' ? 'Hide Video' : 'Watch',
+                      action: () => setExpandedOnboardingStep((k) => (k === 'watch_video' ? null : 'watch_video')),
+                    },
+                    {
+                      key: 'book_1on1',
+                      icon: Calendar,
+                      label: 'Book your first 1-on-1',
+                      actionLabel: 'Book Now',
+                      action: () => setActiveTab?.('meetings'),
+                    },
+                    {
+                      key: 'join_whatsapp',
+                      icon: MessageCircle,
+                      label: 'Join the WhatsApp community',
+                      actionLabel: 'Join',
+                      action: () => window.open('https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1', '_blank', 'noopener,noreferrer'),
+                    },
+                    {
+                      key: 'install_calendar',
+                      icon: Download,
+                      label: 'Install Google Calendar',
+                      actionLabel: 'Get It',
+                      action: () => window.open('https://workspace.google.com/products/calendar/', '_blank', 'noopener,noreferrer'),
+                    },
+                    {
+                      key: 'setup_profile',
+                      icon: User,
+                      label: 'Set up your profile',
+                      actionLabel: 'Edit Profile',
+                      action: () => { setActiveTab?.('members'); openEditProfile(); },
+                    },
+                    {
+                      key: 'portal_tour',
+                      icon: Map,
+                      label: 'Take the portal tour',
+                      actionLabel: 'Start Tour',
+                      action: () => setShowPortalTour(true),
+                    },
+                  ].map(({ key, icon: StepIcon, label, actionLabel, action }) => {
+                    const done = !!onboardingSteps[key];
+                    return (
+                      <div key={key}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '10px 12px',
+                            borderRadius: 'var(--border-radius-md)',
+                            background: done ? 'rgba(94, 227, 122, 0.06)' : 'var(--bg-tertiary)',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleCompleteOnboardingStep(key)}
+                            aria-label={done ? 'Completed' : 'Mark as done'}
+                            style={{ background: 'transparent', border: 'none', cursor: done ? 'default' : 'pointer', color: done ? 'var(--accent-cyan)' : 'var(--text-muted)', display: 'flex' }}
+                          >
+                            {done ? <CheckCircle2 size={20} /> : <Square size={20} />}
+                          </button>
+                          <StepIcon size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontSize: '0.9rem', color: done ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: done ? 'line-through' : 'none' }}>
+                            {label}
+                          </span>
+                          <button type="button" onClick={action} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px', flexShrink: 0 }}>
+                            {actionLabel}
+                          </button>
+                        </div>
+                        {key === 'watch_video' && expandedOnboardingStep === 'watch_video' && (
+                          <div style={{ marginTop: '8px', borderRadius: 'var(--border-radius-md)', overflow: 'hidden', aspectRatio: '16 / 9' }}>
+                            <iframe
+                              width="100%"
+                              height="100%"
+                              src="https://www.youtube.com/embed/fjPSeZTU_JM"
+                              title="Hacking Hub onboarding video"
+                              style={{ border: 'none', display: 'block' }}
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {showPortalTour && (
+            <PortalTourModal
+              onComplete={() => {
+                setShowPortalTour(false);
+                handleCompleteOnboardingStep('portal_tour');
+              }}
+            />
+          )}
 
           {/* TOP PANEL: Community Feed, Upcoming Events & Certification Victories */}
           <div className="dashboard-grid" style={{ marginBottom: '32px' }}>

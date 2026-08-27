@@ -139,6 +139,25 @@ Deno.serve(async (req) => {
       return new Response('Error', { status: 500 });
     }
 
+    // Grant portal access on a genuinely completed payment - this used to be
+    // a manual step (an admin had to notice the new payer and add them by
+    // hand), so a real payment could land with no way for that person to
+    // actually sign in yet. A grant failure doesn't fail the webhook: the
+    // transaction above is already correctly recorded either way, and
+    // retrying the whole ITN over a grant hiccup would just risk duplicate
+    // processing for no benefit - it's logged instead for manual follow-up.
+    const payerEmail = (params.get('email_address') || '').toLowerCase();
+    if (payerEmail && params.get('payment_status') === 'COMPLETE') {
+      const payerName = [params.get('name_first'), params.get('name_last')].filter(Boolean).join(' ') || null;
+      const { error: grantError } = await adminClient.rpc('grant_member_portal_access', {
+        p_email: payerEmail,
+        p_full_name: payerName,
+      });
+      if (grantError) {
+        console.error('payfast-webhook: grant_member_portal_access failed', grantError.message);
+      }
+    }
+
     return new Response('OK', { status: 200 });
   } catch (err) {
     console.error('payfast-webhook error:', err);
