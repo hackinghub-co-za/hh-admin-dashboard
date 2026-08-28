@@ -25,6 +25,16 @@ export function friendlyErrorMessage(error) {
     return "Your session may have expired. Try refreshing the page - if that doesn't help, sign out and sign back in.";
   }
 
+  // PostgREST rejects a token whose "issued at" claim looks later than the
+  // server's own clock - in practice this is the signed-in device's system
+  // clock being wrong (set manually, or drifted), not a real session
+  // problem. Signing out and back in won't fix it (a fresh token has the
+  // same "iat" issue if the clock is still wrong), so this needs its own
+  // message rather than folding into the session-expired case above.
+  if (raw.includes('issued at future') || raw.includes('issued in the future')) {
+    return "This device's clock looks out of sync with the real time, which is blocking sign-in. Check your computer's date & time settings (set to automatic/network time), then refresh the page.";
+  }
+
   if (raw.includes('failed to fetch') || raw.includes('networkerror') || raw.includes('load failed')) {
     return "Couldn't reach the server. Check your connection and try again.";
   }
