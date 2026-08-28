@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Real PayFast export data - contains real members' names, emails, and
+# payment amounts. Was committed here as payfastTransactions.json/.csv
+# until it was found exposed in this public repo and moved into Supabase
+# (033_payfast_transactions.sql) - never let a real export like this back
+# into the tree. The anonymized src/data/payfastTransactions.mock.json
+# fixture (Mock Admin only, fake names/emails) is fine to keep tracked.
+src/data/payfastTransactions.json
+src/data/payfast_transactions_*.csv
+*Transaction_History*.csv

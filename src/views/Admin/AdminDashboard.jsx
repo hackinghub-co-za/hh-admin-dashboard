@@ -5,7 +5,15 @@ import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
 import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
-import payfastTransactionsData from '../../data/payfastTransactions.json';
+// Anonymized fixture data for Mock Admin only - same shape and aggregate
+// realism (amounts, dates, plan mix) as the real historical PayFast export,
+// but with every real member/email swapped for a fake "Demo Member N"
+// identity. The real export used to live here as payfastTransactions.json,
+// committed with real members' names, emails, and exact payment amounts to
+// this *public* GitHub repo - that data is now fully backfilled into the
+// payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
+// the real file has been removed and purged from git history entirely.
+import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
 import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
@@ -73,6 +81,7 @@ import {
   ListChecks,
   X,
   Sparkles,
+  CalendarClock,
 } from 'lucide-react';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
@@ -465,6 +474,10 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const [selectedMemberEmail, setSelectedMemberEmail] = useState(null);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [memberStatusFilter, setMemberStatusFilter] = useState('all');
+  // Member Sheet column sort - null key means the default (name, A-Z).
+  // Clicking the same column again flips direction; clicking a different
+  // one starts that column fresh at ascending.
+  const [memberSheetSort, setMemberSheetSort] = useState({ key: null, dir: 'asc' });
   // 'grid' (the original flat card grid) or 'domain' (grouped by
   // Specialization track - see GroupedMemberDirectory).
   const [memberViewMode, setMemberViewMode] = useState('grid');
@@ -496,6 +509,11 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // Last 1on1 date per member, matched by email against Google Calendar attendees.
   // Pulled on demand (not automatically) since it's one real API call per sync.
   const [lastMeetingByEmail, setLastMeetingByEmail] = useState({});
+  // Every synced meeting date per member (not just the latest) - same sync,
+  // same attendee-matching heuristic, just kept in full so Insights can work
+  // out how far apart a member's meetings actually land, not only when the
+  // last one was.
+  const [meetingDatesByEmail, setMeetingDatesByEmail] = useState({});
   const [loadingMeetingSync, setLoadingMeetingSync] = useState(false);
   const [meetingSyncError, setMeetingSyncError] = useState(null);
 
@@ -504,16 +522,19 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     setMeetingSyncError(null);
     fetchPastCalendarEvents(providerToken, { sinceDate: '2026-01-01T00:00:00Z' })
       .then((events) => {
-        const map = {};
+        const lastMap = {};
+        const datesMap = {};
         events.forEach((evt) => {
           evt.attendees.forEach((a) => {
             const key = a.email.toLowerCase();
-            if (!map[key] || new Date(evt.start) > new Date(map[key])) {
-              map[key] = evt.start;
+            if (!lastMap[key] || new Date(evt.start) > new Date(lastMap[key])) {
+              lastMap[key] = evt.start;
             }
+            (datesMap[key] || (datesMap[key] = [])).push(evt.start);
           });
         });
-        setLastMeetingByEmail(map);
+        setLastMeetingByEmail(lastMap);
+        setMeetingDatesByEmail(datesMap);
       })
       .catch((err) => setMeetingSyncError(friendlyErrorMessage(err)))
       .finally(() => setLoadingMeetingSync(false));
@@ -997,11 +1018,11 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     }
   };
 
-  // PayFast Transactions - the one-time exported-CSV snapshot (up to
-  // 2026-08-05) merged with everything the payfast-webhook Edge Function has
-  // recorded live since. Real Supabase data for a real session; Mock Admin
-  // has no session, so it only ever sees the static historical snapshot.
-  const [payments, setPayments] = useState(payfastTransactionsData);
+  // PayFast Transactions - 100% Supabase-sourced for a real session now
+  // (both the full historical backfill and everything payfast-webhook has
+  // recorded live since - see 033_payfast_transactions.sql). Mock Admin has
+  // no Supabase session, so it only ever sees the anonymized fixture data.
+  const [payments, setPayments] = useState(isMockSession ? payfastTransactionsMockData : []);
   const [loadingLivePayments, setLoadingLivePayments] = useState(!isMockSession);
   const [livePaymentsError, setLivePaymentsError] = useState(null);
 
@@ -1015,7 +1036,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     if (isMockSession) return;
     let cancelled = false;
     fetchPayfastPayments()
-      .then((live) => !cancelled && setPayments((prev) => [...live, ...payfastTransactionsData, ...prev.filter((p) => p.fundingType === 'EFT')]))
+      .then((live) => !cancelled && setPayments((prev) => [...live, ...prev.filter((p) => p.fundingType === 'EFT')]))
       .catch((err) => !cancelled && setLivePaymentsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingLivePayments(false));
     return () => { cancelled = true; };
@@ -1809,6 +1830,123 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               Last 1on1 dates matched by attendee email against your Google Calendar since Jan 2026 — a member booked under a different email won't be caught.
             </p>
           )}
+
+          {/* Member Sheet - a flat, scannable spreadsheet-style view of the
+              whole roster (not the search/status filter below - this is a
+              quick-scan overview, independent of that). Defaults to name
+              order; the four data columns (meeting/spent/owed/start date)
+              are click-to-sort via memberSheetSort. */}
+          {(() => {
+            // Same join-date fallback chain as Insights' joinDateFor (manual
+            // start date > real onboarding timestamp > first real payment) -
+            // one definition of "when did this member actually start" reused
+            // everywhere it's needed, not redefined per view.
+            const startDateFor = (m) => {
+              const raw = m.profile?.manualStartDate || m.profile?.onboardedAt || m.firstPaymentDate;
+              return raw ? new Date(raw) : null;
+            };
+
+            const sheetSortValue = (m, key) => {
+              switch (key) {
+                case 'lastMeeting': return m.lastMeetingDate ? new Date(m.lastMeetingDate).getTime() : null;
+                case 'moneySpent': return m.totalSpent;
+                case 'moneyOwed': return m.profile?.moneyOwed || 0;
+                case 'startDate': { const d = startDateFor(m); return d ? d.getTime() : null; }
+                default: return null;
+              }
+            };
+
+            const { key: sortKey, dir: sortDir } = memberSheetSort;
+            const sortedRows = [...memberRoster].sort((a, b) => {
+              if (!sortKey) return a.member.localeCompare(b.member);
+              const va = sheetSortValue(a, sortKey);
+              const vb = sheetSortValue(b, sortKey);
+              // A missing value (no synced meeting, no known start date)
+              // isn't meaningfully "low" or "high" - it's just unknown, so
+              // it always sorts last regardless of direction rather than
+              // clustering at whichever end the direction happens to favor.
+              if (va === null && vb === null) return a.member.localeCompare(b.member);
+              if (va === null) return 1;
+              if (vb === null) return -1;
+              return (va - vb) * (sortDir === 'asc' ? 1 : -1);
+            });
+
+            const toggleSort = (key) => setMemberSheetSort((prev) => (
+              prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+            ));
+
+            const sortableHeader = (label, key) => {
+              const active = sortKey === key;
+              return (
+                <th
+                  onClick={() => toggleSort(key)}
+                  style={{
+                    padding: '10px 8px',
+                    color: active ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--bg-secondary)',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {label} {active ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+                </th>
+              );
+            };
+
+            return (
+              <div className="glass-card" style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                  <ListChecks size={18} color="var(--accent-cyan)" />
+                  <h3 style={{ margin: 0 }}>Member Sheet</h3>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>({memberRoster.length})</span>
+                </div>
+                <div style={{ maxHeight: '440px', overflowY: 'auto', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '10px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-secondary)' }}>Name</th>
+                        <th style={{ padding: '10px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-secondary)' }}>Specialty</th>
+                        {sortableHeader('Last 1on1 Meeting', 'lastMeeting')}
+                        <th style={{ padding: '10px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-secondary)' }}>Job Readiness</th>
+                        {sortableHeader('Money Spent', 'moneySpent')}
+                        {sortableHeader('Money Owed', 'moneyOwed')}
+                        {sortableHeader('Start Date', 'startDate')}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedRows.map((m) => {
+                        const daysSinceMeeting = m.lastMeetingDate ? Math.floor((today - new Date(m.lastMeetingDate)) / (1000 * 60 * 60 * 24)) : null;
+                        const meetingOverdue = daysSinceMeeting !== null && daysSinceMeeting > MEETING_OVERDUE_AFTER_DAYS;
+                        const owed = m.profile?.moneyOwed || 0;
+                        const startDate = startDateFor(m);
+                        return (
+                          <tr
+                            key={m.email}
+                            onClick={() => setSelectedMemberEmail(m.email)}
+                            className="hover-glow"
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', cursor: 'pointer' }}
+                          >
+                            <td style={{ padding: '10px 8px', fontWeight: 600 }}>{m.member}</td>
+                            <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{m.profile?.specialty || 'Not Set'}</td>
+                            <td style={{ padding: '10px 8px', color: meetingOverdue ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: meetingOverdue ? 600 : 400 }}>
+                              {m.lastMeetingDate ? `${formatDate(m.lastMeetingDate)}${meetingOverdue ? ` (${daysSinceMeeting}d ago)` : ''}` : '—'}
+                            </td>
+                            <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{m.profile?.jobReadiness || 'Not Started'}</td>
+                            <td style={{ padding: '10px 8px', color: 'var(--success)' }}>R {m.totalSpent.toLocaleString('en-ZA', { minimumFractionDigits: 0 })}</td>
+                            <td style={{ padding: '10px 8px', color: owed ? 'var(--warning)' : 'var(--text-secondary)' }}>R {owed.toLocaleString('en-ZA', { minimumFractionDigits: 0 })}</td>
+                            <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{startDate ? formatDate(startDate) : '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* New Members Onboarding - anyone who joined in the last 30 days
               and hasn't finished the checklist (watch the video, book a
@@ -3061,6 +3199,30 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         ? Math.round(firstCertDays.reduce((a, b) => a + b, 0) / firstCertDays.length)
         : null;
 
+      // Avg days between 1on1s: how often a member actually gets a session,
+      // not just when their last one was. Built from meetingDatesByEmail -
+      // every synced meeting date per member, matched by attendee email the
+      // same way lastMeetingByEmail already is (Members tab's "Sync Last
+      // 1on1 Dates"). One average gap per member first (so a member with
+      // many sessions doesn't outweigh one with few), then averaged across
+      // members - members with fewer than 2 synced meetings have no gap to
+      // measure and are excluded rather than counted as "never".
+      const memberMeetingGapAverages = Object.values(meetingDatesByEmail)
+        .map((dates) => {
+          const sorted = [...new Set(dates)].sort((a, b) => new Date(a) - new Date(b));
+          if (sorted.length < 2) return null;
+          const gaps = [];
+          for (let i = 1; i < sorted.length; i++) {
+            gaps.push(daysBetween(new Date(sorted[i - 1]), new Date(sorted[i])));
+          }
+          return gaps.reduce((a, b) => a + b, 0) / gaps.length;
+        })
+        .filter((v) => v !== null);
+      const avgDaysBetweenMeetings = memberMeetingGapAverages.length
+        ? Math.round(memberMeetingGapAverages.reduce((a, b) => a + b, 0) / memberMeetingGapAverages.length)
+        : null;
+      const hasMeetingSyncData = Object.keys(meetingDatesByEmail).length > 0;
+
       // Demographics - straight counts from member_profiles fields already
       // loaded, sorted largest bucket first.
       const bucketBy = (getKey) => {
@@ -3138,6 +3300,21 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 {firstCertDays.length} member{firstCertDays.length === 1 ? '' : 's'} with a passed cert
                 {firstCertDays.length > 0 && ` (${exactCertMatches} exact by email, ${firstCertDays.length - exactCertMatches} approximate by name)`}
+              </div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Avg Days Between 1on1s</span>
+                <CalendarClock size={20} color="var(--accent-cyan)" />
+              </div>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{formatDays(avgDaysBetweenMeetings)}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {hasMeetingSyncData
+                  ? memberMeetingGapAverages.length
+                    ? `Based on ${memberMeetingGapAverages.length} member${memberMeetingGapAverages.length === 1 ? '' : 's'} with 2+ synced meetings since 1 Jan 2026`
+                    : 'Synced, but no member has 2+ meetings yet to measure a gap'
+                  : 'Sync Last 1on1 Dates on the Members tab first'}
               </div>
             </div>
           </div>
