@@ -132,13 +132,16 @@ REVOKE EXECUTE ON FUNCTION public.get_my_roadmap_track() FROM PUBLIC, anon;
 -- (see 047_roadmap_reminder_cron.sql).
 -- =========================================================================
 
--- sent_at gates against re-sending every single day while a member stays
--- stale - the reminder function only re-sends once it's been
--- ROADMAP_EMAIL_REMINDER_AFTER_DAYS again since the last send, not every
--- cron run. opted_out is a one-click, no-login-required unsubscribe.
+-- sent_at now just gates against sending more than once on the same
+-- calendar day (the checkpoint logic below already decides *which* days
+-- qualify) - not a fixed N-day cooldown like the first version of this
+-- feature had. disengagement_alert_sent_at is the same idea for the
+-- separate admin-facing alert. opted_out is a one-click, no-login-required
+-- unsubscribe.
 ALTER TABLE public.member_profiles
   ADD COLUMN IF NOT EXISTS roadmap_reminder_sent_at TIMESTAMP WITH TIME ZONE,
-  ADD COLUMN IF NOT EXISTS roadmap_reminder_opted_out BOOLEAN NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS roadmap_reminder_opted_out BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS roadmap_disengagement_alert_sent_at TIMESTAMP WITH TIME ZONE;
 
 -- Anonymous, no-token unsubscribe - has to work from a cold click in an
 -- email client with no Supabase session at all, unlike every other write in
@@ -164,8 +167,35 @@ GRANT EXECUTE ON FUNCTION public.unsubscribe_from_roadmap_reminders(TEXT) TO ano
 -- as every other SECURITY DEFINER function in this project once called via
 -- the service-role client) or by an admin - never by an ordinary member,
 -- since this reveals exactly who's struggling.
-CREATE OR REPLACE FUNCTION public.get_stale_roadmap_members_for_reminder(p_stale_after_days INT)
-RETURNS TABLE (email TEXT, full_name TEXT, job_readiness TEXT, days_since_touch INT)
+--
+-- Cadence (founder-specified, 2026-08):
+--   - A member in their first 30 days ("newcomer" - manual_start_date or
+--     onboarded_at, whichever's on file, within the last 30 days) gets
+--     checked every 3 days: day 3, 6, 9, ... up to day 30. New members lose
+--     momentum fast, so this checks in far more often than the standard
+--     cadence below.
+--   - Everyone else gets exactly 4 touches: day 7, 14, 21, and 30.
+--   - Both are exact-day matches, not "at least N days" - since
+--     days_since_touch increments by exactly 1 per day and this runs once
+--     daily (047_roadmap_reminder_cron.sql), each checkpoint fires on
+--     exactly one calendar day, which is what naturally makes this
+--     idempotent without needing to remember "which checkpoint was this
+--     already sent for". roadmap_reminder_sent_at only needs to block a
+--     second send on that same day (e.g. the cron firing twice by
+--     accident), not track cadence itself.
+--   - needs_disengagement_alert flags day 21 specifically, for both
+--     populations (21 is also a multiple of 3, so a newcomer hits it too) -
+--     the point in either cadence where "just remind them" stops being
+--     enough and a human should know.
+CREATE OR REPLACE FUNCTION public.get_stale_roadmap_members_for_reminder()
+RETURNS TABLE (
+  email TEXT,
+  full_name TEXT,
+  job_readiness TEXT,
+  days_since_touch INT,
+  is_newcomer BOOLEAN,
+  needs_disengagement_alert BOOLEAN
+)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
@@ -174,25 +204,48 @@ BEGIN
   END IF;
 
   RETURN QUERY
+  WITH touches AS (
+    SELECT
+      mp.email,
+      mp.full_name,
+      mp.job_readiness,
+      EXTRACT(DAY FROM (timezone('utc'::text, now()) - MAX(ri.updated_at)))::INT AS days_since_touch,
+      (
+        COALESCE(mp.manual_start_date, mp.onboarded_at::date) IS NOT NULL
+        AND COALESCE(mp.manual_start_date, mp.onboarded_at::date) > (timezone('utc'::text, now())::date - 30)
+      ) AS is_newcomer,
+      mp.roadmap_reminder_sent_at,
+      mp.roadmap_disengagement_alert_sent_at
+    FROM public.member_profiles mp
+    JOIN public.roadmap_items ri ON ri.member_email = mp.email
+    WHERE mp.status IN ('Active', 'Active (Permanent)')
+      AND mp.roadmap_reminder_opted_out = false
+    GROUP BY mp.email, mp.full_name, mp.job_readiness, mp.manual_start_date, mp.onboarded_at,
+      mp.roadmap_reminder_sent_at, mp.roadmap_disengagement_alert_sent_at
+  )
   SELECT
-    mp.email,
-    mp.full_name,
-    mp.job_readiness,
-    EXTRACT(DAY FROM (timezone('utc'::text, now()) - MAX(ri.updated_at)))::INT AS days_since_touch
-  FROM public.member_profiles mp
-  JOIN public.roadmap_items ri ON ri.member_email = mp.email
-  WHERE mp.status IN ('Active', 'Active (Permanent)')
-    AND mp.roadmap_reminder_opted_out = false
+    t.email,
+    t.full_name,
+    t.job_readiness,
+    t.days_since_touch,
+    t.is_newcomer,
+    (
+      t.days_since_touch = 21
+      AND (t.roadmap_disengagement_alert_sent_at IS NULL OR t.roadmap_disengagement_alert_sent_at::date < timezone('utc'::text, now())::date)
+    ) AS needs_disengagement_alert
+  FROM touches t
+  WHERE (t.roadmap_reminder_sent_at IS NULL OR t.roadmap_reminder_sent_at::date < timezone('utc'::text, now())::date)
+    AND t.days_since_touch > 0
+    AND t.days_since_touch <= 30
     AND (
-      mp.roadmap_reminder_sent_at IS NULL
-      OR mp.roadmap_reminder_sent_at < timezone('utc'::text, now()) - (p_stale_after_days || ' days')::interval
-    )
-  GROUP BY mp.email, mp.full_name, mp.job_readiness
-  HAVING MAX(ri.updated_at) < timezone('utc'::text, now()) - (p_stale_after_days || ' days')::interval;
+      (t.is_newcomer AND t.days_since_touch % 3 = 0)
+      OR (NOT t.is_newcomer AND t.days_since_touch IN (7, 14, 21, 30))
+    );
 END;
 $$;
-GRANT EXECUTE ON FUNCTION public.get_stale_roadmap_members_for_reminder(INT) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.get_stale_roadmap_members_for_reminder(INT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_stale_roadmap_members_for_reminder() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_stale_roadmap_members_for_reminder() FROM PUBLIC, anon;
+DROP FUNCTION IF EXISTS public.get_stale_roadmap_members_for_reminder(INT);
 
 -- Records that a reminder actually went out - same admin-or-service-role
 -- gate as above, so an ordinary member can't suppress another member's
@@ -213,3 +266,23 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.mark_roadmap_reminder_sent(TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.mark_roadmap_reminder_sent(TEXT) FROM PUBLIC, anon;
+
+-- Records that the 21-day disengagement alert went out to the founder -
+-- same shape and same reasoning as mark_roadmap_reminder_sent above, just
+-- for the separate admin-facing alert instead of the member-facing email.
+CREATE OR REPLACE FUNCTION public.mark_roadmap_disengagement_alert_sent(p_email TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() = 'authenticated' AND NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can do this.';
+  END IF;
+
+  UPDATE public.member_profiles
+  SET roadmap_disengagement_alert_sent_at = timezone('utc'::text, now())
+  WHERE email = lower(p_email);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.mark_roadmap_disengagement_alert_sent(TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.mark_roadmap_disengagement_alert_sent(TEXT) FROM PUBLIC, anon;

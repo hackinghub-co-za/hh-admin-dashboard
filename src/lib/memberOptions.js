@@ -135,13 +135,17 @@ export const MEETING_OVERDUE_AFTER_DAYS = 30;
 // "stale" means.
 export const ROADMAP_STALE_AFTER_DAYS = 14;
 
-// The email escalation (supabase/functions/roadmap-reminder-email) only
-// fires at a longer threshold than the in-app nudge above - email is for
-// someone who's genuinely stopped opening the portal, not everyone who
-// crosses the softer in-app threshold. Keep this in sync with
-// EMAIL_REMINDER_AFTER_DAYS in that function - it can't literally import
-// this file (separate Deno runtime).
-export const ROADMAP_EMAIL_REMINDER_AFTER_DAYS = 30;
+// The email escalation (supabase/functions/roadmap-reminder-email) is a
+// full checkpoint cadence, not a single threshold like the in-app nudge
+// above - fully computed inside get_stale_roadmap_members_for_reminder()
+// in 028_roadmap.sql, which can't import this file (separate Deno/Postgres
+// runtime), so these exist here purely as documentation for any future
+// client-side UI that wants to reference the same numbers, not as values
+// anything actually reads from at send-time.
+export const ROADMAP_REMINDER_CHECKPOINTS_DAYS = [7, 14, 21, 30];
+export const ROADMAP_NEWCOMER_REMINDER_INTERVAL_DAYS = 3;
+export const ROADMAP_NEWCOMER_WINDOW_DAYS = 30;
+export const ROADMAP_DISENGAGEMENT_ALERT_AFTER_DAYS = 21;
 
 // ============================================================================
 // MEMBERS DIRECTORY - GROUPED BY DOMAIN VIEW

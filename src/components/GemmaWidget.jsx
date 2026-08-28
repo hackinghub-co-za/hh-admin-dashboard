@@ -1,13 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bot, X, Send, AlertCircle, Sparkles } from 'lucide-react';
-import { fetchGemmaHistory } from '../lib/gemmaData';
+import { fetchGemmaHistory, sendGemmaMessage } from '../lib/gemmaData';
 import { friendlyMemberErrorMessage } from '../lib/errorMessages';
+
+// Mock Member has no real Supabase session to call gemma-chat with, so a
+// send in mock mode is answered locally instead of hitting the network -
+// same "canned local demo" treatment mock sessions get everywhere else in
+// this app (reviews, memberProfiles, etc. in MemberPortal.jsx).
+const MOCK_REPLY = "This is a demo reply - Mock Member sessions don't call the real Gemini API. In a live session I'd answer using your actual profile and conversation history.";
 
 export default function GemmaWidget({ user, isMockSession }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [error, setError] = useState(null);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
   const loadingHistory = open && !isMockSession && !historyLoaded && !error;
 
@@ -28,7 +36,36 @@ export default function GemmaWidget({ user, isMockSession }) {
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+  }, [messages, sending]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed || sending) return;
+    setInput('');
+    setError(null);
+    setMessages((prev) => [...prev, { role: 'user', content: trimmed }]);
+    setSending(true);
+
+    if (isMockSession) {
+      // No real backend to call in mock mode - a short delay just keeps the
+      // "Gemma's thinking..." indicator from flashing instantly.
+      setTimeout(() => {
+        setMessages((prev) => [...prev, { role: 'assistant', content: MOCK_REPLY }]);
+        setSending(false);
+      }, 500);
+      return;
+    }
+
+    try {
+      const reply = await sendGemmaMessage(trimmed);
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+    } catch (err) {
+      setError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <>
@@ -87,7 +124,7 @@ export default function GemmaWidget({ user, isMockSession }) {
           </div>
 
           <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div style={{ filter: 'blur(6px)', userSelect: 'none', pointerEvents: 'none', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }} aria-hidden="true">
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {messages.length === 0 && !loadingHistory && (
                   <div style={{ padding: '12px', borderRadius: 'var(--border-radius-md)', background: 'rgba(94, 227, 122, 0.06)', border: '1px solid rgba(94, 227, 122, 0.15)' }}>
@@ -122,6 +159,22 @@ export default function GemmaWidget({ user, isMockSession }) {
                   </div>
                 ))}
 
+                {sending && (
+                  <div
+                    style={{
+                      alignSelf: 'flex-start',
+                      padding: '10px 14px',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'var(--bg-tertiary)',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.85rem',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Gemma's thinking...
+                  </div>
+                )}
+
                 {error && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '0.8rem' }}>
                     <AlertCircle size={14} /> {error}
@@ -129,22 +182,21 @@ export default function GemmaWidget({ user, isMockSession }) {
                 )}
               </div>
 
-              <form style={{ display: 'flex', gap: '8px', padding: '12px', borderTop: '1px solid var(--border-color)' }}>
+              <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px', padding: '12px', borderTop: '1px solid var(--border-color)' }}>
                 <input
                   type="text"
-                  value=""
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
                   placeholder="Message Gemma..."
                   className="form-input"
                   style={{ flex: 1, fontSize: '0.85rem' }}
-                  readOnly
+                  disabled={sending}
+                  maxLength={2000}
                 />
-                <button type="button" className="btn btn-primary" disabled style={{ padding: '10px 14px' }}>
+                <button type="submit" className="btn btn-primary" disabled={sending || !input.trim()} style={{ padding: '10px 14px' }}>
                   <Send size={16} />
                 </button>
               </form>
-            </div>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>Under Construction</span>
             </div>
           </div>
           <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
