@@ -107,8 +107,11 @@ Deno.serve(async (req) => {
     // returnOrigin is only ever used for where PayFast sends the browser
     // back to after checkout - not security-sensitive the way notify_url is
     // (that's fixed below, never client-supplied), so trusting the caller's
-    // own window.location.origin here is safe.
-    const origin = typeof returnOrigin === 'string' && returnOrigin ? returnOrigin : 'https://hackinghub.co.za';
+    // own window.location.origin here is safe. The fallback below only
+    // fires if that's somehow missing - hackinghub.co.za on its own is the
+    // marketing site, not this app, so it has to be the portal subdomain
+    // or a fallback here would send someone to the wrong place entirely.
+    const origin = typeof returnOrigin === 'string' && returnOrigin ? returnOrigin : 'https://portal.hackinghub.co.za';
 
     const data: Record<string, string> = {
       merchant_id: merchantId,

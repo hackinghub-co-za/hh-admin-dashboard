@@ -40,6 +40,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const GEMINI_MODEL = 'gemini-3.6-flash';
 const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
 const ADMIN_ALERT_EMAIL = 'siya@hackinghub.co.za';
+// The actual member portal (hackinghub.co.za on its own is the marketing
+// site, not this app - confirmed with founder). There's no client-side
+// router in this app (App.jsx is plain activeTab state, no react-router) -
+// no tab is deep-linkable, so this is the honest link: it lands on the
+// login screen if signed out, or straight on the dashboard if the browser
+// still has a session, either way one click closer than typing the URL
+// from scratch.
+const PORTAL_URL = 'https://portal.hackinghub.co.za';
 const MAX_EMAILS_PER_RUN = 50; // a sanity ceiling, not an expected volume - stops one buggy run from mass-emailing the whole roster
 
 function buildReminderPrompt(fullName: string | null, jobReadiness: string | null, daysSinceTouch: number, isNewcomer: boolean): string {
@@ -98,6 +106,9 @@ function reminderEmailHtml(firstName: string, body: string, unsubscribeUrl: stri
     <p>Hi ${firstName},</p>
     <p>${body.replace(/\n/g, '<br>')}</p>
     <p>— Gemma</p>
+    <p style="margin:22px 0;">
+      <a href="${PORTAL_URL}" style="display:inline-block;background:#17954f;color:#ffffff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:600;">Open your roadmap</a>
+    </p>
     <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">
     <p style="font-size:12px;color:#888;">Don't want these? <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>
   `;
