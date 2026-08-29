@@ -487,7 +487,12 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // small local demo set under Mock Admin since there's no session to fetch
   // against.
   const [referrals, setReferrals] = useState(isMockSession ? [
-    { id: 1, referrerEmail: '[REDACTED]', name: 'Nomvula Radebe', linkedin: 'https://www.linkedin.com/in/example', phone: '071 234 5678', createdAt: '2026-08-15T00:00:00Z' },
+    // referrerEmail matches against memberRoster (built from
+    // payfastTransactionsMockData under Mock Admin) to show the referrer's
+    // real name - has to be one of that fixture's fake "Demo Member N"
+    // emails, not a real member's, both so it actually resolves to a name
+    // and so no real person's email sits in tracked demo/mock code.
+    { id: 1, referrerEmail: 'demo.member1@example.com', name: 'Nomvula Radebe', linkedin: 'https://www.linkedin.com/in/example', phone: '071 234 5678', createdAt: '2026-08-15T00:00:00Z' },
   ] : []);
   const [loadingReferrals, setLoadingReferrals] = useState(!isMockSession);
   const [referralsError, setReferralsError] = useState(null);
