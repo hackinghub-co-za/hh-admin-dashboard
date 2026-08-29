@@ -20,7 +20,7 @@ import { recordDailyLogin } from '../../lib/loginStreakData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
-import { fetchMyLastPayment } from '../../lib/billingData';
+import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS } from '../../lib/memberOptions';
@@ -461,6 +461,37 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .then((data) => !cancelled && setMyLastPayment(data))
       .catch(() => {})
       .finally(() => !cancelled && setLoadingMyLastPayment(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  // Full payment history + money owed, "My Billing" - same screen, same
+  // narrow-function pattern as myLastPayment just above. Mock demo data
+  // includes a nonzero money owed on purpose, so the "owed" styling is
+  // actually visible under Mock Member instead of always showing the
+  // clean-account state.
+  const [myPaymentHistory, setMyPaymentHistory] = useState(isMockSession ? [
+    { plan: 'Basic Access', amount: 200, fundingType: 'PayFast', status: 'COMPLETE', date: '2026-08-01 10:00' },
+    { plan: 'Basic Access', amount: 200, fundingType: 'PayFast', status: 'COMPLETE', date: '2026-07-01 09:40' },
+    { plan: 'Custom Plan', amount: 500, fundingType: 'EFT', status: 'COMPLETE', date: '2026-06-02 14:15' },
+  ] : []);
+  const [loadingMyPaymentHistory, setLoadingMyPaymentHistory] = useState(!isMockSession);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyPaymentHistory()
+      .then((data) => !cancelled && setMyPaymentHistory(data))
+      .catch(() => {})
+      .finally(() => !cancelled && setLoadingMyPaymentHistory(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const [myBillingSummary, setMyBillingSummary] = useState(isMockSession ? { moneyOwed: 150, status: 'Active' } : null);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyBillingSummary()
+      .then((data) => !cancelled && setMyBillingSummary(data))
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [isMockSession]);
 
@@ -4085,7 +4116,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>My Subscription & Upgrades</h1>
-            <p>View your active clearance level and upgrade options.</p>
+            <p>Your active clearance level, payment history, money owed, and upgrade options.</p>
           </div>
 
           {/* Current Active Plan Overview */}
@@ -4112,9 +4143,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       {myNextPaymentDate ? formatDate(myNextPaymentDate.toISOString()) : 'No recurring renewal'}
                     </strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', marginBottom: '12px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Status</span>
-                    <span className="badge badge-success">active</span>
+                    <span className={`badge ${myBillingSummary?.status === 'Left' ? 'badge-danger' : myBillingSummary?.status === 'Leaving' ? 'badge-warning' : 'badge-success'}`}>
+                      {(myBillingSummary?.status || 'Active').toLowerCase()}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Money Owed</span>
+                    <strong style={{ color: (myBillingSummary?.moneyOwed || 0) > 0 ? 'var(--warning)' : 'var(--text-secondary)' }}>
+                      R {(myBillingSummary?.moneyOwed || 0).toLocaleString('en-ZA', { minimumFractionDigits: 0 })}
+                    </strong>
                   </div>
                 </div>
               )}
@@ -4133,6 +4172,51 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 Upgrades instantly unlock additional benefits upon PayFast ITN verification.
               </p>
             </div>
+          </div>
+
+          {/* Payment History - every payment on record, PayFast and EFT
+              both, so "did my payment go through?" has a real answer
+              without asking an admin. Not filtered to successful payments
+              only - a pending or refunded one is shown honestly too, via
+              its status badge, rather than hidden. */}
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <h3 style={{ marginBottom: '16px' }}>Payment History</h3>
+            {loadingMyPaymentHistory ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your payment history...</p>
+            ) : myPaymentHistory.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No payments on record yet.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Date</th>
+                      <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Plan</th>
+                      <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Method</th>
+                      <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Amount</th>
+                      <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myPaymentHistory.map((p, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                        <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{formatDate(p.date)}</td>
+                        <td style={{ padding: '12px 8px', fontWeight: 600 }}>{p.plan}</td>
+                        <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{p.fundingType}</td>
+                        <td style={{ padding: '12px 8px', fontWeight: 700, color: p.amount < 0 ? 'var(--danger)' : 'var(--text-primary)' }}>
+                          {p.amount < 0 ? '-' : ''}R {Math.abs(p.amount).toLocaleString('en-ZA', { minimumFractionDigits: 0 })}
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <span className={`badge ${p.status === 'COMPLETE' ? 'badge-success' : p.status === 'REFUNDED' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.7rem' }}>
+                            {p.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Pay via EFT */}

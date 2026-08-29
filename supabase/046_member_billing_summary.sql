@@ -40,3 +40,61 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_my_last_payment() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_my_last_payment() FROM PUBLIC, anon;
+
+-- =========================================================================
+-- "My Billing" - full payment history and money owed, member-facing. Until
+-- now there was genuinely no way for a member to see their own payment
+-- history or what they owe without asking an admin directly - every "did
+-- my payment go through?" question went through a human. Same narrow
+-- SECURITY DEFINER pattern as get_my_last_payment() above (and
+-- get_member_directory() in 010_member_directory.sql): explicit column
+-- allowlists, filtered to the caller's own row(s), never the raw table.
+-- =========================================================================
+
+-- Every payment on record for the caller, both sources, newest first - not
+-- filtered to COMPLETE only (unlike get_my_last_payment(), which is
+-- answering "what's my current plan", a different question). A member
+-- checking "did my payment go through" needs to see a pending or refunded
+-- attempt too, not just successful ones - status is returned per row so
+-- the UI can show it honestly rather than hiding it.
+CREATE OR REPLACE FUNCTION public.get_my_payment_history()
+RETURNS TABLE (plan TEXT, amount NUMERIC, funding_type TEXT, payment_status TEXT, payment_date TIMESTAMP WITH TIME ZONE)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT combined.plan, combined.amount, combined.funding_type, combined.payment_status, combined.payment_date
+  FROM (
+    SELECT plan, amount, 'PayFast' AS funding_type, payment_status, paid_at AS payment_date
+    FROM public.payfast_transactions
+    WHERE lower(email) = lower(auth.jwt() ->> 'email')
+    UNION ALL
+    SELECT plan, amount, 'EFT' AS funding_type, status AS payment_status, date AS payment_date
+    FROM public.eft_payments
+    WHERE lower(email) = lower(auth.jwt() ->> 'email')
+  ) combined
+  ORDER BY combined.payment_date DESC;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_my_payment_history() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_my_payment_history() FROM PUBLIC, anon;
+
+-- Money owed and membership status - a 2-column allowlist off
+-- member_profiles, never the raw row, so nothing else there (phone,
+-- offboarding notes, exit feedback, monthly_remuneration, etc.) is ever
+-- reachable this way.
+CREATE OR REPLACE FUNCTION public.get_my_billing_summary()
+RETURNS TABLE (money_owed NUMERIC, status TEXT)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT money_owed, status
+  FROM public.member_profiles
+  WHERE lower(email) = lower(auth.jwt() ->> 'email');
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_my_billing_summary() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_my_billing_summary() FROM PUBLIC, anon;
