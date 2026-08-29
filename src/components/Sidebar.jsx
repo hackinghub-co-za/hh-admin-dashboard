@@ -142,26 +142,42 @@ function TooltipButton({ id, icon: Icon, label, active, danger, badge, hoveredId
   );
 }
 
+const hasUnseenRelease = () => {
+  try {
+    return !!LATEST_RELEASE_VERSION && localStorage.getItem(LAST_SEEN_RELEASE_KEY) !== LATEST_RELEASE_VERSION;
+  } catch {
+    return false;
+  }
+};
+
+const markReleaseSeen = () => {
+  try {
+    localStorage.setItem(LAST_SEEN_RELEASE_KEY, LATEST_RELEASE_VERSION);
+  } catch {
+    // Storage unavailable (private browsing, etc.) - the badge just won't
+    // remember it's been seen next time, which is harmless.
+  }
+};
+
 export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro }) {
   const isAdmin = user?.role === 'admin';
   const [hoveredId, setHoveredId] = useState(null);
-  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
-  const hasUnseenRelease = LATEST_RELEASE_VERSION && (() => {
-    try {
-      return localStorage.getItem(LAST_SEEN_RELEASE_KEY) !== LATEST_RELEASE_VERSION;
-    } catch {
-      return false;
-    }
-  })();
+  // Auto-opens the latest What's New on sign-in for members (not admins -
+  // they still get the badge/click flow) instead of relying on someone
+  // noticing the badge dot. A lazy initializer (not a useEffect) so this is
+  // the modal's actual initial render state, not a synchronous setState
+  // right after mount - same end result, no wasted extra render. Marking
+  // it seen happens right here too, in the same pass, rather than waiting
+  // for a click.
+  const [showReleaseNotes, setShowReleaseNotes] = useState(() => {
+    const shouldAutoOpen = !isAdmin && hasUnseenRelease();
+    if (shouldAutoOpen) markReleaseSeen();
+    return shouldAutoOpen;
+  });
 
   const openReleaseNotes = () => {
     setShowReleaseNotes(true);
-    try {
-      localStorage.setItem(LAST_SEEN_RELEASE_KEY, LATEST_RELEASE_VERSION);
-    } catch {
-      // Storage unavailable (private browsing, etc.) - the badge just won't
-      // remember it's been seen next time, which is harmless.
-    }
+    markReleaseSeen();
   };
 
   const menuItems = isAdmin
@@ -352,7 +368,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           id="whats-new"
           icon={Megaphone}
           label="What's New"
-          badge={hasUnseenRelease}
+          badge={hasUnseenRelease()}
           hoveredId={hoveredId}
           onHover={setHoveredId}
           onLeave={() => setHoveredId(null)}
