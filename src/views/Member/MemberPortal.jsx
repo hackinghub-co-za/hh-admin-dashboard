@@ -173,6 +173,10 @@ const MENTOR_CALENDAR_URL = 'https://calendar.app.google/eKVRpXkHCKKcnhYT6';
 // itself adds via "Edit My Profile" (see handleSaveProfile below).
 const MOCK_DIRECTORY = [];
 
+// Descriptions longer than this collapse behind a "Read more" toggle on
+// event/resource cards - a long description was making tiles quite tall.
+const CARD_DESCRIPTION_COLLAPSED_LENGTH = 140;
+
 // Confetti burst config for the "Yes I'm In" RSVP celebration - a fixed,
 // deterministic spread (not random) so it looks the same lively burst every
 // time rather than needing per-click randomization.
@@ -265,6 +269,33 @@ function formatEventCountdown(days) {
   if (days === 0) return 'Today';
   if (days === 1) return 'Tomorrow';
   return `In ${days} days`;
+}
+
+// A description that collapses behind a "Read more" toggle once it's past
+// CARD_DESCRIPTION_COLLAPSED_LENGTH - a long one was making event/resource
+// tiles quite tall. Self-contained expand state (not lifted to the parent)
+// since nothing outside this component ever needs to know which cards are
+// expanded - same component reused on both the Events and Resources tabs.
+function ExpandableText({ text, style }) {
+  const [expanded, setExpanded] = useState(false);
+  const value = text || '';
+  const isLong = value.length > CARD_DESCRIPTION_COLLAPSED_LENGTH;
+  const shown = expanded || !isLong ? value : `${value.slice(0, CARD_DESCRIPTION_COLLAPSED_LENGTH).trimEnd()}…`;
+
+  return (
+    <p style={style}>
+      {shown}
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          style={{ background: 'none', border: 'none', padding: 0, marginLeft: '6px', color: 'var(--accent-cyan)', fontWeight: 600, fontSize: 'inherit', cursor: 'pointer' }}
+        >
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </p>
+  );
 }
 
 // Events tab demo data for Mock Member (no real Supabase session to fetch
@@ -558,8 +589,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [directoryError, setDirectoryError] = useState(null);
   const [directorySearch, setDirectorySearch] = useState('');
   // 'grid' (the original flat card grid) or 'domain' (grouped by
-  // Specialization track - see GroupedMemberDirectory).
-  const [directoryViewMode, setDirectoryViewMode] = useState('grid');
+  // Specialization track - see GroupedMemberDirectory). Defaults to
+  // 'domain' - grouped by track is the more useful first view for finding
+  // people in your own specialty at a glance; 'grid' stays one click away.
+  const [directoryViewMode, setDirectoryViewMode] = useState('domain');
   // Full breakdown shown when a member clicks another member's directory card.
   const [selectedDirectoryMember, setSelectedDirectoryMember] = useState(null);
 
@@ -3010,7 +3043,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     </span>
                   </div>
                   <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{e.title}</h4>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{e.description}</p>
+                  <ExpandableText text={e.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }} />
                   <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
                       <CalendarDays size={14} /> {formatDate(e.date)} at {e.time} SAST
@@ -3407,7 +3440,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     </span>
                   </div>
                   <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{res.title}</h4>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }}>{res.description}</p>
+                  <ExpandableText text={res.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }} />
                   {IN_APP_ARTICLE_RESOURCES[res.title] ? (
                     <button
                       className="btn btn-secondary"
@@ -3548,8 +3581,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
             {loadingCertCalendar && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading cert calendar...</p>}
 
+            {/* Passed exams sink to the bottom rather than cluttering the
+                top of an otherwise soonest-date-first list - a stable sort
+                on just the pass/fail split preserves the existing date
+                order within each group (certCalendar already arrives
+                sorted soonest-first from fetchCertCalendar). */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              {certCalendar.map((c) => {
+              {[...certCalendar]
+                .sort((a, b) => (a.result === 'Passed' ? 1 : 0) - (b.result === 'Passed' ? 1 : 0))
+                .map((c) => {
                 const targetDate = new Date(c.date);
                 const today = new Date();
                 const diffTime = targetDate - today;

@@ -287,3 +287,45 @@ VALUES
     ('PF-272548603', '[REDACTED]', '[REDACTED]', 'Maintenance Fee', 100.0, 5.98, 94.02, 'COMPLETE', ('2026-01-03 18:04'::timestamp AT TIME ZONE 'Africa/Johannesburg')),
     ('PF-271980133', '[REDACTED]', '[REDACTED]', 'Custom Plan', 750.0, 29.9, 720.1, 'COMPLETE', ('2026-01-01 09:43'::timestamp AT TIME ZONE 'Africa/Johannesburg'))
 ON CONFLICT (pf_payment_id) DO NOTHING;
+
+-- =========================================================================
+-- PART 3: FIX - PART 2's pf_payment_id values above came from
+-- payfastTransactions.json's "pfId" field verbatim, which has a "PF-"
+-- prefix baked in (e.g. 'PF-319516613'). That prefix was cosmetic - never
+-- part of PayFast's real identifier. Confirmed directly against PayFast's
+-- own raw export CSV, whose "PF Payment ID" column has no prefix at all
+-- (just '319516613'), matching exactly what payfast-webhook stores
+-- (pf_payment_id straight from the ITN parameter, always unprefixed - see
+-- payfast-webhook/index.ts).
+--
+-- Consequence: every PART 2 row sits under a pf_payment_id PayFast itself
+-- will never send. The ON CONFLICT (pf_payment_id) DO NOTHING guard exists
+-- specifically because "PayFast can and does resend the same ITN more than
+-- once" (see payfast-webhook's own comment) - but 'PF-319516613' and
+-- '319516613' are different TEXT values, so a resent ITN for one of these
+-- backfilled transactions isn't recognized as a duplicate and gets
+-- inserted as a brand-new row instead of being silently ignored like it's
+-- supposed to be. That's the duplication.
+--
+-- Fix, in order: first delete any backfilled row that's already a proven
+-- duplicate (its de-prefixed ID matches a row payfast-webhook has already
+-- recorded live) - the webhook's own copy is authoritative, so the
+-- backfilled copy is redundant. Then strip the prefix from every remaining
+-- backfilled row so it matches PayFast's real ID format going forward,
+-- which is what actually stops this from happening again on any future
+-- ITN resend for these transactions.
+DELETE FROM public.payfast_transactions dup
+WHERE dup.pf_payment_id LIKE 'PF-%'
+  AND EXISTS (
+    SELECT 1 FROM public.payfast_transactions live
+    WHERE live.pf_payment_id = substring(dup.pf_payment_id FROM 4)
+  );
+
+UPDATE public.payfast_transactions
+SET pf_payment_id = substring(pf_payment_id FROM 4)
+WHERE pf_payment_id LIKE 'PF-%';
+
+-- Verify after running the above - this should return zero rows. If it
+-- doesn't, something else is duplicating transactions and needs a fresh
+-- look rather than this specific fix.
+-- SELECT pf_payment_id, count(*) FROM public.payfast_transactions GROUP BY pf_payment_id HAVING count(*) > 1;
