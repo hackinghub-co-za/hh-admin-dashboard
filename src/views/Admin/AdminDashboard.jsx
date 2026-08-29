@@ -1861,8 +1861,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               }
             };
 
+            // Active and Active (Permanent) only - memberRoster's computed
+            // `status` already collapses both of those real profile
+            // statuses into a single 'Active' bucket (see memberRoster's
+            // build above), distinct from 'Lapsed' (derived from a stale
+            // last payment, not an admin-set status), 'Leaving', and
+            // 'Left'. Filtering on 'Active' here is exactly "Active or
+            // Active (Permanent)", nothing else.
+            const activeMemberRoster = memberRoster.filter((m) => m.status === 'Active');
+
             const { key: sortKey, dir: sortDir } = memberSheetSort;
-            const sortedRows = [...memberRoster].sort((a, b) => {
+            const sortedRows = [...activeMemberRoster].sort((a, b) => {
               if (!sortKey) return a.member.localeCompare(b.member);
               const va = sheetSortValue(a, sortKey);
               const vb = sheetSortValue(b, sortKey);
@@ -1906,7 +1915,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                   <ListChecks size={18} color="var(--accent-cyan)" />
                   <h3 style={{ margin: 0 }}>Member Sheet</h3>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>({memberRoster.length})</span>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>({activeMemberRoster.length} active)</span>
                 </div>
                 <div style={{ maxHeight: '440px', overflowY: 'auto', overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
