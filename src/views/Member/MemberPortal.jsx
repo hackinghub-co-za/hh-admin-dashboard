@@ -17,6 +17,7 @@ import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competi
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
+import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
@@ -830,6 +831,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     if (isMockSession) return;
     try {
       await toggleMyRoadmapItem(item.id, updated.completed);
+      if (updated.completed) {
+        logPortalEvent('roadmap_item_completed', { phase: item.phase }).catch(() => {});
+      }
     } catch (err) {
       setRoadmapError(friendlyMemberErrorMessage(err));
       setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
@@ -863,6 +867,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     if (isMockSession) return;
     recordDailyLogin().then(setLoginStreak).catch((err) => console.error('Could not record login streak:', err));
   }, [isMockSession]);
+
+  // Portal usage analytics (050_portal_events.sql) - session_start once per
+  // load here, tab_view on every tab change below. Fire-and-forget, never
+  // awaited, and skipped entirely under Mock Member - a demo session should
+  // never pollute real usage numbers.
+  useEffect(() => {
+    if (isMockSession) return;
+    logPortalEvent('session_start').catch((err) => console.error('Could not log session start:', err));
+  }, [isMockSession]);
+
+  useEffect(() => {
+    if (isMockSession || !activeTab) return;
+    logPortalEvent('tab_view', { tab: activeTab }).catch((err) => console.error('Could not log tab view:', err));
+  }, [isMockSession, activeTab]);
 
   // Member's own start date - view-only, only an admin can set it (Members
   // tab). Falls back to their onboarding date if no admin has set one yet.
@@ -960,6 +978,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     try {
       await submitDailyRoomLog(Number(roomCountInput), true);
       setRoomLogs(await fetchMyRoomLogs());
+      logPortalEvent('room_log_submitted').catch(() => {});
     } catch (err) {
       setSubmitRoomLogError(friendlyMemberErrorMessage(err));
     } finally {
@@ -1045,8 +1064,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     setRsvpingEventId(eventId);
     setEventRsvpError(null);
     try {
-      if (alreadyRsvped) await unrsvpFromEvent(eventId);
-      else await rsvpForEvent(eventId);
+      if (alreadyRsvped) {
+        await unrsvpFromEvent(eventId);
+      } else {
+        await rsvpForEvent(eventId);
+        logPortalEvent('event_rsvped', { eventId }).catch(() => {});
+      }
       setEventRsvps(await fetchEventRsvps());
     } catch (err) {
       setEventRsvpError(friendlyMemberErrorMessage(err));
@@ -1336,6 +1359,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           createdBy: user?.email,
         });
         setJobListings(await fetchJobBoard());
+        logPortalEvent('job_posted').catch(() => {});
       }
       setNewJobForm({ title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', link: '' });
       setShowAddJobForm(false);

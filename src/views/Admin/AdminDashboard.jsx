@@ -44,6 +44,7 @@ import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoad
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
+import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend } from '../../lib/portalEventsData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
 import {
   Calendar,
@@ -82,7 +83,10 @@ import {
   X,
   Sparkles,
   CalendarClock,
+  Activity,
+  LayoutGrid,
 } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
   // Bumped by the "Refresh" button on the Admin Overview tab - added to every
@@ -446,6 +450,39 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .then((data) => !cancelled && setRoomLogs(data))
       .catch((err) => !cancelled && setRoomLogsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingRoomLogs(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  // Portal usage analytics (050_portal_events.sql) - powers the "usage"
+  // section of the Insights tab. Aggregated server-side (three small RPCs),
+  // not looped over client-side like the rest of Insights - this table
+  // won't stay roster-sized the way member_profiles does. Fetch-on-mount +
+  // the existing manual Refresh button, no polling, same as every other tab.
+  const [portalActiveMembers7d, setPortalActiveMembers7d] = useState(null);
+  const [portalActiveMembers30d, setPortalActiveMembers30d] = useState(null);
+  const [portalTabEngagement, setPortalTabEngagement] = useState([]);
+  const [portalWeeklyTrend, setPortalWeeklyTrend] = useState([]);
+  const [loadingPortalAnalytics, setLoadingPortalAnalytics] = useState(!isMockSession);
+  const [portalAnalyticsError, setPortalAnalyticsError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    Promise.all([
+      fetchPortalActiveMemberCount(7),
+      fetchPortalActiveMemberCount(30),
+      fetchPortalTabEngagement(30),
+      fetchPortalWeeklyTrend(8),
+    ])
+      .then(([active7d, active30d, tabEngagement, weeklyTrend]) => {
+        if (cancelled) return;
+        setPortalActiveMembers7d(active7d);
+        setPortalActiveMembers30d(active30d);
+        setPortalTabEngagement(tabEngagement);
+        setPortalWeeklyTrend(weeklyTrend);
+      })
+      .catch((err) => !cancelled && setPortalAnalyticsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingPortalAnalytics(false));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
@@ -3251,6 +3288,36 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       const genderBuckets = bucketBy((m) => m.profile?.gender);
       const locationBuckets = bucketBy((m) => m.profile?.location);
 
+      // Tab popularity - % of the last 30 days' active members who opened
+      // each tab, not % of the whole roster (a member who hasn't touched
+      // the portal at all in 30 days shouldn't drag every tab's number
+      // down just for existing).
+      const renderTabEngagementBars = () => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {portalTabEngagement.map(({ tab, memberCount }) => {
+            const pct = portalActiveMembers30d ? Math.round((memberCount / portalActiveMembers30d) * 100) : 0;
+            return (
+              <div key={tab}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '5px' }}>
+                  <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{tab}</span>
+                  <strong style={{ color: 'var(--accent-cyan)' }}>{memberCount} ({pct}%)</strong>
+                </div>
+                <div style={{ width: '100%', height: '7px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px' }}></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+
+      const weeklyTrendData = portalWeeklyTrend.map((w) => ({
+        // Short "11 Aug" form for the chart's x-axis - formatDate's usual
+        // "11 - August - 2026" is too wide for weekly tick labels.
+        week: new Date(`${w.weekStart}T00:00:00`).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }),
+        'Active Members': w.activeMembers,
+      }));
+
       const renderBreakdownBars = (buckets) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {buckets.map(([label, count]) => {
@@ -3347,6 +3414,72 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               {locationBuckets.length ? renderBreakdownBars(locationBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
             </div>
           </div>
+
+          <div style={{ marginTop: '40px', marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '1.3rem', marginBottom: '6px' }}>Portal Usage</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Which tabs and features members actually use - real usage events, not modeled.</p>
+          </div>
+
+          {isMockSession ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Portal usage data isn't tracked for Mock Member demo sessions.</p>
+          ) : portalAnalyticsError ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>{portalAnalyticsError}</p>
+          ) : loadingPortalAnalytics ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading usage data...</p>
+          ) : (
+            <>
+              <div className="dashboard-grid" style={{ marginBottom: '20px' }}>
+                <div className="glass-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Weekly Active Members</span>
+                    <Activity size={20} color="var(--accent-cyan)" />
+                  </div>
+                  <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{portalActiveMembers7d ?? '—'}</h2>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Distinct members with any portal activity in the last 7 days</div>
+                </div>
+
+                <div className="glass-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Monthly Active Members</span>
+                    <LayoutGrid size={20} color="var(--accent-purple)" />
+                  </div>
+                  <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{portalActiveMembers30d ?? '—'}</h2>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Distinct members with any portal activity in the last 30 days</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+                <div className="glass-card">
+                  <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>Tab Popularity (last 30 days)</h3>
+                  {portalTabEngagement.length
+                    ? renderTabEngagementBars()
+                    : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No tab activity logged yet.</p>}
+                </div>
+
+                <div className="glass-card">
+                  <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>Engagement Trend (8 weeks)</h3>
+                  {weeklyTrendData.length ? (
+                    <div style={{ width: '100%', height: 220 }}>
+                      <ResponsiveContainer>
+                        <LineChart data={weeklyTrendData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                          <XAxis dataKey="week" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--border-color)' }} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--border-color)' }} tickLine={false} width={28} />
+                          <Tooltip
+                            contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.8rem' }}
+                            labelStyle={{ color: 'var(--text-primary)' }}
+                          />
+                          <Line type="monotone" dataKey="Active Members" stroke="var(--accent-cyan)" strokeWidth={2} dot={{ r: 3, fill: 'var(--accent-cyan)' }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No usage history yet - check back after a week or two of real portal activity.</p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       );
     }

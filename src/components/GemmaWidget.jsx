@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Bot, X, Send, AlertCircle, Sparkles } from 'lucide-react';
 import { fetchGemmaHistory, sendGemmaMessage } from '../lib/gemmaData';
 import { friendlyMemberErrorMessage } from '../lib/errorMessages';
+import { logPortalEvent } from '../lib/portalEventsData';
 
 // Mock Member has no real Supabase session to call gemma-chat with, so a
 // send in mock mode is answered locally instead of hitting the network -
@@ -70,7 +71,13 @@ export default function GemmaWidget({ user, isMockSession }) {
   return (
     <>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setOpen((o) => {
+            const next = !o;
+            if (next && !isMockSession) logPortalEvent('gemma_opened').catch(() => {});
+            return next;
+          });
+        }}
         aria-label={open ? 'Close Gemma chat' : 'Open Gemma chat'}
         style={{
           position: 'fixed',
