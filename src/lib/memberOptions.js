@@ -131,6 +131,65 @@ export const SPECIALIZATION_CATALOGS = {
   },
 };
 
+// ============================================================================
+// EXAM READINESS - per-cert prep checklist + latest practice-test score,
+// surfaced on the member-facing Cert Calendar tab. Deliberately not built
+// on roadmap_items.detail (free text, never parsed anywhere) - these are
+// real, structured milestones instead (051_exam_readiness.sql).
+// ============================================================================
+
+// Same 4 milestone keys for every cert so the readiness formula (50%
+// checklist + 50% latest practice score) never has to special-case a
+// cert's checklist length - only the labels differ. Security+ gets real,
+// specific labels drawn from SecurityPlusGuideModal.jsx's own content
+// (it's the one cert with a full in-app guide today); the other five get
+// the same honest, generic milestones until someone writes cert-specific
+// guide content for them too.
+const GENERIC_READINESS_MILESTONES = [
+  { key: 'study_course', label: 'Completed a full study course for this exam' },
+  { key: 'objectives_reviewed', label: "Reviewed the exam's official objectives/skills outline" },
+  { key: 'practice_test_1', label: 'Taken a first practice test' },
+  { key: 'practice_test_2', label: 'Taken a second practice test' },
+];
+
+export const EXAM_READINESS_CATALOGS = {
+  'Security+': {
+    label: 'CompTIA Security+',
+    milestones: [
+      { key: 'study_course', label: "Watched Professor Messer's full Security+ video course" },
+      { key: 'objectives_reviewed', label: 'Reviewed the official CompTIA Security+ exam objectives' },
+      { key: 'practice_test_1', label: 'Taken a first ExamCompass/PocketPrep practice test' },
+      { key: 'practice_test_2', label: 'Taken a second practice test' },
+    ],
+  },
+  'AZ-900': { label: 'Microsoft AZ-900 (Azure Fundamentals)', milestones: GENERIC_READINESS_MILESTONES },
+  'SC-200': { label: 'Microsoft SC-200 (Security Operations Analyst)', milestones: GENERIC_READINESS_MILESTONES },
+  'SC-900': { label: 'Microsoft SC-900 (Security, Compliance & Identity Fundamentals)', milestones: GENERIC_READINESS_MILESTONES },
+  'CySA+': { label: 'CompTIA CySA+', milestones: GENERIC_READINESS_MILESTONES },
+  eJPT: { label: 'INE eJPT (Junior Penetration Tester)', milestones: GENERIC_READINESS_MILESTONES },
+};
+
+// Matches a free-text cert_calendar.cert_name (members type whatever they
+// want, e.g. "CompTIA Security+" or "Security+ (SY0-701)") against the
+// catalog above - same lowercase-substring approach CertDetailsModal.jsx
+// already uses for its own cert knowledge base, so the two stay consistent
+// rather than each inventing a different matching rule. Returns the
+// catalog key, or null if this cert has no defined readiness program yet.
+export function matchExamReadinessCert(certName) {
+  const clean = (certName || '').toLowerCase();
+  if (clean.includes('cysa')) return 'CySA+';
+  if (clean.includes('ejpt')) return 'eJPT';
+  if (clean.includes('az-900') || clean.includes('az900')) return 'AZ-900';
+  if (clean.includes('sc-200') || clean.includes('sc200')) return 'SC-200';
+  if (clean.includes('sc-900') || clean.includes('sc900')) return 'SC-900';
+  // Checked after the more specific Microsoft/CySA+ matches above so
+  // "Security Operations Analyst (SC-200)" doesn't get misread as
+  // Security+ just for containing the word "security" - same permissive
+  // 'security'/'sec+' substring CertDetailsModal.jsx already matches on.
+  if (clean.includes('security') || clean.includes('sec+') || clean.includes('sy0-')) return 'Security+';
+  return null;
+}
+
 // A member is flagged "Lapsed" if they haven't paid in this many days and haven't
 // been explicitly marked Active or Left by an admin - a nudge to go check on them,
 // not a verdict.

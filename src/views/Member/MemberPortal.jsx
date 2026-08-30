@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
+import ExamReadinessModal from '../../components/ExamReadinessModal';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
+import CompetitionRulesModal from '../../components/CompetitionRulesModal';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
@@ -11,6 +13,7 @@ import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarData';
+import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScore, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
@@ -24,7 +27,7 @@ import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -320,6 +323,17 @@ const MOCK_CERT_CALENDAR = [
   { id: 5, member: 'Thando Mandondo', cert: 'CompTIA Network+', date: '2026-09-20', cohort: 'NetPlus-Q3', result: 'Pending' },
   { id: 8, member: 'Siya', cert: 'KCSA (Kubernetes and Cloud Native Security Associate)', date: '2026-09-17', cohort: 'General', result: 'Pending' },
   { id: 9, member: 'Siya', cert: 'Microsoft Security Operations Analyst (SC-500)', date: '2026-08-20', cohort: 'General', result: 'Pending' },
+  // Only mock row that belongs to the Mock Member session itself (matches
+  // its email below) - the one card the Exam Readiness badge/modal has
+  // something real to demo against.
+  { id: 10, member: 'Sanele Khumalo', cert: 'CompTIA Security+', date: '2026-09-25', cohort: 'SecPlus-Sep', result: 'Pending', memberEmail: 'member@hackinghub.co.za' },
+];
+
+// Local-only demo readiness state for the mock Security+ row above -
+// partially through the checklist, no practice score logged yet, so the
+// "50% cap until you take a real test" mechanic is visible in the demo.
+const MOCK_EXAM_READINESS = [
+  { certName: 'Security+', checklist: { study_course: true, objectives_reviewed: true, practice_test_1: false, practice_test_2: false }, latestPracticeScore: null, latestPracticeScoreAt: null },
 ];
 
 const MOCK_JOB_BOARD = [
@@ -1185,6 +1199,52 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
+  // Exam readiness - per-cert prep checklist + latest practice score,
+  // only ever for the member's own cert_calendar rows (never shown for
+  // someone else's booked exam on this shared community calendar).
+  const [examReadiness, setExamReadiness] = useState(isMockSession ? MOCK_EXAM_READINESS : []);
+  const [readinessModalCert, setReadinessModalCert] = useState(null); // the matched catalog key, e.g. 'Security+'
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyExamReadiness().then((data) => !cancelled && setExamReadiness(data)).catch((err) => console.error('Could not load exam readiness:', err));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const handleToggleReadinessMilestone = async (certKey, milestoneKey, completed) => {
+    setExamReadiness((prev) => {
+      const existing = prev.find((r) => r.certName === certKey);
+      if (existing) {
+        return prev.map((r) => (r.certName === certKey ? { ...r, checklist: { ...r.checklist, [milestoneKey]: completed } } : r));
+      }
+      return [...prev, { certName: certKey, checklist: { [milestoneKey]: completed }, latestPracticeScore: null, latestPracticeScoreAt: null }];
+    });
+    if (isMockSession) return;
+    try {
+      await updateExamReadinessChecklist(certKey, milestoneKey, completed);
+    } catch (err) {
+      console.error('Could not save readiness checklist:', err);
+    }
+  };
+
+  const handleSaveReadinessScore = async (certKey, score) => {
+    const now = new Date().toISOString();
+    setExamReadiness((prev) => {
+      const existing = prev.find((r) => r.certName === certKey);
+      if (existing) {
+        return prev.map((r) => (r.certName === certKey ? { ...r, latestPracticeScore: score, latestPracticeScoreAt: now } : r));
+      }
+      return [...prev, { certName: certKey, checklist: {}, latestPracticeScore: score, latestPracticeScoreAt: now }];
+    });
+    if (isMockSession) return;
+    try {
+      await logPracticeTestScore(certKey, score);
+    } catch (err) {
+      console.error('Could not save practice test score:', err);
+    }
+  };
+
   const handleAddCertEntry = async (e) => {
     e.preventDefault();
     if (!newCertForm.member.trim() || !newCertForm.cert.trim() || !newCertForm.date) return;
@@ -1235,6 +1295,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // from a prior session) doesn't replay the animation every time.
   const [showRsvpConfetti, setShowRsvpConfetti] = useState(false);
   const [justRsvpedEmail, setJustRsvpedEmail] = useState(null);
+  const [showCompetitionRules, setShowCompetitionRules] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1283,13 +1344,49 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     platform: 'TryHackMe',
     startDate: '2026-08-31',
     endDate: '2026-10-23', // last Friday of the ~8-week run
-    description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Standings are ranked by days logged — top 3 finishers win prizes.',
+    description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Standings are ranked by rooms completed — top 3 finishers win prizes. A tie for a prize-winning spot splits that combined prize money evenly among everyone tied.',
     prizes: [
       { place: '1st', reward: 'Any certification voucher, up to R6,000' },
       { place: '2nd', reward: 'Any certification voucher, up to R3,000' },
       { place: '3rd', reward: 'Any certification voucher, up to R1,000' },
     ],
   };
+
+  // Rand value behind each "up to" voucher tier above - only used to
+  // compute an actual split when there's a tie, e.g. 2 members tied for
+  // 1st split R6,000+R3,000 into R4,500 each; a 4-way tie for 1st still
+  // only splits the full R10,000 pool (there's no 4th prize to add) into
+  // R2,500 each, leaving nothing for anyone below them.
+  const COMPETITION_PRIZE_AMOUNTS = [6000, 3000, 1000];
+
+  // Walks the leaderboard (already sorted most-rooms-first) top to bottom,
+  // grouping consecutive equal-rooms members into tie groups and handing
+  // each group however many prize slots its size consumes, split evenly.
+  // Members with 0 rooms are never counted as "tied for a prize" just for
+  // having RSVP'd and done nothing yet. Returns a lookup keyed by
+  // email||member so the table can render each row's real prize, if any.
+  const computeCompetitionPrizes = (sortedByRooms) => {
+    const prizeByKey = {};
+    const contenders = sortedByRooms.filter((row) => row.rooms > 0);
+    let slot = 0;
+    let i = 0;
+    while (i < contenders.length && slot < COMPETITION_PRIZE_AMOUNTS.length) {
+      let groupEnd = i;
+      while (groupEnd + 1 < contenders.length && contenders[groupEnd + 1].rooms === contenders[i].rooms) groupEnd++;
+      const groupSize = groupEnd - i + 1;
+      const slotsConsumed = Math.min(groupSize, COMPETITION_PRIZE_AMOUNTS.length - slot);
+      const pool = COMPETITION_PRIZE_AMOUNTS.slice(slot, slot + slotsConsumed).reduce((a, b) => a + b, 0);
+      const perPerson = pool / groupSize;
+      for (let j = i; j <= groupEnd; j++) {
+        const key = contenders[j].email || contenders[j].member;
+        prizeByKey[key] = { amount: perPerson, tied: groupSize > 1 };
+      }
+      slot += slotsConsumed;
+      i = groupEnd + 1;
+    }
+    return prizeByKey;
+  };
+  const formatPrizeAmount = (n) => `R${n.toLocaleString('en-ZA', { maximumFractionDigits: 0 })}`;
 
   // Status and kickoff countdown are derived from today's date rather than
   // hardcoded, so they can't drift out of sync with the actual competition dates.
@@ -3651,6 +3748,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 const isUrgent = daysLeft <= 14;
 
+                // Exam readiness is a personal self-assessment - only ever
+                // shown for the signed-in member's own booked exam, never
+                // for someone else's card on this shared community calendar.
+                const isOwnCert = !!(c.memberEmail && user?.email && c.memberEmail.toLowerCase() === user.email.toLowerCase());
+                const readinessCertKey = isOwnCert ? matchExamReadinessCert(c.cert) : null;
+                const readinessRow = readinessCertKey ? examReadiness.find((r) => r.certName === readinessCertKey) : null;
+                const readinessPct = readinessCertKey
+                  ? computeReadinessPercent(
+                      EXAM_READINESS_CATALOGS[readinessCertKey].milestones,
+                      readinessRow?.checklist,
+                      readinessRow?.latestPracticeScore
+                    )
+                  : null;
+
                 return (
                   <div
                     key={c.id}
@@ -3686,6 +3797,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <span style={{ color: 'var(--text-secondary)' }}>Target Exam Date:</span>
                       <strong style={{ color: 'var(--accent-cyan)' }}>{formatDate(c.date)}</strong>
                     </div>
+
+                    {readinessCertKey && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReadinessModalCert(readinessCertKey);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '0.85rem',
+                          background: 'rgba(94, 227, 122, 0.06)',
+                          border: '1px solid rgba(94, 227, 122, 0.2)',
+                          borderRadius: 'var(--border-radius-sm)',
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <ShieldCheck size={14} color="var(--accent-cyan)" /> Exam Readiness
+                        </span>
+                        <strong style={{ color: 'var(--accent-cyan)' }}>{readinessPct}%</strong>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -3702,6 +3840,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               onClose={() => setSelectedCert(null)}
             />
           )}
+
+          {readinessModalCert && (() => {
+            const row = examReadiness.find((r) => r.certName === readinessModalCert);
+            return (
+              <ExamReadinessModal
+                certLabel={EXAM_READINESS_CATALOGS[readinessModalCert].label}
+                milestones={EXAM_READINESS_CATALOGS[readinessModalCert].milestones}
+                checklist={row?.checklist}
+                latestPracticeScore={row?.latestPracticeScore}
+                latestPracticeScoreAt={row?.latestPracticeScoreAt}
+                onToggleMilestone={(milestoneKey, completed) => handleToggleReadinessMilestone(readinessModalCert, milestoneKey, completed)}
+                onSaveScore={(score) => handleSaveReadinessScore(readinessModalCert, score)}
+                onClose={() => setReadinessModalCert(null)}
+              />
+            );
+          })()}
 
           {showAddCertForm && (
             <div
@@ -3871,18 +4025,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                 )}
               </div>
-              <a
-                href="https://docs.google.com/document/d/1VRDejGUdybG96XckT9XFrQMeRk8aapH1QTDlt6c62QA/edit?tab=t.0#heading=h.fr8u08q2iu12"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
                 className="btn btn-secondary"
                 style={{ justifyContent: 'center' }}
+                onClick={() => setShowCompetitionRules(true)}
               >
                 <BookOpen size={14} /> Learn More
-              </a>
+              </button>
               {standingsError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{standingsError}</span>}
             </div>
           </div>
+
+          {showCompetitionRules && <CompetitionRulesModal onClose={() => setShowCompetitionRules(false)} />}
 
           <div className="glass-card" style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -3964,38 +4119,60 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><CalendarCheck2 size={13} /> Days Logged</span>
                   </th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Prize if it ended today</th>
                 </tr>
               </thead>
               <tbody>
-                {[...competitionLeaderboard].sort((a, b) => b.daysLogged - a.daysLogged).map((row, i) => {
-                  const medal = i === 0
-                    ? { bg: 'rgba(250, 204, 21, 0.10)', color: '#facc15' }
-                    : i === 1
-                    ? { bg: 'rgba(203, 213, 225, 0.09)', color: '#cbd5e1' }
-                    : i === 2
-                    ? { bg: 'rgba(217, 119, 87, 0.10)', color: '#d97757' }
-                    : null;
-                  return (
-                    <tr
-                      key={row.email || row.member}
-                      className={row.email && row.email === justRsvpedEmail ? 'rsvp-row-new' : undefined}
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: medal?.bg }}
-                    >
-                      <td style={{ padding: '14px 12px' }}>
-                        {medal ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: medal.color, fontWeight: 700 }}>
-                            <Trophy size={15} /> #{i + 1}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{i + 1}</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}</td>
-                      <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.rooms}</td>
-                      <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>{row.daysLogged}</td>
-                    </tr>
+                {(() => {
+                  // Rooms completed is the real ranking metric (Days Logged
+                  // is shown for context only) - ties broken by days logged
+                  // then name purely for a stable, readable row order, since
+                  // a tie on rooms always earns the same split prize
+                  // regardless of how the tied rows happen to be ordered.
+                  const sorted = [...competitionLeaderboard].sort(
+                    (a, b) => b.rooms - a.rooms || b.daysLogged - a.daysLogged || a.member.localeCompare(b.member)
                   );
-                })}
+                  const prizeByKey = computeCompetitionPrizes(sorted);
+                  return sorted.map((row, i) => {
+                    const medal = i === 0
+                      ? { bg: 'rgba(250, 204, 21, 0.10)', color: '#facc15' }
+                      : i === 1
+                      ? { bg: 'rgba(203, 213, 225, 0.09)', color: '#cbd5e1' }
+                      : i === 2
+                      ? { bg: 'rgba(217, 119, 87, 0.10)', color: '#d97757' }
+                      : null;
+                    const prize = prizeByKey[row.email || row.member];
+                    return (
+                      <tr
+                        key={row.email || row.member}
+                        className={row.email && row.email === justRsvpedEmail ? 'rsvp-row-new' : undefined}
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: medal?.bg }}
+                      >
+                        <td style={{ padding: '14px 12px' }}>
+                          {medal ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: medal.color, fontWeight: 700 }}>
+                              <Trophy size={15} /> #{i + 1}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{i + 1}</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}</td>
+                        <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.rooms}</td>
+                        <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>{row.daysLogged}</td>
+                        <td style={{ padding: '14px 12px' }}>
+                          {prize ? (
+                            <span style={{ fontWeight: 700, color: medal?.color || 'var(--text-primary)' }}>
+                              {formatPrizeAmount(prize.amount)}{prize.tied ? ' (tied)' : ''}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
             )}

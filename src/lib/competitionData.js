@@ -4,13 +4,15 @@
 
 import { supabase } from './supabase';
 
-/** Fetch the full leaderboard, most days logged first. RLS scopes this to
- * signed-in, approved members only - no sensitive columns here regardless. */
+/** Fetch the full leaderboard, most rooms completed first (the actual prize
+ * ranking - days_logged is shown as a secondary, informational column only).
+ * RLS scopes this to signed-in, approved members only - no sensitive columns
+ * here regardless. */
 export async function fetchCompetitionStandings() {
   const { data, error } = await supabase
     .from('competition_standings')
     .select('email, member_name, rooms_completed, days_logged')
-    .order('days_logged', { ascending: false });
+    .order('rooms_completed', { ascending: false });
   if (error) throw error;
   return (data || []).map((row) => ({
     email: row.email,
