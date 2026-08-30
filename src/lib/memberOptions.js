@@ -3,9 +3,8 @@
 // always mean the same thing - these used to diverge (Red Team/Blue Team
 // here vs Offensive Security/SOC there, DevSecOps missing entirely), which
 // made it easy to assign a specialty that didn't match the actual roadmap
-// track. GRC has no roadmap track counterpart (no catalog defined for it)
-// but stays as a specialty option since it's a real, distinct area members
-// describe themselves with.
+// track. GRC now has a roadmap track counterpart too (see ROADMAP_TRACKS
+// and SPECIALIZATION_CATALOGS.GRC below).
 export const SPECIALTIES = ['Not Set', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
 export const JOB_READINESS_STAGES = ['Not Started', 'In Progress', 'Interview Ready', 'Job Placed'];
 export const GENDERS = ['Male', 'Female'];
@@ -41,7 +40,7 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Permanent
 // The learning path a coach assigns a member to - drives which checklist shows
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
 // own self-described directory badge); this one is coach-assigned.
-export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security'];
+export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
 export const ROADMAP_PHASES = ['Core Foundations', 'Specialization'];
 
 // The standard Core Foundations "Certifications" catalog every assigned
@@ -119,6 +118,17 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'Python (or any programming language)', defaultDetail: 'Optional' },
     ],
   },
+  GRC: {
+    category: 'GRC',
+    items: [
+      { title: 'ISO/IEC 27001 Foundation', defaultDetail: '' },
+      { title: 'NIST Cybersecurity Framework (CSF)', defaultDetail: '' },
+      { title: 'ISC2 CGRC', defaultDetail: '' },
+      { title: 'ISACA CRISC', defaultDetail: '' },
+      { title: 'POPIA/GDPR Practitioner', defaultDetail: '' },
+      { title: 'ITIL 4 Foundation', defaultDetail: '' },
+    ],
+  },
 };
 
 // A member is flagged "Lapsed" if they haven't paid in this many days and haven't
@@ -182,6 +192,7 @@ export const TRACK_COLORS = {
   'DevSecOps': '#a78bfa',
   'IAM': '#f5b942',
   'AI Security': '#f472b6',
+  'GRC': '#fb923c',
 };
 export const OTHER_GROUP_COLOR = '#94a3b8';
 export const TEAM_GROUP_COLOR = '#f5b942';
