@@ -18,6 +18,43 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.08.30
+
+### Added
+- **Exam Readiness program** — a real per-cert readiness percentage on the
+  member-facing Cert Calendar tab, for Security+, AZ-900, SC-200, SC-900,
+  CySA+, and eJPT. Deliberately not built on `roadmap_items.detail` (free
+  text, never machine-read anywhere in this app) - instead built from two
+  new, real signals: a structured prep checklist (self-checked, no admin
+  verification needed since nothing is unlocked or rewarded by it) and a
+  self-reported latest practice-test score. Readiness = 50% checklist
+  completion + 50% latest practice score, with an unlogged score counting
+  as 0 rather than being skipped, so a member who's done all the prep but
+  never sat a real practice test caps at 50% rather than reading as
+  "done." Shown only on the signed-in member's own booked-exam cards, never
+  for someone else's entry on the shared community Cert Calendar.
+  (`051_exam_readiness.sql`)
+- **In-app Competition Rules** — the Competitions tab's "Learn More" button
+  opened an external Google Doc; it now opens a real in-app guide instead,
+  so the rules can never drift out of sync or go missing. Covers what
+  counts (TryHackMe rooms only, verified via a WhatsApp screenshot), the
+  daily limit (5 rooms/day, one submission per day), that every day counts
+  including weekends and public holidays, the screenshot timestamp
+  requirement, admin verification, and the permanent-ban policy for
+  cheating.
+
+### Changed
+- **Competition ranking + tie handling** — the Competitions leaderboard was
+  ranked by `days_logged`; it's now ranked by `rooms_completed` (matching
+  what members actually think of as "the score"). Ties are now handled
+  explicitly instead of resolving to whatever order Postgres/JS happened to
+  return: members tied for a prize-winning spot split that combined prize
+  money evenly - e.g. two members tied for 1st split R6,000+R3,000 into
+  R4,500 each; three tied for 1st split the full R10,000 pool into R3,333
+  each; a group larger than 3 still only splits the fixed R10,000 pool,
+  however many people are in it. The standings table now shows a live
+  "Prize if it ended today" column reflecting this in real time.
+
 ## 2026.08.20
 
 ### Added

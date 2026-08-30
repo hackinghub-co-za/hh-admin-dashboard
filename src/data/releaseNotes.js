@@ -6,6 +6,50 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.08.30',
+    date: '2026-08-30',
+    headline: "Know exactly how ready you are before exam day.",
+    intro: "A real readiness score for six certs, GRC is now a full specialization track, a fairer prize rule if the competition ends in a tie, and the competition's actual rules are finally in the app instead of a Google Doc.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🎯',
+            title: 'Exam Readiness',
+            body: "See a real readiness percentage for Security+, AZ-900, SC-200, SC-900, CySA+, and eJPT — built from a real prep checklist and your latest practice test score, not a guess. Tap the badge on your own exam to check off milestones and log a score.",
+            where: 'Cert Calendar → your own booked exam',
+          },
+          {
+            icon: '🛡️',
+            title: 'GRC is now a full specialization track',
+            body: "Governance, Risk & Compliance now has its own Roadmap track with real certs (ISO 27001, NIST CSF, ISC2 CGRC, ISACA CRISC, POPIA/GDPR, ITIL 4) — ask your coach to move you onto it if it's the right fit. It also has its own section in the Members directory now.",
+            where: 'My Roadmap · Members → By Domain',
+          },
+        ],
+      },
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🏅',
+            title: 'Ties now split the prize fairly',
+            body: "Standings are ranked by rooms completed. If two or more members tie for a prize-winning spot, they now split that prize money evenly instead of it coming down to chance — see the live split on the standings table.",
+            where: 'Competitions',
+          },
+          {
+            icon: '📖',
+            title: 'Competition rules, right in the app',
+            body: "What counts, the daily limit, screenshot requirements, and what happens if you cheat — the real rules now live in an in-app guide instead of an external Google Doc, so they can never go stale or get lost.",
+            where: 'Competitions → Learn More',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.08.27',
     date: '2026-08-27',
     headline: "Your roadmap now has your back.",
