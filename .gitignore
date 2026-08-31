@@ -37,8 +37,15 @@ src/data/payfast_transactions_*.csv
 *Transaction_History*.csv
 
 # Real, un-redacted content of one-time historical seed migrations
-# (004/021/029/033 - see each file's own header comment for what was
+# (004/012/021/029/033 - see each file's own header comment for what was
 # redacted and why). Local-only, disaster-recovery copies - the real data
 # already lives in Supabase; these are never meant to be committed or
 # re-run against a live database that already has this data.
+#
+# Any other one-time script involving real member data (e.g. a targeted
+# revoke/cleanup) belongs in supabase/.private-scripts/, not a tracked
+# migration - run once from the Supabase SQL Editor, then safe to delete
+# locally. This is the standing rule going forward, not just how the
+# PII incident above got fixed.
 supabase/.private-history/
+supabase/.private-scripts/
