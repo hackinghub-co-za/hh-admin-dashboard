@@ -17,7 +17,7 @@ import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarD
 import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScore, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
-import { fetchCompetitionStandings, rsvpForCompetition } from '../../lib/competitionData';
+import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition } from '../../lib/competitionData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
@@ -1358,23 +1358,35 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     setTimeout(() => setShowRsvpConfetti(false), 1000);
   };
 
+  // Toggles: RSVPs if the member hasn't joined yet, opts out (soft - their row
+  // and any admin-entered progress stay intact, just hidden) if they click
+  // again having already joined. Same toggle-in-place pattern as event RSVPs
+  // (handleEventRsvp above) rather than a separate control.
   const handleCompetitionRsvp = async () => {
     const displayName = user?.user_metadata?.full_name || user?.email || 'You';
+    const alreadyRsvped = hasRsvpedForCompetition;
+
+    if (!alreadyRsvped) celebrateRsvp();
+
     if (isMockSession) {
       setCompetitionLeaderboard((prev) =>
-        prev.some((row) => row.email === user?.email)
-          ? prev
-          : [...prev, { email: user?.email, member: displayName, rooms: 0, daysLogged: 0 }]
+        alreadyRsvped
+          ? prev.filter((row) => row.email !== user?.email)
+          : prev.some((row) => row.email === user?.email)
+            ? prev
+            : [...prev, { email: user?.email, member: displayName, rooms: 0, daysLogged: 0 }]
       );
-      celebrateRsvp();
       return;
     }
     setRsvpingCompetition(true);
     setStandingsError(null);
     try {
-      await rsvpForCompetition(displayName);
+      if (alreadyRsvped) {
+        await optOutOfCompetition();
+      } else {
+        await rsvpForCompetition(displayName);
+      }
       setCompetitionLeaderboard(await fetchCompetitionStandings());
-      celebrateRsvp();
     } catch (err) {
       setStandingsError(friendlyMemberErrorMessage(err));
     } finally {
@@ -4101,10 +4113,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <button
                   className={`btn ${hasRsvpedForCompetition ? 'btn-secondary' : 'btn-primary'}`}
                   onClick={handleCompetitionRsvp}
-                  disabled={hasRsvpedForCompetition || rsvpingCompetition}
+                  disabled={rsvpingCompetition}
+                  title={hasRsvpedForCompetition ? "Click to opt out of the competition" : undefined}
                   style={{ justifyContent: 'center' }}
                 >
-                  {hasRsvpedForCompetition ? <><CheckCircle2 size={14} /> You're In</> : rsvpingCompetition ? 'Joining...' : "Yes I'm In"}
+                  {rsvpingCompetition
+                    ? (hasRsvpedForCompetition ? 'Opting out...' : 'Joining...')
+                    : hasRsvpedForCompetition
+                      ? <><CheckCircle2 size={14} /> You're In</>
+                      : "Yes I'm In"}
                 </button>
                 {showRsvpConfetti && (
                   <div style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
