@@ -35,8 +35,10 @@ export async function fetchMemberDirectory() {
 }
 
 /** Updates the current member's own directory card. Scoped server-side to only
- * these 15 public-facing columns on their own row. */
-export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, githubUrl, tiktokUrl, websiteUrl, yearsExperience, certifications, funFact, specialty, employmentStatus, jobTitle }) {
+ * these 17 public-facing-or-self-only columns on their own row. Age/gender are
+ * write-only from here (never returned by fetchMemberDirectory/
+ * get_member_directory - see fetchMyAgeAndGender below for reading them back). */
+export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, githubUrl, tiktokUrl, websiteUrl, yearsExperience, certifications, funFact, specialty, employmentStatus, jobTitle, age, gender }) {
   const { error } = await supabase.rpc('update_my_directory_profile', {
     p_full_name: fullName || null,
     p_about: about || null,
@@ -53,8 +55,20 @@ export async function updateMyDirectoryProfile({ fullName, about, location, link
     p_specialty: specialty || null,
     p_employment_status: employmentStatus || null,
     p_job_title: employmentStatus === 'Employed' ? (jobTitle || null) : null,
+    p_age: age || null,
+    p_gender: gender || null,
   });
   if (error) throw error;
+}
+
+/** The current member's own age/gender - deliberately not part of
+ * fetchMemberDirectory() above (both stay peer-invisible), so this is a
+ * separate, private read used only to pre-fill their own edit form. */
+export async function fetchMyAgeAndGender() {
+  const { data, error } = await supabase.rpc('get_my_age_and_gender');
+  if (error) throw error;
+  const row = data?.[0];
+  return { age: row?.age || '', gender: row?.gender || '' };
 }
 
 /** Uploads (or replaces) the current member's headshot to the public

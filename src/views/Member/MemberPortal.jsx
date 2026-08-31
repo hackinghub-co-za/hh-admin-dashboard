@@ -9,7 +9,7 @@ import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
-import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot } from '../../lib/memberDirectoryData';
+import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMyAgeAndGender } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarData';
@@ -27,7 +27,7 @@ import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -712,6 +712,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     specialty: 'Not Set',
     employmentStatus: 'Not Set',
     jobTitle: '',
+    age: '',
+    gender: '',
   };
   const [profileForm, setProfileForm] = useState(emptyProfileForm);
 
@@ -725,10 +727,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
+  // Age/gender stay out of the peer-visible directory feed (fetchMemberDirectory)
+  // - same admin-guessing-only fields as before, just now member-settable via a
+  // private read/write pair instead of admin-only. Fetched once on mount so
+  // openEditProfile can pre-fill them without needing to become async itself.
+  const [myAgeGender, setMyAgeGender] = useState({ age: '', gender: '' });
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyAgeAndGender().then((data) => !cancelled && setMyAgeGender(data)).catch((err) => console.error('Could not load age/gender:', err));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
   const myDirectoryEntry = directory.find((m) => m.email === user?.email);
 
   const openEditProfile = () => {
-    setProfileForm(myDirectoryEntry ? { ...emptyProfileForm, ...myDirectoryEntry } : emptyProfileForm);
+    setProfileForm(myDirectoryEntry ? { ...emptyProfileForm, ...myDirectoryEntry, ...myAgeGender } : { ...emptyProfileForm, ...myAgeGender });
     setEditingProfile(true);
   };
 
@@ -1911,6 +1925,31 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </select>
                     </div>
                   </div>
+
+                  {/* Age/gender - never shown to other members (not part of the
+                      directory feed), only ever used for the Admin Insights
+                      demographic breakdowns. Was admin-guesswork-only before;
+                      now the member sets it themselves, same as everything else
+                      on this form. */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Age</label>
+                      <select className="form-input" value={profileForm.age} onChange={(e) => setProfileForm({ ...profileForm, age: e.target.value })}>
+                        <option value="">Not set</option>
+                        {AGES.map((a) => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Gender</label>
+                      <select className="form-input" value={profileForm.gender} onChange={(e) => setProfileForm({ ...profileForm, gender: e.target.value })}>
+                        <option value="">Not set</option>
+                        {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '-8px' }}>
+                    Only visible to admins - never shown to other members.
+                  </p>
 
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>LinkedIn Profile</label>

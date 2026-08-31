@@ -155,22 +155,32 @@ GRANT EXECUTE ON FUNCTION public.get_member_directory() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_member_directory() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.get_member_directory() FROM anon;
 
--- Write, scoped to only the caller's own row and only these 15 public-facing
--- columns - money_owed/status/offboarding/etc. stay completely untouchable
--- from here. UPDATE-only (never INSERT) - every real member already has a row
+-- Write, scoped to only the caller's own row and only these 17 columns
+-- (15 public-facing, plus age/gender which stay peer-invisible - see
+-- comment below) - money_owed/status/offboarding/etc. stay completely
+-- untouchable from here. UPDATE-only (never INSERT) - every real member already has a row
 -- (backfilled in 004_member_access_control.sql, or created by an admin), so a
 -- caller with no existing row just matches zero rows and no-ops, rather than
 -- being able to self-provision a brand-new 'Active' membership row.
 --
--- CREATE OR REPLACE, not DROP+CREATE - this file used to pair a DROP
--- FUNCTION IF EXISTS with a bare CREATE FUNCTION here (needed only when a
--- revision actually changes the argument list, which CREATE OR REPLACE
--- can't do), but that DROP line's signature was never updated when
--- years_experience/certifications/fun_fact were added. It matched nothing
--- live, silently no-opped, and left the real CREATE colliding with the
--- function that already existed - "already exists with same argument
--- types". CREATE OR REPLACE is exactly the right tool when the signature
--- isn't changing, and sidesteps this whole class of bug.
+-- CREATE OR REPLACE is the right tool whenever the argument list ISN'T
+-- changing (see the "already exists with same argument types" bug this
+-- file's own history hit when a DROP's signature went stale - fixed by
+-- switching to CREATE OR REPLACE). Age/gender below ARE a genuine argument
+-- list change, so this one revision needs an explicit DROP FUNCTION first,
+-- matching the exact old 15-arg signature, before the CREATE OR REPLACE
+-- with the new 17-arg one - otherwise Postgres would silently create a
+-- second overload instead of replacing the old one, leaving both callable.
+DROP FUNCTION IF EXISTS public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT);
+
+-- Age/gender were previously admin-only (set by guesswork on the Members
+-- tab) - a member can now set their own, same trust level as every other
+-- self-reported field here. Deliberately still NOT added to
+-- get_member_directory()'s SELECT list above - this file's own header
+-- comment already calls out age/gender as sensitive columns, so writing
+-- them stays member-only while reading them peer-facing does not. A
+-- member reads their own current values back via get_my_age_and_gender()
+-- below, not the peer directory feed.
 CREATE OR REPLACE FUNCTION public.update_my_directory_profile(
   p_full_name TEXT,
   p_about TEXT,
@@ -186,7 +196,9 @@ CREATE OR REPLACE FUNCTION public.update_my_directory_profile(
   p_fun_fact TEXT,
   p_specialty TEXT,
   p_employment_status TEXT,
-  p_job_title TEXT
+  p_job_title TEXT,
+  p_age TEXT,
+  p_gender TEXT
 ) RETURNS VOID
 LANGUAGE sql
 SECURITY DEFINER
@@ -208,10 +220,30 @@ AS $$
     specialty = p_specialty,
     employment_status = p_employment_status,
     job_title = p_job_title,
+    age = p_age,
+    gender = p_gender,
     updated_at = timezone('utc'::text, now())
   WHERE email = lower(auth.jwt() ->> 'email');
 $$;
 
-GRANT EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.update_my_directory_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM anon;
+
+-- Lets a member read back their OWN current age/gender to pre-fill the
+-- edit form - not part of get_member_directory() since those two columns
+-- stay peer-invisible (see comment above). Scoped to the caller's own row
+-- only, same auth.jwt() pattern as every other "my own" RPC in this file.
+CREATE OR REPLACE FUNCTION public.get_my_age_and_gender()
+RETURNS TABLE (age TEXT, gender TEXT)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT age, gender FROM public.member_profiles WHERE email = lower(auth.jwt() ->> 'email');
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_my_age_and_gender() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_my_age_and_gender() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_my_age_and_gender() FROM anon;
