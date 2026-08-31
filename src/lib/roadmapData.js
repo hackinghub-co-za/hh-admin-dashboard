@@ -52,6 +52,19 @@ export async function updateMyRoadmapItemProgress(itemId, { detail, dueDate }) {
   if (error) throw error;
 }
 
+/** Auto-assigns whichever of the standard 8 Core Foundations Certifications
+ * (CORE_FOUNDATIONS_CATALOG) the caller doesn't already have, but only once
+ * they've actually finished the Getting Started checklist - the RPC
+ * re-checks that server-side, so this is safe to call any time onboarding
+ * status is uncertain. Returns how many items were newly added (0 if
+ * onboarding isn't complete yet, or everything was already there). See
+ * the "AUTO-ASSIGN CORE FOUNDATIONS" section of supabase/028_roadmap.sql. */
+export async function assignMyCoreFoundations() {
+  const { data, error } = await supabase.rpc('assign_my_core_foundations');
+  if (error) throw error;
+  return data || 0;
+}
+
 /** The caller's own assigned track (e.g. "Offensive Security"), or null if
  * an admin hasn't assigned one yet. */
 export async function fetchMyRoadmapTrack() {

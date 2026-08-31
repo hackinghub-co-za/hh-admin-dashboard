@@ -286,3 +286,128 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.mark_roadmap_disengagement_alert_sent(TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.mark_roadmap_disengagement_alert_sent(TEXT) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- AUTO-ASSIGN CORE FOUNDATIONS (2026-09) - depends on
+-- member_onboarding_steps, so run this section after 006_onboarding.sql.
+-- =========================================================================
+-- Today the standard 8-item Core Foundations Certifications catalog
+-- (CORE_FOUNDATIONS_CATALOG in src/lib/memberOptions.js) only ever lands on
+-- a member's roadmap because an admin happens to visit their Roadmap tab
+-- and click "Add Standard Foundations" (handleAddStandardFoundations in
+-- AdminDashboard.jsx) - an easy step to forget for any one member, and one
+-- that gates their whole Core Foundations phase on someone else
+-- remembering to click a button. This makes the same catalog assignment
+-- automatic the moment a member finishes the "Getting Started" checklist
+-- themselves (member_onboarding_steps, see 006_onboarding.sql) - no admin
+-- action required, and never overwrites anything an admin already set up
+-- by hand.
+--
+-- Two parts: assign_my_core_foundations() below is the ongoing mechanism,
+-- called from the member portal (src/views/Member/MemberPortal.jsx) the
+-- moment onboardingComplete flips true. The backfill after it catches every
+-- member who already finished onboarding before this section existed, so
+-- it applies retroactively too, not just to completions from today onward.
+
+CREATE OR REPLACE FUNCTION public.assign_my_core_foundations()
+RETURNS INTEGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_completed_steps INT;
+  v_next_sort INT;
+  v_inserted INT;
+BEGIN
+  SELECT count(*) INTO v_completed_steps
+  FROM public.member_onboarding_steps
+  WHERE member_email = v_email;
+
+  -- 6 is the fixed size of the Getting Started checklist - the step_key
+  -- CHECK constraint in 006_onboarding.sql and ONBOARDING_STEPS in
+  -- src/lib/onboardingData.js both enumerate the same 6 keys. Re-checked
+  -- here rather than trusted from the client, same as every other
+  -- completion-gated write in this project - not done yet just means a
+  -- harmless no-op, so this is always safe to call early.
+  IF v_completed_steps < 6 THEN
+    RETURN 0;
+  END IF;
+
+  SELECT COALESCE(MAX(sort_order), 0) INTO v_next_sort
+  FROM public.roadmap_items
+  WHERE member_email = v_email;
+
+  -- The standard 8-item Core Foundations Certifications catalog - must be
+  -- kept in sync with CORE_FOUNDATIONS_CATALOG in src/lib/memberOptions.js,
+  -- the same list the admin-side "Add Standard Foundations" quick-fill
+  -- draws from. Only whichever titles this member doesn't already have
+  -- under Core Foundations / Certifications get inserted, so this is safe
+  -- to call again for a member an admin already partly set up by hand, or
+  -- a second time for a member who already has all 8 (0 rows inserted
+  -- either way).
+  INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, sort_order)
+  SELECT v_email, 'Core Foundations', 'Certifications', c.title, NULLIF(c.detail, ''),
+         v_next_sort + (c.ord * 10)
+  FROM (VALUES
+    ('CISCO Junior Cyber Pathway', '6/6 courses', 1),
+    ('Immersive Labs', '20 collections', 2),
+    ('TryHackMe Pre-Security', '', 3),
+    ('TryHackMe Cyber 101', '', 4),
+    ('AZ-900', '', 5),
+    ('AI-901', '', 6),
+    ('SC-900', '', 7),
+    ('CompTIA Security+', '', 8)
+  ) AS c(title, detail, ord)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.roadmap_items ri
+    WHERE ri.member_email = v_email
+      AND ri.phase = 'Core Foundations'
+      AND ri.category = 'Certifications'
+      AND ri.title = c.title
+  );
+
+  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+  RETURN v_inserted;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.assign_my_core_foundations() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.assign_my_core_foundations() FROM PUBLIC, anon;
+
+-- One-time backfill - existing members who finished onboarding before this
+-- section ran. assign_my_core_foundations() above is scoped to the
+-- caller's own JWT (auth.jwt()), which doesn't exist in this migration
+-- context, so this repeats the same catalog/eligibility logic directly
+-- against every qualifying member's row instead of calling the function.
+-- Excludes 'Left' members - the same boundary is_member_allowed() already
+-- draws for portal access, so nothing new gets added to a closed-out
+-- member's record they can no longer sign in to see. Safe to re-run: the
+-- same NOT EXISTS guard applies per member per title.
+INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, sort_order)
+SELECT qualifying.member_email, 'Core Foundations', 'Certifications', c.title, NULLIF(c.detail, ''),
+       qualifying.next_sort + (c.ord * 10)
+FROM (
+  SELECT mos.member_email, COALESCE(MAX(ri.sort_order), 0) AS next_sort
+  FROM public.member_onboarding_steps mos
+  JOIN public.member_profiles mp ON mp.email = mos.member_email AND mp.status != 'Left'
+  LEFT JOIN public.roadmap_items ri ON ri.member_email = mos.member_email
+  GROUP BY mos.member_email
+  HAVING count(*) >= 6
+) AS qualifying
+CROSS JOIN (VALUES
+  ('CISCO Junior Cyber Pathway', '6/6 courses', 1),
+  ('Immersive Labs', '20 collections', 2),
+  ('TryHackMe Pre-Security', '', 3),
+  ('TryHackMe Cyber 101', '', 4),
+  ('AZ-900', '', 5),
+  ('AI-901', '', 6),
+  ('SC-900', '', 7),
+  ('CompTIA Security+', '', 8)
+) AS c(title, detail, ord)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.roadmap_items ri2
+  WHERE ri2.member_email = qualifying.member_email
+    AND ri2.phase = 'Core Foundations'
+    AND ri2.category = 'Certifications'
+    AND ri2.title = c.title
+);

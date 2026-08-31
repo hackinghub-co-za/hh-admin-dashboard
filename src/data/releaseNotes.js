@@ -6,6 +6,56 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.01',
+    date: '2026-09-01',
+    headline: "Gemma just got a lot more useful.",
+    intro: "Real AI feedback on your CV and LinkedIn, interview questions built from an actual job posting, a real Security+ practice quiz that logs its own score, and the competition RSVP finally has an undo button.",
+    groups: [
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '✨',
+            title: 'Gemma reviews your CV and LinkedIn now',
+            body: "Paste your CV text and/or LinkedIn profile — Gemma reviews it like a hiring manager would, with a real score and specific, actionable feedback per category, not generic encouragement. Three reviews a week, and your past scores are saved so you can track improvement.",
+            where: 'Resources, or 1on1 Meetings → More 1on1 Support',
+          },
+          {
+            icon: '🎤',
+            title: 'Interview questions built from the actual job you\'re applying for',
+            body: "Paste a job description and your CV — Gemma generates 6-10 tailored questions (technical, behavioral, and scenario-based), each with a tip for answering it well, cross-referenced against that specific posting and your own background.",
+            where: '1on1 Meetings → More 1on1 Support → Generate AI Interview Questions',
+          },
+        ],
+      },
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🧠',
+            title: 'Real practice quizzes for Security+',
+            body: "30 real questions across every official exam domain, live in the app. Study Mode shows you the answer and explanation right away; Exam Mode holds it back until the end, just like the real thing. Finish one and your score logs itself straight into Exam Readiness — no more typing it in by hand.",
+            where: 'Cert Calendar → your own booked exam → Take Practice Quiz',
+          },
+        ],
+      },
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🔄',
+            title: "\"Yes I'm In\" now has an undo",
+            body: "Changed your mind about the competition? Click the same button again and you're out. Your row and any progress already logged for you stay exactly as they were, so opting back in later picks up right where you left off instead of restarting at zero.",
+            where: 'Competitions',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.08.31',
     date: '2026-08-31',
     headline: "Your age and gender - set by you now, not guessed.",

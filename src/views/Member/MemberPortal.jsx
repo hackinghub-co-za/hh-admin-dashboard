@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import ExamReadinessModal from '../../components/ExamReadinessModal';
@@ -21,7 +21,7 @@ import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScor
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition } from '../../lib/competitionData';
-import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved } from '../../lib/roadmapData';
+import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { logPortalEvent } from '../../lib/portalEventsData';
@@ -862,6 +862,35 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .finally(() => !cancelled && setLoadingRoadmap(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
+
+  // Auto-assigns the standard Core Foundations Certifications catalog the
+  // moment a member has finished the Getting Started checklist - whether
+  // that happens live in this session, or (for anyone who already finished
+  // it before this existed) the next time their roadmap loads. Mirrors the
+  // admin "Add Standard Foundations" quick-fill in AdminDashboard.jsx, just
+  // fired automatically instead of requiring an admin to remember to click
+  // it. The RPC re-checks completion and only inserts whichever catalog
+  // titles are missing, so it's harmless to call more than once - this ref
+  // just keeps this session from calling it again on every re-render once
+  // the first attempt has gone out. Silent on failure: the admin quick-fill
+  // is still there as a fallback, and this simply retries next time the
+  // member's portal loads.
+  const triedCoreFoundationsAssignRef = useRef(false);
+
+  useEffect(() => {
+    if (isMockSession || loadingRoadmap || !onboardingComplete) return;
+    if (triedCoreFoundationsAssignRef.current) return;
+    triedCoreFoundationsAssignRef.current = true;
+
+    assignMyCoreFoundations()
+      .then((addedCount) => {
+        if (addedCount > 0) {
+          logPortalEvent('core_foundations_auto_assigned', { count: addedCount }).catch(() => {});
+          return fetchMyRoadmap().then((items) => setRoadmapItems(items));
+        }
+      })
+      .catch(() => {});
+  }, [isMockSession, loadingRoadmap, onboardingComplete]);
 
   // Fires once, the moment this toggle pushes the Core Foundations count
   // from below the Specialization threshold to at/above it - not on every

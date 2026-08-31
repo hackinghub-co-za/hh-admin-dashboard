@@ -18,6 +18,54 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.01
+
+### Added
+- **Public Community Events RPC** — `get_public_community_events()`
+  exposes approved `community_events` rows read-only to `anon` callers,
+  powering the marketing site's new public Events section
+  (hackinghub.co.za, separate repo). Column-limited by design: never
+  `created_by` or `status`, and RSVP data is exposed only as an
+  aggregate count, never raw rows/emails. Upcoming-only by default.
+  Not member-facing (no `releaseNotes.js` entry). (`052_public_events.sql`)
+- **Competition opt-out** — "Yes I'm In" now toggles in place instead of
+  disabling permanently once RSVP'd, same pattern already used for event
+  RSVPs. Soft opt-out: the row and any admin-entered
+  `rooms_completed`/`days_logged` stay intact, just hidden from the
+  leaderboard, so opting back in later resumes progress instead of
+  restarting at 0. (`053_competition_opt_out.sql`)
+- **Study Quiz System** — `quiz_questions` + `quiz_attempts`,
+  `get_quiz_questions()` (server-shuffled choices, correct answer
+  remapped to match), `submit_quiz_attempt()` (grades server-side, never
+  trusts a client-computed score, then calls the existing
+  `log_my_practice_test_score()` internally so a finished quiz updates
+  Exam Readiness automatically — replaces the old "take a practice test
+  on ExamCompass/PocketPrep, then type your score in by hand" flow).
+  Seeded with 30 original Security+ (SY0-701) questions, 6 per real exam
+  domain — written for this migration, not reproduced from CompTIA's
+  material or the third-party sites the Security+ guide already links
+  to. (`054_quiz_system.sql`)
+- **Gemma CV & LinkedIn Review** — new `gemma-review` Edge Function,
+  same security pattern as `gemma-chat` (server-side API key, JWT
+  verification, membership re-check). Structured score + categorized
+  feedback via Gemini's JSON response mode. Weekly cap of 3 (vs.
+  `gemma-chat`'s 40/day) — far more expensive input per call. Does not
+  persist the member's raw CV/LinkedIn text, only the review output.
+  (`055_cv_reviews.sql`)
+- **Gemma AI Interview Prep** — new `gemma-interview-prep` Edge
+  Function, same pattern again. Paste a job description + CV text, get
+  6-10 tailored questions (Technical/Behavioral/Scenario-Based) with an
+  answering tip each, cross-referenced against both inputs. Job
+  description is stored (public posting text, not personal data); CV
+  text is not. Own weekly cap of 3, separate budget from CV review.
+  (`056_interview_prep.sql`)
+
+### Changed
+- **Meetings → More 1on1 Support**: the existing "Request a CV Review"
+  and "Request Interview Prep" cards now lead with the instant AI tool
+  as the primary action, with the original `mailto:` request kept as a
+  secondary "prefer a human?" fallback rather than removed.
+
 ## 2026.08.31
 
 ### Added
