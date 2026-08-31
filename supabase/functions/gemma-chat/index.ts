@@ -40,7 +40,7 @@ const GEMINI_MODEL = 'gemini-3.6-flash';
 // real bookable mentor, which was live, factually wrong, member-facing
 // content until this fix.
 const FAQ_KNOWLEDGE = `
-- 1-on-1 mentoring: members book sessions directly via Google Calendar with [REDACTED] (Lead Mentor & Founder - cybersecurity strategy, career roadmaps, OSCP coaching, SOC, cloud security, DevSecOps, and code reviews), or with community mentors Nonhlanhla (data security & AI), Nokulunga (digital forensics/DFIR), or Momelezi (red teaming/ethical hacking). Sessions overdue past 30 days get flagged for admin follow-up.
+- 1-on-1 mentoring: members book sessions directly via Google Calendar with Siya (Lead Mentor & Founder - cybersecurity strategy, career roadmaps, OSCP coaching, SOC, cloud security, DevSecOps, and code reviews), or with community mentors Nonhlanhla (data security & AI), Nokulunga (digital forensics/DFIR), or Momelezi (red teaming/ethical hacking). Sessions overdue past 30 days get flagged for admin follow-up.
 - Events: HH Meetups, industry tech events, and casual Sunday Catchups, all listed under the Events tab.
 - Job Board: full-time, contract, and internship roles sourced from Hacking Hub's employer network and job placement partners.
 - Resources tab: cert prep material, role-specific roadmaps, podcasts, books, interview playbooks, and CV templates.

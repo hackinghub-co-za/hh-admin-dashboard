@@ -83,6 +83,8 @@ import {
   GraduationCap,
   Milestone,
   Handshake,
+  Lightbulb,
+  Presentation,
   Lock,
   UserPlus,
   MessageCircle,
@@ -105,7 +107,7 @@ const MOCK_REVIEWS = [
   {
     id: 'mock-1',
     email: 'nonhlanhla@example.com',
-    memberName: '[REDACTED]',
+    memberName: 'Nonhlanhla Sindane',
     rating: 5,
     category: 'Praise',
     title: 'The 1on1 coaching changed my trajectory',
@@ -133,7 +135,7 @@ const MOCK_REVIEWS = [
 const MENTORS = [
   {
     id: 'siya',
-    name: '[REDACTED]',
+    name: 'Siya',
     photo: '/mentors/siya-headshot.jpeg',
     badge: 'LEAD MENTOR & FOUNDER',
     badgeClass: 'badge-success',
@@ -317,7 +319,7 @@ const MOCK_EVENTS = [
 
 const MOCK_CERT_CALENDAR = [
   { id: 1, member: 'Sanele Khumalo', cert: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B', result: 'Pending' },
-  { id: 2, member: '[REDACTED]', cert: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug', result: 'Pending' },
+  { id: 2, member: 'Nonhlanhla Sindane', cert: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug', result: 'Pending' },
   { id: 3, member: 'Khody Netshifhefhe', cert: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro', result: 'Pending' },
   { id: 4, member: 'Joshua Harrop', cert: 'Microsoft Azure Security (AZ-500)', date: '2026-09-01', cohort: 'Azure-Q3', result: 'Pending' },
   { id: 5, member: 'Thando Mandondo', cert: 'CompTIA Network+', date: '2026-09-20', cohort: 'NetPlus-Q3', result: 'Pending' },
@@ -385,10 +387,36 @@ const MOCK_ROOM_LOGS = [
 
 const MOCK_LEADERBOARD = [
   { email: 'khody@example.com', member: 'Khody Netshifhefhe', rooms: 12, daysLogged: 19 },
-  { email: 'nonhlanhla@example.com', member: '[REDACTED]', rooms: 9, daysLogged: 15 },
+  { email: 'nonhlanhla@example.com', member: 'Nonhlanhla Sindane', rooms: 9, daysLogged: 15 },
   { email: 'joshua@example.com', member: 'Joshua Harrop', rooms: 8, daysLogged: 13 },
   { email: 'thabo@example.com', member: 'Thabo Ndlovu', rooms: 7, daysLogged: 11 },
   { email: 'lindokuhle@example.com', member: 'Lindokuhle Dube', rooms: 5, daysLogged: 8 },
+];
+
+// Inspiration for Matchmaker groups - real content, not tied to a specific
+// group (matchmaker_groups has no topic/subject field - see
+// 030_matchmaker.sql - groups only know Project vs Presentation, never
+// what). Shown to every member regardless of group status: useful before
+// opting in (what am I actually signing up for) and just as useful once
+// grouped (a starting point instead of a blank page). Deliberately generic
+// enough for any track (SOC, Offensive Security, Cloud Security, DevSecOps,
+// IAM, AI Security, GRC) rather than assuming everyone's on the same one.
+const MATCHMAKER_PROJECT_IDEAS = [
+  'Stand up a mini home SOC lab (Wazuh or Splunk Free) and detect a simulated attack end-to-end.',
+  "Pick a retired HackTheBox or TryHackMe room and co-author a full walkthrough as a group.",
+  'Deploy OWASP Juice Shop or DVWA, run a mock assessment, and write it up as a real pentest report.',
+  'Spin up a deliberately misconfigured AWS or Azure environment, then harden it against a real CIS benchmark.',
+  'Build a small security tool together - a log parser, an IOC scanner, or a password-policy auditor.',
+  'Draft a mini incident-response plan or ISO 27001 gap analysis for a fictional company (a real GRC exercise).',
+];
+
+const MATCHMAKER_PRESENTATION_IDEAS = [
+  'Break down a real-world breach - what happened, the root cause, what should have caught it.',
+  'A specific MITRE ATT&CK technique: how it works, how to detect it, how to stop it.',
+  'The most common ways companies leak data through cloud misconfigurations.',
+  'What Zero Trust actually means, beyond the buzzword.',
+  'AI in cybersecurity - how attackers and defenders are both already using it.',
+  '"How I passed X cert" - a practical study-strategy talk for whichever cert your group has cleared.',
 ];
 
 // Community Broadcast and Recent Wins are real Supabase data now
@@ -2433,6 +2461,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               )}
             </div>
           )}
+
+          <div style={{ marginTop: '32px' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '4px' }}>Need an idea?</h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Groups pick their own project or presentation - these are just a starting point, not a requirement.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+              <div className="glass-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <Lightbulb size={16} color="var(--accent-cyan)" />
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Example Projects</h4>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {MATCHMAKER_PROJECT_IDEAS.map((idea) => <li key={idea}>{idea}</li>)}
+                </ul>
+              </div>
+              <div className="glass-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <Presentation size={16} color="var(--accent-purple)" />
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Example Presentation Topics</h4>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {MATCHMAKER_PRESENTATION_IDEAS.map((idea) => <li key={idea}>{idea}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }

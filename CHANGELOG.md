@@ -265,7 +265,7 @@ saved in their browser's `localStorage`.
   — every admin member list (Members, Roadmaps, Matchmaker, Room Logs,
   Referrals) was built only from PayFast payment history plus manually-added
   members, so a real member with real portal access but no payment on
-  record (e.g. [REDACTED]) never showed up to assign a track to or
+  record (e.g. Chioma Olebuike) never showed up to assign a track to or
   manage at all. The roster now also includes anyone with a real
   member_profiles row, showing "No Payment Yet" instead of fabricated
   numbers for their payment fields. Chioma is now assigned the DevSecOps
