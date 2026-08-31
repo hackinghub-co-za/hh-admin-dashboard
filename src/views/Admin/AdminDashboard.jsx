@@ -1757,7 +1757,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             style={{
               padding: '20px',
               borderRadius: 'var(--border-radius-md)',
-              background: 'rgba(255,255,255,0.02)',
+              background: 'rgba(var(--overlay-rgb), 0.02)',
               border: '1px solid var(--border-color)',
               cursor: 'pointer',
               display: 'flex',
@@ -1777,7 +1777,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   justifyContent: 'center',
                   fontWeight: 700,
                   fontSize: '0.9rem',
-                  color: '#12132b',
+                  color: 'var(--accent-ink)',
                   flexShrink: 0,
                 }}
               >
@@ -1867,13 +1867,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               You're using Mock Admin — changes here are local only and will be lost on your next login. Sign in with Google to save for real.
             </div>
           )}
           {!isMockSession && savedMemberDataError && (
-            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               Couldn't save/load member data from Supabase: {savedMemberDataError}
             </div>
           )}
@@ -1882,7 +1882,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           )}
 
           {meetingSyncError && (
-            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               Couldn't sync from Google Calendar: {meetingSyncError}
             </div>
           )}
@@ -1997,7 +1997,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                             key={m.email}
                             onClick={() => setSelectedMemberEmail(m.email)}
                             className="hover-glow"
-                            style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', cursor: 'pointer' }}
+                            style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)', cursor: 'pointer' }}
                           >
                             <td style={{ padding: '10px 8px', fontWeight: 600 }}>{m.member}</td>
                             <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{m.profile?.specialty || 'Not Set'}</td>
@@ -2041,7 +2041,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 {newMembersOnboarding.map(({ member, doneCount, steps, daysSinceJoined }) => {
                   const pendingLabels = ONBOARDING_STEPS.filter((s) => !steps[s.key]).map((s) => s.label);
                   return (
-                    <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                    <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.member}</div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
@@ -2084,7 +2084,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {staleRoadmaps.map(({ member, daysSinceTouch }) => (
-                  <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                  <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.member}</div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{member.email} · {member.profile?.roadmapTrack || 'No track assigned'}</div>
@@ -2102,7 +2102,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
-            <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', flexGrow: 1 }}>
+            <div style={{ display: 'flex', gap: '8px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', flexGrow: 1 }}>
               <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
               <input
                 type="text"
@@ -2170,13 +2170,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             </div>
 
             {isMockSession && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '16px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '16px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
                 <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                 You're using Mock Admin — referrals only load for a real signed-in session.
               </div>
             )}
             {!isMockSession && referralsError && (
-              <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
                 {referralsError}
               </div>
             )}
@@ -2200,7 +2200,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   {referrals.map((r) => {
                     const referrer = memberRoster.find((m) => m.email.toLowerCase() === r.referrerEmail.toLowerCase());
                     return (
-                      <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                      <tr key={r.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                         <td style={{ padding: '12px 8px' }}>
                           <div style={{ fontWeight: 600 }}>{referrer?.member || r.referrerEmail}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{r.referrerEmail}</div>
@@ -2330,7 +2330,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               You're using Mock Admin — changes here are local only and will be lost on your next login.
             </div>
@@ -2351,7 +2351,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   className="hover-glow"
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: 'var(--border-radius-md)',
-                    background: roadmapTrackFilter === track ? 'rgba(94, 227, 122, 0.1)' : 'rgba(255,255,255,0.02)',
+                    background: roadmapTrackFilter === track ? 'rgba(var(--accent-rgb), 0.1)' : 'rgba(var(--overlay-rgb), 0.02)',
                     border: '1px solid ' + (roadmapTrackFilter === track ? 'var(--accent-cyan)' : 'var(--border-color)'),
                     cursor: 'pointer', font: 'inherit', color: 'inherit',
                   }}
@@ -2366,7 +2366,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'flex-start' }}>
             {/* Member picker */}
             <div className="glass-card" style={{ padding: '16px' }}>
-              <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', gap: '8px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '8px 12px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', marginBottom: '10px' }}>
                 <Search size={16} color="var(--text-muted)" style={{ marginTop: '2px' }} />
                 <input
                   type="text"
@@ -2404,7 +2404,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         padding: '10px 12px',
                         borderRadius: 'var(--border-radius-sm)',
                         border: '1px solid ' + (roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'var(--accent-cyan)' : 'var(--border-color)'),
-                        background: roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'rgba(94, 227, 122, 0.06)' : 'rgba(255,255,255,0.01)',
+                        background: roadmapMemberEmail?.toLowerCase() === m.email.toLowerCase() ? 'rgba(var(--accent-rgb), 0.06)' : 'rgba(var(--overlay-rgb), 0.01)',
                         cursor: 'pointer',
                         textAlign: 'left',
                         width: '100%',
@@ -2454,7 +2454,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   </div>
 
                   {roadmapItemsError && (
-                    <div style={{ padding: '10px 14px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.82rem' }}>
+                    <div style={{ padding: '10px 14px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.82rem' }}>
                       {roadmapItemsError}
                     </div>
                   )}
@@ -2509,7 +2509,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                                 <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>{c.category}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                   {c.items.map((item) => (
-                                    <div key={item.id} style={{ padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)' }}>
+                                    <div key={item.id} style={{ padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)' }}>
                                       {editingRoadmapItemId === item.id ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -2561,7 +2561,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   )}
 
                   {showAddRoadmapItemForm ? (
-                    <form onSubmit={handleAddRoadmapItem} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                    <form onSubmit={handleAddRoadmapItem} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Phase</label>
@@ -2636,7 +2636,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {awaitingApprovalMembers.map(({ member, doneCount }) => (
-                  <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                  <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.member}</div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{member.email} · {member.profile?.roadmapTrack || 'No track assigned'}</div>
@@ -2672,13 +2672,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               You're using Mock Admin — changes here are local only and will be lost on your next login.
             </div>
           )}
           {matchmakerError && (
-            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               {matchmakerError}
             </div>
           )}
@@ -2746,7 +2746,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {completedGroups.map((group) => (
-                <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                   <div style={{ fontSize: '0.85rem' }}>
                     <span className="badge badge-success" style={{ fontSize: '0.65rem', marginRight: '8px' }}>{group.activityType}</span>
                     {group.memberEmails.map(nameForEmail).join(', ')}
@@ -2851,13 +2851,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           )}
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               You're using Mock Admin — changes here are local only and will be lost on your next login.
             </div>
           )}
           {roomLogsError && (
-            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               {roomLogsError}
             </div>
           )}
@@ -2919,7 +2919,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {reviewedLogs.map((log) => (
-                    <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                    <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                       <div style={{ fontSize: '0.85rem' }}>
                         <strong>{nameForLogEmail(log.memberEmail)}</strong>
                         <span style={{ color: 'var(--text-muted)' }}> · {formatDate(log.logDate)} · {log.roomCount} room{log.roomCount === 1 ? '' : 's'}{log.adminNote ? ` · "${log.adminNote}"` : ''}</span>
@@ -2974,7 +2974,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       gap: '12px',
                       padding: '14px 16px',
                       borderRadius: 'var(--border-radius-md)',
-                      background: 'rgba(255,255,255,0.02)',
+                      background: 'rgba(var(--overlay-rgb), 0.02)',
                       border: '1px solid var(--border-color)',
                       flexWrap: 'wrap',
                     }}
@@ -3035,7 +3035,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       gap: '12px',
                       padding: '14px 16px',
                       borderRadius: 'var(--border-radius-md)',
-                      background: 'rgba(255,255,255,0.02)',
+                      background: 'rgba(var(--overlay-rgb), 0.02)',
                       border: '1px solid var(--border-color)',
                       cursor: 'pointer',
                     }}
@@ -3056,7 +3056,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       </button>
                       <button
                         className="btn btn-secondary"
-                        style={{ fontSize: '0.8rem', padding: '8px 14px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                        style={{ fontSize: '0.8rem', padding: '8px 14px', color: 'var(--danger)', borderColor: 'rgba(var(--danger-rgb), 0.3)' }}
                         disabled={rejectingEventId === ev.id}
                         onClick={() => handleRejectEvent(ev.id)}
                       >
@@ -3084,7 +3084,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               style={{
                 position: 'fixed',
                 inset: 0,
-                backgroundColor: 'rgba(3, 7, 18, 0.85)',
+                backgroundColor: 'var(--modal-backdrop)',
                 backdropFilter: 'blur(8px)',
                 zIndex: 1000,
                 display: 'flex',
@@ -3138,7 +3138,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 </div>
 
                 {selectedPendingEvent.description ? (
-                  <div style={{ padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '24px' }}>
+                  <div style={{ padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', marginBottom: '24px' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>Description</div>
                     <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{selectedPendingEvent.description}</p>
                   </div>
@@ -3152,7 +3152,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                   <button className="btn btn-secondary" onClick={() => setSelectedPendingEvent(null)}>Close</button>
                   <button
                     className="btn btn-secondary"
-                    style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    style={{ color: 'var(--danger)', borderColor: 'rgba(var(--danger-rgb), 0.3)' }}
                     disabled={rejectingEventId === selectedPendingEvent.id}
                     onClick={async () => {
                       if (await handleRejectEvent(selectedPendingEvent.id)) {
@@ -3551,8 +3551,8 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       gap: '12px',
                       padding: '12px 14px',
                       borderRadius: 'var(--border-radius-sm)',
-                      background: 'rgba(239, 68, 68, 0.06)',
-                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      background: 'rgba(var(--danger-rgb), 0.06)',
+                      border: '1px solid rgba(var(--danger-rgb), 0.2)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -3590,7 +3590,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               You're using Mock Admin — changes here are local only and will be lost on your next login.
             </div>
@@ -3630,7 +3630,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       </div>
                     </div>
                   ) : (
-                    <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                    <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                       <div style={{ fontSize: '0.85rem' }}>
                         <strong>{b.emoji} {b.title}</strong>
                         <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>{b.body}</div>
@@ -3681,7 +3681,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       </div>
                     </div>
                   ) : (
-                    <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                    <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                       <div style={{ fontSize: '0.85rem' }}>
                         <strong>{w.member}</strong> {w.achievement}
                         <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '2px' }}>
@@ -3749,7 +3749,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       </div>
                     </div>
                   ) : (
-                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                       <div style={{ fontSize: '0.85rem' }}>
                         <span className="badge badge-warning" style={{ fontSize: '0.62rem', marginRight: '8px' }}>{s.contentType}</span>
                         <strong>{s.title}</strong>
@@ -3885,7 +3885,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
                   if (editingCertId === c.id) {
                     return (
-                      <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <input className="form-input" value={editCertForm.member} onChange={(e) => setEditCertForm({ ...editCertForm, member: e.target.value })} placeholder="Member name" />
                         <input type="email" className="form-input" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })} placeholder="Member email (optional)" />
                         <input className="form-input" value={editCertForm.cert} onChange={(e) => setEditCertForm({ ...editCertForm, cert: e.target.value })} placeholder="Certification" />
@@ -3913,7 +3913,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                       style={{
                         padding: '20px',
                         borderRadius: 'var(--border-radius-md)',
-                        background: 'rgba(255,255,255,0.02)',
+                        background: 'rgba(var(--overlay-rgb), 0.02)',
                         border: isUrgent ? '1px solid var(--warning)' : '1px solid var(--border-color)',
                         display: 'flex',
                         flexDirection: 'column',
@@ -3998,13 +3998,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               You're using Mock Admin — any EFT payment you record here is local only and will be lost on your next login. Sign in with Google to save for real.
             </div>
           )}
           {!isMockSession && savedMemberDataError && (
-            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               Couldn't save/load payment data from Supabase: {savedMemberDataError}
             </div>
           )}
@@ -4076,7 +4076,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Showing {filteredPayments.length} of {payments.length} transactions</span>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px 14px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', minWidth: '280px' }}>
+              <div style={{ display: 'flex', gap: '8px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '8px 14px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', minWidth: '280px' }}>
                 <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
                 <input
                   type="text"
@@ -4104,7 +4104,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               </thead>
               <tbody>
                 {filteredPayments.map((p) => (
-                  <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                  <tr key={p.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                     <td style={{ padding: '16px 12px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{formatDate(p.date)}</td>
                     <td style={{ padding: '16px 12px', fontFamily: 'monospace', color: 'var(--accent-cyan)', fontSize: '0.85rem' }}>{p.pfId}</td>
                     <td style={{ padding: '16px 12px' }}>
@@ -4273,7 +4273,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 </thead>
                 <tbody>
                   {last5Transactions.map((t) => (
-                    <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                    <tr key={t.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                       <td style={{ padding: '12px 8px' }}>
                         <div style={{ fontWeight: 600 }}>{t.member}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{t.email}</div>
@@ -4309,7 +4309,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 </thead>
                 <tbody>
                   {upcomingPayments.map((u) => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                    <tr key={u.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                       <td style={{ padding: '12px 8px' }}>
                         <div style={{ fontWeight: 600 }}>{u.member}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{u.email}</div>
@@ -4355,7 +4355,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             {/* Net Settlement vs Gateway Fees Summary */}
             <div className="glass-card">
               <h3 style={{ marginBottom: '16px' }}>PayFast Settlement & Net Margin</h3>
-              <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
+              <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.9rem' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Gross Volume Processed:</span>
                   <strong>R {totalGrossRevenue.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</strong>
@@ -4390,13 +4390,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
             </div>
 
             {isMockSession && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '16px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '16px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
                 <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                 You're using Mock Admin — expenses only persist for a real signed-in session.
               </div>
             )}
             {!isMockSession && expensesError && (
-              <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+              <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
                 {expensesError}
               </div>
             )}
@@ -4431,7 +4431,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 <tbody>
                   {expenses.map((x) =>
                     editingExpenseId === x.id ? (
-                      <tr key={x.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                      <tr key={x.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                         <td style={{ padding: '10px 8px' }}>
                           <input type="date" className="form-input" style={{ fontSize: '0.8rem', padding: '6px 8px' }} value={editExpenseForm.date} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, date: e.target.value })} />
                         </td>
@@ -4452,7 +4452,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         </td>
                       </tr>
                     ) : (
-                      <tr key={x.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                      <tr key={x.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                         <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{x.date}</td>
                         <td style={{ padding: '12px 8px' }}><span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{x.category}</span></td>
                         <td style={{ padding: '12px 8px' }}>{x.description}</td>
@@ -4491,13 +4491,13 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
           </div>
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               You're using Mock Admin — real member reviews only load for a real signed-in session.
             </div>
           )}
           {!isMockSession && reviewsError && (
-            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               Couldn't load reviews: {reviewsError}
             </div>
           )}

@@ -1,7 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  /* Colors - matched to the Hacking Hub shield logo (navy + green + white) */
+  /* Colors - matched to the Hacking Hub shield logo (navy + green + white).
+     Dark is the default/established look; a light variant lives in the
+     [data-theme="light"] block below, reusing the same light palette
+     already designed for this project's own planning artifacts, so the
+     app and its docs read as one product. */
   --bg-primary: #12132b;
   --bg-secondary: rgba(22, 24, 48, 0.7);
   --bg-tertiary: rgba(30, 33, 61, 0.5);
@@ -22,6 +26,36 @@
   --danger: #ef4444;
   --info: #3b82f6;
 
+  /* RGB triples of the four semantic colors above + the accent, so inline
+     styles can compose their own alpha via rgba(var(--x-rgb), N) instead
+     of hardcoding a color literal that can't respond to a theme change.
+     This is the actual gap that led to ~270 hardcoded rgba()/hex color
+     literals scattered through the view files before this - there was no
+     variable-friendly way to get "the accent color at 10% opacity". */
+  --accent-rgb: 94, 227, 122;
+  --success-rgb: 16, 185, 129;
+  --warning-rgb: 245, 158, 11;
+  --danger-rgb: 239, 68, 68;
+
+  /* Subtle hover/highlight tint - white-on-dark here, flips to a dark
+     tint on light. Covers the rgba(255,255,255,X) family used for hover
+     backgrounds and faint dividers throughout the app. */
+  --overlay-rgb: 255, 255, 255;
+
+  /* Always a dark scrim, in both themes - the standard convention even in
+     light UIs (dimming what's behind a modal reads as "behind", not as
+     "theme-colored"). */
+  --modal-backdrop: rgba(3, 7, 18, 0.85);
+
+  /* Leaderboard medal trio - theme-agnostic, gold/silver/bronze reads the
+     same regardless of background. */
+  --medal-gold: #facc15;
+  --medal-gold-bg: rgba(250, 204, 21, 0.1);
+  --medal-silver: #cbd5e1;
+  --medal-silver-bg: rgba(203, 213, 225, 0.09);
+  --medal-bronze: #d97757;
+  --medal-bronze-bg: rgba(217, 119, 87, 0.1);
+
   /* Typography */
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -38,6 +72,44 @@
   --glass-bg: rgba(20, 24, 33, 0.6);
   --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   --glass-border: 1px solid rgba(255, 255, 255, 0.07);
+  --glass-hover-shadow: 0 8px 32px 0 rgba(94, 227, 122, 0.1);
+
+  /* Text color on top of the solid accent gradient (buttons) - equals
+     --bg-primary's dark value in both themes, since the gradient itself
+     stays a bright green either way and needs dark text for contrast. */
+  --accent-ink: #12132b;
+}
+
+/* Light theme - opt-in via the Sidebar toggle (src/lib/theme.js), applied
+   as document.documentElement.dataset.theme = 'light'. Dark stays the
+   default look for anyone who hasn't chosen otherwise. */
+:root[data-theme="light"] {
+  --bg-primary: #f5f6f3;
+  --bg-secondary: rgba(255, 255, 255, 0.75);
+  --bg-tertiary: rgba(237, 240, 232, 0.6);
+
+  --accent-glow: rgba(23, 149, 79, 0.14);
+  --accent-cyan: #17954f;
+  --accent-purple: #0d7a44;
+
+  --text-primary: #12141f;
+  --text-secondary: #4d5265;
+  --text-muted: #7d8296;
+
+  --border-color: rgba(18, 20, 31, 0.08);
+  --border-glow: rgba(23, 149, 79, 0.25);
+
+  /* Semantic colors deliberately unchanged - their contrast against a
+     light ground is already fine, and keeping them identical means their
+     meaning never drifts between themes. */
+
+  --accent-rgb: 23, 149, 79;
+  --overlay-rgb: 18, 20, 31;
+
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 8px 24px 0 rgba(18, 20, 31, 0.08);
+  --glass-border: 1px solid rgba(18, 20, 31, 0.06);
+  --glass-hover-shadow: 0 8px 24px 0 rgba(23, 149, 79, 0.12);
 }
 
 * {
@@ -54,6 +126,7 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Custom Scrollbar */
@@ -76,7 +149,7 @@ body {
 .app-container {
   display: flex;
   min-height: 100vh;
-  background: radial-gradient(circle at 50% 0%, rgba(23, 168, 86, 0.08) 0%, rgba(18, 19, 43, 0) 50%);
+  background: radial-gradient(circle at 50% 0%, rgba(var(--accent-rgb), 0.08) 0%, rgba(var(--accent-rgb), 0) 50%);
 }
 
 .main-content {
@@ -103,12 +176,12 @@ body {
   border-radius: var(--border-radius-lg);
   padding: 24px;
   box-shadow: var(--glass-shadow);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease, background 0.2s ease;
 }
 
 .glass-card:hover {
   border-color: var(--border-glow);
-  box-shadow: 0 8px 32px 0 rgba(94, 227, 122, 0.1);
+  box-shadow: var(--glass-hover-shadow);
   transform: translateY(-2px);
 }
 
@@ -141,14 +214,14 @@ p {
 
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 100%);
-  color: #12132b;
+  color: var(--accent-ink);
   font-weight: 600;
-  box-shadow: 0 4px 15px rgba(94, 227, 122, 0.3);
+  box-shadow: 0 4px 15px rgba(var(--accent-rgb), 0.3);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(94, 227, 122, 0.5);
+  box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.5);
 }
 
 .btn-secondary {
@@ -158,7 +231,7 @@ p {
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(var(--overlay-rgb), 0.08);
   border-color: var(--text-secondary);
 }
 
@@ -175,21 +248,23 @@ p {
 }
 
 .badge-success {
-  background-color: rgba(16, 185, 129, 0.15);
+  background-color: rgba(var(--success-rgb), 0.15);
   color: var(--success);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(var(--success-rgb), 0.2);
 }
 
 .badge-warning {
-  background-color: rgba(245, 158, 173, 0.15);
+  /* Was rgba(245, 158, 173, ...) - a pink tone that didn't actually match
+     --warning's amber hex. Fixed for free by switching to the real token. */
+  background-color: rgba(var(--warning-rgb), 0.15);
   color: var(--warning);
-  border: 1px solid rgba(245, 158, 173, 0.2);
+  border: 1px solid rgba(var(--warning-rgb), 0.2);
 }
 
 .badge-danger {
-  background-color: rgba(239, 68, 68, 0.15);
+  background-color: rgba(var(--danger-rgb), 0.15);
   color: var(--danger);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(var(--danger-rgb), 0.2);
 }
 
 /* Inputs & Form Fields */
@@ -208,7 +283,7 @@ p {
 .form-input:focus {
   outline: none;
   border-color: var(--accent-cyan);
-  box-shadow: 0 0 10px rgba(94, 227, 122, 0.2);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.2);
 }
 
 /* Grids & Layout Utilities */

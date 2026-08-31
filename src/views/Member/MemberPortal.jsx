@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import ExamReadinessModal from '../../components/ExamReadinessModal';
+import ThemeToggle from '../../components/ThemeToggle';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
 import CompetitionRulesModal from '../../components/CompetitionRulesModal';
@@ -1816,7 +1817,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
-            <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', flexGrow: 1 }}>
+            <div style={{ display: 'flex', gap: '8px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', flexGrow: 1 }}>
               <Search size={18} color="var(--text-muted)" style={{ marginTop: '2px' }} />
               <input
                 type="text"
@@ -1851,7 +1852,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {myReferrals.map((r) => (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
                   <span style={{ fontWeight: 600 }}>{r.name}</span>
                     {isSafeUrl(r.linkedin) && (
                       <a href={r.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1891,7 +1892,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {editingProfile && (
             <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
               onClick={() => setEditingProfile(false)}
             >
               <div
@@ -2061,7 +2062,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {selectedDirectoryMember && (
             <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
               onClick={() => setSelectedDirectoryMember(null)}
             >
               <div
@@ -2093,7 +2094,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   {selectedDirectoryMember.about || 'No bio yet.'}
                 </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '16px', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)' }}>
                   {selectedDirectoryMember.location && (
                     <div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Location</div>
@@ -2130,7 +2131,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 </div>
 
                 {selectedDirectoryMember.funFact && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '20px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(94, 227, 122, 0.06)', border: '1px solid rgba(94, 227, 122, 0.15)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '20px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--accent-rgb), 0.06)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
                     <Sparkles size={15} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{selectedDirectoryMember.funFact}</span>
                   </div>
@@ -2181,7 +2182,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showReferForm && (
             <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
               onClick={() => setShowReferForm(false)}
             >
               <div
@@ -2321,8 +2322,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 gap: '10px',
                                 padding: '12px 14px',
                                 borderRadius: 'var(--border-radius-md)',
-                                background: item.completed ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255, 255, 255, 0.01)',
-                                border: item.completed ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-color)',
+                                background: item.completed ? 'rgba(var(--success-rgb), 0.03)' : 'rgba(var(--overlay-rgb), 0.01)',
+                                border: item.completed ? '1px solid rgba(var(--success-rgb), 0.15)' : '1px solid var(--border-color)',
                                 cursor: 'pointer',
                               }}
                             >
@@ -2377,7 +2378,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               ))}
 
               {hasLockedSpecialization && (
-                <div style={{ textAlign: 'center', padding: '32px 24px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--border-color)' }}>
+                <div style={{ textAlign: 'center', padding: '32px 24px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px dashed var(--border-color)' }}>
                   <Lock size={28} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
                   <p style={{ color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Specialization is locked</p>
                   {specializationEligible ? (
@@ -2515,29 +2516,32 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Member since {formatDate(myStartDate)}</p>
               )}
             </div>
-            {loginStreak > 0 && (
-              <div
-                title={`Signed in ${loginStreak} day${loginStreak === 1 ? '' : 's'} in a row`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 18px',
-                  borderRadius: 'var(--border-radius-md)',
-                  background: 'rgba(245, 158, 11, 0.08)',
-                  border: '1px solid rgba(245, 158, 11, 0.25)',
-                  flexShrink: 0,
-                }}
-              >
-                <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>🔥</span>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.1 }}>{loginStreak}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    day{loginStreak === 1 ? '' : 's'} in a row
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+              <ThemeToggle />
+              {loginStreak > 0 && (
+                <div
+                  title={`Signed in ${loginStreak} day${loginStreak === 1 ? '' : 's'} in a row`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 18px',
+                    borderRadius: 'var(--border-radius-md)',
+                    background: 'rgba(var(--warning-rgb), 0.08)',
+                    border: '1px solid rgba(var(--warning-rgb), 0.25)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>🔥</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.1 }}>{loginStreak}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      day{loginStreak === 1 ? '' : 's'} in a row
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Getting Started checklist - shown until every onboarding step is
@@ -2622,7 +2626,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             gap: '12px',
                             padding: '10px 12px',
                             borderRadius: 'var(--border-radius-md)',
-                            background: done ? 'rgba(94, 227, 122, 0.06)' : 'var(--bg-tertiary)',
+                            background: done ? 'rgba(var(--accent-rgb), 0.06)' : 'var(--bg-tertiary)',
                           }}
                         >
                           <button
@@ -2680,8 +2684,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 padding: '14px 16px',
                 marginBottom: '24px',
                 borderRadius: 'var(--border-radius-md)',
-                background: 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.2)',
+                background: 'rgba(var(--warning-rgb), 0.1)',
+                border: '1px solid rgba(var(--warning-rgb), 0.2)',
               }}
             >
               <AlertTriangle size={17} color="var(--warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -2778,7 +2782,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       flexDirection: 'column',
                       justifyContent: 'center',
                       padding: '12px',
-                      background: 'rgba(255,255,255,0.02)',
+                      background: 'rgba(var(--overlay-rgb), 0.02)',
                       borderRadius: 'var(--border-radius-sm)',
                       border: '1px solid var(--border-color)',
                       fontSize: '0.85rem',
@@ -2801,7 +2805,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             border: 'none',
                             padding: 0,
                             cursor: 'pointer',
-                            background: i === broadcastIndex ? 'var(--warning)' : 'rgba(255,255,255,0.15)',
+                            background: i === broadcastIndex ? 'var(--warning)' : 'rgba(var(--overlay-rgb), 0.15)',
                           }}
                         />
                       ))}
@@ -2836,7 +2840,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       justifyContent: 'center',
                       gap: '8px',
                       padding: '12px',
-                      background: 'rgba(255,255,255,0.02)',
+                      background: 'rgba(var(--overlay-rgb), 0.02)',
                       borderRadius: 'var(--border-radius-sm)',
                       border: '1px solid var(--border-color)',
                       fontSize: '0.85rem',
@@ -2876,7 +2880,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             border: 'none',
                             padding: 0,
                             cursor: 'pointer',
-                            background: i === victoryIndex ? 'var(--accent-purple)' : 'rgba(255,255,255,0.15)',
+                            background: i === victoryIndex ? 'var(--accent-purple)' : 'rgba(var(--overlay-rgb), 0.15)',
                           }}
                     />
                   ))}
@@ -2926,8 +2930,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           gap: '12px',
                           padding: '12px 14px',
                           borderRadius: 'var(--border-radius-md)',
-                          background: item.completed ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255, 255, 255, 0.01)',
-                          border: item.completed ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid var(--border-color)',
+                          background: item.completed ? 'rgba(var(--success-rgb), 0.03)' : 'rgba(var(--overlay-rgb), 0.01)',
+                          border: item.completed ? '1px solid rgba(var(--success-rgb), 0.15)' : '1px solid var(--border-color)',
                           cursor: 'pointer',
                         }}
                       >
@@ -2977,7 +2981,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <p style={{ fontSize: '0.8rem', color: 'var(--danger)', marginBottom: '16px' }}>Couldn't read your calendar: {oneOnOneError}</p>
                 ) : nextOneOnOne ? (
                   <>
-                    <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
+                    <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
                       <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>{nextOneOnOne.title}</div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Mentor: Siya</div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>{nextOneOnOne.startFormatted}</div>
@@ -3218,7 +3222,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   {myRsvpedEvents.map((e) => (
                     <div
                       key={e.id}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'rgba(var(--overlay-rgb), 0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
                     >
                       <div>
                         <div style={{ fontWeight: 600 }}>{e.title}</div>
@@ -3351,7 +3355,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showAddEventForm && (
             <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
               onClick={() => setShowAddEventForm(false)}
             >
               <div
@@ -3530,7 +3534,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showAddJobForm && (
             <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
               onClick={() => setShowAddJobForm(false)}
             >
               <div
@@ -3721,7 +3725,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showAddResourceForm && (
             <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
               onClick={() => setShowAddResourceForm(false)}
             >
               <div
@@ -3863,7 +3867,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     style={{
                       padding: '20px',
                       borderRadius: 'var(--border-radius-md)',
-                      background: 'rgba(255,255,255,0.02)',
+                      background: 'rgba(var(--overlay-rgb), 0.02)',
                       border: isUrgent ? '1px solid var(--warning)' : '1px solid var(--border-color)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -3904,8 +3908,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           fontSize: '0.85rem',
-                          background: 'rgba(94, 227, 122, 0.06)',
-                          border: '1px solid rgba(94, 227, 122, 0.2)',
+                          background: 'rgba(var(--accent-rgb), 0.06)',
+                          border: '1px solid rgba(var(--accent-rgb), 0.2)',
                           borderRadius: 'var(--border-radius-sm)',
                           padding: '10px 12px',
                           cursor: 'pointer',
@@ -3953,7 +3957,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showAddCertForm && (
             <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(3, 7, 18, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
               onClick={() => setShowAddCertForm(false)}
             >
               <div
@@ -4043,7 +4047,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-              <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+              <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Runs</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                   <div>
@@ -4056,7 +4060,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                 </div>
               </div>
-              <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+              <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Prizes</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {currentCompetition.prizes.map((p) => (
@@ -4086,7 +4090,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 pointer-events: none;
               }
               @keyframes rsvp-row-in {
-                0% { background: rgba(94, 227, 122, 0.4); transform: scale(1.01); }
+                0% { background: rgba(var(--accent-rgb), 0.4); transform: scale(1.01); }
                 100% { background: transparent; transform: scale(1); }
               }
               .rsvp-row-new { animation: rsvp-row-in 1.8s ease-out; }
@@ -4163,7 +4167,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                 )}
                 {todaysRoomLog?.status === 'Rejected' && (
-                  <div style={{ padding: '10px 14px', marginBottom: '14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem', color: 'var(--danger)' }}>
+                  <div style={{ padding: '10px 14px', marginBottom: '14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--danger-rgb), 0.08)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem', color: 'var(--danger)' }}>
                     Today's log was rejected{todaysRoomLog.adminNote ? `: ${todaysRoomLog.adminNote}` : '.'} Fix it and resubmit below.
                   </div>
                 )}
@@ -4229,18 +4233,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   const prizeByKey = computeCompetitionPrizes(sorted);
                   return sorted.map((row, i) => {
                     const medal = i === 0
-                      ? { bg: 'rgba(250, 204, 21, 0.10)', color: '#facc15' }
+                      ? { bg: 'var(--medal-gold-bg)', color: 'var(--medal-gold)' }
                       : i === 1
-                      ? { bg: 'rgba(203, 213, 225, 0.09)', color: '#cbd5e1' }
+                      ? { bg: 'var(--medal-silver-bg)', color: 'var(--medal-silver)' }
                       : i === 2
-                      ? { bg: 'rgba(217, 119, 87, 0.10)', color: '#d97757' }
+                      ? { bg: 'var(--medal-bronze-bg)', color: 'var(--medal-bronze)' }
                       : null;
                     const prize = prizeByKey[row.email || row.member];
                     return (
                       <tr
                         key={row.email || row.member}
                         className={row.email && row.email === justRsvpedEmail ? 'rsvp-row-new' : undefined}
-                        style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: medal?.bg }}
+                        style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)', background: medal?.bg }}
                       >
                         <td style={{ padding: '14px 12px' }}>
                           {medal ? (
@@ -4285,12 +4289,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
 
           {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
               You're using Mock Member — reviews here are local only and won't be saved. Sign in with Google to submit for real.
             </div>
           )}
           {!isMockSession && reviewsError && (
-            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               {reviewsError}
             </div>
           )}
@@ -4456,7 +4460,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
             <div className="glass-card">
               <h3 style={{ marginBottom: '16px' }}>PayFast Security Guarantee</h3>
-              <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <ShieldCheck size={28} color="var(--accent-cyan)" />
                 <div>
                   <div style={{ fontWeight: 600 }}>100% Encrypted Payments</div>
@@ -4494,7 +4498,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </thead>
                   <tbody>
                     {myPaymentHistory.map((p, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                         <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{formatDate(p.date)}</td>
                         <td style={{ padding: '12px 8px', fontWeight: 600 }}>{p.plan}</td>
                         <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{p.fundingType}</td>
@@ -4545,7 +4549,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>250655</div>
               </div>
             </div>
-            <div style={{ padding: '12px 16px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <div style={{ padding: '12px 16px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--warning-rgb), 0.1)', border: '1px solid rgba(var(--warning-rgb), 0.2)', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
               <AlertTriangle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
                 Use your <strong style={{ color: 'var(--text-primary)' }}>full name</strong> as the payment reference so we can match it to your account.

@@ -275,7 +275,7 @@ export default function OnboardingSequence({ user, onComplete }) {
           onClick={() => setSoundOn((s) => !s)}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px',
-            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(94,227,122,0.25)', color: '#5ee37a',
+            background: 'rgba(var(--overlay-rgb), 0.03)', border: '1px solid rgba(94,227,122,0.25)', color: '#5ee37a',
             fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
@@ -286,7 +286,7 @@ export default function OnboardingSequence({ user, onComplete }) {
           onClick={skipToEnd}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px',
-            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#7f879b',
+            background: 'rgba(var(--overlay-rgb), 0.03)', border: '1px solid rgba(var(--overlay-rgb), 0.1)', color: '#7f879b',
             fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
@@ -328,7 +328,7 @@ export default function OnboardingSequence({ user, onComplete }) {
                     rel="noreferrer"
                     style={{
                       display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9999px',
-                      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(94,227,122,0.25)', color: '#5ee37a',
+                      background: 'rgba(var(--overlay-rgb), 0.03)', border: '1px solid rgba(94,227,122,0.25)', color: '#5ee37a',
                       fontSize: '0.8rem', fontFamily: 'inherit', textDecoration: 'none',
                     }}
                   >
@@ -366,7 +366,7 @@ export default function OnboardingSequence({ user, onComplete }) {
                     fontSize: '0.9rem',
                     color: '#7f879b',
                     background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.15)',
+                    border: '1px solid rgba(var(--overlay-rgb), 0.15)',
                     borderRadius: '8px',
                     cursor: 'pointer',
                   }}

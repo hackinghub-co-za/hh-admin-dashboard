@@ -24,7 +24,7 @@ function Avatar({ name, imageUrl, size, color }) {
     justifyContent: 'center',
     fontWeight: 700,
     fontSize: size * 0.36,
-    color: imageUrl ? undefined : '#12132b',
+    color: imageUrl ? undefined : 'var(--accent-ink)',
     background: imageUrl ? 'var(--bg-tertiary)' : `linear-gradient(135deg, ${color || 'var(--accent-cyan)'}, var(--accent-purple))`,
     border: imageUrl ? '1px solid var(--border-color)' : 'none',
   };
@@ -85,7 +85,7 @@ export default function GroupedMemberDirectory({ members, getEmail, getName, get
                     gap: '14px',
                     padding: '14px 20px',
                     borderRadius: 'var(--border-radius-md)',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'rgba(var(--overlay-rgb), 0.02)',
                     border: '1px solid var(--border-color)',
                     borderTop: `2px solid ${TEAM_GROUP_COLOR}`,
                     cursor: 'pointer',
@@ -119,7 +119,7 @@ export default function GroupedMemberDirectory({ members, getEmail, getName, get
               key={g.key}
               onClick={() => toggleGroup(g.key)}
               style={{
-                background: 'rgba(255,255,255,0.02)',
+                background: 'rgba(var(--overlay-rgb), 0.02)',
                 border: '1px solid var(--border-color)',
                 borderTop: `2px solid ${g.color}`,
                 borderRadius: 'var(--border-radius-md)',

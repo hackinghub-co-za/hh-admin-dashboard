@@ -45,7 +45,7 @@ export default function PortalTourModal({ onComplete }) {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -62,7 +62,7 @@ export default function PortalTourModal({ onComplete }) {
           maxWidth: '460px',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+          boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -94,7 +94,7 @@ export default function PortalTourModal({ onComplete }) {
             width: '52px',
             height: '52px',
             borderRadius: '14px',
-            background: 'rgba(94, 227, 122, 0.1)',
+            background: 'rgba(var(--accent-rgb), 0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

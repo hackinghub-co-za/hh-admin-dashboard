@@ -39,7 +39,7 @@ export default function CompetitionRulesModal({ onClose }) {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -58,7 +58,7 @@ export default function CompetitionRulesModal({ onClose }) {
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+          boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -101,7 +101,7 @@ export default function CompetitionRulesModal({ onClose }) {
                 paddingBottom: '16px',
                 borderBottom: '1px solid var(--border-color)',
                 ...(s.danger
-                  ? { background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--border-radius-sm)', padding: '14px', marginBottom: '-2px' }
+                  ? { background: 'rgba(var(--danger-rgb), 0.06)', border: '1px solid rgba(var(--danger-rgb), 0.2)', borderRadius: 'var(--border-radius-sm)', padding: '14px', marginBottom: '-2px' }
                   : {}),
               }}
             >

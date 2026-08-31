@@ -46,7 +46,7 @@ export default function ExamReadinessModal({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -65,7 +65,7 @@ export default function ExamReadinessModal({
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+          boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -105,8 +105,8 @@ export default function ExamReadinessModal({
             justifyContent: 'space-between',
             padding: '18px 20px',
             borderRadius: 'var(--border-radius-md)',
-            background: 'rgba(94, 227, 122, 0.06)',
-            border: '1px solid rgba(94, 227, 122, 0.2)',
+            background: 'rgba(var(--accent-rgb), 0.06)',
+            border: '1px solid rgba(var(--accent-rgb), 0.2)',
             marginBottom: '24px',
           }}
         >
@@ -137,7 +137,7 @@ export default function ExamReadinessModal({
                   padding: '10px 12px',
                   borderRadius: 'var(--border-radius-sm)',
                   border: '1px solid var(--border-color)',
-                  background: done ? 'rgba(94, 227, 122, 0.06)' : 'transparent',
+                  background: done ? 'rgba(var(--accent-rgb), 0.06)' : 'transparent',
                   color: done ? 'var(--text-primary)' : 'var(--text-secondary)',
                   cursor: 'pointer',
                   fontSize: '0.87rem',

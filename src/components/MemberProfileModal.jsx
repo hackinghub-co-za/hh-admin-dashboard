@@ -100,7 +100,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -119,7 +119,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+          boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -171,7 +171,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
             gridTemplateColumns: '1fr 1fr',
             gap: '16px',
             marginBottom: '24px',
-            background: 'rgba(255, 255, 255, 0.02)',
+            background: 'rgba(var(--overlay-rgb), 0.02)',
             padding: '16px',
             borderRadius: 'var(--border-radius-md)',
             border: '1px solid var(--border-color)',
@@ -315,7 +315,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
           </div>
 
           {form.employmentStatus === 'Employed' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-md)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '14px', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-md)' }}>
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
                   <Briefcase size={13} /> Job Title
@@ -351,7 +351,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
           </div>
 
           {(form.status === 'Leaving' || form.status === 'Left') && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px', background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: 'var(--border-radius-md)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px', background: 'rgba(var(--danger-rgb), 0.04)', border: '1px solid rgba(var(--danger-rgb), 0.15)', borderRadius: 'var(--border-radius-md)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--danger)' }}>
                 <LogOut size={14} /> Offboarding
               </div>
@@ -384,7 +384,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
                 </p>
               )}
               {profile?.exitFeedbackText || profile?.exitFeedbackRating ? (
-                <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(var(--danger-rgb), 0.15)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     <Star size={13} /> Exit feedback from the member
                     {profile.exitFeedbackRating && <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{profile.exitFeedbackRating}/5</span>}
@@ -403,11 +403,11 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
               ) : null}
 
               {form.status === 'Left' && onDelete && (
-                <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(var(--danger-rgb), 0.15)' }}>
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    style={{ color: 'var(--danger)', borderColor: 'rgba(var(--danger-rgb), 0.3)' }}
                     onClick={() => {
                       if (window.confirm(`Permanently delete ${member.member}'s profile? This can't be undone - they'll disappear from every member list. Their payment history, reviews, and other records stay intact.`)) {
                         onDelete(member.email);

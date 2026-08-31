@@ -43,7 +43,7 @@ export default function RecordEftPaymentModal({ members = [], onSave, onClose })
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -62,7 +62,7 @@ export default function RecordEftPaymentModal({ members = [], onSave, onClose })
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+          boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -98,7 +98,7 @@ export default function RecordEftPaymentModal({ members = [], onSave, onClose })
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {error && (
-            <div style={{ padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'var(--danger)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--danger-rgb), 0.1)', border: '1px solid rgba(var(--danger-rgb), 0.2)', color: 'var(--danger)', fontSize: '0.85rem' }}>
               {error}
             </div>
           )}

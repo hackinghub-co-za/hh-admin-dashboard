@@ -9,7 +9,7 @@ export default function ReleaseNotesModal({ onClose }) {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -76,7 +76,7 @@ export default function ReleaseNotesModal({ onClose }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {group.items.map((item) => (
-                    <div key={item.title} style={{ padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
+                    <div key={item.title} style={{ padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                         <span style={{ fontSize: '1.05rem' }}>{item.icon}</span>
                         <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{item.title}</span>

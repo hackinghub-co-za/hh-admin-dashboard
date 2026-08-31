@@ -21,10 +21,13 @@ import {
   ListChecks,
   Megaphone,
   BarChart3,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
 import { LATEST_RELEASE_VERSION } from '../data/releaseNotes';
+import { getStoredTheme, storeTheme, applyTheme } from '../lib/theme';
 
 const LAST_SEEN_RELEASE_KEY = 'hh_last_seen_release';
 
@@ -87,7 +90,7 @@ function TooltipButton({ id, icon: Icon, label, active, danger, badge, hoveredId
           height: '44px',
           margin: '0 auto',
           borderRadius: 'var(--border-radius-sm)',
-          background: active ? 'rgba(94, 227, 122, 0.08)' : isHovered ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+          background: active ? 'rgba(var(--accent-rgb), 0.08)' : isHovered ? 'rgba(var(--overlay-rgb), 0.04)' : 'transparent',
           border: 'none',
           color: danger ? 'var(--danger)' : active ? 'var(--accent-cyan)' : 'var(--text-muted)',
           cursor: 'pointer',
@@ -178,6 +181,17 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
   const openReleaseNotes = () => {
     setShowReleaseNotes(true);
     markReleaseSeen();
+  };
+
+  // Theme toggle - main.jsx already applies the stored theme before first
+  // paint, so this just reads that same value back to know which icon to
+  // show and flips it on click.
+  const [theme, setTheme] = useState(getStoredTheme);
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    applyTheme(next);
+    storeTheme(next);
   };
 
   const menuItems = isAdmin
@@ -374,6 +388,21 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           onLeave={() => setHoveredId(null)}
           onClick={openReleaseNotes}
         />
+
+        {/* Members get this on the Dashboard now, next to the streak badge
+            (src/components/ThemeToggle.jsx) - admins have no equivalent
+            dashboard spot, so they keep it here. */}
+        {isAdmin && (
+          <TooltipButton
+            id="theme-toggle"
+            icon={theme === 'dark' ? Sun : Moon}
+            label={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onLeave={() => setHoveredId(null)}
+            onClick={toggleTheme}
+          />
+        )}
 
         {onReplayIntro && (
           <TooltipButton

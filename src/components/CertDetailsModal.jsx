@@ -129,7 +129,7 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -148,7 +148,7 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
           overflowY: 'auto',
           padding: '32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+          boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -204,7 +204,7 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
             gridTemplateColumns: '1fr 1fr',
             gap: '16px',
             marginBottom: '24px',
-            background: 'rgba(255, 255, 255, 0.02)',
+            background: 'rgba(var(--overlay-rgb), 0.02)',
             padding: '16px',
             borderRadius: 'var(--border-radius-md)',
             border: '1px solid var(--border-color)',
@@ -260,8 +260,8 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
                   fontSize: '0.88rem',
                   padding: '8px 12px',
                   borderRadius: 'var(--border-radius-sm)',
-                  background: 'rgba(94, 227, 122, 0.04)',
-                  border: '1px solid rgba(94, 227, 122, 0.1)',
+                  background: 'rgba(var(--accent-rgb), 0.04)',
+                  border: '1px solid rgba(var(--accent-rgb), 0.1)',
                 }}
               >
                 <ShieldCheck size={16} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />

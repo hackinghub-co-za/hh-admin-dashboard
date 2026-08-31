@@ -79,7 +79,7 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
           maxWidth: '480px',
           padding: '40px 32px',
           textAlign: 'center',
-          border: '1px solid rgba(94, 227, 122, 0.15)',
+          border: '1px solid rgba(var(--accent-rgb), 0.15)',
         }}
       >
         <img
@@ -91,7 +91,7 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
             objectFit: 'cover',
             borderRadius: 'var(--border-radius-lg)',
             marginBottom: '20px',
-            boxShadow: '0 0 30px rgba(94, 227, 122, 0.2)',
+            boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)',
           }}
         />
 
@@ -122,7 +122,7 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
                 gap: '8px',
                 padding: '10px 12px',
                 borderRadius: 'var(--border-radius-sm)',
-                background: 'rgba(255,255,255,0.02)',
+                background: 'rgba(var(--overlay-rgb), 0.02)',
                 border: '1px solid var(--border-color)',
                 fontSize: '0.78rem',
                 color: 'var(--text-secondary)',
@@ -143,8 +143,8 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
               gap: '8px',
               padding: '12px',
               borderRadius: 'var(--border-radius-sm)',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
+              background: 'rgba(var(--danger-rgb), 0.1)',
+              border: '1px solid rgba(var(--danger-rgb), 0.2)',
               color: 'var(--danger)',
               marginBottom: '20px',
               textAlign: 'left',
@@ -168,7 +168,7 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
         {import.meta.env.DEV && (
           <>
             <div style={{ position: 'relative', margin: '24px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ position: 'absolute', background: '#12132b', padding: '0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <span style={{ position: 'absolute', background: 'var(--bg-primary)', padding: '0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 DEVELOPER MOCK BYPASS (LOCAL DEV ONLY)
               </span>
               <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border-color)' }} />

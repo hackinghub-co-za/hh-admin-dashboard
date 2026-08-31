@@ -11,7 +11,7 @@ export default function SpecializationUnlockedModal({ quote, onClose }) {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.85)',
+        backgroundColor: 'var(--modal-backdrop)',
         backdropFilter: 'blur(8px)',
         zIndex: 1000,
         display: 'flex',
@@ -28,7 +28,7 @@ export default function SpecializationUnlockedModal({ quote, onClose }) {
           maxWidth: '440px',
           padding: '36px 32px',
           border: '1px solid var(--accent-cyan)',
-          boxShadow: '0 0 40px rgba(94, 227, 122, 0.25)',
+          boxShadow: '0 0 40px rgba(var(--accent-rgb), 0.25)',
           position: 'relative',
           textAlign: 'center',
         }}
@@ -61,7 +61,7 @@ export default function SpecializationUnlockedModal({ quote, onClose }) {
             width: '64px',
             height: '64px',
             borderRadius: '50%',
-            background: 'rgba(94, 227, 122, 0.12)',
+            background: 'rgba(var(--accent-rgb), 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

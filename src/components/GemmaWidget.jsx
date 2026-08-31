@@ -86,14 +86,14 @@ export default function GemmaWidget({ user, isMockSession }) {
           width: '56px',
           height: '56px',
           borderRadius: '50%',
-          background: open ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #5ee37a, #17a856)',
+          background: open ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
           border: open ? '1px solid var(--border-color)' : 'none',
-          color: open ? 'var(--text-secondary)' : '#06120a',
+          color: open ? 'var(--text-secondary)' : 'var(--accent-ink)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          boxShadow: open ? 'none' : '0 4px 20px rgba(94, 227, 122, 0.4)',
+          boxShadow: open ? 'none' : '0 4px 20px rgba(var(--accent-rgb), 0.4)',
           zIndex: 900,
         }}
       >
@@ -121,8 +121,8 @@ export default function GemmaWidget({ user, isMockSession }) {
           }}
         >
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #5ee37a, #17a856)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Bot size={18} color="#06120a" />
+            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Bot size={18} color="var(--accent-ink)" />
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Gemma</div>
@@ -134,7 +134,7 @@ export default function GemmaWidget({ user, isMockSession }) {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {messages.length === 0 && !loadingHistory && (
-                  <div style={{ padding: '12px', borderRadius: 'var(--border-radius-md)', background: 'rgba(94, 227, 122, 0.06)', border: '1px solid rgba(94, 227, 122, 0.15)' }}>
+                  <div style={{ padding: '12px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--accent-rgb), 0.06)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
                       <Sparkles size={14} style={{ flexShrink: 0, marginTop: '2px' }} color="var(--accent-cyan)" />
                       Hey, I'm Gemma. Ask me anything about Hacking Hub, or try "how am I doing?"
@@ -156,7 +156,7 @@ export default function GemmaWidget({ user, isMockSession }) {
                       padding: '10px 14px',
                       borderRadius: 'var(--border-radius-md)',
                       background: m.role === 'user' ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
-                      color: m.role === 'user' ? '#06120a' : 'var(--text-primary)',
+                      color: m.role === 'user' ? 'var(--accent-ink)' : 'var(--text-primary)',
                       fontSize: '0.85rem',
                       lineHeight: 1.5,
                       whiteSpace: 'pre-wrap',
