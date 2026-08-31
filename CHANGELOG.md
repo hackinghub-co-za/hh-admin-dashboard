@@ -18,6 +18,46 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.08.31
+
+### Added
+- **Admin Insights: Exam Readiness nudge** — surfaces any member with a
+  real, upcoming (within `EXAM_NUDGE_WINDOW_DAYS`, currently 14 days),
+  still-`Pending` exam whose computed readiness score is under
+  `EXAM_NUDGE_THRESHOLD_PCT` (currently 50%) - a proactive coaching nudge
+  instead of a member finding out too late on their own. Works off the
+  existing `exam_readiness` table via a plain admin-scoped read (RLS
+  already grants admins full access) joined client-side against Cert
+  Calendar - no new migration.
+- **`scripts/check-pii.sh`** — a mechanical guard against real member data
+  ending up in a tracked migration file (installed as a local pre-commit
+  hook automatically on `npm install`, plus a GitHub Actions backstop on
+  every push). Built after a PII review found the earlier PayFast
+  incident's own remediation had been incomplete - it had removed the raw
+  export file, but backfilling that data into Supabase did it via a
+  literal SQL `INSERT` in a tracked migration, re-committing the same real
+  data in a different format. A wider sweep found four more files with the
+  same pattern (`004`, `012`, `021`, `029_*.sql`); all were redacted (real
+  content moved to a gitignored, local-only `supabase/.private-history/`)
+  and purged from git history via `git-filter-repo`. Real, ongoing schema
+  in those files (`is_member_allowed`, `grant_member_portal_access`, the
+  payments table + dedup fix) was untouched.
+
+### Changed
+- **Member profile: age and gender are now member-set** — previously
+  admin-only fields, filled in by guesswork on the Members tab. A member
+  now sets their own via the same "Edit My Profile" form as everything
+  else on their profile (`AGES`/`GENDERS` dropdowns, matching the admin
+  form's own options). Both stay exactly as private as before - never
+  added to the peer-visible Member Directory feed, only ever used for the
+  Insights demographic breakdowns. A new `get_my_age_and_gender()` RPC
+  lets a member read their own current values back to pre-fill the form,
+  kept separate from the public directory RPC on purpose.
+  (`010_member_directory.sql`)
+- Removed `012_pentest_access.sql` entirely (already redacted, already
+  applied, nothing left depending on it) rather than keeping it as a
+  redacted stub like the other three.
+
 ## 2026.08.30
 
 ### Added

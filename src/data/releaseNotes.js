@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.08.31',
+    date: '2026-08-31',
+    headline: "Your age and gender - set by you now, not guessed.",
+    intro: "One small fix: your age range and gender are now yours to set, in the same place as the rest of your profile.",
+    groups: [
+      {
+        label: 'Your Profile',
+        color: '#38bdf8',
+        items: [
+          {
+            icon: '🔒',
+            title: 'Set your own age and gender',
+            body: "These used to be admin-set guesswork. Now you set them yourself, right on your profile edit form - and like before, they stay private and are never shown to other members.",
+            where: 'Members → Edit My Profile',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.08.30',
     date: '2026-08-30',
     headline: "Know exactly how ready you are before exam day.",
