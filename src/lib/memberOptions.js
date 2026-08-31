@@ -204,6 +204,14 @@ export const MEETING_OVERDUE_AFTER_DAYS = 30;
 // "stale" means.
 export const ROADMAP_STALE_AFTER_DAYS = 14;
 
+// The admin Insights "Exam Readiness" nudge flags a member whose booked
+// exam (cert_calendar, still Pending) falls within this many days AND
+// whose computeReadinessPercent() score is under this threshold - the
+// window and the bar for "worth a proactive check-in", not a verdict on
+// whether they'll pass.
+export const EXAM_NUDGE_WINDOW_DAYS = 14;
+export const EXAM_NUDGE_THRESHOLD_PCT = 50;
+
 // The email escalation (supabase/functions/roadmap-reminder-email) is a
 // full checkpoint cadence, not a single threshold like the in-app nudge
 // above - fully computed inside get_stale_roadmap_members_for_reminder()

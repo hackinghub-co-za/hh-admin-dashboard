@@ -14,7 +14,7 @@ import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 // payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
 // the real file has been removed and purged from git history entirely.
 import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -45,6 +45,7 @@ import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingD
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend } from '../../lib/portalEventsData';
+import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
 import {
   Calendar,
@@ -483,6 +484,24 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       })
       .catch((err) => !cancelled && setPortalAnalyticsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingPortalAnalytics(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  // Exam Readiness nudge (Insights tab) - every member's readiness row,
+  // across every cert. Cheap: one unfiltered admin-only select, joined
+  // client-side against the already-fetched `certs` (Cert Calendar) state
+  // below rather than a second round trip.
+  const [examReadinessRows, setExamReadinessRows] = useState([]);
+  const [loadingExamReadiness, setLoadingExamReadiness] = useState(!isMockSession);
+  const [examReadinessError, setExamReadinessError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllExamReadiness()
+      .then((data) => !cancelled && setExamReadinessRows(data))
+      .catch((err) => !cancelled && setExamReadinessError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingExamReadiness(false));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
@@ -3318,6 +3337,29 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         'Active Members': w.activeMembers,
       }));
 
+      // Exam Readiness nudge - members with a real, upcoming, still-Pending
+      // exam (within EXAM_NUDGE_WINDOW_DAYS) whose readiness score is under
+      // EXAM_NUDGE_THRESHOLD_PCT. Only certs with a defined readiness
+      // catalog count (matchExamReadinessCert returns null for anything
+      // else) - a cert we don't track readiness for has nothing to flag.
+      const atRiskExams = certs
+        .filter((c) => c.result === 'Pending')
+        .map((c) => {
+          // realNow, not the frozen `today` anchor above - a genuine
+          // "how many real days until this exam" countdown, same reasoning
+          // as the renewal countdowns elsewhere in this tab.
+          const daysLeft = Math.ceil((new Date(c.date) - realNow) / (1000 * 60 * 60 * 24));
+          const certKey = matchExamReadinessCert(c.cert);
+          if (!certKey || daysLeft < 0 || daysLeft > EXAM_NUDGE_WINDOW_DAYS) return null;
+          const catalog = EXAM_READINESS_CATALOGS[certKey];
+          const row = examReadinessRows.find((r) => r.certName === certKey && r.memberEmail === (c.memberEmail || '').toLowerCase());
+          const readinessPct = computeReadinessPercent(catalog.milestones, row?.checklist, row?.latestPracticeScore);
+          if (readinessPct >= EXAM_NUDGE_THRESHOLD_PCT) return null;
+          return { ...c, certLabel: catalog.label, daysLeft, readinessPct };
+        })
+        .filter((x) => x !== null)
+        .sort((a, b) => a.daysLeft - b.daysLeft);
+
       const renderBreakdownBars = (buckets) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {buckets.map(([label, count]) => {
@@ -3479,6 +3521,61 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                 </div>
               </div>
             </>
+          )}
+
+          <div style={{ marginTop: '40px', marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '1.3rem', marginBottom: '6px' }}>Exam Readiness Nudge</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              Members with an exam in the next {EXAM_NUDGE_WINDOW_DAYS} days who are under {EXAM_NUDGE_THRESHOLD_PCT}% ready - worth a proactive check-in before it's too late to matter.
+            </p>
+          </div>
+
+          {isMockSession ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Exam readiness data isn't tracked for Mock Member demo sessions.</p>
+          ) : examReadinessError ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>{examReadinessError}</p>
+          ) : loadingCerts || loadingExamReadiness ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+          ) : atRiskExams.length === 0 ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nobody's currently at risk - every upcoming exam in the next {EXAM_NUDGE_WINDOW_DAYS} days is either on track or not yet trackable (only Security+, AZ-900, SC-200, SC-900, CySA+, and eJPT have a readiness program today).</p>
+          ) : (
+            <div className="glass-card">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {atRiskExams.map((x) => (
+                  <div
+                    key={x.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px 14px',
+                      borderRadius: 'var(--border-radius-sm)',
+                      background: 'rgba(239, 68, 68, 0.06)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{x.member}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{x.certLabel}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexShrink: 0 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Exam in</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{x.daysLeft} day{x.daysLeft === 1 ? '' : 's'}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Readiness</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--danger)' }}>{x.readinessPct}%</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       );

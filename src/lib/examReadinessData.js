@@ -20,6 +20,25 @@ export async function fetchMyExamReadiness() {
   }));
 }
 
+/** Admin-only: every member's readiness row, across every cert - powers the
+ * Insights "at risk" nudge (an upcoming exam + low readiness). Works via a
+ * plain unfiltered select relying on RLS's admin FOR ALL policy
+ * (051_exam_readiness.sql) - no separate RPC needed, same shape as
+ * fetchCertCalendar() for admins. */
+export async function fetchAllExamReadiness() {
+  const { data, error } = await supabase
+    .from('exam_readiness')
+    .select('member_email, cert_name, checklist, latest_practice_score, latest_practice_score_at');
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    memberEmail: row.member_email,
+    certName: row.cert_name,
+    checklist: row.checklist || {},
+    latestPracticeScore: row.latest_practice_score,
+    latestPracticeScoreAt: row.latest_practice_score_at,
+  }));
+}
+
 export async function updateExamReadinessChecklist(certName, milestoneKey, completed) {
   const { error } = await supabase.rpc('update_my_exam_readiness_checklist', {
     p_cert_name: certName,
