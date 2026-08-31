@@ -24,11 +24,21 @@ dist-ssr
 *.sw?
 
 # Real PayFast export data - contains real members' names, emails, and
-# payment amounts. Was committed here as payfastTransactions.json/.csv
-# until it was found exposed in this public repo and moved into Supabase
-# (033_payfast_transactions.sql) - never let a real export like this back
-# into the tree. The anonymized src/data/payfastTransactions.mock.json
-# fixture (Mock Admin only, fake names/emails) is fine to keep tracked.
+# payment amounts. Was committed here as payfastTransactions.json/.csv,
+# then (still incorrectly) moved into a tracked SQL migration
+# (033_payfast_transactions.sql PART 2) as a "fix" that just relocated the
+# same leak - a second PII review caught that and redacted it, moving the
+# real data to supabase/.private-history/ below instead. Never let a real
+# export like this back into the tracked tree in any format. The
+# anonymized src/data/payfastTransactions.mock.json fixture (Mock Admin
+# only, fake names/emails) is fine to keep tracked.
 src/data/payfastTransactions.json
 src/data/payfast_transactions_*.csv
 *Transaction_History*.csv
+
+# Real, un-redacted content of one-time historical seed migrations
+# (004/021/029/033 - see each file's own header comment for what was
+# redacted and why). Local-only, disaster-recovery copies - the real data
+# already lives in Supabase; these are never meant to be committed or
+# re-run against a live database that already has this data.
+supabase/.private-history/

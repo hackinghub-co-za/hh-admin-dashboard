@@ -34,97 +34,17 @@ $$;
 GRANT EXECUTE ON FUNCTION public.is_member_allowed(TEXT) TO anon, authenticated;
 
 -- =========================================================================
--- PART 2: BACKFILL - give every real member a row so the allow-list actually
--- includes them. Only members an admin has already opened/saved in the UI have a
--- member_profiles row today; this adds the rest of the 81 real PayFast payers
--- (from src/data/payfastTransactions.json) as 'Active', without ever overwriting a
--- row an admin has already edited.
+-- PART 2: BACKFILL - REDACTED. This originally gave every real member a
+-- row so the allow-list actually included them (the 81 real PayFast
+-- payers from src/data/payfastTransactions.json, at the time only members
+-- an admin had already opened/saved in the UI had a member_profiles row).
+-- The real email list was found still committed and publicly fetchable in
+-- a later PII review; it now lives only in
+-- supabase/.private-history/004_member_access_control.full.sql
+-- (gitignored, local-only). Already ran against the live database -
+-- nothing to re-run here. PART 1 and PART 3 below are the real, ongoing
+-- schema this file exists for.
 -- =========================================================================
-
-INSERT INTO public.member_profiles (email, status)
-VALUES
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active'),
-    ('[REDACTED]', 'Active')
-ON CONFLICT (email) DO NOTHING;
 
 -- =========================================================================
 -- PART 3: GRANT ACCESS ON PAYMENT

@@ -1,0 +1,16 @@
+# Real, personal (non-@hackinghub.co.za) email addresses that are
+# INTENTIONALLY committed to this repo, because the app genuinely needs
+# them to function - real mentor contacts used for booking links and
+# 1-on-1 reminder matching (src/lib/memberOptions.js TEAM_MEMBERS,
+# supabase/functions/push-1on1-reminder/index.ts MENTOR_EMAILS), and the
+# founder's own support contact shown on the public Privacy/Terms pages
+# (src/views/LegalPage.jsx). Every one of these was added deliberately and
+# reviewed here on purpose - this is not where an accidental member-data
+# leak should ever end up hidden. Add to this list only when a real
+# person's email is a genuine, ongoing part of how the app works (a
+# mentor, a support contact) - never to silence a real member/payment
+# data leak. One address per line, exact match, case-insensitive.
+
+kmchunu029@gmail.com
+nonhlanhlakamangethe@gmail.com
+siya.gladile@gmail.com

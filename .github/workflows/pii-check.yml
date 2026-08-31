@@ -1,0 +1,21 @@
+name: PII check
+
+# Backstop for scripts/check-pii.sh's local pre-commit hook (see that
+# file's own header for why this exists - real member data ended up
+# committed to this public repo twice, most recently as the "fix" for the
+# first leak). A local hook can be skipped (--no-verify) or simply not
+# installed yet on a given machine - this runs the identical check against
+# whatever actually landed on GitHub, on every push, so nothing gets past
+# both layers silently.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pii-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run PII guard
+        run: bash scripts/check-pii.sh
