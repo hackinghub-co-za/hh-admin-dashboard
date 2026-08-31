@@ -3,6 +3,8 @@ import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import ExamReadinessModal from '../../components/ExamReadinessModal';
 import QuizModal from '../../components/QuizModal';
+import CvReviewModal from '../../components/CvReviewModal';
+import InterviewPrepModal from '../../components/InterviewPrepModal';
 import ThemeToggle from '../../components/ThemeToggle';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
@@ -1249,6 +1251,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [examReadiness, setExamReadiness] = useState(isMockSession ? MOCK_EXAM_READINESS : []);
   const [readinessModalCert, setReadinessModalCert] = useState(null); // the matched catalog key, e.g. 'Security+'
   const [showQuizCert, setShowQuizCert] = useState(null); // catalog key of the cert currently being quizzed, or null
+  const [showCvReview, setShowCvReview] = useState(false);
+  const [showInterviewPrep, setShowInterviewPrep] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -3187,15 +3191,25 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                     <FileText size={20} color="var(--accent-cyan)" />
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Request a CV Review</h3>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>CV &amp; LinkedIn Review</h3>
                   </div>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                    Get your CV reviewed or rewritten by your coach before you apply for a role.
+                    Get instant AI feedback from Gemma, or have your coach review it by hand before you apply for a role.
                   </p>
                 </div>
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                  <a href={cvRequestMailto} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-                    <FileText size={16} /> Request a CV Review
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => setShowCvReview(true)}
+                    disabled={isMockSession}
+                    title={isMockSession ? 'Sign in with a real account to use this' : undefined}
+                  >
+                    <Sparkles size={16} /> Get Instant AI Review
+                  </button>
+                  <a href={cvRequestMailto} style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Prefer a human to look at it? Email Siya
                   </a>
                 </div>
               </div>
@@ -3204,15 +3218,25 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                     <MessageSquare size={20} color="var(--accent-cyan)" />
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Request Interview Prep</h3>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Interview Prep</h3>
                   </div>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                    Practice mock technical and behavioral interview questions before the real thing.
+                    Paste a job description and your CV - Gemma generates tailored questions, or book a live mock interview instead.
                   </p>
                 </div>
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                  <a href={interviewPrepMailto} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-                    <MessageSquare size={16} /> Request Interview Prep
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => setShowInterviewPrep(true)}
+                    disabled={isMockSession}
+                    title={isMockSession ? 'Sign in with a real account to use this' : undefined}
+                  >
+                    <Sparkles size={16} /> Generate AI Interview Questions
+                  </button>
+                  <a href={interviewPrepMailto} style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Prefer a live mock interview? Email Siya
                   </a>
                 </div>
               </div>
@@ -3693,6 +3717,29 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </button>
           </div>
 
+          <div
+            className="glass-card"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', padding: '20px 24px', marginBottom: '24px', border: '1px solid var(--accent-cyan)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <Sparkles size={24} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '2px' }}>AI CV &amp; LinkedIn Review</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Paste your CV or LinkedIn text - Gemma reviews it like a hiring manager would.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+              onClick={() => setShowCvReview(true)}
+              disabled={isMockSession}
+              title={isMockSession ? 'Sign in with a real account to use this' : undefined}
+            >
+              <Sparkles size={15} /> Get Reviewed
+            </button>
+          </div>
+
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
             {RESOURCE_CATEGORIES.map((cat) => (
               <button
@@ -3993,6 +4040,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               onScoreLogged={(score) => handleQuizScoreLogged(showQuizCert, score)}
               onClose={() => setShowQuizCert(null)}
             />
+          )}
+
+          {showCvReview && !isMockSession && (
+            <CvReviewModal onClose={() => setShowCvReview(false)} />
+          )}
+
+          {showInterviewPrep && !isMockSession && (
+            <InterviewPrepModal onClose={() => setShowInterviewPrep(false)} />
           )}
 
           {showAddCertForm && (
