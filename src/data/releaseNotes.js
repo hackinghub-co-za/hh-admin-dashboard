@@ -9,7 +9,7 @@ export const RELEASE_NOTES = [
     version: '2026.08.31',
     date: '2026-08-31',
     headline: "Your age and gender - set by you now, not guessed.",
-    intro: "One small fix: your age range and gender are now yours to set, in the same place as the rest of your profile.",
+    intro: "Your age range and gender are now yours to set, and Matchmaker groups get a real starting point instead of a blank page.",
     groups: [
       {
         label: 'Your Profile',
@@ -20,6 +20,18 @@ export const RELEASE_NOTES = [
             title: 'Set your own age and gender',
             body: "These used to be admin-set guesswork. Now you set them yourself, right on your profile edit form - and like before, they stay private and are never shown to other members.",
             where: 'Members → Edit My Profile',
+          },
+        ],
+      },
+      {
+        label: 'Community',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '💡',
+            title: 'Matchmaker now has example ideas',
+            body: "Not sure what to build or present with your randomly-matched group? A real list of example cybersecurity projects and tech presentation topics is right there now - a starting point, not a requirement.",
+            where: 'Matchmaker',
           },
         ],
       },
