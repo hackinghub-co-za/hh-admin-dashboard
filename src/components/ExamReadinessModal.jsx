@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ShieldCheck, CheckSquare, Square } from 'lucide-react';
+import { X, ShieldCheck, CheckSquare, Square, GraduationCap } from 'lucide-react';
 import { computeReadinessPercent } from '../lib/examReadinessData';
 
 // Interactive companion to SecurityPlusGuideModal.jsx's read-only shell -
@@ -16,6 +16,7 @@ export default function ExamReadinessModal({
   latestPracticeScoreAt,
   onToggleMilestone,
   onSaveScore,
+  onTakeQuiz,
   onClose,
 }) {
   const [scoreInput, setScoreInput] = useState(typeof latestPracticeScore === 'number' ? String(latestPracticeScore) : '');
@@ -150,9 +151,27 @@ export default function ExamReadinessModal({
           })}
         </div>
 
+        {onTakeQuiz && (
+          <div style={{ marginBottom: '24px' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ width: '100%', justifyContent: 'center' }}
+              onClick={onTakeQuiz}
+            >
+              <GraduationCap size={15} /> Take Practice Quiz
+            </button>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
+              Real, first-party questions - finishing a quiz logs your score below automatically.
+            </p>
+          </div>
+        )}
+
         <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-secondary)' }}>Latest Practice Test Score</h4>
         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
-          Self-reported after a real ExamCompass/PocketPrep (or similar) practice exam - not verified, same trust level as the rest of your own roadmap notes.
+          {onTakeQuiz
+            ? 'Set automatically when you finish a Practice Quiz above - or self-report a score from an external practice exam here instead.'
+            : 'Self-reported after a real ExamCompass/PocketPrep (or similar) practice exam - not verified, same trust level as the rest of your own roadmap notes.'}
         </p>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <input

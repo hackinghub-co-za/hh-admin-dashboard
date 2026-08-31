@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import ExamReadinessModal from '../../components/ExamReadinessModal';
+import QuizModal from '../../components/QuizModal';
 import ThemeToggle from '../../components/ThemeToggle';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
@@ -1247,6 +1248,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // someone else's booked exam on this shared community calendar).
   const [examReadiness, setExamReadiness] = useState(isMockSession ? MOCK_EXAM_READINESS : []);
   const [readinessModalCert, setReadinessModalCert] = useState(null); // the matched catalog key, e.g. 'Security+'
+  const [showQuizCert, setShowQuizCert] = useState(null); // catalog key of the cert currently being quizzed, or null
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1286,6 +1288,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     } catch (err) {
       console.error('Could not save practice test score:', err);
     }
+  };
+
+  // Same optimistic local update as handleSaveReadinessScore above, but
+  // without the logPracticeTestScore() call - submit_quiz_attempt()
+  // (supabase/054_quiz_system.sql) already logs the score server-side as
+  // part of grading the quiz, so calling it again here would just be a
+  // redundant duplicate write.
+  const handleQuizScoreLogged = (certKey, score) => {
+    const now = new Date().toISOString();
+    setExamReadiness((prev) => {
+      const existing = prev.find((r) => r.certName === certKey);
+      if (existing) {
+        return prev.map((r) => (r.certName === certKey ? { ...r, latestPracticeScore: score, latestPracticeScoreAt: now } : r));
+      }
+      return [...prev, { certName: certKey, checklist: {}, latestPracticeScore: score, latestPracticeScoreAt: now }];
+    });
   };
 
   const handleAddCertEntry = async (e) => {
@@ -3962,10 +3980,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 latestPracticeScoreAt={row?.latestPracticeScoreAt}
                 onToggleMilestone={(milestoneKey, completed) => handleToggleReadinessMilestone(readinessModalCert, milestoneKey, completed)}
                 onSaveScore={(score) => handleSaveReadinessScore(readinessModalCert, score)}
+                onTakeQuiz={isMockSession ? undefined : () => setShowQuizCert(readinessModalCert)}
                 onClose={() => setReadinessModalCert(null)}
               />
             );
           })()}
+
+          {showQuizCert && (
+            <QuizModal
+              certName={showQuizCert}
+              certLabel={EXAM_READINESS_CATALOGS[showQuizCert].label}
+              onScoreLogged={(score) => handleQuizScoreLogged(showQuizCert, score)}
+              onClose={() => setShowQuizCert(null)}
+            />
+          )}
 
           {showAddCertForm && (
             <div
