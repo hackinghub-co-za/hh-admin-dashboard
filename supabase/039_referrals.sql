@@ -46,3 +46,17 @@ DROP POLICY IF EXISTS "admins manage referrals" ON public.referrals;
 CREATE POLICY "admins manage referrals"
   ON public.referrals FOR ALL
   USING (public.is_admin(auth.uid()));
+
+-- =========================================================================
+-- REWARD STATUS (2026-09) - referrals used to just be a lead-capture log
+-- with nowhere to record whether the referred person actually joined, or
+-- whether the R500 referral reward (REFERRAL_REWARD_AMOUNT in
+-- src/lib/memberOptions.js) has been paid out. The "admins manage
+-- referrals" FOR ALL policy above already covers writing this column - no
+-- new policy or function needed, same reasoning as reusing an existing
+-- admin-only UPDATE for setRoadmapFoundationsApproval() rather than adding
+-- a narrow RPC for something with no member-facing write path at all.
+-- =========================================================================
+ALTER TABLE public.referrals
+  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Pending'
+    CHECK (status IN ('Pending', 'Joined', 'Reward Paid'));

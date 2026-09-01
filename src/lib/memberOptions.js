@@ -68,6 +68,13 @@ export const CORE_FOUNDATIONS_MIN_REQUIRED = 4;
 // one.
 export const SPECIALIZATION_UNLOCK_MIN = 5;
 
+// Refer a Friend's reward, in Rand - single source of truth so the member
+// modal, the referrals list, and the admin table all show the same figure
+// instead of three hardcoded "R500"s that could quietly drift apart if the
+// amount ever changes. See supabase/039_referrals.sql's status column for
+// how a referral moves from Pending -> Joined -> Reward Paid.
+export const REFERRAL_REWARD_AMOUNT = 500;
+
 // Standard Specialization catalogs, by roadmap_track and the category name
 // each track's specialization items are grouped under. Only tracks with a
 // defined catalog here get the admin "Add Standard Specialization"

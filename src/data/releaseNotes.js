@@ -39,6 +39,12 @@ export const RELEASE_NOTES = [
             body: "30 real questions across every official exam domain, live in the app. Study Mode shows you the answer and explanation right away; Exam Mode holds it back until the end, just like the real thing. Finish one and your score logs itself straight into Exam Readiness — no more typing it in by hand.",
             where: 'Cert Calendar → your own booked exam → Take Practice Quiz',
           },
+          {
+            icon: '📋',
+            title: 'Core Foundations now sets itself up for you',
+            body: "Finish the Getting Started checklist and your Core Foundations certs (the standard 8) appear on My Roadmap automatically — no more waiting on a coach to add them by hand before you can start checking things off.",
+            where: 'My Roadmap',
+          },
         ],
       },
       {
@@ -50,6 +56,18 @@ export const RELEASE_NOTES = [
             title: "\"Yes I'm In\" now has an undo",
             body: "Changed your mind about the competition? Click the same button again and you're out. Your row and any progress already logged for you stay exactly as they were, so opting back in later picks up right where you left off instead of restarting at zero.",
             where: 'Competitions',
+          },
+        ],
+      },
+      {
+        label: 'Refer a Friend',
+        color: '#22d3ee',
+        items: [
+          {
+            icon: '🎁',
+            title: 'Refer a friend, earn R500',
+            body: "Know someone who'd be a good fit for Hacking Hub? Refer them, and once they join, R500 is yours. Your Referrals list shows exactly where each one stands — Pending, Reward Pending once they've joined, then paid.",
+            where: 'Members → Refer a Friend',
           },
         ],
       },

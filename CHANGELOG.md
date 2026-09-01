@@ -59,6 +59,24 @@ saved in their browser's `localStorage`.
   description is stored (public posting text, not personal data); CV
   text is not. Own weekly cap of 3, separate budget from CV review.
   (`056_interview_prep.sql`)
+- **Auto-assign Core Foundations** — `assign_my_core_foundations()`
+  gives a member the standard 8-item Core Foundations Certifications
+  catalog automatically the moment they finish the Getting Started
+  checklist, instead of waiting on an admin to click "Add Standard
+  Foundations" by hand. Re-checks completion server-side (never trusts
+  the client) and only inserts whichever titles are missing, so it's
+  safe to call repeatedly. Includes a one-time backfill for members who
+  already finished onboarding before this shipped. Appended to
+  `028_roadmap.sql` rather than a new migration file — same table, same
+  feature area.
+- **Refer a Friend, R500 reward** — `referrals.status` now tracks
+  `Pending → Joined → Reward Paid`, so the existing R500 referral
+  reward is something the portal actually backs up instead of just
+  stating. `REFERRAL_REWARD_AMOUNT` (`src/lib/memberOptions.js`) is the
+  single source of truth for the figure; admins move a referral's
+  status forward from the Referrals table, which a member sees
+  reflected on their own Refer a Friend list. No new RPC — reuses the
+  existing admin-only RLS policy. Appended to `039_referrals.sql`.
 
 ### Changed
 - **Meetings → More 1on1 Support**: the existing "Request a CV Review"

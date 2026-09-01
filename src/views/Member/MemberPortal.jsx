@@ -31,7 +31,7 @@ import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -91,6 +91,7 @@ import {
   Presentation,
   Lock,
   UserPlus,
+  Gift,
   MessageCircle,
   PlayCircle,
   ChevronDown,
@@ -1869,9 +1870,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Members</h1>
               <p>Everyone else in the Hacking Hub community — see who's around and what they're working on.</p>
             </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button className="btn btn-secondary" onClick={() => setShowReferForm(true)}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button className="btn btn-secondary" onClick={() => setShowReferForm(true)} style={{ position: 'relative' }}>
                 <UserPlus size={16} /> Refer a Friend
+                <span className="badge badge-success" style={{ fontSize: '0.65rem', marginLeft: '6px' }}>Earn R{REFERRAL_REWARD_AMOUNT}</span>
               </button>
               <button className="btn btn-primary" onClick={openEditProfile}>
                 <Pencil size={16} /> Edit My Profile
@@ -1914,16 +1916,29 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <UserPlus size={16} color="var(--accent-cyan)" /> Your Referrals
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {myReferrals.map((r) => (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
-                  <span style={{ fontWeight: 600 }}>{r.name}</span>
-                    {isSafeUrl(r.linkedin) && (
-                      <a href={r.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Link size={13} /> LinkedIn
-                      </a>
-                    )}
-                  </div>
-                ))}
+                {myReferrals.map((r) => {
+                  // Pending: no badge at all - a plain "still waiting" state
+                  // doesn't need visual weight. Joined and Reward Paid are
+                  // the two states actually worth calling out.
+                  const statusBadge = r.status === 'Reward Paid'
+                    ? { label: `R${REFERRAL_REWARD_AMOUNT} Paid`, cls: 'badge-success' }
+                    : r.status === 'Joined'
+                      ? { label: 'Reward Pending', cls: 'badge-warning' }
+                      : null;
+                  return (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                      <span style={{ fontWeight: 600 }}>{r.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {statusBadge && <span className={`badge ${statusBadge.cls}`} style={{ fontSize: '0.7rem' }}>{statusBadge.label}</span>}
+                        {isSafeUrl(r.linkedin) && (
+                          <a href={r.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Link size={13} /> LinkedIn
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2254,9 +2269,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>Refer a Friend</h2>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                   Know someone who'd be a good fit for Hacking Hub? Pass along their details and a coach will reach out.
                 </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', marginBottom: '20px', background: 'rgba(var(--success-rgb), 0.08)', border: '1px solid rgba(var(--success-rgb), 0.25)', borderRadius: 'var(--border-radius-sm)' }}>
+                  <Gift size={18} color="var(--success)" style={{ flexShrink: 0 }} />
+                  <p style={{ fontSize: '0.85rem', margin: 0 }}>
+                    <strong>Earn R{REFERRAL_REWARD_AMOUNT}</strong> — once your friend joins Hacking Hub, the reward is yours. Your Referrals list will show the status once they&apos;re in.
+                  </p>
+                </div>
                 <form onSubmit={handleSubmitReferral} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Full Name</label>

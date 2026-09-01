@@ -9,7 +9,7 @@ import { supabase } from './supabase';
 export async function fetchMyReferrals() {
   const { data, error } = await supabase
     .from('referrals')
-    .select('id, referred_name, referred_linkedin, referred_phone, created_at')
+    .select('id, referred_name, referred_linkedin, referred_phone, status, created_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -17,6 +17,7 @@ export async function fetchMyReferrals() {
     name: row.referred_name,
     linkedin: row.referred_linkedin,
     phone: row.referred_phone || '',
+    status: row.status || 'Pending',
     createdAt: row.created_at,
   }));
 }
@@ -49,7 +50,7 @@ export async function addReferral({ name, linkedin, phone, referrerEmail }) {
 export async function fetchAllReferrals() {
   const { data, error } = await supabase
     .from('referrals')
-    .select('id, referrer_email, referred_name, referred_linkedin, referred_phone, created_at')
+    .select('id, referrer_email, referred_name, referred_linkedin, referred_phone, status, created_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -58,6 +59,16 @@ export async function fetchAllReferrals() {
     name: row.referred_name,
     linkedin: row.referred_linkedin,
     phone: row.referred_phone || '',
+    status: row.status || 'Pending',
     createdAt: row.created_at,
   }));
+}
+
+/** Admin-only: move a referral through Pending -> Joined -> Reward Paid.
+ * No RPC needed - the existing "admins manage referrals" RLS policy (FOR
+ * ALL, is_admin()) already covers this write, and there's no member-facing
+ * path that touches status at all. */
+export async function updateReferralStatus(id, status) {
+  const { error } = await supabase.from('referrals').update({ status }).eq('id', id);
+  if (error) throw error;
 }

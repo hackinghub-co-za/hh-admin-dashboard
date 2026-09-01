@@ -14,7 +14,7 @@ import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 // payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
 // the real file has been removed and purged from git history entirely.
 import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -29,7 +29,7 @@ import {
   grantMemberPortalAccess,
 } from '../../lib/memberData';
 import { fetchReviews } from '../../lib/reviewsData';
-import { fetchAllReferrals } from '../../lib/referralsData';
+import { fetchAllReferrals, updateReferralStatus } from '../../lib/referralsData';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
@@ -548,7 +548,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     // real name - has to be one of that fixture's fake "Demo Member N"
     // emails, not a real member's, both so it actually resolves to a name
     // and so no real person's email sits in tracked demo/mock code.
-    { id: 1, referrerEmail: 'demo.member1@example.com', name: 'Nomvula Radebe', linkedin: 'https://www.linkedin.com/in/example', phone: '071 234 5678', createdAt: '2026-08-15T00:00:00Z' },
+    { id: 1, referrerEmail: 'demo.member1@example.com', name: 'Nomvula Radebe', linkedin: 'https://www.linkedin.com/in/example', phone: '071 234 5678', status: 'Pending', createdAt: '2026-08-15T00:00:00Z' },
   ] : []);
   const [loadingReferrals, setLoadingReferrals] = useState(!isMockSession);
   const [referralsError, setReferralsError] = useState(null);
@@ -562,6 +562,26 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
       .finally(() => !cancelled && setLoadingReferrals(false));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
+
+  // Moves a referral through Pending -> Joined -> Reward Paid. Same
+  // no-mock-branch precedent already established for this exact feature
+  // (the section already discloses "referrals only load for a real
+  // signed-in session" under Mock Admin) - handleApproveEvent doesn't
+  // branch for isMockSession either, so this doesn't either.
+  const [updatingReferralId, setUpdatingReferralId] = useState(null);
+
+  const handleUpdateReferralStatus = async (referralId, status) => {
+    setUpdatingReferralId(referralId);
+    setReferralsError(null);
+    try {
+      await updateReferralStatus(referralId, status);
+      setReferrals((prev) => prev.map((r) => (r.id === referralId ? { ...r, status } : r)));
+    } catch (err) {
+      setReferralsError(friendlyErrorMessage(err));
+    } finally {
+      setUpdatingReferralId(null);
+    }
+  };
 
   // Members added by hand (no PayFast payment yet) - kept separate from the
   // payment-derived roster and merged in for display.
@@ -2194,6 +2214,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                     <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>LinkedIn</th>
                     <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Phone</th>
                     <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Date</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Status (R{REFERRAL_REWARD_AMOUNT} reward)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2215,6 +2236,19 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                         </td>
                         <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{r.phone || '—'}</td>
                         <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{formatDate(r.createdAt)}</td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <select
+                            className="form-input"
+                            value={r.status || 'Pending'}
+                            disabled={updatingReferralId === r.id}
+                            onChange={(e) => handleUpdateReferralStatus(r.id, e.target.value)}
+                            style={{ fontSize: '0.8rem', padding: '6px 8px', width: 'auto' }}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Joined">Joined</option>
+                            <option value="Reward Paid">Reward Paid</option>
+                          </select>
+                        </td>
                       </tr>
                     );
                   })}
