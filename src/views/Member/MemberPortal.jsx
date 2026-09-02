@@ -3317,6 +3317,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             </div>
           </div>
+
+          {showCvReview && !isMockSession && (
+            <CvReviewModal onClose={() => setShowCvReview(false)} />
+          )}
+
+          {showInterviewPrep && !isMockSession && (
+            <InterviewPrepModal onClose={() => setShowInterviewPrep(false)} />
+          )}
         </div>
       );
     }
@@ -3958,6 +3966,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showLinkedInPlaybook && <LinkedInPlaybookModal onClose={() => setShowLinkedInPlaybook(false)} />}
           {showSecurityPlusGuide && <SecurityPlusGuideModal onClose={() => setShowSecurityPlusGuide(false)} />}
+          {showCvReview && !isMockSession && (
+            <CvReviewModal onClose={() => setShowCvReview(false)} />
+          )}
         </div>
       );
 
@@ -4115,14 +4126,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               onScoreLogged={(score) => handleQuizScoreLogged(showQuizCert, score)}
               onClose={() => setShowQuizCert(null)}
             />
-          )}
-
-          {showCvReview && !isMockSession && (
-            <CvReviewModal onClose={() => setShowCvReview(false)} />
-          )}
-
-          {showInterviewPrep && !isMockSession && (
-            <InterviewPrepModal onClose={() => setShowInterviewPrep(false)} />
           )}
 
           {showAddCertForm && (
