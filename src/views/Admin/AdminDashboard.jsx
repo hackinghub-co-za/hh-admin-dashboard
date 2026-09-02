@@ -43,7 +43,7 @@ import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, 
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent } from '../../lib/eventsData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
-import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, deleteGroup } from '../../lib/matchmakerData';
+import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
@@ -416,11 +416,13 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       }
       const shuffled = [...optinPool].sort(() => Math.random() - 0.5);
       const numGroups = Math.ceil(shuffled.length / 4);
+      const mockDueDate = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const newGroups = Array.from({ length: numGroups }, (_, i) => ({
         id: Date.now() + i,
         activityType: Math.random() < 0.5 ? 'Project' : 'Presentation',
         memberEmails: shuffled.filter((_, idx) => idx % numGroups === i),
         status: 'Active',
+        dueDate: mockDueDate,
       }));
       setGroups([...newGroups, ...groups]);
       setOptinPool([]);
@@ -442,6 +444,18 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     if (!isMockSession) {
       try {
         await updateGroupStatus(group.id, status);
+      } catch (err) {
+        setMatchmakerError(friendlyErrorMessage(err));
+        setGroups(groups.map((g) => (g.id === group.id ? group : g)));
+      }
+    }
+  };
+
+  const handleUpdateGroupDueDate = async (group, dueDate) => {
+    setGroups(groups.map((g) => (g.id === group.id ? { ...g, dueDate } : g)));
+    if (!isMockSession) {
+      try {
+        await updateGroupDueDate(group.id, dueDate);
       } catch (err) {
         setMatchmakerError(friendlyErrorMessage(err));
         setGroups(groups.map((g) => (g.id === group.id ? group : g)));
@@ -3061,6 +3075,16 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                   <ul style={{ margin: '0 0 14px', paddingLeft: '18px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
                     {group.memberEmails.map((email) => <li key={email}>{nameForEmail(email)}</li>)}
                   </ul>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', flexShrink: 0 }}>Due:</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      style={{ fontSize: '0.78rem', padding: '5px 8px' }}
+                      value={group.dueDate || ''}
+                      onChange={(e) => handleUpdateGroupDueDate(group, e.target.value)}
+                    />
+                  </div>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
                     <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleUpdateGroupStatus(group, 'Completed')}>
                       <CheckCircle size={13} /> Mark Completed

@@ -13,6 +13,7 @@ function mapGroupRow(row) {
     activityType: row.activity_type,
     memberEmails: row.member_emails || [],
     status: row.status,
+    dueDate: row.due_date,
   };
 }
 
@@ -39,7 +40,7 @@ export async function leaveOptinPool(email) {
 export async function fetchMyGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status')
+    .select('id, activity_type, member_emails, status, due_date')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
@@ -49,7 +50,7 @@ export async function fetchMyGroups() {
 export async function fetchAllGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status')
+    .select('id, activity_type, member_emails, status, due_date')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
@@ -66,6 +67,12 @@ export async function runMatchmakerRound() {
 /** Admin: mark a group Completed (or back to Active). */
 export async function updateGroupStatus(id, status) {
   const { error } = await supabase.from('matchmaker_groups').update({ status }).eq('id', id);
+  if (error) throw error;
+}
+
+/** Admin: change when a group's project/presentation is due. */
+export async function updateGroupDueDate(id, dueDate) {
+  const { error } = await supabase.from('matchmaker_groups').update({ due_date: dueDate || null }).eq('id', id);
   if (error) throw error;
 }
 

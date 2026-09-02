@@ -2547,6 +2547,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <li key={email}>{nameForEmail(email)}</li>
                 ))}
               </ul>
+              {activeGroup.dueDate && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
+                  <CalendarDays size={14} /> Due {formatDate(activeGroup.dueDate)}
+                </div>
+              )}
             </div>
           ) : (
             <div className="glass-card" style={{ textAlign: 'center', padding: '40px 24px' }}>

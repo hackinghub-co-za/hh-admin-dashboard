@@ -74,6 +74,17 @@ export const ROADMAP_ITEM_LINKS = {
   'AZ-900': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-fundamentals/?practice-assessment-type=certification',
   'AI-901': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-fundamentals/',
   'SC-900': 'https://learn.microsoft.com/en-us/credentials/certifications/security-compliance-and-identity-fundamentals/?practice-assessment-type=certification',
+  // IAM specialization (SPECIALIZATION_CATALOGS.IAM below)
+  'SC-300': 'https://learn.microsoft.com/en-us/credentials/certifications/identity-and-access-administrator/',
+  'THM Active Directory Basics': 'https://tryhackme.com/room/winadbasics',
+  'Okta Certified Professional': 'https://certification.okta.com/',
+  'CyberArk Defender': 'https://www.credly.com/org/cyberark/badge/cyberark-defender-privileged-access-management-pam',
+  'SailPoint Certified Identity Security Administrator': 'https://university.sailpoint.com/sailpoint-certified-identity-security-administrator',
+  // AI Security specialization (SPECIALIZATION_CATALOGS['AI Security'] below)
+  'AI-103': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-apps-and-agents-developer-associate/',
+  'CompTIA SecAI+': 'https://www.comptia.org/en/certifications/secai/',
+  'OWASP Top 10 for LLM Applications': 'https://genai.owasp.org/initiatives/top-10-for-llm-and-genai/',
+  'THM AI Security': 'https://tryhackme.com/paths',
 };
 
 // A member only sees their Specialization section once they've completed
@@ -150,6 +161,25 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'ISACA CRISC', defaultDetail: '' },
       { title: 'POPIA/GDPR Practitioner', defaultDetail: '' },
       { title: 'ITIL 4 Foundation', defaultDetail: '' },
+    ],
+  },
+  IAM: {
+    category: 'IAM',
+    items: [
+      { title: 'SC-300', defaultDetail: '' },
+      { title: 'THM Active Directory Basics', defaultDetail: '' },
+      { title: 'Okta Certified Professional', defaultDetail: '' },
+      { title: 'CyberArk Defender', defaultDetail: '' },
+      { title: 'SailPoint Certified Identity Security Administrator', defaultDetail: '' },
+    ],
+  },
+  'AI Security': {
+    category: 'AI Security',
+    items: [
+      { title: 'AI-103', defaultDetail: '' },
+      { title: 'CompTIA SecAI+', defaultDetail: '' },
+      { title: 'OWASP Top 10 for LLM Applications', defaultDetail: '' },
+      { title: 'THM AI Security', defaultDetail: '' },
     ],
   },
 };

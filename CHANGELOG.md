@@ -18,6 +18,50 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.02
+
+### Added
+- **Focus 5, made real** — the admin Dashboard's "Focus 5" (the members
+  getting the most coaching attention this month) is now backed by a
+  real, editable table instead of a hardcoded array of five names. An
+  Edit toggle on the card lets an admin search the real roster and
+  add/remove members (capped at 5); clicking a name in view mode jumps
+  straight to that member's Roadmap. (`038_focus_five.sql`)
+- **Expenses by Month chart** — a second bar chart under Gross Revenue
+  Trend, stacked by category with a distinct color per category and the
+  monthly total rendered above each bar (plain overlay divs, not
+  Recharts' `LabelList` — proved unreliable for an all-zero stacked
+  segment). `Coach / Mentor Pay` renamed to `Staff` (broader — covers
+  non-coaching staff pay too). (`037_expenses.sql`)
+- **"Open Link / Resource" on roadmap checklist items** — Core
+  Foundations items with a real external course/exam link (CISCO
+  Junior Cyber Pathway, Immersive Labs, both TryHackMe paths, AZ-900,
+  AI-901, SC-900) now show a direct link button on both My Roadmap and
+  the admin Roadmaps tab. CompTIA Security+ opens the existing in-app
+  Study Guide modal instead, since it has no single external URL.
+  Title-keyed (`ROADMAP_ITEM_LINKS` in `src/lib/memberOptions.js`), so
+  it applies to any matching item regardless of when it was assigned.
+- **IAM and AI Security specialization catalogs** — these two roadmap
+  tracks previously had no defined `SPECIALIZATION_CATALOGS` entry, so
+  assigning a member to either meant building their checklist item by
+  item with no "Add Standard Specialization" quick-fill. IAM: SC-300,
+  THM Active Directory Basics, Okta Certified Professional, CyberArk
+  Defender, SailPoint Certified Identity Security Administrator. AI
+  Security: AI-103, CompTIA SecAI+, OWASP Top 10 for LLM Applications,
+  THM AI Security. Both wired into `ROADMAP_ITEM_LINKS` too.
+
+### Fixed
+- **CV Review and Interview Prep modals never opened** — the modal
+  render blocks (`showCvReview`/`showInterviewPrep`) were sitting
+  inside `case 'certs':` of the member portal's tab-switch statement,
+  while their trigger buttons live on the Meetings and Resources tabs.
+  Since only one `case` renders per tab, clicking the trigger silently
+  did nothing — no error, no network request, because the code path
+  that would render the modal never ran. Moved each modal's render
+  block into the same `case` as its trigger(s). No backend change was
+  needed; `gemma-review`/`gemma-interview-prep` and their migrations
+  were fine all along.
+
 ## 2026.09.01
 
 ### Added

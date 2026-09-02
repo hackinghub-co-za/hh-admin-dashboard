@@ -64,8 +64,17 @@ CREATE TABLE IF NOT EXISTS public.matchmaker_groups (
   activity_type TEXT NOT NULL CHECK (activity_type IN ('Project', 'Presentation')),
   member_emails TEXT[] NOT NULL CHECK (array_length(member_emails, 1) BETWEEN 2 AND 4),
   status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Completed')),
+  -- How long a group has to actually present, per this project's stated
+  -- norm of 3-4 weeks from the round that formed them. run_matchmaker_round()
+  -- below defaults every new group to 3 weeks out; an admin can freely move
+  -- it later (e.g. out to the full 4 weeks) from the Matchmaker tab.
+  due_date DATE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Adds due_date to a database where this table already existed - the inline
+-- column above only takes effect on a fresh CREATE TABLE.
+ALTER TABLE public.matchmaker_groups ADD COLUMN IF NOT EXISTS due_date DATE;
 
 ALTER TABLE public.matchmaker_groups ENABLE ROW LEVEL SECURITY;
 
@@ -121,10 +130,11 @@ BEGIN
     GROUP BY grp
   ),
   inserted AS (
-    INSERT INTO public.matchmaker_groups (activity_type, member_emails)
+    INSERT INTO public.matchmaker_groups (activity_type, member_emails, due_date)
     SELECT
       CASE WHEN random() < 0.5 THEN 'Project' ELSE 'Presentation' END,
-      emails
+      emails,
+      (timezone('utc'::text, now())::date + 21)
     FROM grouped
     RETURNING id
   )

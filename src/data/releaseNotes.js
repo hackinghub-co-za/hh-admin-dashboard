@@ -6,6 +6,38 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.02',
+    date: '2026-09-02',
+    headline: 'Your Roadmap now links straight to the source.',
+    intro: "Core Foundations items with a real course or exam now link directly to it, and CV Review / Interview Prep are working properly again.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🔗',
+            title: 'Open Link / Resource on your Roadmap',
+            body: "CISCO Junior Cyber Pathway, Immersive Labs, both TryHackMe paths, AZ-900, AI-901, and SC-900 now show a direct link to the real course or exam page — no more hunting for it yourself. CompTIA Security+ opens the existing in-app Study Guide instead.",
+            where: 'My Roadmap',
+          },
+        ],
+      },
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '🛠️',
+            title: 'CV Review and Interview Prep are working again',
+            body: "Both AI tools from last week weren't actually opening for everyone — that's fixed now. Paste your CV/LinkedIn or a job description and give them another go.",
+            where: '1on1 Meetings → More 1on1 Support',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.01',
     date: '2026-09-01',
     headline: "Gemma just got a lot more useful.",
