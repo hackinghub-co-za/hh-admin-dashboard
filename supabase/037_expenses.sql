@@ -12,7 +12,7 @@
 
 CREATE TABLE IF NOT EXISTS public.expenses (
   id BIGSERIAL PRIMARY KEY,
-  category TEXT NOT NULL CHECK (category IN ('Tools & Software', 'Coach / Mentor Pay', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other')),
+  category TEXT NOT NULL CHECK (category IN ('Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other')),
   description TEXT NOT NULL,
   amount NUMERIC NOT NULL,
   expense_date DATE NOT NULL,
@@ -26,3 +26,14 @@ DROP POLICY IF EXISTS "admins manage expenses" ON public.expenses;
 CREATE POLICY "admins manage expenses"
   ON public.expenses FOR ALL
   USING (public.is_admin(auth.uid()));
+
+-- Renamed 'Coach / Mentor Pay' -> 'Staff' - broader and more accurate,
+-- since this category also covers non-coaching staff pay, not just
+-- mentors. Existing rows renamed first, then the constraint updated to
+-- match - doing it in the other order would leave already-existing
+-- 'Coach / Mentor Pay' rows violating the new constraint.
+UPDATE public.expenses SET category = 'Staff' WHERE category = 'Coach / Mentor Pay';
+
+ALTER TABLE public.expenses DROP CONSTRAINT IF EXISTS expenses_category_check;
+ALTER TABLE public.expenses ADD CONSTRAINT expenses_category_check
+  CHECK (category IN ('Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other'));

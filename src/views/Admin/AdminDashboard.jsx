@@ -14,7 +14,7 @@ import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 // payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
 // the real file has been removed and purged from git history entirely.
 import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -34,6 +34,7 @@ import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
+import { fetchFocusFive, addToFocusFive, removeFromFocusFive } from '../../lib/focusFiveData';
 import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
@@ -87,9 +88,33 @@ import {
   Activity,
   LayoutGrid,
 } from 'lucide-react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
-export default function AdminDashboard({ activeTab, providerToken, isMockSession, user }) {
+// Focus 5 - the members getting the most attention this month, now backed
+// by supabase/038_focus_five.sql instead of a hardcoded list. Mock Admin
+// has no real session, so it gets a small local-only seed instead - these
+// don't match anyone in the mock roster (same as before), but the Edit
+// panel still works against local state so the mock demo isn't broken.
+const MOCK_FOCUS_FIVE = ['elrico', 'olungaka', 'lubabalo', 'inam', 'louisa'].map((name) => ({
+  id: name,
+  memberEmail: `${name}@example.com`,
+}));
+
+// One color per expense category, for the "Expenses by Category" bar chart
+// on the Dashboard tab - kept here rather than inline so it stays in sync
+// with EXPENSE_CATEGORIES (defined further down, inside the component,
+// alongside the rest of the expenses state) without needing to be
+// recomputed per render.
+const EXPENSE_CATEGORY_COLORS = {
+  'Tools & Software': 'var(--accent-cyan)',
+  Staff: 'var(--accent-purple)',
+  Marketing: 'var(--warning)',
+  'Hosting / Infrastructure': 'var(--info)',
+  Events: '#f472b6',
+  Other: 'var(--text-muted)',
+};
+
+export default function AdminDashboard({ activeTab, setActiveTab, providerToken, isMockSession, user }) {
   // Bumped by the "Refresh" button on the Admin Overview tab - added to every
   // data-fetching useEffect's dependency array below so a click re-runs all
   // of them. Nothing here is live/polling otherwise: every tab's data is a
@@ -780,7 +805,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   // (no member-facing equivalent, unlike Cert Calendar). Mock Admin has no
   // Supabase session, so it starts with a small local demo set instead.
   const [expenses, setExpenses] = useState(isMockSession ? [
-    { id: 1, category: 'Coach / Mentor Pay', description: 'Siya - August coaching hours', amount: 4500, date: '2026-08-01' },
+    { id: 1, category: 'Staff', description: 'Siya - August coaching hours', amount: 4500, date: '2026-08-01' },
     { id: 2, category: 'Hosting / Infrastructure', description: 'Supabase Pro plan', amount: 450, date: '2026-08-03' },
     { id: 3, category: 'Tools & Software', description: 'Notion team seats', amount: 320, date: '2026-08-05' },
   ] : []);
@@ -797,7 +822,7 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
-  const EXPENSE_CATEGORIES = ['Tools & Software', 'Coach / Mentor Pay', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other'];
+  const EXPENSE_CATEGORIES = ['Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other'];
   const [newExpense, setNewExpense] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
 
   const handleAddExpense = async (e) => {
@@ -855,6 +880,57 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
         setExpenses((prev) => [...prev, expense]);
       }
     }
+  };
+
+  // Focus 5 - see supabase/038_focus_five.sql / src/lib/focusFiveData.js.
+  const FOCUS_FIVE_MAX = 5;
+  const [focusFive, setFocusFive] = useState(isMockSession ? MOCK_FOCUS_FIVE : []);
+  const [loadingFocusFive, setLoadingFocusFive] = useState(!isMockSession);
+  const [focusFiveError, setFocusFiveError] = useState(null);
+  const [editingFocusFive, setEditingFocusFive] = useState(false);
+  const [focusFiveSearch, setFocusFiveSearch] = useState('');
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchFocusFive()
+      .then((data) => !cancelled && setFocusFive(data))
+      .catch((err) => !cancelled && setFocusFiveError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingFocusFive(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleAddToFocusFive = async (email) => {
+    if (focusFive.length >= FOCUS_FIVE_MAX || focusFive.some((f) => f.memberEmail.toLowerCase() === email.toLowerCase())) return;
+    const optimistic = { id: email, memberEmail: email.toLowerCase(), addedAt: new Date().toISOString() };
+    setFocusFive([...focusFive, optimistic]);
+    if (isMockSession) return;
+    try {
+      await addToFocusFive(email);
+    } catch (err) {
+      setFocusFiveError(friendlyErrorMessage(err));
+      setFocusFive((prev) => prev.filter((f) => f.memberEmail.toLowerCase() !== email.toLowerCase()));
+    }
+  };
+
+  const handleRemoveFromFocusFive = async (email) => {
+    const previous = focusFive;
+    setFocusFive(focusFive.filter((f) => f.memberEmail.toLowerCase() !== email.toLowerCase()));
+    if (isMockSession) return;
+    try {
+      await removeFromFocusFive(email);
+    } catch (err) {
+      setFocusFiveError(friendlyErrorMessage(err));
+      setFocusFive(previous);
+    }
+  };
+
+  // Jumps straight to a member's roadmap from anywhere in this component
+  // (Focus 5's own card) - mirrors exactly what clicking a row in the
+  // Roadmaps tab's own member picker does.
+  const jumpToMemberRoadmap = (email) => {
+    loadRoadmapForMember(email);
+    setActiveTab('roadmaps');
   };
 
   // Community Broadcast & Recent Wins - the Dashboard content admins curate,
@@ -1363,9 +1439,6 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
   const repeatPayerCount = Object.values(paymentCountsByEmail).filter(n => n > 1).length;
   const repeatPaymentRate = allTimeMemberEmails.size ? (repeatPayerCount / allTimeMemberEmails.size) * 100 : 0;
 
-  // Refunded transactions (Funds Received Reversals)
-  const refundCount = payments.filter(p => p.type === 'Funds Received (Reversal)').length;
-
   // Monthly gross revenue trend, split by funding source, computed directly
   // from the transaction history (PayFast card payments vs. manually-recorded
   // EFT bank transfers).
@@ -1628,7 +1701,11 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
 
           {/* Quick Info Sections */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginTop: '32px' }}>
-            {/* Quick Chart */}
+            {/* Quick Chart + Expenses by Category, stacked in the same
+                (wider) grid column so both live directly under each other
+                without disturbing the Administrative Alerts card's own
+                column to the right. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                 <h3 style={{ margin: 0 }}>Gross Revenue Trend (ZAR)</h3>
@@ -1735,23 +1812,237 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
               </div>
             </div>
 
-            {/* Quick Tasks/Pending */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h3>Administrative Alerts</h3>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                <AlertTriangle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Refunded Transactions</div>
-                  <p style={{ fontSize: '0.8rem' }}>{refundCount} refund{refundCount === 1 ? '' : 's'} recorded since Jan 2026.</p>
+            {/* Expenses by Month - same card treatment and same months as
+                the Gross Revenue chart above it, one stacked bar per month
+                (one segment per category, each its own
+                EXPENSE_CATEGORY_COLORS color) so both charts read as a
+                matched pair. */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <h3 style={{ margin: 0 }}>Expenses by Month (ZAR)</h3>
+                <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                  {EXPENSE_CATEGORIES.filter((c) => expenses.some((x) => x.category === c)).map((c) => (
+                    <div key={c} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: EXPENSE_CATEGORY_COLORS[c], display: 'inline-block', flexShrink: 0 }} />
+                      {c}
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                <CheckCircle size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Certs cohort synced</div>
-                  <p style={{ fontSize: '0.8rem' }}>OSCP cohort data updated successfully.</p>
+              {expenses.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No expenses logged yet - add one on the Finances tab.</p>
+              ) : (() => {
+                // Same months as revenueTrendMonths above, so the two
+                // charts line up side by side as a matched pair.
+                const monthlyExpenseData = revenueTrendMonths.map((month) => {
+                  const monthExpenses = expenses.filter((x) => x.date?.startsWith(month));
+                  const row = { month, label: new Date(`${month}-01`).toLocaleDateString('en-ZA', { month: 'short' }) };
+                  EXPENSE_CATEGORIES.forEach((category) => {
+                    row[category] = monthExpenses.filter((x) => x.category === category).reduce((sum, x) => sum + Number(x.amount), 0);
+                  });
+                  row.total = EXPENSE_CATEGORIES.reduce((sum, category) => sum + row[category], 0);
+                  return row;
+                });
+
+                const formatTotalLabel = (value) => (value > 0 ? `R${Math.round(value).toLocaleString('en-ZA')}` : 'R 0');
+
+                // Recharts' own LabelList turned out unreliable here - it
+                // silently renders nothing for a stacked bar whenever the
+                // specific category it's attached to is 0 that month (the
+                // real, common case for a catch-all category like "Other"),
+                // confirmed by inspecting the actual rendered SVG. Rendering
+                // the totals as a plain flex row directly above the chart -
+                // exactly how the Gross Revenue chart above already does
+                // it, no chart library involved - sidesteps that entirely
+                // and always shows every month's real total.
+                return (
+                  <div>
+                    <div style={{ display: 'flex', paddingLeft: '44px' }}>
+                      {monthlyExpenseData.map((m) => (
+                        <div key={m.month} style={{ flex: 1, textAlign: 'center', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {formatTotalLabel(m.total)}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ width: '100%', height: 200 }}>
+                      <ResponsiveContainer>
+                        <BarChart data={monthlyExpenseData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                          <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--border-color)' }} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--border-color)' }} tickLine={false} width={44} tickFormatter={(v) => `R${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} />
+                          <Tooltip
+                            formatter={(value, name) => [`R ${Number(value).toLocaleString('en-ZA')}`, name]}
+                            contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.8rem' }}
+                            labelStyle={{ color: 'var(--text-primary)' }}
+                          />
+                          {EXPENSE_CATEGORIES.map((category, i) => (
+                            <Bar
+                              key={category}
+                              dataKey={category}
+                              stackId="expenses"
+                              fill={EXPENSE_CATEGORY_COLORS[category] || 'var(--text-muted)'}
+                              radius={i === EXPENSE_CATEGORIES.length - 1 ? [4, 4, 0, 0] : 0}
+                              isAnimationActive={false}
+                            />
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            </div>
+
+            {/* Focus 5 - editable (supabase/038_focus_five.sql), matched
+                against the real roster by email. Click a name to jump
+                straight to their Roadmap. */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Star size={18} color="var(--warning)" />
+                  <h3 style={{ margin: 0 }}>Focus 5</h3>
                 </div>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                  onClick={() => { setEditingFocusFive((v) => !v); setFocusFiveSearch(''); }}
+                >
+                  <Pencil size={12} /> {editingFocusFive ? 'Done' : 'Edit'}
+                </button>
               </div>
+              <p style={{ fontSize: '0.8rem', margin: 0 }}>The {FOCUS_FIVE_MAX} members getting the most attention this month.</p>
+              {focusFiveError && <p style={{ fontSize: '0.78rem', color: 'var(--danger)', margin: 0 }}>{focusFiveError}</p>}
+
+              {!editingFocusFive ? (
+                loadingFocusFive ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Loading...</p>
+                ) : focusFive.length === 0 ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Nobody's on the list yet - click Edit to add up to {FOCUS_FIVE_MAX} members.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {focusFive.map((f) => {
+                      const match = memberRoster.find((m) => m.email.toLowerCase() === f.memberEmail.toLowerCase());
+                      const displayName = match?.member || f.memberEmail;
+                      const initials = displayName.split(' ').map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => match && jumpToMemberRoadmap(match.email)}
+                          disabled={!match}
+                          className={match ? 'hover-glow' : undefined}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '10px',
+                            background: 'transparent',
+                            border: 'none',
+                            padding: 0,
+                            textAlign: 'left',
+                            cursor: match ? 'pointer' : 'default',
+                            width: '100%',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: '0.72rem',
+                              color: 'var(--accent-ink)',
+                              flexShrink: 0,
+                              marginTop: '2px',
+                            }}
+                          >
+                            {initials}
+                          </div>
+                          <div style={{ overflow: 'hidden', flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{displayName}</div>
+                            {match ? (
+                              <>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '5px' }}>
+                                  <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>
+                                    {match.profile?.specialty && match.profile.specialty !== 'Not Set' ? match.profile.specialty : 'Specialty not set'}
+                                  </span>
+                                  <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>
+                                    {match.profile?.jobReadiness || 'Not Started'}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '5px' }}>
+                                  Last 1on1: {match.lastMeetingDate ? formatDate(match.lastMeetingDate) : '—'}
+                                </div>
+                              </>
+                            ) : (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '5px' }}>No longer in the roster</div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {focusFive.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {focusFive.map((f) => {
+                        const match = memberRoster.find((m) => m.email.toLowerCase() === f.memberEmail.toLowerCase());
+                        return (
+                          <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 10px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)' }}>
+                            <span style={{ fontSize: '0.82rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{match?.member || f.memberEmail}</span>
+                            <button onClick={() => handleRemoveFromFocusFive(f.memberEmail)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
+                              <X size={14} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {focusFive.length >= FOCUS_FIVE_MAX ? (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Focus 5 is full - remove someone to add another.</p>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '8px 10px' }}>
+                        <Search size={14} color="var(--text-muted)" />
+                        <input
+                          type="text"
+                          placeholder="Search members to add..."
+                          value={focusFiveSearch}
+                          onChange={(e) => setFocusFiveSearch(e.target.value)}
+                          style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.82rem', width: '100%' }}
+                        />
+                      </div>
+                      {focusFiveSearch.trim() && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto' }}>
+                          {memberRoster
+                            .filter((m) =>
+                              !focusFive.some((f) => f.memberEmail.toLowerCase() === m.email.toLowerCase()) &&
+                              (m.member.toLowerCase().includes(focusFiveSearch.toLowerCase()) || m.email.toLowerCase().includes(focusFiveSearch.toLowerCase()))
+                            )
+                            .slice(0, 8)
+                            .map((m) => (
+                              <button
+                                key={m.email}
+                                className="hover-glow"
+                                onClick={() => { handleAddToFocusFive(m.email); setFocusFiveSearch(''); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem', textAlign: 'left' }}
+                              >
+                                <UserPlus size={13} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{m.member} <span style={{ color: 'var(--text-muted)' }}>· {m.email}</span></span>
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2575,6 +2866,17 @@ export default function AdminDashboard({ activeTab, providerToken, isMockSession
                                               </div>
                                             )}
                                           </div>
+                                          {ROADMAP_ITEM_LINKS[item.title] && (
+                                            <a
+                                              href={ROADMAP_ITEM_LINKS[item.title]}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="btn btn-secondary"
+                                              style={{ fontSize: '0.72rem', padding: '5px 9px', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', flexShrink: 0 }}
+                                            >
+                                              <ExternalLink size={12} /> Open Link / Resource
+                                            </a>
+                                          )}
                                           <button onClick={() => startEditRoadmapItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }} aria-label="Edit item">
                                             <Pencil size={15} />
                                           </button>

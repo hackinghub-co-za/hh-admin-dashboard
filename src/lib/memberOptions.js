@@ -35,7 +35,7 @@ export const OFFBOARDING_REASONS = [
   'Other',
 ];
 export const EMPLOYMENT_STATUSES = ['Not Set', 'Employed', 'Unemployed', 'Student'];
-export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Permanent Access', 'Custom Plan', 'Maintenance Fee'];
+export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Operative', 'Permanent Access', 'Custom Plan', 'Maintenance Fee'];
 
 // The learning path a coach assigns a member to - drives which checklist shows
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
@@ -59,6 +59,22 @@ export const CORE_FOUNDATIONS_CATALOG = [
   { title: 'CompTIA Security+', defaultDetail: '' },
 ];
 export const CORE_FOUNDATIONS_MIN_REQUIRED = 4;
+
+// External course links for select Core Foundations catalog items, shown as
+// an "Open Link / Resource" action wherever a roadmap checklist renders
+// (My Roadmap, and the admin Roadmaps tab). Keyed by title so it applies to
+// any existing roadmap_items row matching a catalog title, not just newly
+// auto-assigned ones. Same URLs already used for these in the Resources tab
+// (supabase/026_resources.sql) rather than new ones.
+export const ROADMAP_ITEM_LINKS = {
+  'CISCO Junior Cyber Pathway': 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US',
+  'Immersive Labs': 'https://www.immersivelabs.com/resources/cybermillion',
+  'TryHackMe Pre-Security': 'https://tryhackme.com/paths',
+  'TryHackMe Cyber 101': 'https://tryhackme.com/paths',
+  'AZ-900': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-fundamentals/?practice-assessment-type=certification',
+  'AI-901': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-fundamentals/',
+  'SC-900': 'https://learn.microsoft.com/en-us/credentials/certifications/security-compliance-and-identity-fundamentals/?practice-assessment-type=certification',
+};
 
 // A member only sees their Specialization section once they've completed
 // this many Core Foundations certs - a higher bar than

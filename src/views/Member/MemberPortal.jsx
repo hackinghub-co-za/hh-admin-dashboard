@@ -31,7 +31,7 @@ import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -2447,6 +2447,31 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       className="form-input"
                                       style={{ fontSize: '0.75rem', padding: '5px 8px', width: '140px' }}
                                     />
+                                    {ROADMAP_ITEM_LINKS[item.title] ? (
+                                      <a
+                                        href={ROADMAP_ITEM_LINKS[item.title]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="btn btn-secondary"
+                                        style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none' }}
+                                      >
+                                        <ExternalLink size={12} /> Open Link / Resource
+                                      </a>
+                                    ) : item.title === 'CompTIA Security+' && (
+                                      // No plain URL for this one - it's an in-app guide
+                                      // (IN_APP_ARTICLE_RESOURCES above), same one the
+                                      // Resources tab's "CompTIA Security+ Study Guide"
+                                      // card opens, so this jumps there and opens it.
+                                      <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setActiveTab('resources'); setShowSecurityPlusGuide(true); }}
+                                        className="btn btn-secondary"
+                                        style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                      >
+                                        <ExternalLink size={12} /> Open Link / Resource
+                                      </button>
+                                    )}
                                   </div>
                                 ) : (
                                   item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>
