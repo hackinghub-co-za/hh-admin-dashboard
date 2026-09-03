@@ -40,7 +40,8 @@ import {
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
 } from '../../lib/communityContentData';
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
-import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent } from '../../lib/eventsData';
+import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent } from '../../lib/eventsData';
+import { fetchJobBoard, addJobListing, deleteJobListing } from '../../lib/jobBoardData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
@@ -896,6 +897,67 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
   };
 
+  // Admin-side Job Board management - job_board previously had no admin UI
+  // at all (members self-submit, listings go live immediately, no
+  // moderation step - see 025_job_board.sql). This lets an admin post one
+  // directly too, e.g. copying in a role that came in via the "share a
+  // link" submission form instead of through a member's own portal login.
+  // Reuses the exact same fetch/add functions the member Job Board tab
+  // already calls (RLS already grants admins full CRUD, "admins manage job
+  // board"), plus a new deleteJobListing (jobBoardData.js) since nothing on
+  // the member side ever needed to delete a listing before.
+  const JOB_TYPES = ['Full-Time', 'Contract', 'Internship'];
+  const [jobListings, setJobListings] = useState(isMockSession ? [
+    { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts and triaging incidents.', tags: ['Blue Team', 'Entry Level'], link: '', posted: '2026-08-01' },
+  ] : []);
+  const [loadingJobListings, setLoadingJobListings] = useState(!isMockSession);
+  const [jobListingsError, setJobListingsError] = useState(null);
+  const [showAddJobForm, setShowAddJobForm] = useState(false);
+  const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: JOB_TYPES[0], salary: '', description: '', tags: '', link: '' });
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchJobBoard()
+      .then((data) => !cancelled && setJobListings(data))
+      .catch((err) => !cancelled && setJobListingsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingJobListings(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleAddJob = async (e) => {
+    e.preventDefault();
+    if (!newJob.title || !newJob.company) return;
+    if (isMockSession) {
+      setJobListings([
+        { id: Date.now(), ...newJob, tags: newJob.tags.split(',').map((t) => t.trim()).filter(Boolean), posted: new Date().toISOString().slice(0, 10) },
+        ...jobListings,
+      ]);
+    } else {
+      try {
+        const added = await addJobListing({ ...newJob, createdBy: user?.email });
+        setJobListings([added, ...jobListings]);
+      } catch (err) {
+        setJobListingsError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setNewJob({ title: '', company: '', location: '', type: JOB_TYPES[0], salary: '', description: '', tags: '', link: '' });
+    setShowAddJobForm(false);
+  };
+
+  const handleDeleteJob = async (job) => {
+    setJobListings(jobListings.filter((j) => j.id !== job.id));
+    if (!isMockSession) {
+      try {
+        await deleteJobListing(job.id);
+      } catch (err) {
+        setJobListingsError(friendlyErrorMessage(err));
+        setJobListings((prev) => [...prev, job]);
+      }
+    }
+  };
+
   // Focus 5 - see supabase/038_focus_five.sql / src/lib/focusFiveData.js.
   const FOCUS_FIVE_MAX = 5;
   const [focusFive, setFocusFive] = useState(isMockSession ? MOCK_FOCUS_FIVE : []);
@@ -1318,6 +1380,38 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       return true;
     } finally {
       setRejectingEventId(null);
+    }
+  };
+
+  // Admin-side "Add Event" - this tab could only approve/reject events
+  // members already submitted, with no way for an admin to create one
+  // directly. Reuses createCommunityEvent exactly as the member Events tab
+  // does (self-attributed to the admin's own email, lands 'Pending'
+  // server-side same as any submission), then immediately approves it if
+  // this admin is allowed to (canApproveEvents, above) - the event is
+  // already saved either way, so if this admin can't auto-approve it just
+  // sits in the same Pending queue below for whoever can.
+  const [showAddEventForm, setShowAddEventForm] = useState(false);
+  const [newEvent, setNewEvent] = useState({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '' });
+  const [addingEvent, setAddingEvent] = useState(false);
+
+  const handleAddEvent = async (e) => {
+    e.preventDefault();
+    if (!newEvent.title || !newEvent.date) return;
+    setAddingEvent(true);
+    setApproveEventError(null);
+    try {
+      const created = await createCommunityEvent({ ...newEvent, createdBy: user?.email });
+      if (canApproveEvents) {
+        await approveCommunityEvent(created.id);
+      }
+      setCommunityEvents(await fetchCommunityEvents());
+      setNewEvent({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '' });
+      setShowAddEventForm(false);
+    } catch (err) {
+      setApproveEventError(friendlyErrorMessage(err));
+    } finally {
+      setAddingEvent(false);
     }
   };
 
@@ -3298,10 +3392,43 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     case 'meetups':
       return (
         <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Meetups & Events</h1>
-            <p>The real, live Events tab members see, plus what's still waiting on your review below.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Meetups & Events</h1>
+              <p>The real, live Events tab members see, plus what's still waiting on your review below.</p>
+            </div>
+            {!isMockSession && (
+              <button className="btn btn-primary" style={{ flexShrink: 0 }} onClick={() => setShowAddEventForm((v) => !v)}>
+                <Plus size={16} /> {showAddEventForm ? 'Cancel' : 'Add Event'}
+              </button>
+            )}
           </div>
+
+          {showAddEventForm && (
+            <form onSubmit={handleAddEvent} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <h3 style={{ margin: 0 }}>Add Event</h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                For a listing that came in via the shareable submission form instead of a member's own portal login.
+              </p>
+              {approveEventError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: 0 }}>{approveEventError}</p>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <select className="form-input" value={newEvent.type} onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}>
+                  {['HH Meetup', 'Industry Event', 'Sunday Catchup', 'Study Session'].map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input className="form-input" placeholder="Title" value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} required />
+              </div>
+              <textarea className="form-input" placeholder="Description (optional)" rows={2} value={newEvent.description} onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <input type="date" className="form-input" value={newEvent.date} onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })} required />
+                <input className="form-input" placeholder="Time (optional)" value={newEvent.time} onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })} />
+                <input className="form-input" placeholder="Location (optional)" value={newEvent.location} onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })} />
+              </div>
+              <input className="form-input" placeholder="Link (optional)" value={newEvent.link} onChange={(e) => setNewEvent({ ...newEvent, link: e.target.value })} />
+              <button type="submit" className="btn btn-primary" disabled={addingEvent} style={{ alignSelf: 'flex-end' }}>
+                {addingEvent ? 'Adding...' : 'Add Event'}
+              </button>
+            </form>
+          )}
 
           {/* Live Events - real, approved rows from community_events, the
               exact same data the member-side Events tab reads. Read-only
@@ -3539,6 +3666,96 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
           )}
         </div>
       );
+
+    case 'jobs': {
+      return (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Job Board</h1>
+              <p>The real listings members see. Any approved member can already post their own here - this is for adding one on someone's behalf, e.g. from the shareable submission form.</p>
+            </div>
+            <button className="btn btn-primary" style={{ flexShrink: 0 }} onClick={() => setShowAddJobForm((v) => !v)}>
+              <Plus size={16} /> {showAddJobForm ? 'Cancel' : 'Add Job'}
+            </button>
+          </div>
+
+          {jobListingsError && (
+            <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{jobListingsError}</p>
+          )}
+
+          {showAddJobForm && (
+            <form onSubmit={handleAddJob} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <h3 style={{ margin: 0 }}>Add Job</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <input className="form-input" placeholder="Title" value={newJob.title} onChange={(e) => setNewJob({ ...newJob, title: e.target.value })} required />
+                <input className="form-input" placeholder="Company" value={newJob.company} onChange={(e) => setNewJob({ ...newJob, company: e.target.value })} required />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <select className="form-input" value={newJob.type} onChange={(e) => setNewJob({ ...newJob, type: e.target.value })}>
+                  {JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input className="form-input" placeholder="Location (optional)" value={newJob.location} onChange={(e) => setNewJob({ ...newJob, location: e.target.value })} />
+                <input className="form-input" placeholder="Salary (optional)" value={newJob.salary} onChange={(e) => setNewJob({ ...newJob, salary: e.target.value })} />
+              </div>
+              <textarea className="form-input" placeholder="Description (optional)" rows={2} value={newJob.description} onChange={(e) => setNewJob({ ...newJob, description: e.target.value })} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <input className="form-input" placeholder="Tags, comma-separated (optional)" value={newJob.tags} onChange={(e) => setNewJob({ ...newJob, tags: e.target.value })} />
+                <input className="form-input" placeholder="Apply link (optional)" value={newJob.link} onChange={(e) => setNewJob({ ...newJob, link: e.target.value })} />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-end' }}>Add Job</button>
+            </form>
+          )}
+
+          <div className="glass-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>Live Listings</h3>
+              <span className="badge badge-success">{jobListings.length}</span>
+            </div>
+            {!isMockSession && loadingJobListings ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading...</p>
+            ) : jobListings.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                No listings yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {jobListings.map((job) => (
+                  <div
+                    key={job.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                      padding: '14px 16px', borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{job.type}</span>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{job.title}</h4>
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        {job.company}{job.location ? ` · ${job.location}` : ''}{job.salary ? ` · ${job.salary}` : ''}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {job.link && (
+                        <a href={job.link} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <ExternalLink size={12} /> Link
+                        </a>
+                      )}
+                      <button onClick={() => handleDeleteJob(job)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete job listing">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     case 'insights': {
       // Join date: prefers an admin-set manual start date (Members tab) over

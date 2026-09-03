@@ -60,3 +60,12 @@ export async function addJobListing({ title, company, location, type, salary, de
     createdBy: data.created_by || '',
   };
 }
+
+/** Admin-only: permanently deletes a job listing. RLS ("admins manage job
+ * board") rejects this for non-admins - members have no delete policy on
+ * job_board at all, matching the "member owns their own submission but
+ * can't remove it themselves" pattern already used for reviews/events. */
+export async function deleteJobListing(jobId) {
+  const { error } = await supabase.from('job_board').delete().eq('id', jobId);
+  if (error) throw error;
+}

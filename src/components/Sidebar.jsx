@@ -202,6 +202,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
+        { id: 'jobs', label: 'Job Board', icon: Briefcase },
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
         { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'finances', label: 'Finances', icon: DollarSign },
