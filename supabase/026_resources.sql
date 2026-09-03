@@ -150,6 +150,77 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'CompTIA Security+ Study Guide'
 );
 
+-- Same move again for CySA+ - real content (official overview, Jason
+-- Dion's course, a free YouTube alternative, OpenExamPrep, PocketPrep)
+-- hardcoded as an in-app article in MemberPortal.jsx
+-- (CySAPlusGuideModal.jsx). This row just catalogs it in Resources with a
+-- short teaser; the "Read Guide" button opens the real content, with real
+-- clickable links, in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'CompTIA CySA+ Study Guide',
+  'Guide',
+  'What it costs, how long to study, and every free resource members actually use - official overview, Jason Dion''s full course, a free YouTube alternative, OpenExamPrep, and PocketPrep.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'CompTIA CySA+ Study Guide'
+);
+
+-- Same move again for Terraform Associate - real content (official cert
+-- page, KodeKloud's paid course, HashiCorp's own free tutorials) hardcoded
+-- as an in-app article in MemberPortal.jsx
+-- (TerraformAssociateGuideModal.jsx). This row just catalogs it in
+-- Resources with a short teaser; the "Read Guide" button opens the real
+-- content, with real clickable links, in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'Terraform Associate Study Guide',
+  'Guide',
+  'What it costs, how long to study, and every resource members actually use - official cert page, KodeKloud''s paid course, and HashiCorp''s own free tutorials.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'Terraform Associate Study Guide'
+);
+
+-- Same move again for SC-200 - real content (official cert page,
+-- OpenExamPrep, Microsoft Learn's own training, KC7 for KQL practice)
+-- hardcoded as an in-app article in MemberPortal.jsx (SC200GuideModal.jsx).
+-- This row just catalogs it in Resources with a short teaser; the "Read
+-- Guide" button opens the real content, with real clickable links, in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'SC-200 Study Guide',
+  'Guide',
+  'What it costs, how long to study, and every resource members actually use - official cert page, OpenExamPrep, Microsoft Learn, and KC7 for KQL practice.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'SC-200 Study Guide'
+);
+
+-- Same move again for the Podcasts category's recommendation list - real
+-- content (why podcasts, the LinkedIn takeaway ask, CyberWire Daily, The
+-- Secure Developer) hardcoded as an in-app article in MemberPortal.jsx
+-- (PodcastsGuideModal.jsx). This row just catalogs it in Resources with a
+-- short teaser; the "Read Guide" button opens the real content, with real
+-- clickable Spotify links, in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Podcasts',
+  'Recommended Podcasts',
+  'Guide',
+  'An easy way to digest what''s happening in the cyber industry - listen on a commute or as background noise. CyberWire Daily and The Secure Developer.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'Recommended Podcasts'
+);
+
 -- Unlike every other link-less entry above, this one isn't a name with no
 -- link to give it - it's an original guide with real content, so a
 -- "Coming Soon" disabled button would misrepresent it as unfinished. The

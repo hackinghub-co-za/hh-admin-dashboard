@@ -9,7 +9,7 @@ export const RELEASE_NOTES = [
     version: '2026.09.02',
     date: '2026-09-02',
     headline: 'Your Roadmap now links straight to the source.',
-    intro: "Core Foundations items with a real course or exam now link directly to it, and CV Review / Interview Prep are working properly again.",
+    intro: "Core Foundations items with a real course or exam now link directly to it, CV Review / Interview Prep are working properly again, three new study guides landed in Resources, and Matchmaker groups now get a proper reveal.",
     groups: [
       {
         label: 'Growth',
@@ -20,6 +20,18 @@ export const RELEASE_NOTES = [
             title: 'Open Link / Resource on your Roadmap',
             body: "CISCO Junior Cyber Pathway, Immersive Labs, both TryHackMe paths, AZ-900, AI-901, and SC-900 now show a direct link to the real course or exam page — no more hunting for it yourself. CompTIA Security+ opens the existing in-app Study Guide instead.",
             where: 'My Roadmap',
+          },
+          {
+            icon: '📚',
+            title: 'Three new study guides: CySA+, Terraform Associate, SC-200',
+            body: "Same format as the CompTIA Security+ guide — what it costs, how long to study, and every real resource members actually use (videos, practice tests, and the official docs), all in one place instead of hunting for links.",
+            where: 'Resources → Cert Prep',
+          },
+          {
+            icon: '🎧',
+            title: 'Recommended podcasts',
+            body: "CyberWire Daily for daily news, and The Secure Developer for AI/DevSecOps — an easy way to stay current on a commute. Share your takeaways on LinkedIn once you've listened.",
+            where: 'Resources → Podcasts',
           },
         ],
       },
@@ -32,6 +44,24 @@ export const RELEASE_NOTES = [
             title: 'CV Review and Interview Prep are working again',
             body: "Both AI tools from last week weren't actually opening for everyone — that's fixed now. Paste your CV/LinkedIn or a job description and give them another go.",
             where: '1on1 Meetings → More 1on1 Support',
+          },
+        ],
+      },
+      {
+        label: 'Matchmaker',
+        color: '#fb923c',
+        items: [
+          {
+            icon: '🎡',
+            title: 'Spin the wheel to reveal your group',
+            body: "When your group is ready, choose to see it instantly or spin a wheel — one spin per teammate, then a final spin for Project or Presentation. Purely for fun: who you're grouped with is decided the same fair, random way it always was.",
+            where: 'Matchmaker',
+          },
+          {
+            icon: '📅',
+            title: 'Your group now shows a due date',
+            body: "Your group card shows when your Project or Presentation is due, so it's not just \"figure it out eventually.\"",
+            where: 'Matchmaker',
           },
         ],
       },

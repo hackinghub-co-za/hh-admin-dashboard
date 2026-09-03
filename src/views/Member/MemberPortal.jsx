@@ -8,6 +8,11 @@ import InterviewPrepModal from '../../components/InterviewPrepModal';
 import ThemeToggle from '../../components/ThemeToggle';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
+import CySAPlusGuideModal from '../../components/CySAPlusGuideModal';
+import TerraformAssociateGuideModal from '../../components/TerraformAssociateGuideModal';
+import SC200GuideModal from '../../components/SC200GuideModal';
+import PodcastsGuideModal from '../../components/PodcastsGuideModal';
+import MatchmakerWheelModal from '../../components/MatchmakerWheelModal';
 import CompetitionRulesModal from '../../components/CompetitionRulesModal';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
@@ -275,6 +280,31 @@ function relativeWinDateLabel(dateStr) {
 // about theming.
 const WIN_AVATAR_COLORS = ['var(--accent-purple)', 'var(--accent-cyan)', 'var(--success)', 'var(--warning)'];
 
+// Whether a member has already revealed a given Matchmaker group (Spin the
+// Wheel or Randomised, either counts) - a purely per-viewer presentational
+// preference, so it lives in localStorage rather than the database. Once
+// revealed, a group's card always renders plainly on later visits, same as
+// it did before this feature existed.
+const MATCHMAKER_REVEALED_KEY = 'hh_matchmaker_revealed_groups';
+
+function loadRevealedGroupIds() {
+  try {
+    const raw = localStorage.getItem(MATCHMAKER_REVEALED_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveRevealedGroupIds(ids) {
+  try {
+    localStorage.setItem(MATCHMAKER_REVEALED_KEY, JSON.stringify([...ids]));
+  } catch {
+    // Storage unavailable (private window, blocked site data) - the member
+    // just gets asked again next visit, no worse than before this feature.
+  }
+}
+
 function formatEventCountdown(days) {
   if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`;
   if (days === 0) return 'Today';
@@ -357,6 +387,10 @@ const MOCK_RESOURCES = [
   { id: 3, category: 'LinkedIn Strategy', title: 'The Hacking Hub LinkedIn Playbook', format: 'Guide', description: 'Photo, banner, headline, About section, posting cadence, and what to avoid - the full checklist for a LinkedIn profile that actually gets you noticed.', link: '' },
   { id: 4, category: 'Cert Prep', title: 'PocketPrep', format: 'App', description: 'Mobile and web app for studying popular ISC2, CompTIA, and Cisco exams.', link: 'https://study.pocketprep.com/study' },
   { id: 5, category: 'Cert Prep', title: 'CompTIA Security+ Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every free resource members actually use - official overview, Professor Messer\'s full video course, ExamCompass practice tests, and PocketPrep.', link: '' },
+  { id: 6, category: 'Cert Prep', title: 'CompTIA CySA+ Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every free resource members actually use - official overview, Jason Dion\'s full course, a free YouTube alternative, OpenExamPrep, and PocketPrep.', link: '' },
+  { id: 7, category: 'Cert Prep', title: 'Terraform Associate Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every resource members actually use - official cert page, KodeKloud\'s paid course, and HashiCorp\'s own free tutorials.', link: '' },
+  { id: 8, category: 'Cert Prep', title: 'SC-200 Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every resource members actually use - official cert page, OpenExamPrep, Microsoft Learn, and KC7 for KQL practice.', link: '' },
+  { id: 9, category: 'Podcasts', title: 'Recommended Podcasts', format: 'Guide', description: 'An easy way to digest what\'s happening in the cyber industry - listen on a commute or as background noise. CyberWire Daily and The Secure Developer.', link: '' },
 ];
 
 // Mock Member's demo roadmap - modeled on a real member's actual plan
@@ -989,6 +1023,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [loadingMatchmaker, setLoadingMatchmaker] = useState(!isMockSession);
   const [matchmakerError, setMatchmakerError] = useState(null);
   const [joiningPool, setJoiningPool] = useState(false);
+  const [revealedGroupIds, setRevealedGroupIds] = useState(() => loadRevealedGroupIds());
+  const [showWheelModal, setShowWheelModal] = useState(false);
 
   const refreshMatchmakerData = () =>
     Promise.all([fetchOptinPool(), fetchMyGroups()])
@@ -1027,6 +1063,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     } finally {
       setJoiningPool(false);
     }
+  };
+
+  // Marks a group as revealed (Randomised or Spin the Wheel, either path)
+  // so it renders plainly from now on - see loadRevealedGroupIds above.
+  const handleRevealGroup = () => {
+    setRevealedGroupIds((prev) => {
+      const next = new Set(prev);
+      next.add(activeGroup.id);
+      saveRevealedGroupIds(next);
+      return next;
+    });
+    setShowWheelModal(false);
   };
 
   // Daily TryHackMe Room Logs - self-reported, admin-approved, feeds the
@@ -1588,11 +1636,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [resourceCategoryFilter, setResourceCategoryFilter] = useState('All');
   const [showLinkedInPlaybook, setShowLinkedInPlaybook] = useState(false);
   const [showSecurityPlusGuide, setShowSecurityPlusGuide] = useState(false);
+  const [showCySAPlusGuide, setShowCySAPlusGuide] = useState(false);
+  const [showTerraformGuide, setShowTerraformGuide] = useState(false);
+  const [showSC200Guide, setShowSC200Guide] = useState(false);
+  const [showPodcastsGuide, setShowPodcastsGuide] = useState(false);
   // Resources with their real content hardcoded in-app (not a link) - the
   // card opens a dedicated modal instead of "Open Resource"/"Coming Soon".
   const IN_APP_ARTICLE_RESOURCES = {
     'The Hacking Hub LinkedIn Playbook': () => setShowLinkedInPlaybook(true),
     'CompTIA Security+ Study Guide': () => setShowSecurityPlusGuide(true),
+    'CompTIA CySA+ Study Guide': () => setShowCySAPlusGuide(true),
+    'Terraform Associate Study Guide': () => setShowTerraformGuide(true),
+    'SC-200 Study Guide': () => setShowSC200Guide(true),
+    'Recommended Podcasts': () => setShowPodcastsGuide(true),
   };
   const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy'];
   const RESOURCE_ICON = {
@@ -2474,7 +2530,37 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                     )}
                                   </div>
                                 ) : (
-                                  item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    {item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>}
+                                    {ROADMAP_ITEM_LINKS[item.title] ? (
+                                      <a
+                                        href={ROADMAP_ITEM_LINKS[item.title]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn btn-secondary"
+                                        style={{ fontSize: '0.75rem', padding: '5px 10px', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none' }}
+                                      >
+                                        <ExternalLink size={12} /> Open Link / Resource
+                                      </a>
+                                    ) : (item.title === 'CySA+' || item.title === 'Terraform Associate' || item.title === 'SC-200') && (
+                                      // No plain URL for these either - they're in-app guides
+                                      // (IN_APP_ARTICLE_RESOURCES above), the same ones the
+                                      // Resources tab's study guide cards open.
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveTab('resources');
+                                          if (item.title === 'CySA+') setShowCySAPlusGuide(true);
+                                          else if (item.title === 'Terraform Associate') setShowTerraformGuide(true);
+                                          else setShowSC200Guide(true);
+                                        }}
+                                        className="btn btn-secondary"
+                                        style={{ fontSize: '0.75rem', padding: '5px 10px', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                      >
+                                        <ExternalLink size={12} /> Open Link / Resource
+                                      </button>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -2533,6 +2619,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading...</p>
           ) : matchmakerError ? (
             <p style={{ fontSize: '0.9rem', color: 'var(--danger)' }}>Couldn't load Matchmaker: {matchmakerError}</p>
+          ) : activeGroup && !revealedGroupIds.has(activeGroup.id) ? (
+            <div className="glass-card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+              <Sparkles size={40} color="var(--accent-cyan)" style={{ marginBottom: '16px' }} />
+              <p style={{ color: 'var(--text-primary)', marginBottom: '6px', fontWeight: 600 }}>Your group is ready!</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                Randomly grouped for a Project or Presentation - want to see who's in it right away, or spin the wheel?
+              </p>
+              <button className="btn btn-primary" onClick={() => setShowWheelModal(true)}>
+                <Sparkles size={15} /> Reveal Your Group
+              </button>
+            </div>
           ) : activeGroup ? (
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '12px' }}>
@@ -2575,6 +2672,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 </>
               )}
             </div>
+          )}
+
+          {showWheelModal && activeGroup && (
+            <MatchmakerWheelModal
+              group={activeGroup}
+              nameForEmail={nameForEmail}
+              myEmailLower={myEmailLower}
+              onReveal={handleRevealGroup}
+              onClose={() => setShowWheelModal(false)}
+            />
           )}
 
           <div style={{ marginTop: '32px' }}>
@@ -3971,6 +4078,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showLinkedInPlaybook && <LinkedInPlaybookModal onClose={() => setShowLinkedInPlaybook(false)} />}
           {showSecurityPlusGuide && <SecurityPlusGuideModal onClose={() => setShowSecurityPlusGuide(false)} />}
+          {showCySAPlusGuide && <CySAPlusGuideModal onClose={() => setShowCySAPlusGuide(false)} />}
+          {showTerraformGuide && <TerraformAssociateGuideModal onClose={() => setShowTerraformGuide(false)} />}
+          {showSC200Guide && <SC200GuideModal onClose={() => setShowSC200Guide(false)} />}
+          {showPodcastsGuide && <PodcastsGuideModal onClose={() => setShowPodcastsGuide(false)} />}
           {showCvReview && !isMockSession && (
             <CvReviewModal onClose={() => setShowCvReview(false)} />
           )}
