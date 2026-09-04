@@ -7,6 +7,8 @@ import CvReviewModal from '../../components/CvReviewModal';
 import InterviewPrepModal from '../../components/InterviewPrepModal';
 import ThemeToggle from '../../components/ThemeToggle';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
+import { confirmMyLinkedInPost, fetchMyLinkedInPostStatus } from '../../lib/linkedInPostData';
+import { getCurrentWeekContent } from '../../lib/linkedInPlaybookData';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
 import CySAPlusGuideModal from '../../components/CySAPlusGuideModal';
 import TerraformAssociateGuideModal from '../../components/TerraformAssociateGuideModal';
@@ -31,6 +33,7 @@ import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '..
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
+import { fetchMyInterviewsHad } from '../../lib/interviewsHadData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
@@ -188,6 +191,12 @@ const MENTOR_CALENDAR_URL = 'https://calendar.app.google/eKVRpXkHCKKcnhYT6';
 // fake demo entries (removed per request), just whatever the mock session
 // itself adds via "Edit My Profile" (see handleSaveProfile below).
 const MOCK_DIRECTORY = [];
+// TEMPORARY - live demo seed so a real teammate profile + assigned group
+// shows under Mock Member for a Matchmaker preview. Not a permanent
+// restoration of MOCK_DIRECTORY's fake entries (see comment above, which
+// stays true) - remove this block once the preview's done.
+const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Offensive Security', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Offensive Security' };
+const DEMO_MATCHMAKER_GROUP = { id: 99, activityType: 'Project', memberEmails: ['teammate@example.com'], status: 'Active', dueDate: '2026-09-23' };
 
 // Descriptions longer than this collapse behind a "Read more" toggle on
 // event/resource cards - a long description was making tiles quite tall.
@@ -841,7 +850,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Member directory - real Supabase data (via get_member_directory, which only
   // ever returns a hand-picked safe column set) for a real session, local mock
   // roster under Mock Member since there's no real session to call the RPC with.
-  const [directory, setDirectory] = useState(isMockSession ? MOCK_DIRECTORY : []);
+  const [directory, setDirectory] = useState(isMockSession ? [DEMO_TEAMMATE, ...MOCK_DIRECTORY] : []);
   const [loadingDirectory, setLoadingDirectory] = useState(!isMockSession);
   const [directoryError, setDirectoryError] = useState(null);
   const [directorySearch, setDirectorySearch] = useState('');
@@ -852,6 +861,133 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [directoryViewMode, setDirectoryViewMode] = useState('domain');
   // Full breakdown shown when a member clicks another member's directory card.
   const [selectedDirectoryMember, setSelectedDirectoryMember] = useState(null);
+
+  // The member profile detail modal - real content lives here once, reused
+  // by both the Members directory (its original home) and the Matchmaker
+  // tab (clicking a teammate's name opens the same modal). A switch case
+  // only ever renders one tab's JSX at a time, so a modal opened by
+  // setSelectedDirectoryMember from Matchmaker needs its own render call
+  // there too, not just in case 'members' - same reasoning as
+  // renderGettingStartedChecklist above.
+  const renderMemberProfileModal = () => selectedDirectoryMember && (
+    <div
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+      onClick={() => setSelectedDirectoryMember(null)}
+    >
+      <div
+        className="glass-card"
+        style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ width: '72px', height: '72px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {selectedDirectoryMember.headshotUrl ? (
+              <img src={selectedDirectoryMember.headshotUrl} alt={selectedDirectoryMember.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <User size={32} color="var(--text-secondary)" />
+            )}
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700 }}>
+              {selectedDirectoryMember.fullName || 'Unnamed member'}
+              {selectedDirectoryMember.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.85rem' }}> (You)</span>}
+            </h2>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+              <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{selectedDirectoryMember.specialty}</span>
+              <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{selectedDirectoryMember.jobReadiness}</span>
+            </div>
+          </div>
+        </div>
+
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: selectedDirectoryMember.about ? 'normal' : 'italic', marginBottom: '20px', lineHeight: 1.6 }}>
+          {selectedDirectoryMember.about || 'No bio yet.'}
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '16px', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)' }}>
+          {selectedDirectoryMember.location && (
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Location</div>
+              <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={13} /> {selectedDirectoryMember.location}</div>
+            </div>
+          )}
+          {selectedDirectoryMember.employmentStatus && selectedDirectoryMember.employmentStatus !== 'Not Set' && (
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                {selectedDirectoryMember.employmentStatus === 'Employed' && selectedDirectoryMember.jobTitle ? 'Job Title' : 'Employment Status'}
+              </div>
+              <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Building2 size={13} />
+                {selectedDirectoryMember.employmentStatus === 'Employed' && selectedDirectoryMember.jobTitle ? selectedDirectoryMember.jobTitle : selectedDirectoryMember.employmentStatus}
+              </div>
+            </div>
+          )}
+          {selectedDirectoryMember.yearsExperience !== null && selectedDirectoryMember.yearsExperience !== undefined && (
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Experience</div>
+              <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Briefcase size={13} /> {selectedDirectoryMember.yearsExperience} {selectedDirectoryMember.yearsExperience === 1 ? 'year' : 'years'}
+              </div>
+            </div>
+          )}
+          {selectedDirectoryMember.certifications && (
+            <div style={{ gridColumn: selectedDirectoryMember.location || (selectedDirectoryMember.employmentStatus && selectedDirectoryMember.employmentStatus !== 'Not Set') ? 'auto' : '1 / -1' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Certifications</div>
+              <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Award size={13} /> {selectedDirectoryMember.certifications}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {selectedDirectoryMember.funFact && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '20px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--accent-rgb), 0.06)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
+            <Sparkles size={15} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{selectedDirectoryMember.funFact}</span>
+          </div>
+        )}
+
+        {(selectedDirectoryMember.tryhackmeUsername || isSafeUrl(selectedDirectoryMember.linkedin) || isSafeUrl(selectedDirectoryMember.githubUrl) || isSafeUrl(selectedDirectoryMember.tiktokUrl) || isSafeUrl(selectedDirectoryMember.websiteUrl)) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+            {selectedDirectoryMember.tryhackmeUsername && (
+              <a
+                href={`https://tryhackme.com/p/${encodeURIComponent(selectedDirectoryMember.tryhackmeUsername)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-secondary"
+                style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+              >
+                <Target size={13} /> TryHackMe
+              </a>
+            )}
+            {isSafeUrl(selectedDirectoryMember.linkedin) && (
+              <a href={selectedDirectoryMember.linkedin} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                <Link size={13} /> LinkedIn
+              </a>
+            )}
+            {isSafeUrl(selectedDirectoryMember.githubUrl) && (
+              <a href={selectedDirectoryMember.githubUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                <Code2 size={13} /> GitHub
+              </a>
+            )}
+            {isSafeUrl(selectedDirectoryMember.tiktokUrl) && (
+              <a href={selectedDirectoryMember.tiktokUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                <Video size={13} /> TikTok
+              </a>
+            )}
+            {isSafeUrl(selectedDirectoryMember.websiteUrl) && (
+              <a href={selectedDirectoryMember.websiteUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                <Globe size={13} /> Website
+              </a>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setSelectedDirectoryMember(null)}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
 
   // Refer a Friend - real Supabase data for a real session, local-only demo
   // state under Mock Member since there's no real session to persist against.
@@ -1158,12 +1294,25 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     fetchMyStartDate().then(setMyStartDate).catch((err) => console.error('Could not load start date:', err));
   }, [isMockSession]);
 
+  // Member's own "interviews had" count (supabase/057_interviews_had.sql) -
+  // view-only, admin-set only (Members tab). Feeds "My Journey So Far".
+  const [myInterviewsHad, setMyInterviewsHad] = useState(isMockSession ? 2 : 0);
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchMyInterviewsHad().then(setMyInterviewsHad).catch((err) => console.error('Could not load interviews had:', err));
+  }, [isMockSession]);
+
+  // Whether the expanded "My Journey So Far" storyline is open on My
+  // Roadmap - clicking the compact Dashboard tile jumps to My Roadmap and
+  // flips this true so the story is immediately visible, no extra click.
+  const [journeyStoryExpanded, setJourneyStoryExpanded] = useState(false);
+
   // Matchmaker - opt-in pool + the member's own randomly-assigned group(s).
   const [optinPool, setOptinPool] = useState([]);
   // Starts empty even under Mock Member - a member starts un-opted-in and
   // ungrouped by default, so the Matchmaker tab shows the real "Count Me
   // In" flow rather than skipping straight to an already-formed group.
-  const [myGroups, setMyGroups] = useState([]);
+  const [myGroups, setMyGroups] = useState(isMockSession ? [DEMO_MATCHMAKER_GROUP] : []);
   const [loadingMatchmaker, setLoadingMatchmaker] = useState(!isMockSession);
   const [matchmakerError, setMatchmakerError] = useState(null);
   const [joiningPool, setJoiningPool] = useState(false);
@@ -1779,6 +1928,34 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Resources — cert prep, role roadmaps, podcasts, books, interview prep, CV templates
   const [resourceCategoryFilter, setResourceCategoryFilter] = useState('All');
   const [showLinkedInPlaybook, setShowLinkedInPlaybook] = useState(false);
+  // Weekly "Mark as Posted This Week" confirmation (supabase/059_linkedin_
+  // weekly_post.sql) - the inline widget on the roadmap's "Post once a
+  // week" item. null under a real session until the fetch resolves (avoids
+  // flashing "not confirmed" before we actually know); Mock Member starts
+  // unconfirmed since there's no real backend to check.
+  const [linkedInPostConfirmed, setLinkedInPostConfirmed] = useState(isMockSession ? false : null);
+  const [confirmingLinkedInPost, setConfirmingLinkedInPost] = useState(false);
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchMyLinkedInPostStatus().then(setLinkedInPostConfirmed).catch(() => {});
+  }, [isMockSession]);
+
+  const handleConfirmLinkedInPost = async () => {
+    if (isMockSession) {
+      setLinkedInPostConfirmed(true);
+      return;
+    }
+    setConfirmingLinkedInPost(true);
+    setLinkedInPostConfirmed(true); // optimistic, same style as handleToggleMyRoadmapItem
+    try {
+      await confirmMyLinkedInPost();
+    } catch (err) {
+      console.error('Could not confirm LinkedIn post:', err);
+      setLinkedInPostConfirmed(false); // revert on failure
+    } finally {
+      setConfirmingLinkedInPost(false);
+    }
+  };
   const [showSecurityPlusGuide, setShowSecurityPlusGuide] = useState(false);
   const [showCySAPlusGuide, setShowCySAPlusGuide] = useState(false);
   const [showTerraformGuide, setShowTerraformGuide] = useState(false);
@@ -2007,6 +2184,77 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       </div>
     );
   }
+
+  // "My Journey So Far" - shared between the compact Dashboard tile and the
+  // expanded storyline on My Roadmap (clicking the tile jumps there). Built
+  // entirely from data already tracked for real elsewhere in the portal.
+  // Deliberately doesn't include a LinkedIn-post count - the roadmap's
+  // "Post once a week" networking item is free-text self-reported progress,
+  // not a real number, so showing one here would be a fabricated stat, not
+  // a real one. Interviews Had IS included - myInterviewsHad comes from
+  // get_my_interviews_had() (058_member_interviews.sql), which now returns
+  // one merged total: an admin-set manual baseline (interviews from before
+  // real tracking existed) plus real interviews the member logged and had
+  // via Interview Prep. Always one number, computed the same way for the
+  // admin's Members tab too, so the two can never drift apart.
+  const computeJourneyStory = () => {
+    const journeyDays = myStartDate
+      ? Math.floor((new Date() - new Date(myStartDate)) / (1000 * 60 * 60 * 24))
+      : null;
+    const journeyDurationLabel = journeyDays === null
+      ? '—'
+      : journeyDays < 30
+        ? `${journeyDays} day${journeyDays === 1 ? '' : 's'}`
+        : `${Math.floor(journeyDays / 30)} month${Math.floor(journeyDays / 30) === 1 ? '' : 's'}`;
+    const certsCompleted = roadmapItems.filter((i) => i.completed && i.category === 'Certifications');
+    const approvedRoomLogs = roomLogs.filter((l) => l.status === 'Approved');
+    const roomsCompletedCount = approvedRoomLogs.reduce((sum, l) => sum + l.roomCount, 0);
+    const joinedEvents = communityEvents.filter((e) => hasRsvpedToEvent(e.id));
+    const myDirectoryEntry = directory.find((m) => m.email.toLowerCase() === (user?.email || '').toLowerCase());
+    const hasLandedJob = myDirectoryEntry?.jobReadiness === 'Job Placed';
+
+    // Chronological timeline, oldest first - built only from entries with a
+    // real date behind them. Certs are dated by updatedAt (the closest real
+    // timestamp available - roadmap items don't record a separate
+    // "completed at" moment, just the last time the row changed), approved
+    // room logs are grouped into one entry per month rather than one per
+    // daily submission so the story doesn't turn into a wall of near-
+    // identical lines, and events use the event's own date. Interviews Had
+    // and Job Placed have no real date to anchor to, so they're surfaced as
+    // undated milestones below the timeline instead of a made-up date.
+    const timeline = [];
+    if (myStartDate) {
+      timeline.push({ date: myStartDate, kind: 'joined', title: 'Joined Hacking Hub' });
+    }
+    certsCompleted.forEach((item) => {
+      timeline.push({ date: (item.updatedAt ? item.updatedAt.slice(0, 10) : myStartDate) || null, kind: 'cert', title: `Completed ${item.title}` });
+    });
+    const roomsByMonth = {};
+    approvedRoomLogs.forEach((log) => {
+      const month = (log.logDate || '').slice(0, 7);
+      if (!month) return;
+      if (!roomsByMonth[month]) roomsByMonth[month] = { count: 0, lastDate: log.logDate };
+      roomsByMonth[month].count += log.roomCount;
+      if (log.logDate > roomsByMonth[month].lastDate) roomsByMonth[month].lastDate = log.logDate;
+    });
+    Object.values(roomsByMonth).forEach(({ count, lastDate }) => {
+      timeline.push({ date: lastDate, kind: 'rooms', title: `Completed ${count} room${count === 1 ? '' : 's'} that month` });
+    });
+    joinedEvents.forEach((event) => {
+      timeline.push({ date: event.date, kind: 'event', title: `Joined: ${event.title}` });
+    });
+    timeline.sort((a, b) => (a.date || '') < (b.date || '') ? -1 : (a.date || '') > (b.date || '') ? 1 : 0);
+
+    return {
+      journeyDurationLabel,
+      certsCompletedCount: certsCompleted.length,
+      roomsCompletedCount,
+      eventsJoinedCount: joinedEvents.length,
+      interviewsHadCount: myInterviewsHad,
+      hasLandedJob,
+      timeline,
+    };
+  };
 
   // Router for Member Dashboard
   switch (activeTab) {
@@ -2366,125 +2614,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           )}
 
-          {selectedDirectoryMember && (
-            <div
-              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-              onClick={() => setSelectedDirectoryMember(null)}
-            >
-              <div
-                className="glass-card"
-                style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-                  <div style={{ width: '72px', height: '72px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {selectedDirectoryMember.headshotUrl ? (
-                      <img src={selectedDirectoryMember.headshotUrl} alt={selectedDirectoryMember.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <User size={32} color="var(--text-secondary)" />
-                    )}
-                  </div>
-                  <div>
-                    <h2 style={{ fontSize: '1.4rem', fontWeight: 700 }}>
-                      {selectedDirectoryMember.fullName || 'Unnamed member'}
-                      {selectedDirectoryMember.email === user?.email && <span style={{ color: 'var(--accent-cyan)', fontWeight: 500, fontSize: '0.85rem' }}> (You)</span>}
-                    </h2>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-                      <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{selectedDirectoryMember.specialty}</span>
-                      <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{selectedDirectoryMember.jobReadiness}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: selectedDirectoryMember.about ? 'normal' : 'italic', marginBottom: '20px', lineHeight: 1.6 }}>
-                  {selectedDirectoryMember.about || 'No bio yet.'}
-                </p>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '16px', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)' }}>
-                  {selectedDirectoryMember.location && (
-                    <div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Location</div>
-                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={13} /> {selectedDirectoryMember.location}</div>
-                    </div>
-                  )}
-                  {selectedDirectoryMember.employmentStatus && selectedDirectoryMember.employmentStatus !== 'Not Set' && (
-                    <div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                        {selectedDirectoryMember.employmentStatus === 'Employed' && selectedDirectoryMember.jobTitle ? 'Job Title' : 'Employment Status'}
-                      </div>
-                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Building2 size={13} />
-                        {selectedDirectoryMember.employmentStatus === 'Employed' && selectedDirectoryMember.jobTitle ? selectedDirectoryMember.jobTitle : selectedDirectoryMember.employmentStatus}
-                      </div>
-                    </div>
-                  )}
-                  {selectedDirectoryMember.yearsExperience !== null && selectedDirectoryMember.yearsExperience !== undefined && (
-                    <div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Experience</div>
-                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Briefcase size={13} /> {selectedDirectoryMember.yearsExperience} {selectedDirectoryMember.yearsExperience === 1 ? 'year' : 'years'}
-                      </div>
-                    </div>
-                  )}
-                  {selectedDirectoryMember.certifications && (
-                    <div style={{ gridColumn: selectedDirectoryMember.location || (selectedDirectoryMember.employmentStatus && selectedDirectoryMember.employmentStatus !== 'Not Set') ? 'auto' : '1 / -1' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Certifications</div>
-                      <div style={{ fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Award size={13} /> {selectedDirectoryMember.certifications}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {selectedDirectoryMember.funFact && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '20px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--accent-rgb), 0.06)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
-                    <Sparkles size={15} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{selectedDirectoryMember.funFact}</span>
-                  </div>
-                )}
-
-                {(selectedDirectoryMember.tryhackmeUsername || isSafeUrl(selectedDirectoryMember.linkedin) || isSafeUrl(selectedDirectoryMember.githubUrl) || isSafeUrl(selectedDirectoryMember.tiktokUrl) || isSafeUrl(selectedDirectoryMember.websiteUrl)) && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
-                    {selectedDirectoryMember.tryhackmeUsername && (
-                      <a
-                        href={`https://tryhackme.com/p/${encodeURIComponent(selectedDirectoryMember.tryhackmeUsername)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.78rem', padding: '6px 12px' }}
-                      >
-                        <Target size={13} /> TryHackMe
-                      </a>
-                    )}
-                    {isSafeUrl(selectedDirectoryMember.linkedin) && (
-                      <a href={selectedDirectoryMember.linkedin} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-                        <Link size={13} /> LinkedIn
-                      </a>
-                    )}
-                    {isSafeUrl(selectedDirectoryMember.githubUrl) && (
-                      <a href={selectedDirectoryMember.githubUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-                        <Code2 size={13} /> GitHub
-                      </a>
-                    )}
-                    {isSafeUrl(selectedDirectoryMember.tiktokUrl) && (
-                      <a href={selectedDirectoryMember.tiktokUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-                        <Video size={13} /> TikTok
-                      </a>
-                    )}
-                    {isSafeUrl(selectedDirectoryMember.websiteUrl) && (
-                      <a href={selectedDirectoryMember.websiteUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-                        <Globe size={13} /> Website
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setSelectedDirectoryMember(null)}>Close</button>
-                </div>
-              </div>
-            </div>
-          )}
+          {renderMemberProfileModal()}
 
           {showReferForm && (
             <div
@@ -2591,6 +2721,117 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </p>
           </div>
 
+          {/* My Journey So Far, expanded - same recap as the Dashboard
+              tile, plus the full chronological story below it. Opens
+              already expanded when the Dashboard tile was clicked to get
+              here (journeyStoryExpanded); otherwise starts collapsed to
+              this stat row and expands on demand. */}
+          {(() => {
+            const story = computeJourneyStory();
+            const stats = [
+              { icon: Clock, value: story.journeyDurationLabel, label: 'At Hacking Hub' },
+              { icon: Award, value: story.certsCompletedCount, label: `Cert${story.certsCompletedCount === 1 ? '' : 's'} Completed` },
+              { icon: Target, value: story.roomsCompletedCount, label: `Room${story.roomsCompletedCount === 1 ? '' : 's'} Completed` },
+              { icon: CalendarDays, value: story.eventsJoinedCount, label: `Event${story.eventsJoinedCount === 1 ? '' : 's'} Joined` },
+              { icon: Briefcase, value: story.interviewsHadCount, label: `Interview${story.interviewsHadCount === 1 ? '' : 's'} Had` },
+            ];
+            const timelineIcon = { joined: Milestone, cert: Award, rooms: Target, event: CalendarDays };
+
+            return (
+              <div className="glass-card" style={{ marginBottom: '32px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '18px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <TrendingUp size={18} color="var(--accent-cyan)" />
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>My Journey So Far</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setJourneyStoryExpanded((v) => !v)}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.78rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                  >
+                    {journeyStoryExpanded ? (
+                      <>Hide Full Story <ChevronUp size={14} /></>
+                    ) : (
+                      <>View Full Story <ChevronDown size={14} /></>
+                    )}
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px' }}>
+                  {stats.map(({ icon: StatIcon, value, label }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(var(--accent-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <StatIcon size={17} color="var(--accent-cyan)" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {story.hasLandedJob && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '18px', paddingTop: '18px', borderTop: '1px solid var(--border-color)', fontSize: '0.88rem', color: 'var(--success)' }}>
+                    <Trophy size={16} /> You landed a job while at Hacking Hub — congrats! 🎉
+                  </div>
+                )}
+
+                {journeyStoryExpanded && (
+                  <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border-color)' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '18px' }}>
+                      The Story So Far
+                    </div>
+                    {story.timeline.length === 0 ? (
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        Nothing tracked yet — complete a roadmap item, log a room, or RSVP to an event and it'll show up here.
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {story.timeline.map((entry, idx) => {
+                          const EntryIcon = timelineIcon[entry.kind] || Milestone;
+                          const isLast = idx === story.timeline.length - 1 && story.interviewsHadCount === 0 && !story.hasLandedJob;
+                          return (
+                            <div key={`${entry.kind}-${entry.date}-${idx}`} style={{ display: 'flex', gap: '14px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                                <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'rgba(var(--accent-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <EntryIcon size={14} color="var(--accent-cyan)" />
+                                </div>
+                                {!isLast && <div style={{ width: '2px', flex: 1, background: 'var(--border-color)', margin: '4px 0' }} />}
+                              </div>
+                              <div style={{ paddingBottom: '20px', minWidth: 0 }}>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                                  {entry.date ? formatDate(entry.date) : ''}
+                                </div>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{entry.title}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {(story.interviewsHadCount > 0 || story.hasLandedJob) && (
+                          <div style={{ display: 'flex', gap: '14px' }}>
+                            <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'rgba(var(--success-rgb), 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Trophy size={14} color="var(--success)" />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Milestones</div>
+                              <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                                {story.interviewsHadCount > 0 && `${story.interviewsHadCount} interview${story.interviewsHadCount === 1 ? '' : 's'} had`}
+                                {story.interviewsHadCount > 0 && story.hasLandedJob && ' · '}
+                                {story.hasLandedJob && 'Landed a job! 🎉'}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {!isMockSession && loadingRoadmap ? (
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading your roadmap...</p>
           ) : roadmapError ? (
@@ -2686,7 +2927,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       >
                                         <ExternalLink size={12} /> Open Link / Resource
                                       </a>
-                                    ) : item.title === 'CompTIA Security+' && (
+                                    ) : item.title === 'CompTIA Security+' ? (
                                       // No plain URL for this one - it's an in-app guide
                                       // (IN_APP_ARTICLE_RESOURCES above), same one the
                                       // Resources tab's "CompTIA Security+ Study Guide"
@@ -2699,6 +2940,54 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       >
                                         <ExternalLink size={12} /> Open Link / Resource
                                       </button>
+                                    ) : item.title === 'Post once a week' && (
+                                      <>
+                                        {/* Same in-app-guide move, jumps to the LinkedIn
+                                            Playbook's full 12-week plan instead of sending
+                                            them off-platform to figure out "what should I
+                                            even post". */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); setActiveTab('resources'); setShowLinkedInPlaybook(true); }}
+                                          className="btn btn-secondary"
+                                          style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                        >
+                                          <ExternalLink size={12} /> Open Link / Resource
+                                        </button>
+                                        {/* Inline preview of THIS week's example post for
+                                            their own track (linkedInPlaybookData.js - same
+                                            source the full modal reads from) + a one-click
+                                            confirmation, so the roadmap surfaces the real
+                                            content directly instead of only linking to it. */}
+                                        {(() => {
+                                          const week = getCurrentWeekContent(roadmapTrack);
+                                          return (
+                                            <div style={{ width: '100%', marginTop: '8px', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)' }}>
+                                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                                                <IdCard size={13} color="var(--accent-cyan)" />
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-cyan)' }}>
+                                                  Week {week.week} of 12 · {week.theme}
+                                                </span>
+                                              </div>
+                                              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 6px' }}>{week.post}</p>
+                                              {week.isNetworkingWeek && (
+                                                <p style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'flex-start', gap: '5px', margin: '0 0 8px' }}>
+                                                  <Users size={12} style={{ flexShrink: 0, marginTop: '2px' }} /> {week.description}
+                                                </p>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleConfirmLinkedInPost()}
+                                                disabled={linkedInPostConfirmed || confirmingLinkedInPost}
+                                                className={linkedInPostConfirmed ? 'btn btn-secondary' : 'btn btn-primary'}
+                                                style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                              >
+                                                <CheckCircle2 size={12} /> {linkedInPostConfirmed ? 'Posted This Week ✓' : 'Mark as Posted This Week'}
+                                              </button>
+                                            </div>
+                                          );
+                                        })()}
+                                      </>
                                     )}
                                   </div>
                                 ) : (
@@ -2811,16 +3100,56 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--accent-cyan)', marginBottom: '4px' }}>
                 <Handshake size={14} /> You've been randomly grouped with:
               </div>
-              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
-                {activeGroup.memberEmails.filter((e) => e.toLowerCase() !== myEmailLower).map((email) => (
-                  <li key={email}>{nameForEmail(email)}</li>
-                ))}
-              </ul>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+                {activeGroup.memberEmails.filter((e) => e.toLowerCase() !== myEmailLower).map((email) => {
+                  const directoryMatch = directory.find((m) => m.email.toLowerCase() === email.toLowerCase());
+                  const avatar = (
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {directoryMatch?.headshotUrl ? (
+                        <img src={directoryMatch.headshotUrl} alt={nameForEmail(email)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <User size={14} color="var(--text-muted)" />
+                      )}
+                    </div>
+                  );
+                  return (
+                    <div key={email} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {avatar}
+                      {directoryMatch ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDirectoryMember(directoryMatch)}
+                          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--accent-cyan)', textDecoration: 'underline', cursor: 'pointer' }}
+                        >
+                          {nameForEmail(email)}
+                        </button>
+                      ) : (
+                        <span>{nameForEmail(email)}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
               {activeGroup.dueDate && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
                   <CalendarDays size={14} /> Due {formatDate(activeGroup.dueDate)}
                 </div>
               )}
+              <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                  Next Steps
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    <MessageCircle size={14} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    Create a WhatsApp group with your teammates
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    <Calendar size={14} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    Book a session with your team to plan out what you'll build or present
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="glass-card" style={{ textAlign: 'center', padding: '40px 24px' }}>
@@ -2845,6 +3174,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               )}
             </div>
           )}
+
+          {renderMemberProfileModal()}
 
           {showWheelModal && activeGroup && (
             <MatchmakerWheelModal
@@ -2987,6 +3318,59 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </button>
             </div>
           )}
+
+          {/* My Journey So Far - a compact recap (computeJourneyStory,
+              defined above the tab router) that expands into a full
+              storyline on My Roadmap when clicked - see the card there for
+              the chronological timeline and what's deliberately left out
+              and why. */}
+          {(() => {
+            const story = computeJourneyStory();
+            const stats = [
+              { icon: Clock, value: story.journeyDurationLabel, label: 'At Hacking Hub' },
+              { icon: Award, value: story.certsCompletedCount, label: `Cert${story.certsCompletedCount === 1 ? '' : 's'} Completed` },
+              { icon: Target, value: story.roomsCompletedCount, label: `Room${story.roomsCompletedCount === 1 ? '' : 's'} Completed` },
+              { icon: CalendarDays, value: story.eventsJoinedCount, label: `Event${story.eventsJoinedCount === 1 ? '' : 's'} Joined` },
+              { icon: Briefcase, value: story.interviewsHadCount, label: `Interview${story.interviewsHadCount === 1 ? '' : 's'} Had` },
+            ];
+
+            return (
+              <div
+                className="glass-card"
+                onClick={() => { setActiveTab('roadmap'); setJourneyStoryExpanded(true); }}
+                style={{ marginBottom: '32px', cursor: 'pointer' }}
+                title="Click to see your full journey"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <TrendingUp size={18} color="var(--accent-cyan)" />
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>My Journey So Far</h3>
+                  </div>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
+                    See full story <ArrowRight size={13} />
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px' }}>
+                  {stats.map(({ icon: StatIcon, value, label }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(var(--accent-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <StatIcon size={17} color="var(--accent-cyan)" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {story.hasLandedJob && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '18px', paddingTop: '18px', borderTop: '1px solid var(--border-color)', fontSize: '0.88rem', color: 'var(--success)' }}>
+                    <Trophy size={16} /> You landed a job while at Hacking Hub — congrats! 🎉
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* TOP PANEL: Community Feed, Upcoming Events & Certification Victories */}
           <div className="dashboard-grid" style={{ marginBottom: '32px' }}>
@@ -4133,7 +4517,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           )}
 
-          {showLinkedInPlaybook && <LinkedInPlaybookModal onClose={() => setShowLinkedInPlaybook(false)} />}
+          {showLinkedInPlaybook && <LinkedInPlaybookModal onClose={() => setShowLinkedInPlaybook(false)} roadmapTrack={roadmapTrack} />}
           {showSecurityPlusGuide && <SecurityPlusGuideModal onClose={() => setShowSecurityPlusGuide(false)} />}
           {showCySAPlusGuide && <CySAPlusGuideModal onClose={() => setShowCySAPlusGuide(false)} />}
           {showTerraformGuide && <TerraformAssociateGuideModal onClose={() => setShowTerraformGuide(false)} />}

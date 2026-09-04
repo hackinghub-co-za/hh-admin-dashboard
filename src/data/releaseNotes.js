@@ -6,6 +6,68 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.04',
+    date: '2026-09-04',
+    headline: 'Your journey, your LinkedIn game, and your team - all leveled up.',
+    intro: "A new Dashboard tile telling your story so far, a real 12-week LinkedIn posting plan tailored to your track, proper interview tracking, and your Matchmaker group now emails you and shows real teammate profiles.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '📈',
+            title: 'My Journey So Far',
+            body: "A new Dashboard tile shows your tenure, certs completed, rooms completed, events joined, and interviews had at a glance — click it for the full story on My Roadmap: a real timeline of what you've done since you joined.",
+            where: 'Dashboard, or My Roadmap',
+          },
+          {
+            icon: '💼',
+            title: 'LinkedIn: a real 12-week posting plan',
+            body: "The LinkedIn Playbook now has a full 12-week plan tailored to your specialization — a real example post every week, not just a vague prompt, plus dedicated weeks for growing your network. Your Roadmap's \"Post once a week\" item shows this week's post right there, with a one-click way to mark it done.",
+            where: 'My Roadmap, or Resources → LinkedIn Strategy',
+          },
+        ],
+      },
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '🎤',
+            title: 'Real interview tracking',
+            body: "Interview Prep now asks where and when your real interview is before generating questions, and lets you log how it actually went afterward — the questions you got asked, whether the playbook helped, and how confident you're feeling. It all counts toward your real Interviews Had number.",
+            where: '1on1 Meetings → More 1on1 Support → Interview Prep',
+          },
+        ],
+      },
+      {
+        label: 'Matchmaker',
+        color: '#fb923c',
+        items: [
+          {
+            icon: '📧',
+            title: 'Your group now emails you',
+            body: "The moment you're assigned a Matchmaker group, you'll get an email with who's on it, what you're building, when it's due, and next steps. Teammate names in the portal are now clickable too, showing their full profile — headshot included.",
+            where: 'Matchmaker, or your inbox',
+          },
+        ],
+      },
+      {
+        label: 'Getting Started',
+        color: '#38bdf8',
+        items: [
+          {
+            icon: '✅',
+            title: 'Getting Started now has a deadline',
+            body: "If it's been 3 days since you joined and you haven't finished the Getting Started checklist yet, the rest of the portal stays locked until you do — Dashboard, 1-on-1 Meetings, and Members stay open the whole time so you can actually finish it.",
+            where: 'shown automatically if it applies to you',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.02',
     date: '2026-09-02',
     headline: 'Your Roadmap now links straight to the source.',

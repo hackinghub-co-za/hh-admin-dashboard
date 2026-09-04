@@ -18,6 +18,56 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.04
+
+### Added
+- **Matchmaker group assignment email + teammate profiles** — the moment
+  an admin runs a matching round, every member of every new group gets an
+  email (`matchmaker-group-email` Edge Function, Resend) naming their
+  teammates, activity type, and due date, plus concrete next steps (start
+  a WhatsApp group, book a planning session) — idempotent via a new
+  `notified_at` column, safe to re-trigger on a partial failure. In the
+  portal, "Your Group" teammate names are now clickable, opening the same
+  member-directory profile modal used on the Members tab (headshot
+  included), and the group card itself gained a "Next Steps" section
+  mirroring the email. (`030_matchmaker.sql`)
+- **"My Journey So Far"** — a new Dashboard tile summarizing real,
+  already-tracked progress (tenure, certs completed, rooms completed,
+  events joined, interviews had), which expands into a full chronological
+  storyline on My Roadmap when clicked — built entirely from real dated
+  activity (roadmap completions, room-log months, event RSVPs); any
+  undated milestones (interviews, job placement) are called out
+  separately rather than given a fabricated date. (`057_interviews_had.sql`)
+- **Real interview tracking** — Interview Prep now asks where and when a
+  real interview is before generating AI questions, and lets a member
+  submit a post-interview review afterward (questions actually asked,
+  whether the HH playbook helped, confidence of getting the role,
+  online/offline). Admin-visible on the Members tab. "Interviews Had" is
+  now one merged number — an admin-set manual baseline (pre-tracking
+  history) plus real interviews logged in the portal — computed the same
+  way everywhere (`get_my_interviews_had()`) so the two can never drift
+  apart. (`058_member_interviews.sql`)
+- **LinkedIn 12-week posting plan** — the LinkedIn Playbook (Resources)
+  now includes a full 12-week posting plan per specialization track, with
+  a genuinely written example post for every week (not a one-line
+  prompt), three dedicated network-growth weeks, and a standing reminder
+  against AI-generated ("AI slop") posts. The roadmap's "Post once a
+  week" item shows the current week's example post inline with a
+  one-click "Mark as Posted This Week" confirmation; a weekly reminder
+  email (`linkedin-post-reminder-email`, Resend + pg_cron, Tuesday
+  08:00 UTC) nudges anyone who hasn't confirmed yet. Admin-visible on the
+  Members tab. (`059_linkedin_weekly_post.sql`)
+- **Job Board admin management** — the admin dashboard's new Job Board
+  tab lets an admin add and delete real job listings, and Meetups gained
+  a matching "Add Event" form — previously the member-facing Job
+  Board/Events tabs had no admin-side way to populate them at all.
+- **Getting Started hard-gate** — a member who hasn't finished the
+  Getting Started checklist within 3 days of their intro is now
+  restricted to Dashboard, 1-on-1 Meetings, and Members (the two tabs
+  needed to actually finish it) until they do; existing members got a
+  fresh 3-day grace period starting from rollout, not an immediate lock.
+  (`006_onboarding.sql`)
+
 ## 2026.09.02
 
 ### Added

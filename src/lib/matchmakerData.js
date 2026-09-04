@@ -64,6 +64,17 @@ export async function runMatchmakerRound() {
   return data;
 }
 
+/** Admin: emails every member of every Active group that hasn't been
+ * notified yet (supabase/functions/matchmaker-group-email) - idempotent, so
+ * safe to call again if it partially fails or after a retry. Meant to be
+ * called right after runMatchmakerRound() succeeds. */
+export async function sendMatchmakerGroupEmails() {
+  const { data, error } = await supabase.functions.invoke('matchmaker-group-email', { body: {} });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 /** Admin: mark a group Completed (or back to Active). */
 export async function updateGroupStatus(id, status) {
   const { error } = await supabase.from('matchmaker_groups').update({ status }).eq('id', id);

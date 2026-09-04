@@ -44,7 +44,7 @@ import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, crea
 import { fetchJobBoard, addJobListing, deleteJobListing } from '../../lib/jobBoardData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
-import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
+import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
@@ -433,6 +433,17 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     try {
       await runMatchmakerRound();
       refreshMatchmakerData();
+      // Best-effort - the groups themselves are already correctly formed
+      // and saved at this point, so a notification-email hiccup shouldn't
+      // read as the round itself having failed. sendMatchmakerGroupEmails
+      // is idempotent (matchmaker-group-email/index.ts only ever emails
+      // groups it hasn't already notified), so it's always safe to just
+      // retry by running it again if this warning shows up.
+      try {
+        await sendMatchmakerGroupEmails();
+      } catch (emailErr) {
+        setMatchmakerError(`Groups were created, but notification emails failed to send: ${friendlyErrorMessage(emailErr)}`);
+      }
     } catch (err) {
       setMatchmakerError(friendlyErrorMessage(err));
     } finally {
@@ -2664,6 +2675,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               onDelete={handleDeleteMemberProfile}
               onClose={() => setSelectedMemberEmail(null)}
               today={today}
+              isMockSession={isMockSession}
             />
           )}
 

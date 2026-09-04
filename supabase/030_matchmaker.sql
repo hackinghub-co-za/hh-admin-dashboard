@@ -69,12 +69,18 @@ CREATE TABLE IF NOT EXISTS public.matchmaker_groups (
   -- below defaults every new group to 3 weeks out; an admin can freely move
   -- it later (e.g. out to the full 4 weeks) from the Matchmaker tab.
   due_date DATE,
+  -- When each member of this group was emailed to let them know they've
+  -- been assigned (supabase/functions/matchmaker-group-email). Null until
+  -- sent. Set once, right after sending, so re-triggering the function is
+  -- always a safe no-op for a group that's already been notified.
+  notified_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Adds due_date to a database where this table already existed - the inline
--- column above only takes effect on a fresh CREATE TABLE.
+-- Adds due_date/notified_at to a database where this table already existed -
+-- the inline columns above only take effect on a fresh CREATE TABLE.
 ALTER TABLE public.matchmaker_groups ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE public.matchmaker_groups ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP WITH TIME ZONE;
 
 ALTER TABLE public.matchmaker_groups ENABLE ROW LEVEL SECURITY;
 

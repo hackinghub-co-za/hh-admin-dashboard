@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star, Milestone, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star, Milestone, Trash2, CheckCircle2, IdCard } from 'lucide-react';
 import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS } from '../lib/memberOptions';
 import { formatDate } from '../lib/dateFormat';
+import { fetchMemberInterviews } from '../lib/memberInterviewsData';
+import { fetchMemberLinkedInPostStatus } from '../lib/linkedInPostData';
 
-export default function MemberProfileModal({ member, profile, onSave, onDelete, onClose, today }) {
+export default function MemberProfileModal({ member, profile, onSave, onDelete, onClose, today, isMockSession }) {
   const [form, setForm] = useState({
     // Defaults to the real first-payment date (still shown separately,
     // read-only, as "First Payment" below) - editable here since it's wrong
@@ -18,6 +20,11 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
     phone: profile?.phone || '',
     moneyOwed: profile?.moneyOwed ?? 0,
     jobReadiness: profile?.jobReadiness || 'Not Started',
+    // Not derived from anything - there's no real interview activity
+    // tracked elsewhere in the app (Interview Prep only logs AI practice
+    // sessions), so this is a simple manual count, same trust level as
+    // Job Readiness. Feeds the member-side "My Journey So Far" storyline.
+    interviewsHad: profile?.interviewsHad ?? 0,
     roadmapTrack: profile?.roadmapTrack || 'Not Assigned',
     status: profile?.status || 'Active',
     employmentStatus: profile?.employmentStatus || 'Not Set',
@@ -29,6 +36,25 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
     offboardingStartedAt: profile?.offboardingStartedAt || '',
   });
 
+  // Real interviews this member has logged via Interview Prep
+  // (supabase/058_member_interviews.sql) - read-only here, self-fetched the
+  // same way InterviewPrepModal.jsx fetches its own history. Skipped under
+  // Mock Admin (no real Supabase session to query).
+  const [realInterviews, setRealInterviews] = useState([]);
+  useEffect(() => {
+    if (isMockSession || !member?.email) return;
+    fetchMemberInterviews(member.email).then(setRealInterviews).catch(() => {});
+  }, [isMockSession, member?.email]);
+
+  // Whether this member has confirmed posting on LinkedIn this week
+  // (supabase/059_linkedin_weekly_post.sql) - same self-fetching,
+  // mock-guarded pattern as realInterviews above.
+  const [linkedInStatus, setLinkedInStatus] = useState(null);
+  useEffect(() => {
+    if (isMockSession || !member?.email) return;
+    fetchMemberLinkedInPostStatus(member.email).then(setLinkedInStatus).catch(() => {});
+  }, [isMockSession, member?.email]);
+
   if (!member) return null;
 
   // member.lastPaymentDate is null for a real, allowlisted member who's never
@@ -38,6 +64,15 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
     ? Math.floor((today - new Date(member.lastPaymentDate)) / (1000 * 60 * 60 * 24))
     : null;
   const isLapsed = form.status === 'Active' && daysSinceLastPayment !== null && daysSinceLastPayment > LAPSED_AFTER_DAYS;
+
+  // Total Interviews Had = the manual baseline below + real interviews
+  // logged in the portal whose date has already passed (supabase/058_
+  // member_interviews.sql redefines get_my_interviews_had() to sum these
+  // same two things) - one merged number, computed the same way here and
+  // on the member's own Journey tile, so they can never drift apart.
+  const todayStr = today.toISOString().split('T')[0];
+  const pastRealInterviewsCount = realInterviews.filter((i) => i.interviewDate <= todayStr).length;
+  const totalInterviewsHad = (Number(form.interviewsHad) || 0) + pastRealInterviewsCount;
 
   const daysSinceLastMeeting = member.lastMeetingDate
     ? Math.floor((today - new Date(member.lastMeetingDate)) / (1000 * 60 * 60 * 24))
@@ -79,6 +114,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
       ...form,
       manualStartDate: form.startDate,
       moneyOwed: Number(form.moneyOwed) || 0,
+      interviewsHad: Number(form.interviewsHad) || 0,
       monthlyRemuneration: form.employmentStatus === 'Employed' ? (Number(form.monthlyRemuneration) || 0) : 0,
       jobTitle: form.employmentStatus === 'Employed' ? form.jobTitle : '',
       jobPlacedDate: form.jobReadiness === 'Job Placed' ? form.jobPlacedDate : '',
@@ -221,6 +257,61 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
           </div>
         </div>
 
+        {!isMockSession && (
+          <div style={{ marginBottom: '24px' }}>
+            <h4 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '10px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Briefcase size={14} /> Total Interviews Had: {totalInterviewsHad}
+            </h4>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+              {form.interviewsHad || 0} manual baseline + {pastRealInterviewsCount} logged for real in the portal.
+            </p>
+            {realInterviews.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {realInterviews.map((i) => (
+                  <div key={i.id} style={{ padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                      <span>{i.company}</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{formatDate(i.interviewDate)}</span>
+                    </div>
+                    {i.reviewedAt ? (
+                      <div style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <p style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--success)', marginBottom: '6px' }}>
+                          <CheckCircle2 size={13} /> {i.interviewMode} · Playbook helped: {i.playbookHelped} · Confidence {i.confidenceLevel}/5
+                        </p>
+                        <p><strong>Questions asked:</strong> {i.questionsAsked}</p>
+                      </div>
+                    ) : (
+                      <p style={{ marginTop: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>No review submitted yet.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>No real interviews logged in the portal yet.</p>
+            )}
+          </div>
+        )}
+
+        {!isMockSession && (
+          <div style={{ marginBottom: '24px' }}>
+            <h4 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <IdCard size={14} /> LinkedIn Post This Week
+            </h4>
+            {linkedInStatus === null ? (
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Loading...</p>
+            ) : (
+              <span className={`badge ${linkedInStatus.confirmedThisWeek ? 'badge-success' : 'badge-warning'}`}>
+                {linkedInStatus.confirmedThisWeek ? 'Confirmed this week' : 'Not confirmed yet this week'}
+              </span>
+            )}
+            {linkedInStatus?.lastConfirmedAt && !linkedInStatus.confirmedThisWeek && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Last confirmed {formatDate(linkedInStatus.lastConfirmedAt.split('T')[0])}.
+              </p>
+            )}
+          </div>
+        )}
+
         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
           The fields below aren't in the PayFast export — fill them in and they'll be remembered for this member.
         </p>
@@ -279,6 +370,16 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
                 {JOB_READINESS_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <Briefcase size={13} /> Interviews Had (Manual Baseline)
+            </label>
+            <input type="number" min="0" step="1" className="form-input" style={{ maxWidth: '160px' }} value={form.interviewsHad} onChange={update('interviewsHad')} />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Only for interviews that happened before real tracking existed, or ones a member never logged themselves - it's added to whatever they log for real in Interview Prep for one combined total, so there's no need to keep bumping this up per interview going forward.
+            </p>
           </div>
 
           <div>

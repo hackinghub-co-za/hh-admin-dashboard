@@ -233,12 +233,22 @@ SELECT
   'LinkedIn Strategy',
   'The Hacking Hub LinkedIn Playbook',
   'Guide',
-  'Photo, banner, headline, About section, posting cadence, and what to avoid - the full checklist for a LinkedIn profile that actually gets you noticed.',
+  'Photo, banner, headline, About section, posting cadence, and what to avoid, plus a 4-week posting rotation tailored to your specialty (SOC, Offensive Security, Cloud, and more) - everything for a LinkedIn profile that actually gets you noticed.',
   NULL,
   NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'The Hacking Hub LinkedIn Playbook'
 );
+
+-- The WHERE NOT EXISTS above only fires on a fresh install - this guide's
+-- description grew a second half (the domain-tailored weekly rotation)
+-- after the row already existed on any install that ran this file before,
+-- so keep the description itself in sync the same idempotent way every
+-- other evolving value in this schema is: an UPDATE that always converges
+-- to the current text, safe to re-run indefinitely.
+UPDATE public.resources
+SET description = 'Photo, banner, headline, About section, posting cadence, and what to avoid, plus a 4-week posting rotation tailored to your specialty (SOC, Offensive Security, Cloud, and more) - everything for a LinkedIn profile that actually gets you noticed.'
+WHERE title = 'The Hacking Hub LinkedIn Playbook';
 
 INSERT INTO public.resources (category, title, format, description, link, created_by)
 SELECT
