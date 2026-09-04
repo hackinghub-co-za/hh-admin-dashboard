@@ -16,12 +16,22 @@
 -- Linking them would force a 1:1 relationship that doesn't exist (a member
 -- might generate practice questions multiple times for one real interview,
 -- or log a real interview without ever using AI prep for it).
+--
+-- interview_domain (added alongside company/date in the same upfront gate)
+-- is which specialty track (SOC, Offensive Security, Cloud Security,
+-- DevSecOps, IAM, AI Security, GRC - same vocabulary as ROADMAP_TRACKS in
+-- memberOptions.js) the real interview is FOR - not necessarily the same as
+-- the member's own assigned roadmap track, since someone can interview for
+-- a role outside their current specialization. gemma-interview-prep reads
+-- it to tailor AI-generated questions to that domain instead of just the
+-- member's static profile specialty.
 
 CREATE TABLE IF NOT EXISTS public.member_interviews (
   id BIGSERIAL PRIMARY KEY,
   member_email TEXT NOT NULL,
   company TEXT NOT NULL,
   interview_date DATE NOT NULL,
+  interview_domain TEXT,
   -- Review fields - all NULL until the member submits their review.
   questions_asked TEXT,
   playbook_helped TEXT CHECK (playbook_helped IN ('Yes', 'Somewhat', 'No')),
@@ -31,6 +41,13 @@ CREATE TABLE IF NOT EXISTS public.member_interviews (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Fresh-install guard above already includes interview_domain in the
+-- CREATE TABLE, but IF NOT EXISTS no-ops entirely on an install where this
+-- table was already created before this column existed - this ALTER is
+-- what actually adds it there.
+ALTER TABLE public.member_interviews
+  ADD COLUMN IF NOT EXISTS interview_domain TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_member_interviews_member_created ON public.member_interviews(member_email, created_at);
 
@@ -54,11 +71,19 @@ CREATE POLICY "admins manage interviews"
   ON public.member_interviews FOR ALL
   USING (public.is_admin(auth.uid()));
 
--- The upfront "where/when" gate. Called once per real interview a member
--- wants to prep for or track; returns the new row's id so the client can
--- keep prepping (generating AI questions) against it and later attach a
--- review to it.
-CREATE OR REPLACE FUNCTION public.log_my_interview(p_company TEXT, p_interview_date DATE)
+-- The upfront "where/when/what domain" gate. Called once per real interview
+-- a member wants to prep for or track; returns the new row's id so the
+-- client can keep prepping (generating domain-tailored AI questions)
+-- against it and later attach a review to it.
+--
+-- p_interview_domain was added after this function first shipped - a plain
+-- CREATE OR REPLACE can't change a function's argument list, so the DROP
+-- below is required first (same lesson already documented in
+-- 010_member_directory.sql's own history) to cleanly replace the original
+-- 2-arg version rather than leaving both callable as separate overloads.
+DROP FUNCTION IF EXISTS public.log_my_interview(TEXT, DATE);
+
+CREATE OR REPLACE FUNCTION public.log_my_interview(p_company TEXT, p_interview_date DATE, p_interview_domain TEXT)
 RETURNS BIGINT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -71,16 +96,19 @@ BEGIN
   IF p_interview_date IS NULL THEN
     RAISE EXCEPTION 'Tell us when the interview is.';
   END IF;
+  IF p_interview_domain IS NULL OR trim(p_interview_domain) = '' THEN
+    RAISE EXCEPTION 'Tell us which domain you''re interviewing for.';
+  END IF;
 
-  INSERT INTO public.member_interviews (member_email, company, interview_date)
-  VALUES (lower(auth.jwt() ->> 'email'), trim(p_company), p_interview_date)
+  INSERT INTO public.member_interviews (member_email, company, interview_date, interview_domain)
+  VALUES (lower(auth.jwt() ->> 'email'), trim(p_company), p_interview_date, trim(p_interview_domain))
   RETURNING id INTO v_id;
 
   RETURN v_id;
 END;
 $$;
-GRANT EXECUTE ON FUNCTION public.log_my_interview(TEXT, DATE) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.log_my_interview(TEXT, DATE) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.log_my_interview(TEXT, DATE, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.log_my_interview(TEXT, DATE, TEXT) FROM PUBLIC, anon;
 
 -- The post-interview review: what was asked, whether the playbook helped,
 -- confidence of getting the role, and online/offline. Can be called again

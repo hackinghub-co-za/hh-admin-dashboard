@@ -14,6 +14,7 @@ function mapRow(row) {
     memberEmail: row.member_email,
     company: row.company,
     interviewDate: row.interview_date,
+    interviewDomain: row.interview_domain || '',
     questionsAsked: row.questions_asked || '',
     playbookHelped: row.playbook_helped || '',
     confidenceLevel: row.confidence_level,
@@ -23,9 +24,14 @@ function mapRow(row) {
   };
 }
 
-/** State where/when a real interview is - the upfront gate. Returns the new interview's id. */
-export async function logMyInterview(company, interviewDate) {
-  const { data, error } = await supabase.rpc('log_my_interview', { p_company: company, p_interview_date: interviewDate });
+/** State where/when/what domain a real interview is - the upfront gate.
+ * Returns the new interview's id. */
+export async function logMyInterview(company, interviewDate, interviewDomain) {
+  const { data, error } = await supabase.rpc('log_my_interview', {
+    p_company: company,
+    p_interview_date: interviewDate,
+    p_interview_domain: interviewDomain,
+  });
   if (error) throw error;
   return data;
 }
@@ -46,7 +52,7 @@ export async function submitMyInterviewReview(interviewId, { questionsAsked, pla
 export async function fetchMyInterviews() {
   const { data, error } = await supabase
     .from('member_interviews')
-    .select('id, member_email, company, interview_date, questions_asked, playbook_helped, confidence_level, interview_mode, reviewed_at, created_at')
+    .select('id, member_email, company, interview_date, interview_domain, questions_asked, playbook_helped, confidence_level, interview_mode, reviewed_at, created_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapRow);
@@ -56,7 +62,7 @@ export async function fetchMyInterviews() {
 export async function fetchMemberInterviews(memberEmail) {
   const { data, error } = await supabase
     .from('member_interviews')
-    .select('id, member_email, company, interview_date, questions_asked, playbook_helped, confidence_level, interview_mode, reviewed_at, created_at')
+    .select('id, member_email, company, interview_date, interview_domain, questions_asked, playbook_helped, confidence_level, interview_mode, reviewed_at, created_at')
     .eq('member_email', memberEmail)
     .order('created_at', { ascending: false });
   if (error) throw error;

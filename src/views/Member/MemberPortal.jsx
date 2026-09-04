@@ -3876,7 +3876,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           )}
 
           {showInterviewPrep && !isMockSession && (
-            <InterviewPrepModal onClose={() => setShowInterviewPrep(false)} />
+            <InterviewPrepModal onClose={() => setShowInterviewPrep(false)} roadmapTrack={roadmapTrack} />
           )}
         </div>
       );

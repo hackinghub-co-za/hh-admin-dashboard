@@ -4,12 +4,17 @@
 
 import { supabase } from './supabase';
 
-/** Generates tailored interview questions from a job description + CV text.
- * Both are required. Returns the questions; also persisted server-side
- * (the job description is stored, the CV text itself is not). */
-export async function generateInterviewQuestions(jobDescription, cvText) {
+/** Generates tailored interview questions from a job description + CV text,
+ * leaned toward the given domain (SOC, Offensive Security, etc. - the
+ * domain the member is actually interviewing for, from member_interviews.
+ * interview_domain, not necessarily their own profile specialty). Job
+ * description and CV text are both required; domain is optional - the
+ * edge function falls back to the member's profile specialty if omitted or
+ * unrecognized. Returns the questions; also persisted server-side (the job
+ * description is stored, the CV text itself is not). */
+export async function generateInterviewQuestions(jobDescription, cvText, domain) {
   const { data, error } = await supabase.functions.invoke('gemma-interview-prep', {
-    body: { jobDescription, cvText },
+    body: { jobDescription, cvText, domain },
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);

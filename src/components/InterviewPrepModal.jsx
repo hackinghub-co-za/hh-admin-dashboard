@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, MessageSquare, Briefcase, FileText, History, Lightbulb, Building2, Calendar, CheckCircle2 } from 'lucide-react';
 import { generateInterviewQuestions, fetchMyInterviewPrepSessions } from '../lib/interviewPrepData';
 import { logMyInterview, submitMyInterviewReview, fetchMyInterviews } from '../lib/memberInterviewsData';
+import { ROADMAP_TRACKS } from '../lib/memberOptions';
 
 // Gemma-powered interview question generator - paste a job description +
 // CV text, get back tailored questions (supabase/056_interview_prep.sql +
@@ -19,6 +20,14 @@ import { logMyInterview, submitMyInterviewReview, fetchMyInterviews } from '../l
 // the HH playbook helped, confidence of getting the role, online/offline).
 
 const WEEKLY_SESSION_CAP = 3; // must match gemma-interview-prep's own WEEKLY_SESSION_CAP - client-side hint only
+
+// Which domain the real interview is FOR - same 7 tracks as ROADMAP_TRACKS
+// minus 'Not Assigned' (memberOptions.js), so the vocabulary matches My
+// Roadmap and the LinkedIn Playbook exactly. Read by gemma-interview-prep
+// to tailor generated questions to this domain rather than just the
+// member's own profile specialty, which might differ from what they're
+// actually interviewing for.
+const INTERVIEW_DOMAINS = ROADMAP_TRACKS.filter((t) => t !== 'Not Assigned');
 
 const CATEGORY_COLOR = {
   Technical: 'var(--accent-cyan)',
@@ -40,7 +49,7 @@ function formatInterviewDate(dateStr) {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-export default function InterviewPrepModal({ onClose }) {
+export default function InterviewPrepModal({ onClose, roadmapTrack }) {
   const [phase, setPhase] = useState('gate'); // gate | input | generating | result | review
   const [jobDescription, setJobDescription] = useState('');
   const [cvText, setCvText] = useState('');
@@ -52,6 +61,12 @@ export default function InterviewPrepModal({ onClose }) {
   const [showGateForm, setShowGateForm] = useState(false); // toggled by "Change" / "Log a Different Interview"
   const [gateCompany, setGateCompany] = useState('');
   const [gateDate, setGateDate] = useState('');
+  // Pre-fills to the member's own roadmap track when it's a recognized
+  // domain, but stays blank (forcing an explicit choice) otherwise - unlike
+  // the LinkedIn Playbook's browse-only content, this choice actually
+  // changes what questions get generated, so it shouldn't silently default
+  // to something the member never picked.
+  const [gateDomain, setGateDomain] = useState(INTERVIEW_DOMAINS.includes(roadmapTrack) ? roadmapTrack : '');
   const [busy, setBusy] = useState(false); // in-flight gate/review RPC
   const [reviewingId, setReviewingId] = useState(null);
   const [reviewQuestionsAsked, setReviewQuestionsAsked] = useState('');
@@ -85,22 +100,23 @@ export default function InterviewPrepModal({ onClose }) {
   const activeInterview = myInterviews.find((i) => i.id === activeInterviewId);
 
   const handleLogInterview = async () => {
-    if (!gateCompany.trim() || !gateDate) {
-      setErrorMsg('Tell us the company and the interview date.');
+    if (!gateCompany.trim() || !gateDate || !gateDomain) {
+      setErrorMsg('Tell us the company, the interview date, and which domain it\'s for.');
       return;
     }
     setBusy(true);
     setErrorMsg(null);
     try {
-      const id = await logMyInterview(gateCompany.trim(), gateDate);
+      const id = await logMyInterview(gateCompany.trim(), gateDate, gateDomain);
       setMyInterviews((prev) => [
-        { id, company: gateCompany.trim(), interviewDate: gateDate, questionsAsked: '', playbookHelped: '', confidenceLevel: null, interviewMode: '', reviewedAt: null, createdAt: new Date().toISOString() },
+        { id, company: gateCompany.trim(), interviewDate: gateDate, interviewDomain: gateDomain, questionsAsked: '', playbookHelped: '', confidenceLevel: null, interviewMode: '', reviewedAt: null, createdAt: new Date().toISOString() },
         ...prev,
       ]);
       setActiveInterviewId(id);
       setShowGateForm(false);
       setGateCompany('');
       setGateDate('');
+      setGateDomain(INTERVIEW_DOMAINS.includes(roadmapTrack) ? roadmapTrack : '');
       setPhase('input');
     } catch (err) {
       setErrorMsg(err.message || 'Could not save that - try again.');
@@ -157,7 +173,7 @@ export default function InterviewPrepModal({ onClose }) {
     setPhase('generating');
     setErrorMsg(null);
     try {
-      const qs = await generateInterviewQuestions(jobDescription.trim(), cvText.trim());
+      const qs = await generateInterviewQuestions(jobDescription.trim(), cvText.trim(), activeInterview?.interviewDomain);
       setQuestions(qs);
       setPhase('result');
       setHistory((prev) => [{ id: `temp-${Date.now()}`, jobDescription: jobDescription.trim(), questions: qs, createdAt: new Date().toISOString() }, ...prev]);
@@ -218,6 +234,7 @@ export default function InterviewPrepModal({ onClose }) {
                 </p>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                   {formatInterviewDate(activeInterview.interviewDate)}
+                  {activeInterview.interviewDomain && ` · ${activeInterview.interviewDomain}`}
                 </p>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                   <button type="button" className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowGateForm(true)}>
@@ -252,8 +269,23 @@ export default function InterviewPrepModal({ onClose }) {
                   className="form-input"
                   value={gateDate}
                   onChange={(e) => setGateDate(e.target.value)}
-                  style={{ width: '100%', marginBottom: '20px' }}
+                  style={{ width: '100%', marginBottom: '18px' }}
                 />
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <MessageSquare size={14} /> Which domain is it for?
+                </h4>
+                <select
+                  className="form-input"
+                  value={gateDomain}
+                  onChange={(e) => setGateDomain(e.target.value)}
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  <option value="">Select a domain...</option>
+                  {INTERVIEW_DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                  Gemma leans the generated questions toward this domain - pick whichever role you're actually interviewing for, even if it's not your usual track.
+                </p>
                 {errorMsg && <p style={{ fontSize: '0.82rem', color: 'var(--danger)', marginBottom: '14px' }}>{errorMsg}</p>}
                 <button
                   type="button"
@@ -275,6 +307,7 @@ export default function InterviewPrepModal({ onClose }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', marginBottom: '18px', fontSize: '0.82rem' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>
                   Prepping for <strong>{activeInterview.company}</strong> · {formatInterviewDate(activeInterview.interviewDate)}
+                  {activeInterview.interviewDomain && ` · ${activeInterview.interviewDomain}`}
                 </span>
                 <button
                   type="button"
@@ -351,7 +384,9 @@ export default function InterviewPrepModal({ onClose }) {
                   {myInterviews.map((i) => (
                     <div key={i.id} style={{ padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.82rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{i.company}</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                          {i.company}{i.interviewDomain && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> · {i.interviewDomain}</span>}
+                        </span>
                         <span style={{ color: 'var(--text-muted)' }}>{formatInterviewDate(i.interviewDate)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>

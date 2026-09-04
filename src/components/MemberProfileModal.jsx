@@ -270,7 +270,10 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
                 {realInterviews.map((i) => (
                   <div key={i.id} style={{ padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                      <span>{i.company}</span>
+                      <span>
+                        {i.company}
+                        {i.interviewDomain && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> · {i.interviewDomain}</span>}
+                      </span>
                       <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{formatDate(i.interviewDate)}</span>
                     </div>
                     {i.reviewedAt ? (

@@ -10,6 +10,13 @@
 // only the generated questions (plus the job description, which is public
 // posting text, not personal data) are written to the DB. See
 // 056_interview_prep.sql for the full reasoning on what is/isn't stored.
+//
+// Optionally takes `domain` (the specialty the member is interviewing FOR
+// - member_interviews.interview_domain, supabase/058_member_interviews.sql)
+// so generated questions lean toward that domain rather than just the
+// member's own profile specialty, which might not match what they're
+// actually interviewing for right now. Falls back to profile specialty (or
+// pure JD/CV inference) if omitted or not one of VALID_DOMAINS below.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -21,6 +28,13 @@ const corsHeaders = {
 const MAX_INPUT_LENGTH = 8000; // same headroom as gemma-review, per field
 const WEEKLY_SESSION_CAP = 3; // own budget, separate from gemma-review's cv_reviews cap
 const GEMINI_MODEL = 'gemini-3.6-flash'; // same pin as gemma-chat/gemma-review
+
+// Same 7 domains as ROADMAP_TRACKS (memberOptions.js, minus 'Not
+// Assigned') and DOMAIN_CONTENT (linkedInPlaybookData.js) - whitelisted
+// here since `domain` comes straight from the client and gets embedded
+// into the system prompt below; never trust free-form client text into a
+// prompt without validating it against a known set first.
+const VALID_DOMAINS = ['SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
 
 const QUESTIONS_SCHEMA = {
   type: 'OBJECT',
@@ -43,9 +57,14 @@ const QUESTIONS_SCHEMA = {
   required: ['questions'],
 };
 
-function buildSystemPrompt(profile) {
-  const context = profile?.specialty
-    ? `This member is on the ${profile.specialty} track - lean technical questions toward what that track actually covers day to day.`
+function buildSystemPrompt(profile, domain) {
+  // The domain picked for THIS interview (member_interviews.interview_domain)
+  // wins over the member's static profile specialty when both are present -
+  // someone can be interviewing for a role outside their own track, and
+  // that's the domain the questions should actually lean toward.
+  const trackLabel = domain || profile?.specialty;
+  const context = trackLabel
+    ? `This member is interviewing for a ${trackLabel} role - lean technical questions toward what that domain actually covers day to day.`
     : 'No specialty track is set for this member yet - infer the right technical angle from the job description and CV instead.';
 
   return `You are Gemma, the AI assistant embedded in the Hacking Hub member portal - a cybersecurity coaching community. Your voice matches the app's hacker-terminal branding: warm, a little playful, never corporate, but the substance here must be genuinely useful interview prep, not generic filler questions.
@@ -93,9 +112,10 @@ Deno.serve(async (req) => {
     }
     const email = userData.user.email.toLowerCase();
 
-    const { jobDescription, cvText } = await req.json();
+    const { jobDescription, cvText, domain } = await req.json();
     const jd = typeof jobDescription === 'string' ? jobDescription.trim() : '';
     const cv = typeof cvText === 'string' ? cvText.trim() : '';
+    const chosenDomain = VALID_DOMAINS.includes(domain) ? domain : null;
 
     if (!jd || !cv) {
       return new Response(JSON.stringify({ error: 'Paste both the job description and your CV text.' }), {
@@ -149,7 +169,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: buildSystemPrompt(profile) }] },
+          system_instruction: { parts: [{ text: buildSystemPrompt(profile, chosenDomain) }] },
           contents: [{ role: 'user', parts: [{ text: userContent }] }],
           generationConfig: {
             responseMimeType: 'application/json',
