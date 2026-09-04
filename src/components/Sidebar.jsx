@@ -162,7 +162,7 @@ const markReleaseSeen = () => {
   }
 };
 
-export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro }) {
+export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding }) {
   const isAdmin = user?.role === 'admin';
   const [hoveredId, setHoveredId] = useState(null);
   // Auto-opens the latest What's New on sign-in for members (not admins -
@@ -224,6 +224,14 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'billing', label: 'My Subscription', icon: CreditCard },
       ];
+
+  // Hard-gates a member down to just Dashboard (the Getting Started
+  // checklist itself), 1on1 Meetings, and Members - the two tabs actually
+  // needed to finish book_1on1/setup_profile - once App.jsx's
+  // gettingStartedGateActive fires. Never applies to admins.
+  const visibleMenuItems = restrictToOnboarding
+    ? menuItems.filter((item) => ['dashboard', 'meetings', 'members'].includes(item.id))
+    : menuItems;
 
   return (
     <>
@@ -293,7 +301,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
 
       {/* Navigation List */}
       <nav style={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {menuItems.map((item) => (
+        {visibleMenuItems.map((item) => (
           <TooltipButton
             key={item.id}
             id={item.id}

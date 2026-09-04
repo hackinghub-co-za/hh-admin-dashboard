@@ -101,3 +101,62 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.mark_my_onboarding_step_complete(TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.mark_my_onboarding_step_complete(TEXT) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- PART 3: HARD-GATE THE CHECKLIST AFTER A GRACE PERIOD
+-- =========================================================================
+-- The checklist above (PART 2) has always been a dismissible dashboard card
+-- - nothing stops a member from ignoring it entirely and using the rest of
+-- the portal immediately. This adds a real block: once a member is
+-- GETTING_STARTED_GRACE_DAYS (3, see App.jsx) past this timestamp, the
+-- portal restricts them to just Dashboard/Meetings/Members (the two tabs
+-- needed to actually finish book_1on1/setup_profile) until all 6 steps are
+-- done.
+--
+-- Deliberately a SEPARATE column from onboarded_at, not a reuse of it.
+-- onboarded_at is set once, at first login, for every member who has ever
+-- used the portal - reusing it here would mean every existing member past
+-- 3 days old and never having touched the (previously optional) checklist
+-- gets hard-locked out the instant this migration runs. The backfill below
+-- instead gives every already-onboarded member a FRESH 3-day grace period
+-- starting from whenever this file actually runs, so rollout doesn't
+-- surprise anyone currently active. Going forward, mark_onboarding_complete
+-- (PART 1) sets this at the same moment onboarded_at is set, so a brand new
+-- member's grace period starts right when their first-login intro ends.
+ALTER TABLE public.member_profiles
+  ADD COLUMN IF NOT EXISTS getting_started_grace_started_at TIMESTAMP WITH TIME ZONE;
+
+UPDATE public.member_profiles
+SET getting_started_grace_started_at = timezone('utc'::text, now())
+WHERE getting_started_grace_started_at IS NULL AND onboarded_at IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.mark_onboarding_complete()
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.member_profiles
+  SET onboarded_at = timezone('utc'::text, now()),
+      getting_started_grace_started_at = COALESCE(getting_started_grace_started_at, timezone('utc'::text, now()))
+  WHERE email = lower(auth.jwt() ->> 'email');
+$$;
+
+-- Narrow getter, same pattern/reasoning as has_completed_onboarding above -
+-- member_profiles has no member-facing SELECT policy at all (only the
+-- admin-only "Admins manage member_profiles" FOR ALL), so every per-member
+-- fact a member needs to read about themselves goes through a function
+-- like this instead.
+CREATE OR REPLACE FUNCTION public.get_my_getting_started_grace_started_at()
+RETURNS TIMESTAMP WITH TIME ZONE
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT getting_started_grace_started_at FROM public.member_profiles
+  WHERE email = lower(auth.jwt() ->> 'email');
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_my_getting_started_grace_started_at() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_my_getting_started_grace_started_at() FROM PUBLIC, anon;

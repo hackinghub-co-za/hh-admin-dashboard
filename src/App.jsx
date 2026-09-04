@@ -8,9 +8,16 @@ import MemberPortal from './views/Member/MemberPortal';
 import OnboardingSequence from './components/OnboardingSequence';
 import OffboardingSequence from './components/OffboardingSequence';
 import GemmaWidget from './components/GemmaWidget';
-import { checkOnboardingStatus, markOnboardingComplete } from './lib/onboardingData';
+import { checkOnboardingStatus, markOnboardingComplete, getMyGettingStartedGraceStartedAt, fetchMyOnboardingSteps, ONBOARDING_STEPS } from './lib/onboardingData';
 import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
 import { Compass } from 'lucide-react';
+
+// Full portal access stays open this long past a member's first-login intro
+// (or, for anyone already active before this feature shipped, this long
+// past the day it shipped - see getting_started_grace_started_at,
+// 006_onboarding.sql PART 3) before the Getting Started checklist becomes a
+// hard block instead of a dismissible card.
+const GETTING_STARTED_GRACE_DAYS = 3;
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -31,6 +38,14 @@ export default function App() {
   // admin has set this member's status to 'Leaving'. Takes priority over the
   // onboarding gate - a departing member doesn't need the welcome animation.
   const [needsOffboarding, setNeedsOffboarding] = useState(false);
+  // Hard-blocks the member layout down to just Dashboard/Meetings/Members
+  // (Sidebar + MemberPortal both read this) once a member is
+  // GETTING_STARTED_GRACE_DAYS past their grace start and still hasn't
+  // finished the Getting Started checklist. Never true for admins or mock
+  // sessions. Unlike needsOnboarding/needsOffboarding this doesn't gate the
+  // whole layout pre-render - two of the six steps need the real Meetings
+  // and Members tabs to actually complete.
+  const [gettingStartedGateActive, setGettingStartedGateActive] = useState(false);
   // One-shot signal: set when a member picks "Set Up My Profile" at the end of
   // onboarding, so the Members tab opens with the edit form already up instead
   // of just landing on the tab. MemberPortal clears it once handled.
@@ -87,6 +102,7 @@ export default function App() {
       if (isAdminEmail) {
         setNeedsOnboarding(false);
         setNeedsOffboarding(false);
+        setGettingStartedGateActive(false);
       } else {
         let offboarding = false;
         try {
@@ -98,17 +114,44 @@ export default function App() {
         }
         setNeedsOffboarding(offboarding);
 
+        let stillOnboarding = true;
         if (offboarding) {
           setNeedsOnboarding(false);
+          setGettingStartedGateActive(false);
         } else {
           try {
             const completed = await checkOnboardingStatus(email);
-            setNeedsOnboarding(!completed);
+            stillOnboarding = !completed;
+            setNeedsOnboarding(stillOnboarding);
           } catch (err) {
             // If the check itself fails, don't block a legitimate member from
             // getting into the portal over a one-time welcome animation.
             console.error('Onboarding status check failed:', err.message);
             setNeedsOnboarding(false);
+          }
+
+          // Getting Started hard gate - only relevant once the one-time
+          // intro is done (stillOnboarding false), same "fail open on a
+          // transient error" philosophy as is_member_allowed/onboarding
+          // above: any check failure here just leaves the gate as it was,
+          // never locks someone out over a network blip.
+          if (!stillOnboarding) {
+            try {
+              const [graceStartedAt, steps] = await Promise.all([
+                getMyGettingStartedGraceStartedAt(),
+                fetchMyOnboardingSteps(),
+              ]);
+              const allStepsDone = ONBOARDING_STEPS.every((s) => !!steps[s.key]);
+              const daysSinceGraceStart = graceStartedAt
+                ? (Date.now() - new Date(graceStartedAt).getTime()) / (1000 * 60 * 60 * 24)
+                : 0;
+              setGettingStartedGateActive(!allStepsDone && daysSinceGraceStart > GETTING_STARTED_GRACE_DAYS);
+            } catch (err) {
+              console.error('Getting Started gate check failed - not blocking over a transient error:', err.message);
+              setGettingStartedGateActive(false);
+            }
+          } else {
+            setGettingStartedGateActive(false);
           }
         }
       }
@@ -181,6 +224,7 @@ export default function App() {
     // "Mock Member (Leaving)" still shows the farewell screen as before.
     setNeedsOffboarding(!!mockUser.mockLeaving);
     setNeedsOnboarding(false);
+    setGettingStartedGateActive(false);
   };
 
   // Fires from the sequence's "Set Up My Profile" / "Enter the Hub" buttons.
@@ -204,6 +248,11 @@ export default function App() {
   // "Replay Intro" from the sidebar - re-shows the sequence without touching
   // the persisted `onboarded_at` flag.
   const handleReplayIntro = () => setNeedsOnboarding(true);
+
+  // Fires from MemberPortal the instant a gated member finishes their 6th
+  // Getting Started step - unlocks the full sidebar/portal live, same
+  // session, no reload or re-login needed.
+  const handleGettingStartedComplete = () => setGettingStartedGateActive(false);
 
   // Fires from OffboardingSequence's "Submit & Disconnect" / "Just Disconnect".
   // Finalizes the member's own row to status = 'Left' (or no-ops under a mock
@@ -268,6 +317,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
         onReplayIntro={!isAdmin ? handleReplayIntro : undefined}
+        restrictToOnboarding={!isAdmin && gettingStartedGateActive}
       />
 
       {/* Main Panel View Area */}
@@ -283,6 +333,8 @@ export default function App() {
             providerToken={providerToken}
             isMockSession={isMockSession}
             autoOpenProfileEdit={autoOpenProfileEdit}
+            gettingStartedGateActive={gettingStartedGateActive}
+            onGettingStartedComplete={handleGettingStartedComplete}
           />
         )}
       </main>

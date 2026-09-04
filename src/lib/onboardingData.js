@@ -17,6 +17,16 @@ export async function markOnboardingComplete() {
   if (error) throw error;
 }
 
+/** When this member's Getting Started grace period started (see
+ * 006_onboarding.sql PART 3) - null if they haven't completed the one-time
+ * intro yet. Used by App.jsx to compute whether the hard gate should be
+ * active. */
+export async function getMyGettingStartedGraceStartedAt() {
+  const { data, error } = await supabase.rpc('get_my_getting_started_grace_started_at');
+  if (error) throw error;
+  return data;
+}
+
 /** The fixed set of checklist steps a new member works through, in display order. */
 export const ONBOARDING_STEPS = [
   { key: 'watch_video', label: 'Watch the onboarding video' },
