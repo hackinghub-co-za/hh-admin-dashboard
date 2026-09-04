@@ -36,11 +36,22 @@ CREATE TABLE IF NOT EXISTS public.cert_calendar (
   result TEXT NOT NULL DEFAULT 'Pending' CHECK (result IN ('Pending', 'Passed', 'Failed')),
   created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
-  member_email TEXT
+  member_email TEXT,
+  -- When cert-pass-email actually sent this member their congratulations
+  -- email - null until sent. Scoped to one specific row's id (not a
+  -- status='Passed' scan the way matchmaker-group-email works), so this
+  -- column is purely a re-click/retry guard for that one entry, never a
+  -- backlog scanner - it can never retroactively email every cert that was
+  -- already marked Passed before this feature shipped, since nothing ever
+  -- iterates the table looking for unsent rows.
+  pass_email_sent_at TIMESTAMP WITH TIME ZONE
 );
 
 ALTER TABLE public.cert_calendar
   ADD COLUMN IF NOT EXISTS member_email TEXT;
+
+ALTER TABLE public.cert_calendar
+  ADD COLUMN IF NOT EXISTS pass_email_sent_at TIMESTAMP WITH TIME ZONE;
 
 ALTER TABLE public.cert_calendar ENABLE ROW LEVEL SECURITY;
 

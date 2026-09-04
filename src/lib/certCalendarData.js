@@ -88,3 +88,17 @@ export async function deleteCertCalendarEntry(id) {
   const { error } = await supabase.from('cert_calendar').delete().eq('id', id);
   if (error) throw error;
 }
+
+/** Admin: sends the member a congratulations email for one specific cert
+ * calendar entry (supabase/functions/cert-pass-email) - a no-op server-side
+ * (returns { skipped: true, reason }) if it isn't actually marked Passed,
+ * has no member_email on file, or was already sent. Meant to be called
+ * right after updateCertCalendarResult()/updateCertCalendarEntry() marks an
+ * entry Passed, same trigger AdminDashboard's announceCertWin() already
+ * uses to post the Recent Win. */
+export async function sendCertPassEmail(certId) {
+  const { data, error } = await supabase.functions.invoke('cert-pass-email', { body: { certId } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}

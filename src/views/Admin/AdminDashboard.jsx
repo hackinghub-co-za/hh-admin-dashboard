@@ -32,7 +32,7 @@ import { fetchReviews } from '../../lib/reviewsData';
 import { fetchAllReferrals, updateReferralStatus } from '../../lib/referralsData';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
-import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry } from '../../lib/certCalendarData';
+import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive } from '../../lib/focusFiveData';
 import {
@@ -1148,6 +1148,16 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         setWins((prev) => [added, ...prev].sort((a, b) => new Date(b.achievedDate) - new Date(a.achievedDate)));
       } catch (err) {
         setWinsError(friendlyErrorMessage(err));
+      }
+      // Best-effort - the Recent Win above is already posted and saved at
+      // this point, so an email hiccup shouldn't read as the pass itself
+      // having failed. Server-side no-ops (no member_email on file, or
+      // already sent) come back as { skipped: true }, not an error, so
+      // this only ever surfaces a warning for a genuine send failure.
+      try {
+        await sendCertPassEmail(cert.id);
+      } catch (err) {
+        setCertsError(`Recent Win posted, but the congratulations email failed to send: ${friendlyErrorMessage(err)}`);
       }
     }
   };
