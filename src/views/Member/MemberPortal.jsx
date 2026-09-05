@@ -14,11 +14,13 @@ import CySAPlusGuideModal from '../../components/CySAPlusGuideModal';
 import TerraformAssociateGuideModal from '../../components/TerraformAssociateGuideModal';
 import SC200GuideModal from '../../components/SC200GuideModal';
 import PodcastsGuideModal from '../../components/PodcastsGuideModal';
+import KodeKloudGuideModal from '../../components/KodeKloudGuideModal';
 import MatchmakerWheelModal from '../../components/MatchmakerWheelModal';
 import CompetitionRulesModal from '../../components/CompetitionRulesModal';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
+import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMyAgeAndGender } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
@@ -43,7 +45,7 @@ import { challengeToRoomRace, fetchMyRoomRaces, submitRoomRaceProof } from '../.
 import { fetchTodaysRecommendedRoom } from '../../lib/recommendedRoomData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATIONS_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECTS_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -407,6 +409,7 @@ const MOCK_RESOURCES = [
   { id: 7, category: 'Cert Prep', title: 'Terraform Associate Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every resource members actually use - official cert page, KodeKloud\'s paid course, and HashiCorp\'s own free tutorials.', link: '' },
   { id: 8, category: 'Cert Prep', title: 'SC-200 Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every resource members actually use - official cert page, OpenExamPrep, Microsoft Learn, and KC7 for KQL practice.', link: '' },
   { id: 9, category: 'Podcasts', title: 'Recommended Podcasts', format: 'Guide', description: 'An easy way to digest what\'s happening in the cyber industry - listen on a commute or as background noise. CyberWire Daily and The Secure Developer.', link: '' },
+  { id: 10, category: 'Cert Prep', title: 'KodeKloud', format: 'Guide', description: 'What KodeKloud actually is, and which of its hands-on courses are relevant to your roadmap - Terraform Associate, plus Kubernetes fundamentals (KCNA/KCSA).', link: '' },
 ];
 
 // Mock Member's demo roadmap - modeled on a real member's actual plan
@@ -431,6 +434,8 @@ const MOCK_ROADMAP_ITEMS = [
   { id: 10, phase: 'Specialization', category: 'Red Teaming', title: 'eJPT', detail: '', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 11, phase: 'Specialization', category: 'Red Teaming', title: 'THM Offensive Pentesting', detail: '34% complete, with write-ups', completed: false, sortOrder: 40, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 12, phase: 'Specialization', category: 'Red Teaming', title: 'OSCP', detail: '', completed: false, sortOrder: 50, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 15, phase: 'Projects', category: 'Offensive Security Projects', title: 'Full Pentest Report', detail: '', completed: false, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 16, phase: 'Projects', category: 'Offensive Security Projects', title: 'Custom Offensive Tool Build', detail: '', completed: false, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
 ];
 
 
@@ -1443,6 +1448,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // checkbox, and not again on a later toggle once already past it.
   const [specializationCelebration, setSpecializationCelebration] = useState(null);
 
+  // Which Core Foundations item's "what it teaches / why it matters" modal
+  // is open, if any - set from the clickable description tag on My Roadmap.
+  const [coreFoundationInfoTitle, setCoreFoundationInfoTitle] = useState(null);
+  const handleOpenCoreFoundationResource = (title) => {
+    if (ROADMAP_ITEM_LINKS[title]) {
+      window.open(ROADMAP_ITEM_LINKS[title], '_blank', 'noopener,noreferrer');
+    } else if (title === 'CompTIA Security+') {
+      setActiveTab('resources');
+      setShowSecurityPlusGuide(true);
+    }
+  };
+
   const handleToggleMyRoadmapItem = async (item) => {
     // updatedAt is bumped optimistically too - the toggle RPC sets it
     // server-side to the same effect, and doing it here means the "gone
@@ -2192,6 +2209,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showTerraformGuide, setShowTerraformGuide] = useState(false);
   const [showSC200Guide, setShowSC200Guide] = useState(false);
   const [showPodcastsGuide, setShowPodcastsGuide] = useState(false);
+  const [showKodeKloudGuide, setShowKodeKloudGuide] = useState(false);
   // Resources with their real content hardcoded in-app (not a link) - the
   // card opens a dedicated modal instead of "Open Resource"/"Coming Soon".
   const IN_APP_ARTICLE_RESOURCES = {
@@ -2201,6 +2219,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Terraform Associate Study Guide': () => setShowTerraformGuide(true),
     'SC-200 Study Guide': () => setShowSC200Guide(true),
     'Recommended Podcasts': () => setShowPodcastsGuide(true),
+    'KodeKloud': () => setShowKodeKloudGuide(true),
   };
   const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy'];
   const RESOURCE_ICON = {
@@ -2427,8 +2446,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       isApplyOnly: true,
       benefits: [
         'Everything in Permanent Access',
-        'Fully Sponsored Certifications (OSCP/CompTIA)',
-        'All course & training costs covered',
+        'Sponsored Certifications (Azure/AWS, CompTIA, ISC2, TryHackMe & more)',
         '12-Month Job Placement Guarantee (or 100% refund)',
         'Direct founder 1on1 access',
       ],
@@ -3003,8 +3021,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // or cheat past this checkpoint.
       const specializationEligible = coreFoundationsDone >= SPECIALIZATION_UNLOCK_MIN;
       const specializationUnlocked = specializationEligible && roadmapFoundationsApproved;
-      const visiblePhaseGroups = roadmapPhaseGroups.filter((g) => g.phase !== 'Specialization' || specializationUnlocked);
+
+      // Projects unlocks at a percentage (not a fixed count) of the member's
+      // own track's Specialization catalog, since those catalogs range from
+      // 4 to 10 items - a fixed count wouldn't be a fair bar across tracks
+      // the way it is for the single, universal Core Foundations catalog.
+      const specializationCatalogForTrack = SPECIALIZATION_CATALOGS[roadmapTrack] || null;
+      const specializationCatalogTitles = new Set((specializationCatalogForTrack?.items || []).map((c) => c.title));
+      const specializationCatalogTotal = specializationCatalogForTrack?.items.length || 0;
+      const specializationCatalogDone = roadmapItems.filter((i) => i.phase === 'Specialization' && specializationCatalogTitles.has(i.title) && i.completed).length;
+      const specializationPercent = specializationCatalogTotal > 0 ? Math.round((specializationCatalogDone / specializationCatalogTotal) * 100) : 0;
+      const projectsUnlocked = specializationCatalogTotal > 0 && specializationPercent >= PROJECTS_UNLOCK_PERCENT;
+
+      const visiblePhaseGroups = roadmapPhaseGroups.filter((g) => (g.phase !== 'Specialization' || specializationUnlocked) && (g.phase !== 'Projects' || projectsUnlocked));
       const hasLockedSpecialization = !specializationUnlocked && roadmapPhaseGroups.some((g) => g.phase === 'Specialization');
+      const hasLockedProjects = !projectsUnlocked && roadmapPhaseGroups.some((g) => g.phase === 'Projects');
 
       return (
         <div>
@@ -3188,6 +3219,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 }}>
                                   {item.title}
                                 </div>
+                                {g.phase === 'Core Foundations' && CORE_FOUNDATIONS_DESCRIPTIONS[item.title] && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setCoreFoundationInfoTitle(item.title); }}
+                                    style={{ display: 'block', background: 'none', border: 'none', padding: 0, marginTop: '2px', font: 'inherit', fontSize: '0.76rem', color: 'var(--accent-cyan)', textDecoration: 'underline', textUnderlineOffset: '2px', cursor: 'pointer', textAlign: 'left' }}
+                                  >
+                                    {CORE_FOUNDATIONS_DESCRIPTIONS[item.title]}
+                                  </button>
+                                )}
                                 {g.phase === 'Core Foundations' ? (
                                   <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                                     <input
@@ -3342,11 +3382,28 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   )}
                 </div>
               )}
+
+              {hasLockedProjects && (
+                <div style={{ textAlign: 'center', padding: '32px 24px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px dashed var(--border-color)' }}>
+                  <Lock size={28} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
+                  <p style={{ color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Projects is locked</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Complete {PROJECTS_UNLOCK_PERCENT}% of your Specialization checklist to unlock — you're at {specializationPercent}% ({specializationCatalogDone}/{specializationCatalogTotal}).
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
           {specializationCelebration && (
             <SpecializationUnlockedModal quote={specializationCelebration} onClose={() => setSpecializationCelebration(null)} />
+          )}
+          {coreFoundationInfoTitle && (
+            <CoreFoundationInfoModal
+              title={coreFoundationInfoTitle}
+              onOpenResource={handleOpenCoreFoundationResource}
+              onClose={() => setCoreFoundationInfoTitle(null)}
+            />
           )}
         </div>
       );
@@ -4839,6 +4896,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           {showTerraformGuide && <TerraformAssociateGuideModal onClose={() => setShowTerraformGuide(false)} />}
           {showSC200Guide && <SC200GuideModal onClose={() => setShowSC200Guide(false)} />}
           {showPodcastsGuide && <PodcastsGuideModal onClose={() => setShowPodcastsGuide(false)} />}
+          {showKodeKloudGuide && <KodeKloudGuideModal onClose={() => setShowKodeKloudGuide(false)} />}
           {showCvReview && !isMockSession && (
             <CvReviewModal onClose={() => setShowCvReview(false)} />
           )}

@@ -14,7 +14,7 @@ import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 // payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
 // the real file has been removed and purged from git history entirely.
 import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATIONS_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -311,6 +311,47 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       setRoadmapItemsError(friendlyErrorMessage(err));
     } finally {
       setAddingStandardSpecialization(false);
+    }
+  };
+
+  // Same quick-fill as Add Standard Specialization above, but for
+  // PROJECT_CATALOGS - deliberately not gated here on the 50% Specialization
+  // threshold (My Roadmap's PROJECTS_UNLOCK_PERCENT), since an admin curating
+  // a member's plan ahead of time is a different action from a member seeing
+  // it appear; the member-facing lock is what actually withholds visibility.
+  const [addingStandardProjects, setAddingStandardProjects] = useState(false);
+
+  const handleAddStandardProjects = async (catalog) => {
+    if (!roadmapMemberEmail || !catalog) return;
+    const existingTitles = new Set(roadmapItems.filter((i) => i.phase === 'Projects' && i.category === catalog.category).map((i) => i.title));
+    const missing = catalog.items.filter((c) => !existingTitles.has(c.title));
+    if (missing.length === 0) return;
+
+    setAddingStandardProjects(true);
+    let nextSortOrder = Math.max(0, ...roadmapItems.map((i) => i.sortOrder), 0) + 10;
+    const newItems = missing.map((c) => {
+      const item = { phase: 'Projects', category: catalog.category, title: c.title, detail: c.defaultDetail };
+      const sortOrder = nextSortOrder;
+      nextSortOrder += 10;
+      return { ...item, sortOrder };
+    });
+
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, [...roadmapItems, ...newItems.map((item) => ({ id: Date.now() + item.sortOrder, memberEmail: roadmapMemberEmail, completed: false, ...item }))]);
+      setAddingStandardProjects(false);
+      return;
+    }
+
+    try {
+      const created = [];
+      for (const item of newItems) {
+        created.push(await addRoadmapItem({ memberEmail: roadmapMemberEmail, ...item }));
+      }
+      setRoadmapItems([...roadmapItems, ...created]);
+    } catch (err) {
+      setRoadmapItemsError(friendlyErrorMessage(err));
+    } finally {
+      setAddingStandardProjects(false);
     }
   };
 
@@ -2861,6 +2902,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       const missingSpecializationCount = specializationCatalog
         ? specializationCatalog.items.length - roadmapItems.filter((i) => i.phase === 'Specialization' && i.category === specializationCatalog.category).length
         : 0;
+      const specializationCatalogDoneForSelected = specializationCatalog
+        ? roadmapItems.filter((i) => i.phase === 'Specialization' && new Set(specializationCatalog.items.map((c) => c.title)).has(i.title) && i.completed).length
+        : 0;
+      const projectsPercentForSelected = specializationCatalog ? Math.round((specializationCatalogDoneForSelected / specializationCatalog.items.length) * 100) : 0;
+      const projectsCatalog = roadmapSelected?.profile?.roadmapTrack ? PROJECT_CATALOGS[roadmapSelected.profile.roadmapTrack] : null;
+      const missingProjectsCount = projectsCatalog
+        ? projectsCatalog.items.length - roadmapItems.filter((i) => i.phase === 'Projects' && i.category === projectsCatalog.category).length
+        : 0;
 
       // Every active member who's hit the Specialization completion count but
       // hasn't been approved yet, across the whole roster - not just whoever
@@ -3102,6 +3151,9 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                                           </button>
                                           <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{ fontSize: '0.9rem', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.title}</div>
+                                            {item.phase === 'Core Foundations' && CORE_FOUNDATIONS_DESCRIPTIONS[item.title] && (
+                                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{CORE_FOUNDATIONS_DESCRIPTIONS[item.title]}</div>
+                                            )}
                                             {(item.detail || item.dueDate) && (
                                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                                 {item.detail}{item.detail && item.dueDate ? ' · ' : ''}{item.dueDate && `Due ${formatDate(item.dueDate)}`}
@@ -3187,6 +3239,16 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                       {specializationCatalog && missingSpecializationCount > 0 && (
                         <button className="btn btn-secondary" onClick={() => handleAddStandardSpecialization(specializationCatalog)} disabled={addingStandardSpecialization}>
                           <Milestone size={16} /> {addingStandardSpecialization ? 'Adding...' : `Add Standard Specialization (${missingSpecializationCount} missing)`}
+                        </button>
+                      )}
+                      {projectsCatalog && missingProjectsCount > 0 && (
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => handleAddStandardProjects(projectsCatalog)}
+                          disabled={addingStandardProjects}
+                          title={projectsPercentForSelected < PROJECTS_UNLOCK_PERCENT ? `Stays locked for the member until ${PROJECTS_UNLOCK_PERCENT}% of Specialization is done (currently ${projectsPercentForSelected}%)` : undefined}
+                        >
+                          <Milestone size={16} /> {addingStandardProjects ? 'Adding...' : `Add Standard Projects (${missingProjectsCount} missing)`}
                         </button>
                       )}
                     </div>

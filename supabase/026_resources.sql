@@ -261,3 +261,21 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'PocketPrep'
 );
+
+-- KodeKloud was already the linked course provider inside
+-- TerraformAssociateGuideModal.jsx, but never had its own card explaining
+-- what the platform actually is - worth one now that KCNA/KCSA (both on the
+-- DevSecOps track) make it relevant beyond just Terraform. Same move as the
+-- other in-app guides: real content (KodeKloudGuideModal.jsx) hardcoded in
+-- MemberPortal.jsx, this row just catalogs it in Resources with a teaser.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'KodeKloud',
+  'Guide',
+  'What KodeKloud actually is, and which of its hands-on courses are relevant to your roadmap - Terraform Associate, plus Kubernetes fundamentals (KCNA/KCSA).',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'KodeKloud'
+);

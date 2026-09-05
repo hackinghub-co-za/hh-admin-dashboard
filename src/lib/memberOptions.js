@@ -41,7 +41,15 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Ope
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
 // own self-described directory badge); this one is coach-assigned.
 export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
-export const ROADMAP_PHASES = ['Core Foundations', 'Specialization'];
+export const ROADMAP_PHASES = ['Core Foundations', 'Specialization', 'Projects'];
+
+// A member only sees their Projects section once they've completed this
+// share of their own track's Specialization catalog (PROJECT_CATALOGS
+// below) - same "earned, not available from day one" reasoning as
+// SPECIALIZATION_UNLOCK_MIN, just percentage-based since Specialization
+// catalogs vary in length by track (4 to 10 items) where a fixed count
+// wouldn't scale fairly across tracks.
+export const PROJECTS_UNLOCK_PERCENT = 50;
 
 // The standard Core Foundations "Certifications" catalog every assigned
 // roadmap draws from, regardless of track - a member needs at least
@@ -85,6 +93,61 @@ export const ROADMAP_ITEM_LINKS = {
   'CompTIA SecAI+': 'https://www.comptia.org/en/certifications/secai/',
   'OWASP Top 10 for LLM Applications': 'https://genai.owasp.org/initiatives/top-10-for-llm-and-genai/',
   'THM AI Security': 'https://tryhackme.com/paths',
+};
+
+// Short "what is this" line shown under each Core Foundations item's title,
+// on both My Roadmap and the admin Roadmaps tab - title-keyed like
+// ROADMAP_ITEM_LINKS above, and deliberately separate from defaultDetail
+// (which seeds a member's own editable progress text, e.g. "6/6 courses"),
+// since this is fixed reference copy, not something a member fills in.
+export const CORE_FOUNDATIONS_DESCRIPTIONS = {
+  'CISCO Junior Cyber Pathway': 'Networking & Cybersecurity Fundamentals',
+  'Immersive Labs': 'Hands-on Cyber Skills Across Foundational Topics',
+  'TryHackMe Pre-Security': 'Intro to Networking, Web & Security Basics',
+  'TryHackMe Cyber 101': 'Practical Intro to Common Cyber Attacks & Tools',
+  'AZ-900': 'Azure Fundamentals',
+  'AI-901': 'AI Fundamentals',
+  'SC-900': 'Security, Compliance & Identity Fundamentals',
+  'CompTIA Security+': 'Core Security Principles & Best Practices',
+};
+
+// The longer "what does this actually teach me, and why am I doing it"
+// explanation shown in CoreFoundationInfoModal when a member clicks an
+// item - CORE_FOUNDATIONS_DESCRIPTIONS above stays the short one-line tag
+// shown inline on the checklist itself.
+export const CORE_FOUNDATIONS_INFO = {
+  'CISCO Junior Cyber Pathway': {
+    teaches: "How data actually moves across a network - IP addressing, routing, switching - plus a first pass at core cybersecurity concepts, through Cisco's free, self-paced NetAcad courses.",
+    journey: "Almost every cybersecurity role assumes you already understand networking. This is the \"learn to read the map before you defend the territory\" step - usually the very first thing to work through, before certs like Security+ or SC-900 make full sense.",
+  },
+  'Immersive Labs': {
+    teaches: "Hands-on, browser-based labs spanning dozens of foundational topics - from basic Linux commands to intro malware analysis - no local lab setup required.",
+    journey: "This is where theory turns into muscle memory. Instead of just reading about a concept, you're actually doing it in a real (safe) environment - exactly what technical interviews and real SOC/analyst work expect from you.",
+  },
+  'TryHackMe Pre-Security': {
+    teaches: "The absolute basics: how networks work, what a web request actually is, and core security terminology - aimed at someone with zero technical background.",
+    journey: "If cybersecurity is a completely new field for you, this is the true starting line. It exists specifically so nobody gets lost in jargon before they've even had a chance to get curious about the field.",
+  },
+  'TryHackMe Cyber 101': {
+    teaches: "A hands-on, guided tour through common attacker tools and techniques - your first real look at things like Nmap, Metasploit, or a phishing simulation - inside a safe lab environment.",
+    journey: "This is usually the first time it \"clicks\" that cybersecurity is something you do, not just something you read about. It's the on-ramp to thinking like both an attacker and a defender, whichever track you end up specializing in.",
+  },
+  'AZ-900': {
+    teaches: "Core cloud concepts - what Azure actually is, its main services, how pricing works, and basic governance - with zero prior cloud experience assumed.",
+    journey: "The overwhelming majority of companies you'll interview at run at least part of their infrastructure on a cloud platform. This is a fast, cheap way to speak that language credibly in an interview, no matter which of the 7 specializations you end up on.",
+  },
+  'AI-901': {
+    teaches: "What AI and machine learning actually are, common AI workloads, and responsible AI principles - no coding or data science background needed.",
+    journey: "AI is already showing up inside the tools you'll use day to day - SOC copilots, AI-assisted code review - and AI Security is one of the 7 specialization tracks here. This gives you the vocabulary to understand what you're securing before you ever specialize in securing it.",
+  },
+  'SC-900': {
+    teaches: "The building blocks of identity, access management, and compliance in a Microsoft cloud environment - Zero Trust, MFA, and the reasoning behind access controls.",
+    journey: "This maps most directly onto real analyst work of any Core Foundations item. Identity and access sit at the center of almost every major breach you'll ever read about, so this gives you real, working vocabulary for it early.",
+  },
+  'CompTIA Security+': {
+    teaches: "The industry-standard baseline for cybersecurity knowledge - threats, cryptography, risk management, and security operations - vendor-neutral and globally recognized.",
+    journey: "This is the one cert almost every entry-level cybersecurity job posting names outright. It's the last Core Foundations item on purpose - it pulls together everything the others introduced, and it's usually the credential that gets your CV past the first filter.",
+  },
 };
 
 // A member only sees their Specialization section once they've completed
@@ -159,6 +222,7 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'NIST Cybersecurity Framework (CSF)', defaultDetail: '' },
       { title: 'ISC2 CGRC', defaultDetail: '' },
       { title: 'ISACA CRISC', defaultDetail: '' },
+      { title: 'ISACA IT Risk Fundamentals', defaultDetail: '' },
       { title: 'POPIA/GDPR Practitioner', defaultDetail: '' },
       { title: 'ITIL 4 Foundation', defaultDetail: '' },
     ],
@@ -180,6 +244,63 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'CompTIA SecAI+', defaultDetail: '' },
       { title: 'OWASP Top 10 for LLM Applications', defaultDetail: '' },
       { title: 'THM AI Security', defaultDetail: '' },
+    ],
+  },
+};
+
+// Standard Projects catalogs, by roadmap_track - unlocked once a member
+// clears PROJECTS_UNLOCK_PERCENT of their own track's SPECIALIZATION_CATALOGS
+// entry (see the "Projects" phase gate in My Roadmap). Two real, portfolio-
+// grade projects per track, each tailored to what that track actually does
+// day to day, rather than a generic "build something" prompt.
+export const PROJECT_CATALOGS = {
+  SOC: {
+    category: 'SOC Projects',
+    items: [
+      { title: 'Cloud SIEM Detection Lab', defaultDetail: 'Deploy a SIEM (e.g. Wazuh or Elastic), ingest logs from a cloud source, build 3 real detection rules' },
+      { title: 'Incident Response Write-Up', defaultDetail: 'Document a full simulated incident end-to-end: detection, containment, eradication, lessons learned' },
+    ],
+  },
+  'Offensive Security': {
+    category: 'Offensive Security Projects',
+    items: [
+      { title: 'Full Pentest Report', defaultDetail: 'Run a complete pentest against a vulnerable-by-design target, write a professional report with CVSS scoring and remediation' },
+      { title: 'Custom Offensive Tool Build', defaultDetail: 'Write and document a small custom tool you built yourself (e.g. a scanner or fuzzer)' },
+    ],
+  },
+  'Cloud Security': {
+    category: 'Cloud Security Projects',
+    items: [
+      { title: 'Secure a Cloud Environment', defaultDetail: 'Stand up a small Azure/AWS environment and harden it (least privilege, network segmentation, logging) - document before/after' },
+      { title: 'Cloud Security Posture Audit', defaultDetail: 'Audit an environment against a real benchmark (CIS or the Well-Architected Framework), document findings' },
+    ],
+  },
+  DevSecOps: {
+    category: 'DevSecOps Projects',
+    items: [
+      { title: 'Secure CI/CD Pipeline', defaultDetail: 'Build a pipeline with integrated security scanning (SAST, dependency, or container scanning gates), document the setup' },
+      { title: 'IaC Security Review', defaultDetail: 'Write Terraform for a small environment, scan it with Checkov or tfsec, fix the findings, document before/after' },
+    ],
+  },
+  IAM: {
+    category: 'IAM Projects',
+    items: [
+      { title: 'Zero Trust Access Design', defaultDetail: 'Design and document an IAM access model for a hypothetical org: least-privilege roles, MFA, conditional access' },
+      { title: 'Active Directory Hardening Lab', defaultDetail: 'Set up a small AD lab, apply real hardening best practices, document what changed and why' },
+    ],
+  },
+  'AI Security': {
+    category: 'AI Security Projects',
+    items: [
+      { title: 'Red Team an LLM App', defaultDetail: 'Attempt prompt injection/jailbreak attacks against an LLM-powered app, document findings against the OWASP Top 10 for LLMs' },
+      { title: 'AI Risk Assessment Write-Up', defaultDetail: "Research a real AI security risk (model poisoning, data leakage), document how it applies to a hypothetical company's deployment" },
+    ],
+  },
+  GRC: {
+    category: 'GRC Projects',
+    items: [
+      { title: 'Mock Risk Assessment', defaultDetail: 'Perform a risk assessment for a hypothetical org using a real framework (NIST RMF or ISO 27001), document findings' },
+      { title: 'Compliance Gap Analysis', defaultDetail: "Assess a hypothetical company's posture against a real regulation (POPIA or GDPR), document gaps and remediation" },
     ],
   },
 };
