@@ -18,6 +18,43 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.06
+
+### Added
+- **Projects proof-of-work submission** — a Projects-phase roadmap item no
+  longer self-completes on click. A member submits a link (GitHub repo
+  with a writeup/screenshots, a live URL, or a shared Google Drive
+  folder), which puts the item into "Pending Review"; an admin approves
+  or rejects it (with a note) from the Roadmaps tab, and only an approval
+  ever flips the item to done. Fixed a latent bug in the same pass: the
+  `roadmap_items.phase` CHECK constraint never actually allowed
+  'Projects', so a direct write to a Projects item would have silently
+  failed. (`028_roadmap.sql`)
+- **Live Buzzer Trivia** — a real-time head-to-head competition format:
+  an admin hosts a session, members join and see the same question at
+  the same moment, and fastest correct buzz wins the point, with a live
+  scoreboard for everyone in the session. First use of Supabase Realtime
+  in this codebase; fairness is enforced server-side via a row lock on
+  the session (the first buzz to acquire it wins, not whichever
+  client-reported timestamp arrives first — not spoofable, not skewed by
+  network latency). (`066_live_trivia.sql`)
+- **Matchmaker Presentation Ratings** — once a Matchmaker group shares the
+  link to their recorded Google Meet presentation, the wider membership
+  (not just the group itself) can watch it and leave a 1–5 star rating
+  with an optional comment, in a new "Presentation Showcase" section.
+  Comments are anonymous by design, enforced server-side — the ratings
+  table has no member-facing read/write policy at all, only narrow RPCs
+  that never return the rater's identity, so anonymity doesn't depend on
+  the UI choosing not to show it. A group's own members can't rate their
+  own presentation. Required widening `matchmaker_groups` visibility: any
+  approved member can now see a group once it has a recording, not just
+  that group's own members. (`030_matchmaker.sql`)
+- **Mobile block tracking** — the existing "Please Use a Desktop" wall now
+  logs each time it fires, via a new anonymous-safe RPC (granted to
+  `anon`, since the wall renders before any session exists) — a new
+  "Mobile Sign-Ins Blocked" stat tile on the admin Insights tab shows how
+  often it's actually being hit. (`050_portal_events.sql`)
+
 ## 2026.09.05
 
 ### Added

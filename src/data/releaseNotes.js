@@ -6,6 +6,50 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.06',
+    date: '2026-09-06',
+    headline: 'Live trivia, project proof, and rating presentations.',
+    intro: "Buzz in against other members in real time, submit real proof for your Projects, and watch (and rate) other groups' Matchmaker presentations.",
+    groups: [
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🔔',
+            title: 'Live Buzzer Trivia',
+            body: "Join a live session and race other members to buzz in first on the same question at the same moment — fastest correct answer wins the point, with a live scoreboard the whole session watches.",
+            where: 'Competitions',
+          },
+        ],
+      },
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '📋',
+            title: 'Submit real proof for your Projects',
+            body: "A Projects item now asks for a real link — a GitHub repo with a writeup, a live URL, or a shared Google Drive folder — before it can be marked done. An admin reviews it and approves or asks for a resubmission.",
+            where: 'My Roadmap → Projects',
+          },
+        ],
+      },
+      {
+        label: 'Community',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '⭐',
+            title: 'Presentation Showcase',
+            body: "Once a Matchmaker group shares their recorded Google Meet, anyone in the community can watch it and leave a star rating with an optional comment — comments are always anonymous.",
+            where: 'Matchmaker',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.05',
     date: '2026-09-05',
     headline: 'Duels, races, and a real merch store.',
