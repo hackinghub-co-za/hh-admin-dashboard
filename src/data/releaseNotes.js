@@ -6,6 +6,110 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.05',
+    date: '2026-09-05',
+    headline: 'Duels, races, and a real merch store.',
+    intro: "Challenge another member to a quiz duel or a room race, grab HH-branded merch from My Subscription, get a daily recommended TryHackMe room on your Dashboard, and a few smaller wins along the way.",
+    groups: [
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '⚔️',
+            title: 'Quiz Duel',
+            body: "Challenge another member straight from their profile to a head-to-head quiz — 10 general cyber questions each, 48 hours to finish. Most correct answers wins; a no-show forfeits to whoever answered more. Win, and it posts straight to Recent Wins.",
+            where: 'Competitions → Head-to-Head Duels, or a member\'s profile',
+          },
+          {
+            icon: '🏁',
+            title: 'Room Race',
+            body: "Race another member to finish the same TryHackMe room — same WhatsApp-proof rule as daily room logging, and whoever's approved first wins.",
+            where: 'Competitions → Room Races, or a member\'s profile',
+          },
+          {
+            icon: '🖼️',
+            title: 'Leaderboard headshots + clickable profiles',
+            body: "Current Standings now shows everyone's headshot next to their name, and clicking a name opens their full profile. Also relabeled \"Updated weekly\" to \"Updated daily\" — because it is.",
+            where: 'Competitions',
+          },
+        ],
+      },
+      {
+        label: 'Merch Store',
+        color: '#f472b6',
+        items: [
+          {
+            icon: '🛍️',
+            title: 'HH-branded merch, right in the portal',
+            body: "Deskpads (R200), Tops (R400, S–XL), and Hoodies (R600, S–XL) — add to cart and check out with a real PayFast payment, then track your order in My Merch Orders.",
+            where: 'sidebar → My Subscription',
+          },
+        ],
+      },
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🧩',
+            title: "Today's TryHackMe Room",
+            body: "A new Dashboard card recommends one room a day, rotating automatically — an easy default when you're not sure what to work on next.",
+            where: 'Dashboard',
+          },
+        ],
+      },
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '🗂️',
+            title: 'Pick your domain for AI interview questions',
+            body: "Interview Prep now asks which domain you're actually interviewing for before generating questions, so they're tailored to the real role instead of guessing from your profile.",
+            where: '1on1 Meetings → More 1on1 Support → Interview Prep',
+          },
+        ],
+      },
+      {
+        label: 'Recognition',
+        color: '#22d3ee',
+        items: [
+          {
+            icon: '🎉',
+            title: 'A congrats email when you pass a cert',
+            body: "The moment your coach marks a booked exam \"Passed,\" you'll get a congratulations email automatically — no extra step needed.",
+            where: 'your inbox, automatically',
+          },
+        ],
+      },
+      {
+        label: 'Getting Started',
+        color: '#38bdf8',
+        items: [
+          {
+            icon: '✅',
+            title: 'External links now tick themselves off',
+            body: "Click \"Join\" (WhatsApp) or \"Get It\" (Google Calendar) on your Getting Started checklist and that step is marked done automatically — no separate checkbox click needed.",
+            where: 'Dashboard → Getting Started',
+          },
+        ],
+      },
+      {
+        label: 'Heads Up',
+        color: '#94a3b8',
+        items: [
+          {
+            icon: '🖥️',
+            title: 'Please use a desktop for now',
+            body: "The portal isn't built for phone screens yet, so signing in from a phone or a very narrow window now shows a short message asking you to switch to a laptop or desktop instead of a broken layout.",
+            where: 'shown automatically on a phone or narrow window',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.04',
     date: '2026-09-04',
     headline: 'Your journey, your LinkedIn game, and your team - all leveled up.',

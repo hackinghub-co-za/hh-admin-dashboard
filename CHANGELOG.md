@@ -18,6 +18,79 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.05
+
+### Added
+- **Cert pass email** — the moment an admin marks a member's booked exam
+  "Passed," the member now automatically gets a congratulations email
+  (`cert-pass-email` Edge Function, Resend). Scoped to that one cert and
+  gated on `pass_email_sent_at IS NULL`, so it never mass-emails the
+  existing backlog of already-passed certs. (`024_cert_calendar.sql`)
+- **Interview Prep domain picker** — before generating AI interview
+  questions, a member now picks which domain they're actually
+  interviewing for (the same 7 `ROADMAP_TRACKS` used everywhere else in
+  the portal), and `gemma-interview-prep` tailors its questions to that
+  domain instead of guessing from profile specialty. Domain is stored
+  and shown on every logged interview, admin-visible on the Members
+  tab. (`058_member_interviews.sql`)
+- **Merch Store** — My Subscription gained a real store for HH-branded
+  Deskpads (R200), Tops (R400, S–XL), and Hoodies (R600, S–XL): add to
+  cart, check out via a real once-off PayFast payment, and a "My Merch
+  Orders" history list. Merch revenue is kept fully separate from
+  membership revenue reporting via a `MERCH-`-prefixed `m_payment_id`
+  that the webhook branches on before ever touching the
+  `payfast_transactions` upsert. New admin "Merch Orders" tab to mark
+  orders Fulfilled/Cancelled/Needs Review. (`060_merch_orders.sql`)
+- **Admin notification bell** — admins now get an in-app notification
+  the moment a member completes a roadmap item, via a new bell icon in
+  the sidebar (unread badge, mark-as-read, mark-all-read).
+  (`061_admin_notifications.sql`)
+- **Competitions leaderboard: headshots + clickable profiles** —
+  Current Standings now shows each member's headshot next to their
+  name, and clicking a name opens their full profile, same as
+  everywhere else in the portal. Also relabeled "Updated weekly" to
+  "Updated daily" to match how often standings actually refresh.
+- **Quiz Duel** — challenge another member directly from their profile
+  to a head-to-head quiz: 10 questions drawn from a new 21-question
+  General Cyber bank (spanning all 7 roadmap tracks), 48 hours to
+  finish, most correct answers wins (a no-show forfeits to whoever
+  answered more by the deadline, via an hourly pg_cron sweep). Answers
+  are graded server-side inside `submit_duel_answer()` — a member can
+  never read another question's correct answer through the API, even
+  before submitting, which is a stronger guarantee than the existing
+  solo-practice quiz table has. A win posts automatically to Recent
+  Wins. (`062_quiz_duels.sql`)
+- **Room Race** — race another member to finish the same TryHackMe
+  room. Reuses the existing WhatsApp-proof-checkbox trust model
+  (`daily_room_logs`), with admin approval folded into the existing
+  Room Logs tab — first submission an admin approves wins the race
+  outright. (`063_room_races.sql`)
+- **Daily TryHackMe Room** — a new Dashboard card recommends one room
+  per day from an admin-curated pool, rotating automatically by day of
+  the year (mirroring the LinkedIn Playbook's week-rotation pattern) —
+  no admin upkeep required. Seeded with 10 real, well-known rooms.
+  (`064_recommended_rooms.sql`)
+- **Getting Started: external links now self-tick** — clicking "Join"
+  (WhatsApp) or "Get It" (Google Calendar) on the Getting Started
+  checklist now marks that step complete automatically, instead of
+  requiring a separate manual checkbox click after opening the link.
+- **Mobile access blocked** — the portal isn't built responsively, so a
+  phone or a narrow browser window (under 768px, or a mobile user
+  agent) now sees a plain "Please Use a Desktop" screen before Login
+  ever mounts, instead of a broken layout. Re-checked live on
+  resize/orientation change. `/privacy` and `/terms` stay reachable on
+  mobile, since Google's OAuth verification needs them.
+
+### Fixed
+- **September missing from the Gross Revenue Trend chart** — a
+  hardcoded `today = new Date('2026-08-07')` anchor (meant to keep
+  trend math reproducible against an old export) never actually
+  advanced, so every date-relative calculation across the admin
+  dashboard silently stayed frozen in early August: the revenue trend
+  chart, Finances tab monthly revenue, certs-passed-this-month, churn
+  windows, and tenure/days-since-last-activity stats. All now computed
+  from the real current date.
+
 ## 2026.09.04
 
 ### Added
