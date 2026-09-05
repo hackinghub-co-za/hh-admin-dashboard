@@ -80,6 +80,38 @@ saved in their browser's `localStorage`.
   ever mounts, instead of a broken layout. Re-checked live on
   resize/orientation change. `/privacy` and `/terms` stay reachable on
   mobile, since Google's OAuth verification needs them.
+- **Projects phase** — a new "Projects" section on My Roadmap, unlocked
+  once a member clears 50% of their own track's Specialization
+  checklist (`PROJECTS_UNLOCK_PERCENT`, same locked/eligible pattern as
+  Core Foundations → Specialization). Two real, portfolio-grade
+  projects per track — e.g. SOC gets a Cloud SIEM Detection Lab and an
+  Incident Response Write-Up, Offensive Security gets a Full Pentest
+  Report and a Custom Tool Build — 14 in total across all 7 tracks.
+  Admin gained a matching "Add Standard Projects" quick-fill, mirroring
+  "Add Standard Specialization."
+- **Roadmap item explainer modal** — every Core Foundations,
+  Specialization, and Projects item (59 in total) now has a short
+  description tag under its title; clicking it opens a modal with real,
+  tailored "What It Teaches" and "Why It's On Your Roadmap" copy, plus a
+  link to the real course/exam where one exists. Not a generic
+  template — each of the 59 write-ups is specific to that item.
+- **KodeKloud added to Resources** — a new "Cert Prep" guide card
+  explaining what the hands-on DevOps/Cloud/Kubernetes platform
+  actually is, with real links to its Terraform Associate course
+  (already referenced elsewhere in the app) and its Kubernetes
+  (KCNA/KCSA) content. (`026_resources.sql`)
+- **GRC gained a real, cheap Specialization option** — the ISACA IT
+  Risk Fundamentals Certificate was added to the GRC track's
+  Specialization catalog, giving GRC members a genuinely affordable
+  first Specialization item alongside the existing full professional
+  certs (ISC2 CGRC, ISACA CRISC).
+
+### Changed
+- **Elite Operative's benefit text corrected** — the tier card
+  (`MemberPortal.jsx`) no longer names OSCP or claims "all course &
+  training costs covered." It now reads "Sponsored Certifications
+  (Azure/AWS, CompTIA, ISC2, TryHackMe & more)," matching the real,
+  confirmed sponsorship scope instead of overstating it.
 
 ### Fixed
 - **September missing from the Gross Revenue Trend chart** — a

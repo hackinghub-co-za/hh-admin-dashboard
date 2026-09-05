@@ -9,7 +9,7 @@ export const RELEASE_NOTES = [
     version: '2026.09.05',
     date: '2026-09-05',
     headline: 'Duels, races, and a real merch store.',
-    intro: "Challenge another member to a quiz duel or a room race, grab HH-branded merch from My Subscription, get a daily recommended TryHackMe room on your Dashboard, and a few smaller wins along the way.",
+    intro: "Challenge another member to a quiz duel or a room race, grab HH-branded merch from My Subscription, get a daily recommended TryHackMe room on your Dashboard, a real explanation behind every roadmap item, and a few smaller wins along the way.",
     groups: [
       {
         label: 'Competition',
@@ -56,6 +56,24 @@ export const RELEASE_NOTES = [
             title: "Today's TryHackMe Room",
             body: "A new Dashboard card recommends one room a day, rotating automatically — an easy default when you're not sure what to work on next.",
             where: 'Dashboard',
+          },
+          {
+            icon: '📖',
+            title: 'Click any roadmap item to see what it actually teaches you',
+            body: "Every item on your roadmap — Core Foundations, Specialization, or a Project — now explains what it teaches and why it's actually on your plan, not just a bare title. Click the tag under any item's name.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '🧪',
+            title: 'A new Projects phase on your roadmap',
+            body: "Clear 50% of your Specialization checklist and a Projects section unlocks — two real, portfolio-grade projects built for your specific track, like a Cloud SIEM lab for SOC or a full pentest report for Offensive Security.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '☁️',
+            title: 'KodeKloud added to Resources',
+            body: "What the hands-on DevOps/Cloud/Kubernetes platform actually is, plus real links to its Terraform Associate and Kubernetes (KCNA/KCSA) content.",
+            where: 'Resources → Cert Prep',
           },
         ],
       },
