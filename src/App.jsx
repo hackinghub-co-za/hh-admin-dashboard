@@ -10,7 +10,21 @@ import OffboardingSequence from './components/OffboardingSequence';
 import GemmaWidget from './components/GemmaWidget';
 import { checkOnboardingStatus, markOnboardingComplete, getMyGettingStartedGraceStartedAt, fetchMyOnboardingSteps, ONBOARDING_STEPS } from './lib/onboardingData';
 import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
-import { Compass } from 'lucide-react';
+import { Compass, Monitor } from 'lucide-react';
+import logo from './assets/hacking-hub-logo-sm.png';
+
+// The portal isn't built responsively - tables, the sidebar, and dense
+// dashboards all assume a real desktop viewport. Rather than ship a broken
+// experience, phones/small tablets are turned away with a plain "use
+// desktop" screen instead of Login. Checks both a mobile-flavored user
+// agent (catches a phone even in landscape, where width alone might clear
+// the breakpoint) and raw viewport width (catches a resized/narrow desktop
+// window, which is equally unusable here) - either signal is enough to block.
+const MOBILE_BREAKPOINT_PX = 768;
+function isMobileViewport() {
+  const ua = navigator.userAgent || navigator.vendor || '';
+  return /android|iphone|ipad|ipod|iemobile|blackberry|opera mini|mobile/i.test(ua) || window.innerWidth < MOBILE_BREAKPOINT_PX;
+}
 
 // Full portal access stays open this long past a member's first-login intro
 // (or, for anyone already active before this feature shipped, this long
@@ -50,6 +64,20 @@ export default function App() {
   // onboarding, so the Members tab opens with the edit form already up instead
   // of just landing on the tab. MemberPortal clears it once handled.
   const [autoOpenProfileEdit, setAutoOpenProfileEdit] = useState(false);
+  // Re-checked live (resize + orientation change) rather than once on mount,
+  // so rotating a tablet or resizing a window updates the gate immediately
+  // instead of requiring a reload.
+  const [isMobile, setIsMobile] = useState(isMobileViewport);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(isMobileViewport());
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     // Members are only let in if `is_member_allowed` (Supabase RPC) says so - it
@@ -276,6 +304,50 @@ export default function App() {
     return <LegalPage page="terms" />;
   }
 
+  // Turn away phones/small windows before Login even mounts - no session
+  // gets a chance to start, and no Supabase call fires, on a layout that
+  // isn't built to handle it.
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          background: 'radial-gradient(circle at center, #1c1e42 0%, #0a0b1c 100%)',
+          padding: '20px',
+        }}
+      >
+        <div
+          className="glass-card"
+          style={{
+            width: '100%',
+            maxWidth: '440px',
+            padding: '40px 32px',
+            textAlign: 'center',
+            border: '1px solid rgba(var(--accent-rgb), 0.15)',
+          }}
+        >
+          <img
+            src={logo}
+            alt="Hacking Hub"
+            style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: 'var(--border-radius-lg)', marginBottom: '20px', boxShadow: '0 0 30px rgba(var(--accent-rgb), 0.2)' }}
+          />
+          <Monitor size={32} color="var(--accent-cyan)" style={{ marginBottom: '16px' }} />
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '10px' }}>
+            Please Use a Desktop
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6 }}>
+            The Hacking Hub portal isn't built for mobile yet - dashboards, tables, and charts need
+            a proper desktop screen to work right. Open this site on a laptop or desktop computer to
+            sign in.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--accent-cyan)' }}>
@@ -318,6 +390,7 @@ export default function App() {
         onLogout={handleLogout}
         onReplayIntro={!isAdmin ? handleReplayIntro : undefined}
         restrictToOnboarding={!isAdmin && gettingStartedGateActive}
+        isMockSession={isMockSession}
       />
 
       {/* Main Panel View Area */}

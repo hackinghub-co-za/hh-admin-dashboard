@@ -103,6 +103,67 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // A merch payment (060_merch_orders.sql) is a real PayFast payment but
+    // must never be counted as membership revenue or trigger
+    // grant_member_portal_access() - both of which happen unconditionally
+    // below for every other payment. payfast-checkout/index.ts gives a
+    // merch checkout a distinguishable m_payment_id ('MERCH-<order id>'),
+    // which is the only signal available here to tell the two apart, since
+    // ITNs carry no other free-form metadata back. Handle it entirely
+    // separately and return early - nothing below this block ever runs for
+    // a merch payment.
+    const mPaymentId = params.get('m_payment_id') || '';
+    if (mPaymentId.startsWith('MERCH-')) {
+      const merchOrderId = mPaymentId.slice('MERCH-'.length);
+      const { data: order, error: orderFetchError } = await adminClient
+        .from('merch_orders')
+        .select('id, total_amount, status')
+        .eq('id', merchOrderId)
+        .maybeSingle();
+
+      if (orderFetchError || !order) {
+        console.error('payfast-webhook: merch order not found for', mPaymentId, orderFetchError?.message);
+        return new Response('OK', { status: 200 });
+      }
+
+      const merchAmountGross = parseFloat(params.get('amount_gross') || '0') || 0;
+      const paymentStatus = params.get('payment_status') || 'UNKNOWN';
+      // Real money is what PayFast's own amount_gross says, not the
+      // client-computed total_amount stored at order-creation time. A
+      // close match (a cent's tolerance for float rounding) is required
+      // before marking Paid; anything else is parked as 'Needs Review' for
+      // manual reconciliation rather than either trusting a mismatched
+      // amount or leaving the order stuck indistinguishable from unpaid.
+      const amountsMatch = Math.abs(merchAmountGross - Number(order.total_amount)) < 0.01;
+
+      const nextStatus = paymentStatus === 'COMPLETE'
+        ? (amountsMatch ? 'Paid' : 'Needs Review')
+        : order.status; // non-COMPLETE ITN (e.g. FAILED) - leave as-is, never downgrade a real Paid order
+
+      if (paymentStatus === 'COMPLETE' && !amountsMatch) {
+        console.error(
+          `payfast-webhook: merch order ${order.id} amount mismatch - ITN amount_gross ${merchAmountGross}, order total_amount ${order.total_amount}`
+        );
+      }
+
+      const { error: merchUpdateError } = await adminClient
+        .from('merch_orders')
+        .update({
+          status: nextStatus,
+          m_payment_id: mPaymentId,
+          pf_payment_id: params.get('pf_payment_id') || null,
+          paid_at: nextStatus === 'Paid' ? new Date().toISOString() : null,
+        })
+        .eq('id', order.id);
+
+      if (merchUpdateError) {
+        console.error('payfast-webhook: merch order update failed', merchUpdateError.message);
+        return new Response('Error', { status: 500 });
+      }
+
+      return new Response('OK', { status: 200 });
+    }
+
     const pfPaymentId = params.get('pf_payment_id') || '';
     if (!pfPaymentId) {
       console.error('payfast-webhook: missing pf_payment_id, cannot record');

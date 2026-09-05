@@ -27,6 +27,7 @@ export async function createPayfastCheckoutUrl(itemDetails) {
       frequency: itemDetails.frequency,
       cycles: itemDetails.cycles,
       billingDate: itemDetails.billingDate,
+      merchOrderId: itemDetails.merchOrderId,
       returnOrigin: window.location.origin,
     },
   });

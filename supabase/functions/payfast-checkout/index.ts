@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     const fullName = userData.user.user_metadata?.full_name || '';
     const firstName = fullName.trim().split(' ')[0] || 'Operative';
 
-    const { itemName, amount, subscriptionType, frequency, cycles, billingDate, returnOrigin } = await req.json();
+    const { itemName, amount, subscriptionType, frequency, cycles, billingDate, returnOrigin, merchOrderId } = await req.json();
     const amountNum = Number(amount);
     if (!amountNum || amountNum <= 0) {
       return new Response(JSON.stringify({ error: 'Invalid amount.' }), {
@@ -121,7 +121,11 @@ Deno.serve(async (req) => {
       notify_url: `${supabaseUrl}/functions/v1/payfast-webhook`,
       name_first: firstName,
       email_address: email,
-      m_payment_id: `HH-${Date.now()}`,
+      // A merch checkout (merchOrderId set) gets a distinguishable prefix -
+      // it's the only signal payfast-webhook has to tell a merch payment
+      // apart from a membership one, since ITNs carry no other free-form
+      // metadata back. See 060_merch_orders.sql for the full reasoning.
+      m_payment_id: merchOrderId ? `MERCH-${merchOrderId}` : `HH-${Date.now()}`,
       amount: amountNum.toFixed(2),
       item_name: itemName || 'Hacking Hub Subscription',
     };

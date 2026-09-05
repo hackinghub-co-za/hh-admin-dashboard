@@ -13,6 +13,7 @@ import {
   Contact,
   Trophy,
   Briefcase,
+  ShoppingBag,
   Library,
   Star,
   Terminal,
@@ -23,11 +24,14 @@ import {
   BarChart3,
   Sun,
   Moon,
+  Bell,
+  CheckCheck,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
 import { LATEST_RELEASE_VERSION } from '../data/releaseNotes';
 import { getStoredTheme, storeTheme, applyTheme } from '../lib/theme';
+import { fetchAdminNotifications, markNotificationRead, markAllNotificationsRead } from '../lib/adminNotificationsData';
 
 const LAST_SEEN_RELEASE_KEY = 'hh_last_seen_release';
 
@@ -145,6 +149,174 @@ function TooltipButton({ id, icon: Icon, label, active, danger, badge, hoveredId
   );
 }
 
+function relativeTime(isoDate) {
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// Admin-only notification bell (supabase/061_admin_notifications.sql) -
+// starts with one event, a member completing a roadmap item. A real
+// click-triggered dropdown, not a hover tooltip like TooltipButton above,
+// so it's a separate component - but portals into document.body for the
+// same reason TooltipButton's tooltip does: the nav list's overflowY:
+// 'auto' would otherwise clip it at the sidebar's edge.
+function NotificationBell({ isMockSession, hoveredId, onHover, onLeave }) {
+  const [notifications, setNotifications] = useState([]);
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
+
+  const loadNotifications = () => {
+    if (isMockSession) return;
+    fetchAdminNotifications().then(setNotifications).catch(() => {});
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, [isMockSession]);
+
+  const handleToggleOpen = () => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) setPanelPos({ top: rect.top, left: rect.right + 10 });
+    if (!open) loadNotifications();
+    setOpen((v) => !v);
+  };
+
+  const handleNotificationClick = (n) => {
+    if (n.readAt) return;
+    setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
+    if (!isMockSession) markNotificationRead(n.id).catch(() => {});
+  };
+
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => (n.readAt ? n : { ...n, readAt: new Date().toISOString() })));
+    if (!isMockSession) markAllNotificationsRead().catch(() => {});
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onClick={handleToggleOpen}
+        onMouseEnter={() => onHover('notifications')}
+        onMouseLeave={onLeave}
+        aria-label="Notifications"
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '44px',
+          height: '44px',
+          margin: '0 auto',
+          borderRadius: 'var(--border-radius-sm)',
+          background: open ? 'rgba(var(--accent-rgb), 0.08)' : hoveredId === 'notifications' ? 'rgba(var(--overlay-rgb), 0.04)' : 'transparent',
+          border: 'none',
+          color: open ? 'var(--accent-cyan)' : 'var(--text-muted)',
+          cursor: 'pointer',
+          transition: 'background 0.15s ease',
+        }}
+      >
+        <Bell size={18} />
+        {unreadCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '2px',
+              right: '2px',
+              minWidth: '16px',
+              height: '16px',
+              padding: '0 3px',
+              borderRadius: '8px',
+              background: 'var(--danger)',
+              color: '#fff',
+              fontSize: '0.62rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 0 2px var(--bg-secondary)',
+            }}
+          >
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+      {open &&
+        createPortal(
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setOpen(false)} />
+            <div
+              style={{
+                position: 'fixed',
+                top: Math.min(panelPos.top, window.innerHeight - 420),
+                left: panelPos.left,
+                width: '340px',
+                maxHeight: '400px',
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--border-radius-md)',
+                boxShadow: 'var(--glass-shadow)',
+                zIndex: 200,
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--border-color)' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Notifications</span>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '0.75rem', cursor: 'pointer' }}
+                  >
+                    <CheckCheck size={13} /> Mark all read
+                  </button>
+                )}
+              </div>
+              <div style={{ overflowY: 'auto' }}>
+                {isMockSession ? (
+                  <p style={{ padding: '20px 14px', fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Not available under Mock Admin - no real session to read notifications from.
+                  </p>
+                ) : notifications.length === 0 ? (
+                  <p style={{ padding: '20px 14px', fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                    No notifications yet.
+                  </p>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleNotificationClick(n)}
+                      style={{
+                        padding: '12px 14px',
+                        borderBottom: '1px solid var(--border-color)',
+                        background: n.readAt ? 'transparent' : 'rgba(var(--accent-rgb), 0.04)',
+                        cursor: n.readAt ? 'default' : 'pointer',
+                      }}
+                    >
+                      <p style={{ fontSize: '0.83rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{relativeTime(n.createdAt)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
+    </>
+  );
+}
+
 const hasUnseenRelease = () => {
   try {
     return !!LATEST_RELEASE_VERSION && localStorage.getItem(LAST_SEEN_RELEASE_KEY) !== LATEST_RELEASE_VERSION;
@@ -162,7 +334,7 @@ const markReleaseSeen = () => {
   }
 };
 
-export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding }) {
+export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, isMockSession }) {
   const isAdmin = user?.role === 'admin';
   const [hoveredId, setHoveredId] = useState(null);
   // Auto-opens the latest What's New on sign-in for members (not admins -
@@ -203,6 +375,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
         { id: 'jobs', label: 'Job Board', icon: Briefcase },
+        { id: 'merch', label: 'Merch Orders', icon: ShoppingBag },
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
         { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'finances', label: 'Finances', icon: DollarSign },
@@ -397,6 +570,15 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           onLeave={() => setHoveredId(null)}
           onClick={openReleaseNotes}
         />
+
+        {isAdmin && (
+          <NotificationBell
+            isMockSession={isMockSession}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onLeave={() => setHoveredId(null)}
+          />
+        )}
 
         {/* Members get this on the Dashboard now, next to the streak badge
             (src/components/ThemeToggle.jsx) - admins have no equivalent

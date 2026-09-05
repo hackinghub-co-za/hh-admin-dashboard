@@ -37,6 +37,10 @@ import { fetchMyInterviewsHad } from '../../lib/interviewsHadData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
+import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib/merchStoreData';
+import { challengeToDuel, fetchMyDuels, fetchDuelQuestions, submitDuelAnswer } from '../../lib/quizDuelData';
+import { challengeToRoomRace, fetchMyRoomRaces, submitRoomRaceProof } from '../../lib/roomRaceData';
+import { fetchTodaysRecommendedRoom } from '../../lib/recommendedRoomData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
@@ -105,6 +109,9 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  ShoppingBag,
+  Swords,
+  Flag,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -586,6 +593,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
+  // Merch Store - this member's own past orders, same fetch-on-mount
+  // pattern as myPaymentHistory above.
+  const [myMerchOrders, setMyMerchOrders] = useState([]);
+  const [loadingMyMerchOrders, setLoadingMyMerchOrders] = useState(!isMockSession);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyMerchOrders()
+      .then((data) => !cancelled && setMyMerchOrders(data))
+      .catch(() => {})
+      .finally(() => !cancelled && setLoadingMyMerchOrders(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
   // Tracks which mentor photos have failed to load (e.g. not uploaded to
   // public/mentors/ yet) so those cards fall back to a plain avatar icon.
   const [mentorPhotoErrors, setMentorPhotoErrors] = useState({});
@@ -773,14 +794,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               icon: MessageCircle,
               label: 'Join the WhatsApp community',
               actionLabel: 'Join',
-              action: () => window.open('https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1', '_blank', 'noopener,noreferrer'),
+              action: () => {
+                window.open('https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1', '_blank', 'noopener,noreferrer');
+                handleCompleteOnboardingStep('join_whatsapp');
+              },
             },
             {
               key: 'install_calendar',
               icon: Download,
               label: 'Install Google Calendar',
               actionLabel: 'Get It',
-              action: () => window.open('https://workspace.google.com/products/calendar/', '_blank', 'noopener,noreferrer'),
+              action: () => {
+                window.open('https://workspace.google.com/products/calendar/', '_blank', 'noopener,noreferrer');
+                handleCompleteOnboardingStep('install_calendar');
+              },
             },
             {
               key: 'setup_profile',
@@ -862,6 +889,164 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Full breakdown shown when a member clicks another member's directory card.
   const [selectedDirectoryMember, setSelectedDirectoryMember] = useState(null);
 
+  // Head-to-head competitions (supabase/062_quiz_duels.sql,
+  // 063_room_races.sql) - challenge state lives on the profile modal above
+  // (that's where the "Challenge" buttons live), the actual duel/race
+  // lists and play UI live in the Competitions tab below.
+  const [duelChallengeBusy, setDuelChallengeBusy] = useState(false);
+  const [duelChallengeMsg, setDuelChallengeMsg] = useState(null);
+  const [showRoomRaceChallengeForm, setShowRoomRaceChallengeForm] = useState(false);
+  const [roomRaceChallengeForm, setRoomRaceChallengeForm] = useState({ roomName: '', roomUrl: '' });
+  const [raceChallengeBusy, setRaceChallengeBusy] = useState(false);
+  const [raceChallengeMsg, setRaceChallengeMsg] = useState(null);
+
+  const [myDuels, setMyDuels] = useState([]);
+  const [loadingMyDuels, setLoadingMyDuels] = useState(!isMockSession);
+  const [myRoomRaces, setMyRoomRaces] = useState([]);
+  const [loadingMyRoomRaces, setLoadingMyRoomRaces] = useState(!isMockSession);
+  const [competitionsError, setCompetitionsError] = useState(null);
+
+  // Active duel being played - fetched fresh each time a member opens it,
+  // never cached, so a re-open after answering some questions resumes
+  // correctly (get_duel_questions returns the fixed set regardless).
+  const [activeDuel, setActiveDuel] = useState(null);
+  const [activeDuelQuestions, setActiveDuelQuestions] = useState([]);
+  const [activeDuelIndex, setActiveDuelIndex] = useState(0);
+  const [activeDuelFeedback, setActiveDuelFeedback] = useState(null);
+  const [loadingActiveDuel, setLoadingActiveDuel] = useState(false);
+  const [submittingDuelAnswer, setSubmittingDuelAnswer] = useState(false);
+
+  const [raceProofBusy, setRaceProofBusy] = useState(null);
+
+  const loadMyDuelsAndRaces = () => {
+    if (isMockSession) return;
+    fetchMyDuels()
+      .then((data) => setMyDuels(data))
+      .catch((err) => setCompetitionsError(friendlyMemberErrorMessage(err)))
+      .finally(() => setLoadingMyDuels(false));
+    fetchMyRoomRaces()
+      .then((data) => setMyRoomRaces(data))
+      .catch((err) => setCompetitionsError(friendlyMemberErrorMessage(err)))
+      .finally(() => setLoadingMyRoomRaces(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'competitions') loadMyDuelsAndRaces();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isMockSession]);
+
+  const handleChallengeToDuel = async () => {
+    if (!selectedDirectoryMember) return;
+    setDuelChallengeBusy(true);
+    setDuelChallengeMsg(null);
+    try {
+      await challengeToDuel(selectedDirectoryMember.email, selectedDirectoryMember.fullName);
+      setDuelChallengeMsg({ type: 'success', text: `Duel sent to ${selectedDirectoryMember.fullName || 'them'}! Check My Duels in Competitions.` });
+      loadMyDuelsAndRaces();
+    } catch (err) {
+      setDuelChallengeMsg({ type: 'error', text: friendlyMemberErrorMessage(err) });
+    } finally {
+      setDuelChallengeBusy(false);
+    }
+  };
+
+  const handleChallengeToRoomRace = async (e) => {
+    e.preventDefault();
+    if (!selectedDirectoryMember || !roomRaceChallengeForm.roomName.trim()) return;
+    setRaceChallengeBusy(true);
+    setRaceChallengeMsg(null);
+    try {
+      await challengeToRoomRace(
+        selectedDirectoryMember.email,
+        selectedDirectoryMember.fullName,
+        roomRaceChallengeForm.roomName.trim(),
+        roomRaceChallengeForm.roomUrl.trim()
+      );
+      setRaceChallengeMsg({ type: 'success', text: `Race sent to ${selectedDirectoryMember.fullName || 'them'}! Check My Room Races in Competitions.` });
+      setRoomRaceChallengeForm({ roomName: '', roomUrl: '' });
+      setShowRoomRaceChallengeForm(false);
+      loadMyDuelsAndRaces();
+    } catch (err) {
+      setRaceChallengeMsg({ type: 'error', text: friendlyMemberErrorMessage(err) });
+    } finally {
+      setRaceChallengeBusy(false);
+    }
+  };
+
+  const closeMemberProfileModal = () => {
+    setSelectedDirectoryMember(null);
+    setDuelChallengeMsg(null);
+    setRaceChallengeMsg(null);
+    setShowRoomRaceChallengeForm(false);
+    setRoomRaceChallengeForm({ roomName: '', roomUrl: '' });
+  };
+
+  const handleOpenDuel = async (duelId) => {
+    setLoadingActiveDuel(true);
+    setActiveDuelFeedback(null);
+    setCompetitionsError(null);
+    try {
+      const questions = await fetchDuelQuestions(duelId);
+      setActiveDuelQuestions(questions);
+      setActiveDuel(myDuels.find((d) => d.id === duelId) || { id: duelId });
+      setActiveDuelIndex(0);
+    } catch (err) {
+      setCompetitionsError(friendlyMemberErrorMessage(err));
+    } finally {
+      setLoadingActiveDuel(false);
+    }
+  };
+
+  const handleAnswerDuelQuestion = async (chosenIndex) => {
+    if (!activeDuel || submittingDuelAnswer) return;
+    const question = activeDuelQuestions[activeDuelIndex];
+    if (!question) return;
+    setSubmittingDuelAnswer(true);
+    try {
+      const isCorrect = await submitDuelAnswer(activeDuel.id, question.id, chosenIndex);
+      setActiveDuelFeedback(isCorrect ? 'correct' : 'incorrect');
+      setTimeout(() => {
+        setActiveDuelFeedback(null);
+        if (activeDuelIndex + 1 < activeDuelQuestions.length) {
+          setActiveDuelIndex((i) => i + 1);
+        } else {
+          setActiveDuel(null);
+          setActiveDuelQuestions([]);
+          loadMyDuelsAndRaces();
+        }
+      }, 900);
+    } catch (err) {
+      setCompetitionsError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSubmittingDuelAnswer(false);
+    }
+  };
+
+  const handleSubmitRaceProof = async (raceId) => {
+    setRaceProofBusy(raceId);
+    setCompetitionsError(null);
+    try {
+      await submitRoomRaceProof(raceId, true);
+      loadMyDuelsAndRaces();
+    } catch (err) {
+      setCompetitionsError(friendlyMemberErrorMessage(err));
+    } finally {
+      setRaceProofBusy(null);
+    }
+  };
+
+  // Today's recommended TryHackMe room (supabase/064_recommended_rooms.sql)
+  // - day-of-year rotation, no admin upkeep needed day to day.
+  const [todaysRoom, setTodaysRoom] = useState(null);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchTodaysRecommendedRoom()
+      .then((room) => !cancelled && setTodaysRoom(room))
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
   // The member profile detail modal - real content lives here once, reused
   // by both the Members directory (its original home) and the Matchmaker
   // tab (clicking a teammate's name opens the same modal). A switch case
@@ -872,7 +1057,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const renderMemberProfileModal = () => selectedDirectoryMember && (
     <div
       style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-      onClick={() => setSelectedDirectoryMember(null)}
+      onClick={closeMemberProfileModal}
     >
       <div
         className="glass-card"
@@ -982,8 +1167,54 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
         )}
 
+        {selectedDirectoryMember.email !== user?.email && !isMockSession && (
+          <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--accent-rgb), 0.05)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Swords size={13} /> Head-to-Head
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={handleChallengeToDuel} disabled={duelChallengeBusy}>
+                <Swords size={13} /> {duelChallengeBusy ? 'Sending...' : 'Challenge to Quiz Duel'}
+              </button>
+              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setShowRoomRaceChallengeForm((v) => !v)}>
+                <Flag size={13} /> Challenge to Room Race
+              </button>
+            </div>
+            {duelChallengeMsg && (
+              <p style={{ fontSize: '0.8rem', marginTop: '10px', color: duelChallengeMsg.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{duelChallengeMsg.text}</p>
+            )}
+            {showRoomRaceChallengeForm && (
+              <form onSubmit={handleChallengeToRoomRace} style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Room name (e.g. OWASP Top 10)"
+                  value={roomRaceChallengeForm.roomName}
+                  onChange={(e) => setRoomRaceChallengeForm((f) => ({ ...f, roomName: e.target.value }))}
+                  className="form-input"
+                  style={{ fontSize: '0.85rem' }}
+                  required
+                />
+                <input
+                  type="url"
+                  placeholder="Room URL (optional)"
+                  value={roomRaceChallengeForm.roomUrl}
+                  onChange={(e) => setRoomRaceChallengeForm((f) => ({ ...f, roomUrl: e.target.value }))}
+                  className="form-input"
+                  style={{ fontSize: '0.85rem' }}
+                />
+                <button type="submit" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px', alignSelf: 'flex-start' }} disabled={raceChallengeBusy}>
+                  {raceChallengeBusy ? 'Sending...' : 'Send Race Challenge'}
+                </button>
+              </form>
+            )}
+            {raceChallengeMsg && (
+              <p style={{ fontSize: '0.8rem', marginTop: '10px', color: raceChallengeMsg.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{raceChallengeMsg.text}</p>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-          <button type="button" className="btn btn-secondary" onClick={() => setSelectedDirectoryMember(null)}>Close</button>
+          <button type="button" className="btn btn-secondary" onClick={closeMemberProfileModal}>Close</button>
         </div>
       </div>
     </div>
@@ -2063,6 +2294,69 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     } catch (err) {
       setPayfastError(friendlyMemberErrorMessage(err));
       setPayfastLoadingTier(null);
+    }
+  };
+
+  // Merch Store cart - kept as its own parallel state rather than reusing
+  // payfastLoadingTier/payfastError above: a membership upgrade and a merch
+  // checkout could plausibly be in flight or erroring independently, and
+  // sharing state would let one clobber the other's spinner/error.
+  const [merchCart, setMerchCart] = useState([]); // [{ productId, size, quantity }]
+  const [merchSelectedSizes, setMerchSelectedSizes] = useState({}); // { [productId]: size }
+  const [merchDeliveryNotes, setMerchDeliveryNotes] = useState('');
+  const [merchCheckoutLoading, setMerchCheckoutLoading] = useState(false);
+  const [merchError, setMerchError] = useState(null);
+
+  const addToMerchCart = (productId) => {
+    const product = MERCH_CATALOG.find((p) => p.id === productId);
+    const size = merchSelectedSizes[productId] || null;
+    if (product.sizes && !size) {
+      setMerchError(`Pick a size for ${product.name} first.`);
+      return;
+    }
+    setMerchError(null);
+    setMerchCart((prev) => {
+      const existing = prev.find((c) => c.productId === productId && c.size === size);
+      if (existing) {
+        return prev.map((c) => (c === existing ? { ...c, quantity: c.quantity + 1 } : c));
+      }
+      return [...prev, { productId, size, quantity: 1 }];
+    });
+  };
+
+  const removeFromMerchCart = (index) => setMerchCart((prev) => prev.filter((_, i) => i !== index));
+
+  const merchCartTotal = merchCart.reduce((sum, c) => {
+    const product = MERCH_CATALOG.find((p) => p.id === c.productId);
+    return sum + (product ? product.price * c.quantity : 0);
+  }, 0);
+
+  const handleMerchCheckout = async () => {
+    if (merchCart.length === 0) return;
+    setMerchCheckoutLoading(true);
+    setMerchError(null);
+    try {
+      const items = merchCart.map((c) => {
+        const product = MERCH_CATALOG.find((p) => p.id === c.productId);
+        return { product: product.name, size: c.size, quantity: c.quantity, unitPrice: product.price };
+      });
+      const order = await createMyMerchOrder({
+        memberEmail: user.email,
+        memberName: user?.user_metadata?.full_name || '',
+        items,
+        totalAmount: merchCartTotal,
+        deliveryNotes: merchDeliveryNotes,
+      });
+      const checkoutUrl = await createPayfastCheckoutUrl({
+        itemName: `Hacking Hub Merch Order #${order.id}`,
+        amount: merchCartTotal,
+        subscriptionType: 0,
+        merchOrderId: order.id,
+      });
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      setMerchError(friendlyMemberErrorMessage(err));
+      setMerchCheckoutLoading(false);
     }
   };
 
@@ -3717,6 +4011,28 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                 )}
               </div>
+
+              {/* Today's Recommended Room - supabase/064_recommended_rooms.sql,
+                  day-of-year rotation through an admin-curated pool */}
+              {todaysRoom && (
+                <div className="glass-card">
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+                    <Target size={20} color="var(--accent-cyan)" />
+                    <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Today's TryHackMe Room</h4>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>{todaysRoom.name}</div>
+                      {todaysRoom.difficulty && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{todaysRoom.difficulty}</span>}
+                    </div>
+                    {isSafeUrl(todaysRoom.url) && (
+                      <a href={todaysRoom.url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                        <ExternalLink size={13} /> Start Room
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -4934,7 +5250,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           <div className="glass-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0 }}>Current Standings</h3>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Updated weekly</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Updated daily</span>
             </div>
             {loadingStandings && <p style={{ color: 'var(--text-muted)' }}>Loading standings...</p>}
             {!loadingStandings && competitionLeaderboard.length === 0 && (
@@ -4975,6 +5291,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       ? { bg: 'var(--medal-bronze-bg)', color: 'var(--medal-bronze)' }
                       : null;
                     const prize = prizeByKey[row.email || row.member];
+                    const directoryMatch = row.email ? directory.find((m) => m.email.toLowerCase() === row.email.toLowerCase()) : null;
                     return (
                       <tr
                         key={row.email || row.member}
@@ -4990,7 +5307,28 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{i + 1}</span>
                           )}
                         </td>
-                        <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}</td>
+                        <td style={{ padding: '14px 12px', fontWeight: 600 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {directoryMatch?.headshotUrl ? (
+                                <img src={directoryMatch.headshotUrl} alt={row.member} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <User size={14} color="var(--text-muted)" />
+                              )}
+                            </div>
+                            {directoryMatch ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDirectoryMember(directoryMatch)}
+                                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--accent-cyan)', textDecoration: 'underline', cursor: 'pointer' }}
+                              >
+                                {row.member}
+                              </button>
+                            ) : (
+                              <span>{row.member}</span>
+                            )}
+                          </div>
+                        </td>
                         <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.rooms}</td>
                         <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>{row.daysLogged}</td>
                         <td style={{ padding: '14px 12px' }}>
@@ -5010,6 +5348,127 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </table>
             )}
           </div>
+
+          <div className="glass-card" style={{ marginTop: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Swords size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Head-to-Head Duels</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              Challenge another member directly from their profile in the Members directory. 10 general-cyber questions each, 48 hours to finish — most correct wins, no-shows forfeit.
+            </p>
+            {isMockSession ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to challenge someone for real.</p>
+            ) : competitionsError ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>{competitionsError}</p>
+            ) : loadingMyDuels ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your duels...</p>
+            ) : myDuels.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No duels yet — open a member's profile in the Members directory to challenge them.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {myDuels.map((d) => (
+                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>vs {d.opponentName || d.opponentEmail}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {d.status === 'Active' && `${d.myAnsweredCount}/${d.totalQuestions} answered · expires ${formatDate(d.expiresAt)}`}
+                        {d.status === 'Completed' && (d.winnerEmail ? (d.winnerEmail === user?.email ? 'You won!' : 'They won') : 'Tied — no winner') + ` · ${d.myCorrectCount}-${d.opponentCorrectCount}`}
+                        {d.status === 'Void' && 'Voided — neither player finished in time'}
+                      </div>
+                    </div>
+                    {d.status === 'Active' && d.myAnsweredCount < d.totalQuestions ? (
+                      <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleOpenDuel(d.id)} disabled={loadingActiveDuel}>
+                        {d.myAnsweredCount > 0 ? 'Continue' : 'Play Now'}
+                      </button>
+                    ) : (
+                      <span className={`badge ${d.status === 'Completed' ? (d.winnerEmail === user?.email ? 'badge-success' : 'badge-warning') : 'badge-warning'}`}>{d.status}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {activeDuel && (
+            <div style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+              <div className="glass-card" style={{ width: '100%', maxWidth: '520px', padding: '32px', border: '1px solid var(--accent-cyan)' }}>
+                {activeDuelQuestions[activeDuelIndex] ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{activeDuelQuestions[activeDuelIndex].domain}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Question {activeDuelIndex + 1} of {activeDuelQuestions.length}</span>
+                    </div>
+                    <h3 style={{ marginBottom: '20px', lineHeight: 1.5 }}>{activeDuelQuestions[activeDuelIndex].question}</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {activeDuelQuestions[activeDuelIndex].choices.map((choice, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '12px 16px' }}
+                          onClick={() => handleAnswerDuelQuestion(idx)}
+                          disabled={submittingDuelAnswer || !!activeDuelFeedback}
+                        >
+                          {choice}
+                        </button>
+                      ))}
+                    </div>
+                    {activeDuelFeedback && (
+                      <p style={{ marginTop: '16px', fontWeight: 600, color: activeDuelFeedback === 'correct' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                        {activeDuelFeedback === 'correct' ? 'Correct!' : 'Not quite.'}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ color: 'var(--text-muted)' }}>Loading question...</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="glass-card" style={{ marginTop: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Flag size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Room Races</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              Race a member to finish the same TryHackMe room. Submit your proof below once you're done — same WhatsApp-proof rule as daily room logging, and whoever's approved by an admin first wins.
+            </p>
+            {isMockSession ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to race someone for real.</p>
+            ) : loadingMyRoomRaces ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your races...</p>
+            ) : myRoomRaces.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No races yet — open a member's profile in the Members directory to challenge them.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {myRoomRaces.map((r) => (
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                        {isSafeUrl(r.roomUrl) ? <a href={r.roomUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)' }}>{r.roomName}</a> : r.roomName}
+                        {' '}vs {r.opponentName || r.opponentEmail}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {r.status === 'Active' && (r.myApprovedAt ? 'Waiting on your opponent' : r.mySubmittedAt ? 'Submitted — waiting on admin approval' : 'Not submitted yet')}
+                        {r.status === 'Completed' && (r.winnerEmail === user?.email ? 'You won!' : 'They won')}
+                        {r.status === 'Cancelled' && 'Cancelled'}
+                      </div>
+                    </div>
+                    {r.status === 'Active' && !r.mySubmittedAt ? (
+                      <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSubmitRaceProof(r.id)} disabled={raceProofBusy === r.id}>
+                        {raceProofBusy === r.id ? 'Submitting...' : "I've Finished It"}
+                      </button>
+                    ) : (
+                      <span className={`badge ${r.status === 'Completed' ? (r.winnerEmail === user?.email ? 'badge-success' : 'badge-warning') : 'badge-warning'}`}>{r.status}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {renderMemberProfileModal()}
         </div>
       );
 
@@ -5290,6 +5749,140 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 Use your <strong style={{ color: 'var(--text-primary)' }}>full name</strong> as the payment reference so we can match it to your account.
               </p>
             </div>
+          </div>
+
+          {/* Merch Store - real HH-branded products, a real once-off
+              PayFast checkout kept entirely separate from membership
+              revenue (see supabase/060_merch_orders.sql for why). */}
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <ShoppingBag size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Merch Store</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              Real HH-branded gear - add what you want to your cart, then check out securely via PayFast.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              {MERCH_CATALOG.map((product) => (
+                <div key={product.id} style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '1rem' }}>{product.name}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>R {product.price}</div>
+                  </div>
+                  {product.sizes && (
+                    <select
+                      className="form-input"
+                      value={merchSelectedSizes[product.id] || ''}
+                      onChange={(e) => setMerchSelectedSizes((prev) => ({ ...prev, [product.id]: e.target.value }))}
+                      style={{ fontSize: '0.85rem' }}
+                    >
+                      <option value="">Select size...</option>
+                      {product.sizes.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ justifyContent: 'center', fontSize: '0.85rem' }}
+                    onClick={() => addToMerchCart(product.id)}
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {merchCart.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px' }}>Your Cart</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                  {merchCart.map((c, i) => {
+                    const product = MERCH_CATALOG.find((p) => p.id === c.productId);
+                    return (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.85rem' }}>
+                        <span>{product?.name}{c.size ? ` (${c.size})` : ''} × {c.quantity}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontWeight: 600 }}>R {(product?.price || 0) * c.quantity}</span>
+                          <button type="button" onClick={() => removeFromMerchCart(i)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex' }} aria-label="Remove from cart">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '16px' }}>
+                  <span>Total</span>
+                  <span>R {merchCartTotal}</span>
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Delivery notes (optional)</label>
+                  <textarea
+                    className="form-input"
+                    value={merchDeliveryNotes}
+                    onChange={(e) => setMerchDeliveryNotes(e.target.value)}
+                    placeholder="e.g. I'll collect at the next meetup, or a postal address"
+                    rows={2}
+                    style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={handleMerchCheckout}
+                  disabled={merchCheckoutLoading}
+                >
+                  {merchCheckoutLoading ? 'Redirecting to PayFast...' : <>Checkout - R {merchCartTotal} <ExternalLink size={14} /></>}
+                </button>
+              </div>
+            )}
+
+            {merchError && (
+              <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>{merchError}</p>
+            )}
+
+            {(loadingMyMerchOrders || myMerchOrders.length > 0) && (
+              <div style={{ marginTop: '8px', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '12px' }}>My Merch Orders</div>
+                {loadingMyMerchOrders ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your merch orders...</p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Date</th>
+                          <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Items</th>
+                          <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Total</th>
+                          <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myMerchOrders.map((o) => (
+                          <tr key={o.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
+                            <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{formatDate(o.createdAt)}</td>
+                            <td style={{ padding: '12px 8px' }}>
+                              {o.items.map((it, idx) => (
+                                <div key={idx}>{it.product}{it.size ? ` (${it.size})` : ''} × {it.quantity}</div>
+                              ))}
+                              {o.deliveryNotes && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Note: {o.deliveryNotes}</div>}
+                            </td>
+                            <td style={{ padding: '12px 8px', fontWeight: 700 }}>R {o.totalAmount}</td>
+                            <td style={{ padding: '12px 8px' }}>
+                              <span className={`badge ${o.status === 'Paid' || o.status === 'Fulfilled' ? 'badge-success' : o.status === 'Cancelled' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.7rem' }}>
+                                {o.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <h3 style={{ marginBottom: '12px' }}>Your Plan & Upgrade Options</h3>

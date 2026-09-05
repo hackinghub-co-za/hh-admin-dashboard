@@ -42,10 +42,13 @@ import {
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing } from '../../lib/jobBoardData';
+import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
+import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
+import { fetchAllRecommendedRooms, addRecommendedRoom, deleteRecommendedRoom } from '../../lib/recommendedRoomData';
 import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
@@ -88,6 +91,7 @@ import {
   CalendarClock,
   Activity,
   LayoutGrid,
+  Swords,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -504,6 +508,71 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .finally(() => !cancelled && setLoadingRoomLogs(false));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
+
+  // Room Races (063_room_races.sql) and the daily recommended room pool
+  // (064_recommended_rooms.sql) - both live on the Room Logs tab, since
+  // that's already the "approve a claimed TryHackMe completion" surface and
+  // the pool is TryHackMe content too.
+  const [roomRaces, setRoomRaces] = useState([]);
+  const [loadingRoomRaces, setLoadingRoomRaces] = useState(!isMockSession);
+  const [roomRacesError, setRoomRacesError] = useState(null);
+  const [approvingRaceKey, setApprovingRaceKey] = useState(null);
+
+  const [recommendedRooms, setRecommendedRooms] = useState([]);
+  const [newRecommendedRoom, setNewRecommendedRoom] = useState({ name: '', url: '', difficulty: 'Easy' });
+  const [addingRecommendedRoom, setAddingRecommendedRoom] = useState(false);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllActiveRoomRaces()
+      .then((data) => !cancelled && setRoomRaces(data))
+      .catch((err) => !cancelled && setRoomRacesError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingRoomRaces(false));
+    fetchAllRecommendedRooms()
+      .then((data) => !cancelled && setRecommendedRooms(data))
+      .catch((err) => !cancelled && setRoomRacesError(friendlyErrorMessage(err)));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleApproveRaceSubmission = async (raceId, memberEmail) => {
+    setApprovingRaceKey(`${raceId}:${memberEmail}`);
+    setRoomRacesError(null);
+    try {
+      await approveRoomRaceSubmission(raceId, memberEmail);
+      setRoomRaces(await fetchAllActiveRoomRaces());
+    } catch (err) {
+      setRoomRacesError(friendlyErrorMessage(err));
+    } finally {
+      setApprovingRaceKey(null);
+    }
+  };
+
+  const handleAddRecommendedRoom = async (e) => {
+    e.preventDefault();
+    if (!newRecommendedRoom.name.trim() || !newRecommendedRoom.url.trim()) return;
+    setAddingRecommendedRoom(true);
+    setRoomRacesError(null);
+    try {
+      await addRecommendedRoom(newRecommendedRoom.name.trim(), newRecommendedRoom.url.trim(), newRecommendedRoom.difficulty, user?.email);
+      setRecommendedRooms(await fetchAllRecommendedRooms());
+      setNewRecommendedRoom({ name: '', url: '', difficulty: 'Easy' });
+    } catch (err) {
+      setRoomRacesError(friendlyErrorMessage(err));
+    } finally {
+      setAddingRecommendedRoom(false);
+    }
+  };
+
+  const handleDeleteRecommendedRoom = async (id) => {
+    setRoomRacesError(null);
+    try {
+      await deleteRecommendedRoom(id);
+      setRecommendedRooms(await fetchAllRecommendedRooms());
+    } catch (err) {
+      setRoomRacesError(friendlyErrorMessage(err));
+    }
+  };
 
   // Portal usage analytics (050_portal_events.sql) - powers the "usage"
   // section of the Insights tab. Aggregated server-side (three small RPCs),
@@ -965,6 +1034,39 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       } catch (err) {
         setJobListingsError(friendlyErrorMessage(err));
         setJobListings((prev) => [...prev, job]);
+      }
+    }
+  };
+
+  // Merch Orders - see supabase/060_merch_orders.sql / src/lib/merchStoreData.js.
+  // Read-only from the admin's perspective except fulfillment status - the
+  // actual 'Paid'/'Needs Review' transitions only ever happen server-side,
+  // via payfast-webhook's service-role key, never from here.
+  const [merchOrders, setMerchOrders] = useState(isMockSession ? [
+    { id: 1, memberEmail: 'demo.member1@example.com', memberName: 'Demo Member', items: [{ product: 'Hoodie', size: 'L', quantity: 1, unitPrice: 600 }], totalAmount: 600, deliveryNotes: "I'll collect at the next meetup", status: 'Paid', createdAt: '2026-08-20T10:00:00Z', paidAt: '2026-08-20T10:05:00Z' },
+  ] : []);
+  const [loadingMerchOrders, setLoadingMerchOrders] = useState(!isMockSession);
+  const [merchOrdersError, setMerchOrdersError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllMerchOrders()
+      .then((data) => !cancelled && setMerchOrders(data))
+      .catch((err) => !cancelled && setMerchOrdersError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingMerchOrders(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleUpdateMerchOrderStatus = async (order, status) => {
+    const prevOrders = merchOrders;
+    setMerchOrders(merchOrders.map((o) => (o.id === order.id ? { ...o, status } : o)));
+    if (!isMockSession) {
+      try {
+        await updateMerchOrderStatus(order.id, status);
+      } catch (err) {
+        setMerchOrdersError(friendlyErrorMessage(err));
+        setMerchOrders(prevOrders);
       }
     }
   };
@@ -1500,17 +1602,19 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
   };
 
-  // Anchored to the PayFast export's "as-of" date, so trend/renewal math stays
-  // consistent with the transaction data rather than drifting with wall-clock time.
-  const today = new Date('2026-08-07');
-
-  // The real wall-clock date, for windows that need to genuinely track "now" -
-  // upcoming renewal countdowns and rolling revenue windows (MRR, weekly) -
-  // rather than the frozen export-date anchor above. Live/EFT payments are
-  // recorded with real dates, so measuring "trailing 30 days" or "days until
-  // renewal" against the frozen anchor made those tiles drift stale instead
-  // of updating as new transactions came in.
-  const realNow = new Date();
+  // The real wall-clock date. Used to be frozen at a hardcoded
+  // '2026-08-07' (the PayFast export's original "as-of" date, kept as a
+  // literal so trend/renewal math would supposedly stay consistent with
+  // that snapshot) - but a hardcoded literal never advances, so every
+  // month/day-relative stat quietly went stale the moment real time moved
+  // past that date: Gross Revenue Trend could never show a month after
+  // August, "Certifications Passed This Month" stayed stuck on August
+  // forever, churn/tenure windows drifted, etc. A separate `realNow`
+  // variable already existed for the few spots that had already been
+  // caught needing genuine "now" (MRR, exam countdowns) - rather than leave
+  // two names for what should always be the same value, `today` is now
+  // just the real date everywhere, and `realNow` is gone.
+  const today = new Date();
 
   // "Passed" is only counted once someone has explicitly marked the result - an
   // exam date simply being in the past doesn't mean it was taken, let alone passed.
@@ -1537,7 +1641,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   );
 
   // Recurring revenue run-rate: Basic Access + Monthly Operative payments in the trailing 30 days
-  const last30DaysStart = new Date(realNow.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const last30DaysStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
   const monthlyRecurringRevenue = payments
     .filter(p => (p.plan === 'Monthly Operative' || p.plan === 'Basic Access') && new Date(p.date) >= last30DaysStart)
     .reduce((acc, p) => acc + p.amount, 0);
@@ -1570,8 +1674,16 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
 
   // Monthly gross revenue trend, split by funding source, computed directly
   // from the transaction history (PayFast card payments vs. manually-recorded
-  // EFT bank transfers).
-  const revenueTrendMonths = ['2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'];
+  // EFT bank transfers). The trailing 7 months ending at the current month,
+  // computed from `today` - this used to be a hardcoded ['2026-02', ...,
+  // '2026-08'] array, which meant September (and every month after it)
+  // could never show up no matter what data existed, since the chart never
+  // looked past August in the first place. Deriving it from `today` instead
+  // keeps this correct every month going forward with no code change.
+  const revenueTrendMonths = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - (6 - i), 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const revenueTrend = revenueTrendMonths.map(month => {
     const monthPayments = payments.filter(p => p.type === 'Funds Received' && p.date.startsWith(month));
     const payfast = monthPayments.filter(p => p.fundingType !== 'EFT').reduce((acc, p) => acc + p.amount, 0);
@@ -3407,6 +3519,105 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               )}
             </>
           )}
+
+          {/* Room Races (063_room_races.sql) - head-to-head races between two
+              members. First submission you approve wins the race outright. */}
+          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', margin: '32px 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Swords size={14} /> Active Room Races ({roomRaces.length})
+          </div>
+          {roomRacesError && (
+            <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
+              {roomRacesError}
+            </div>
+          )}
+          {isMockSession ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Not available under Mock Admin - this reads real races from Supabase.</p>
+          ) : loadingRoomRaces ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading races...</p>
+          ) : roomRaces.length === 0 ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No active races right now.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {roomRaces.map((race) => (
+                <div key={race.id} className="glass-card">
+                  <div style={{ fontWeight: 600, marginBottom: '10px' }}>
+                    {isSafeUrl(race.roomUrl) ? (
+                      <a href={race.roomUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)' }}>{race.roomName}</a>
+                    ) : race.roomName}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { email: race.memberAEmail, name: race.memberAName, submittedAt: race.memberASubmittedAt, approvedAt: race.memberAApprovedAt },
+                      { email: race.memberBEmail, name: race.memberBName, submittedAt: race.memberBSubmittedAt, approvedAt: race.memberBApprovedAt },
+                    ].map((p) => (
+                      <div key={p.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+                        <div>
+                          <strong>{p.name || nameForLogEmail(p.email)}</strong>
+                          <span style={{ color: 'var(--text-muted)' }}>
+                            {' · '}
+                            {p.approvedAt ? `approved ${formatDate(p.approvedAt)}` : p.submittedAt ? `submitted ${formatDate(p.submittedAt)}` : 'not submitted yet'}
+                          </span>
+                        </div>
+                        {p.submittedAt && !p.approvedAt && (
+                          <button
+                            className="btn btn-primary"
+                            style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                            disabled={approvingRaceKey === `${race.id}:${p.email}`}
+                            onClick={() => handleApproveRaceSubmission(race.id, p.email)}
+                          >
+                            <CheckCircle size={13} /> Approve &amp; Declare Winner
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recommended Rooms pool (064_recommended_rooms.sql) - members see
+              one of these per day on their Dashboard, rotating by day of
+              year, so this list needs no daily upkeep. */}
+          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', margin: '32px 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ListChecks size={14} /> Daily Room Pool ({recommendedRooms.length})
+          </div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+            Members see one of these on their Dashboard each day, rotating automatically by day of the year — no daily upkeep needed.
+          </p>
+          {!isMockSession && (
+            <form onSubmit={handleAddRecommendedRoom} className="glass-card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '14px' }}>
+              <input className="form-input" placeholder="Room name" style={{ flex: '1 1 180px' }} value={newRecommendedRoom.name} onChange={(e) => setNewRecommendedRoom({ ...newRecommendedRoom, name: e.target.value })} required />
+              <input className="form-input" placeholder="Room URL" type="url" style={{ flex: '1 1 220px' }} value={newRecommendedRoom.url} onChange={(e) => setNewRecommendedRoom({ ...newRecommendedRoom, url: e.target.value })} required />
+              <select className="form-input" style={{ width: '120px' }} value={newRecommendedRoom.difficulty} onChange={(e) => setNewRecommendedRoom({ ...newRecommendedRoom, difficulty: e.target.value })}>
+                {['Easy', 'Medium', 'Hard'].map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <button type="submit" className="btn btn-primary" disabled={addingRecommendedRoom}>
+                <Plus size={14} /> {addingRecommendedRoom ? 'Adding...' : 'Add Room'}
+              </button>
+            </form>
+          )}
+          {recommendedRooms.length === 0 ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No rooms in the pool yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {recommendedRooms.map((room) => (
+                <div key={room.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '0.85rem' }}>
+                    {isSafeUrl(room.url) ? (
+                      <a href={room.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>{room.name}</a>
+                    ) : <strong>{room.name}</strong>}
+                    {room.difficulty && <span className="badge badge-success" style={{ fontSize: '0.62rem', marginLeft: '8px' }}>{room.difficulty}</span>}
+                  </div>
+                  {!isMockSession && (
+                    <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '5px 10px', color: 'var(--danger)' }} onClick={() => handleDeleteRecommendedRoom(room.id)}>
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -3779,6 +3990,86 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       );
     }
 
+    case 'merch': {
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Merch Orders</h1>
+            <p>Real orders, paid for via a real PayFast checkout - kept out of membership revenue entirely (see supabase/060_merch_orders.sql). Status only ever moves to Paid/Needs Review server-side, from the payment itself - fulfillment status below is the only thing you set here.</p>
+          </div>
+
+          {merchOrdersError && (
+            <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{merchOrdersError}</p>
+          )}
+
+          <div className="glass-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>All Orders</h3>
+              <span className="badge badge-success">{merchOrders.length}</span>
+            </div>
+            {!isMockSession && loadingMerchOrders ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading...</p>
+            ) : merchOrders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                No orders yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {merchOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px',
+                      padding: '14px 16px', borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(var(--overlay-rgb), 0.02)',
+                      border: order.status === 'Needs Review' ? '1px solid var(--warning)' : '1px solid var(--border-color)',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        <span className={`badge ${order.status === 'Paid' || order.status === 'Fulfilled' ? 'badge-success' : order.status === 'Cancelled' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
+                          {order.status}
+                        </span>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{order.memberName || order.memberEmail}</h4>
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{order.memberEmail} · {formatDate(order.createdAt)}</p>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                        {order.items.map((it, idx) => (
+                          <span key={idx} style={{ marginRight: '10px' }}>
+                            {it.product}{it.size ? ` (${it.size})` : ''} ×{it.quantity}
+                          </span>
+                        ))}
+                        <strong> - R {order.totalAmount}</strong>
+                      </p>
+                      {order.deliveryNotes && (
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Delivery: {order.deliveryNotes}</p>
+                      )}
+                      {order.status === 'Needs Review' && (
+                        <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <AlertTriangle size={12} /> The amount PayFast confirmed doesn't match this order's total - reconcile manually before fulfilling.
+                        </p>
+                      )}
+                    </div>
+                    {order.status === 'Paid' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleUpdateMerchOrderStatus(order, 'Fulfilled')}>
+                          Mark Fulfilled
+                        </button>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px', color: 'var(--danger)' }} onClick={() => handleUpdateMerchOrderStatus(order, 'Cancelled')}>
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     case 'insights': {
       // Join date: prefers an admin-set manual start date (Members tab) over
       // the real onboarding timestamp, which in turn falls back to first
@@ -3944,10 +4235,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       const atRiskExams = certs
         .filter((c) => c.result === 'Pending')
         .map((c) => {
-          // realNow, not the frozen `today` anchor above - a genuine
-          // "how many real days until this exam" countdown, same reasoning
-          // as the renewal countdowns elsewhere in this tab.
-          const daysLeft = Math.ceil((new Date(c.date) - realNow) / (1000 * 60 * 60 * 24));
+          const daysLeft = Math.ceil((new Date(c.date) - today) / (1000 * 60 * 60 * 24));
           const certKey = matchExamReadinessCert(c.cert);
           if (!certKey || daysLeft < 0 || daysLeft > EXAM_NUDGE_WINDOW_DAYS) return null;
           const catalog = EXAM_READINESS_CATALOGS[certKey];
@@ -4747,14 +5035,18 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       );
 
     case 'finances':
-      // Calculate Year (2026), Month (Aug 2026), and Week (Past 7 days) Gross Revenue
+      // Calculate Year, Month (the real current month - this used to be a
+      // hardcoded '2026-08' literal, so it silently stopped updating the
+      // moment the real month moved past August, same root cause as the
+      // frozen `today` anchor above), and Week (Past 7 days) Gross Revenue
       const yearlyRevenue = payments.reduce((acc, p) => acc + p.amount, 0);
 
+      const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
       const monthlyRevenue = payments
-        .filter(p => p.date.startsWith('2026-08'))
+        .filter(p => p.date.startsWith(currentMonthKey))
         .reduce((acc, p) => acc + p.amount, 0);
 
-      const past7DaysCutoff = new Date(realNow.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const past7DaysCutoff = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       const weeklyRevenue = payments
         .filter(p => new Date(p.date) >= past7DaysCutoff)
         .reduce((acc, p) => acc + p.amount, 0);
@@ -4787,7 +5079,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
           const lastDate = new Date(p.date);
           const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000);
           const nextDateStr = nextDate.toISOString().split('T')[0];
-          const daysUntil = Math.ceil((nextDate - realNow) / (1000 * 60 * 60 * 24));
+          const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
           return {
             id: p.id,
             member: p.member,

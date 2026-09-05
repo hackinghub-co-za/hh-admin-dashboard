@@ -150,6 +150,40 @@ Calculated at an exchange rate of **$1 USD = R18.25 ZAR**.
 
 ---
 
+## Deploying Database Changes & Edge Functions
+
+The Supabase CLI is already a project devDependency (`npx supabase`), already
+logged in, and already linked to the real project (`hh-admin-portal`,
+`kveiflphktpvsddhkspz`) - no separate install or database password needed.
+
+**SQL migrations** (`supabase/0NN_*.sql`) - apply one directly to the real
+database instead of copy-pasting it into the Supabase Dashboard's SQL
+Editor:
+```bash
+npm run db:apply -- supabase/060_merch_orders.sql
+```
+Every migration in this repo is written to be safe to re-run (`CREATE TABLE
+IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`, `DROP POLICY IF EXISTS` +
+`CREATE POLICY`, etc.), so there's no tracked migration-history table to
+manage - `scripts/apply-sql.sh` just runs the file via `supabase db query
+--linked --file`.
+
+**Edge Functions** (`supabase/functions/*`) - deploy directly via the CLI,
+no wrapper needed:
+```bash
+npx supabase functions deploy <name>   # one function
+npx supabase functions deploy          # every function
+```
+
+If the CLI ever reports it's not logged in or not linked (e.g. on a new
+machine), fix that once with:
+```bash
+npx supabase login
+npx supabase link --project-ref kveiflphktpvsddhkspz
+```
+
+---
+
 ## Directory Structure
 
 ```
