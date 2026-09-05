@@ -45,7 +45,7 @@ import { challengeToRoomRace, fetchMyRoomRaces, submitRoomRaceProof } from '../.
 import { fetchTodaysRecommendedRoom } from '../../lib/recommendedRoomData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATIONS_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECTS_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECTS_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -3219,13 +3219,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 }}>
                                   {item.title}
                                 </div>
-                                {g.phase === 'Core Foundations' && CORE_FOUNDATIONS_DESCRIPTIONS[item.title] && (
+                                {ROADMAP_ITEM_DESCRIPTIONS[item.title] && (
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); setCoreFoundationInfoTitle(item.title); }}
                                     style={{ display: 'block', background: 'none', border: 'none', padding: 0, marginTop: '2px', font: 'inherit', fontSize: '0.76rem', color: 'var(--accent-cyan)', textDecoration: 'underline', textUnderlineOffset: '2px', cursor: 'pointer', textAlign: 'left' }}
                                   >
-                                    {CORE_FOUNDATIONS_DESCRIPTIONS[item.title]}
+                                    {ROADMAP_ITEM_DESCRIPTIONS[item.title]}
                                   </button>
                                 )}
                                 {g.phase === 'Core Foundations' ? (

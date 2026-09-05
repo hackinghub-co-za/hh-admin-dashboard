@@ -1,14 +1,16 @@
 import { X, BookOpen, Compass, ExternalLink } from 'lucide-react';
-import { CORE_FOUNDATIONS_DESCRIPTIONS, CORE_FOUNDATIONS_INFO, ROADMAP_ITEM_LINKS } from '../lib/memberOptions';
+import { ROADMAP_ITEM_DESCRIPTIONS, ROADMAP_ITEM_INFO, ROADMAP_ITEM_LINKS } from '../lib/memberOptions';
 
-// What a Core Foundations item actually teaches, and why it's on the
-// roadmap at all - real, tailored copy per item (CORE_FOUNDATIONS_INFO),
-// not a generic template. Opened by clicking an item's description on My
-// Roadmap; the checkbox/progress row itself still just toggles completion.
+// What a roadmap item actually teaches, and why it's on the roadmap at all -
+// real, tailored copy per item (ROADMAP_ITEM_INFO), not a generic template.
+// Covers Core Foundations, Specialization, and Projects items alike, since
+// ROADMAP_ITEM_INFO is one flat, phase-agnostic, title-keyed map. Opened by
+// clicking an item's description on My Roadmap; the checkbox/progress row
+// itself still just toggles completion.
 export default function CoreFoundationInfoModal({ title, onOpenResource, onClose }) {
-  const info = CORE_FOUNDATIONS_INFO[title];
+  const info = ROADMAP_ITEM_INFO[title];
   if (!info) return null;
-  const tagline = CORE_FOUNDATIONS_DESCRIPTIONS[title];
+  const tagline = ROADMAP_ITEM_DESCRIPTIONS[title];
   const hasResource = !!ROADMAP_ITEM_LINKS[title] || title === 'CompTIA Security+';
 
   return (
