@@ -19,6 +19,15 @@ function mapRow(row) {
     completed: !!row.completed,
     sortOrder: row.sort_order || 0,
     updatedAt: row.updated_at || null,
+    // Projects-only proof-of-work fields - always present on the row, but
+    // only ever meaningful when phase === 'Projects'. See
+    // submit_my_project_proof()/review_project_submission() in
+    // 028_roadmap.sql for how these actually get set.
+    proofUrl: row.proof_url || '',
+    reviewStatus: row.review_status || 'Not Submitted',
+    reviewNote: row.review_note || '',
+    submittedAt: row.submitted_at || null,
+    reviewedAt: row.reviewed_at || null,
   };
 }
 
@@ -26,7 +35,7 @@ function mapRow(row) {
 export async function fetchMyRoadmap() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });
   if (error) throw error;
@@ -48,6 +57,26 @@ export async function updateMyRoadmapItemProgress(itemId, { detail, dueDate }) {
     p_item_id: itemId,
     p_detail: detail || null,
     p_due_date: dueDate || null,
+  });
+  if (error) throw error;
+}
+
+/** Submit proof for one of the caller's own Projects items - a GitHub repo
+ * with a write-up and screenshots, a Google Drive link, or any other URL.
+ * Sets review_status to 'Pending'; does NOT mark the item complete - only
+ * an admin approval does that (reviewProjectSubmission below). */
+export async function submitMyProjectProof(itemId, proofUrl) {
+  const { error } = await supabase.rpc('submit_my_project_proof', { p_item_id: itemId, p_proof_url: proofUrl });
+  if (error) throw error;
+}
+
+/** Admin: approve or reject a member's Project proof submission. Approving
+ * is the only way that item's `completed` ever becomes true. */
+export async function reviewProjectSubmission(itemId, approved, note) {
+  const { error } = await supabase.rpc('review_project_submission', {
+    p_item_id: itemId,
+    p_approved: approved,
+    p_note: note || null,
   });
   if (error) throw error;
 }
@@ -100,7 +129,7 @@ export async function setRoadmapFoundationsApproval(email, approved) {
 export async function fetchAllRoadmapItems() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at');
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at');
   if (error) throw error;
   return (data || []).map(mapRow);
 }
@@ -110,7 +139,7 @@ export async function fetchAllRoadmapItems() {
 export async function fetchRoadmapForMember(email) {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
     .eq('member_email', email.toLowerCase())
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });

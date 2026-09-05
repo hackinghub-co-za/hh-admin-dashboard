@@ -133,3 +133,59 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_portal_weekly_trend(INTEGER) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_portal_weekly_trend(INTEGER) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- MOBILE BLOCK TRACKING (2026-09) - App.jsx turns away a phone or narrow
+-- window with a "Please Use a Desktop" screen before Login even mounts, so
+-- normal portal_events logging (session_start, tab_view, ...) never fires
+-- for that visit - there's no session to log against, and by design
+-- nothing about the portal itself has loaded yet. This is the one
+-- event_type in this table that can legitimately have no member behind it
+-- at all: someone hitting the mobile wall might not even be a member yet,
+-- and even a real member's own session may not have finished restoring by
+-- the time the block decides to render. email is widened to nullable
+-- specifically for this case; every other event_type still always has one.
+-- =========================================================================
+
+ALTER TABLE public.portal_events ALTER COLUMN email DROP NOT NULL;
+
+-- Deliberately anonymous-safe (granted to anon, not just authenticated) -
+-- the whole point is to count a visit that may have zero auth context.
+-- Fire-and-forget, same as log_my_portal_event(), and just as low-stakes to
+-- spam (worst case, someone inflates a meaningless counter - no PII, no
+-- money, no access implications, same risk profile already accepted for
+-- unsubscribe_from_roadmap_reminders()).
+CREATE OR REPLACE FUNCTION public.log_mobile_block()
+RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  INSERT INTO public.portal_events (email, event_type, metadata)
+  VALUES (NULL, 'mobile_blocked', '{}'::jsonb);
+$$;
+GRANT EXECUTE ON FUNCTION public.log_mobile_block() TO anon, authenticated;
+
+-- Total count only (not distinct-by-email, since email is always NULL
+-- here) - "how many times has the wall been hit in the last p_days",
+-- which is the real question this exists to answer. Powers a new stat
+-- tile next to Weekly/Monthly Active Members on the Insights tab.
+CREATE OR REPLACE FUNCTION public.get_mobile_block_count(p_days INTEGER DEFAULT 7)
+RETURNS INTEGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  IF auth.role() = 'authenticated' AND NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can do this.';
+  END IF;
+
+  SELECT COUNT(*) INTO v_count
+  FROM public.portal_events
+  WHERE event_type = 'mobile_blocked'
+    AND created_at >= timezone('utc'::text, now()) - (p_days || ' days')::interval;
+
+  RETURN v_count;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_mobile_block_count(INTEGER) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_mobile_block_count(INTEGER) FROM PUBLIC, anon;

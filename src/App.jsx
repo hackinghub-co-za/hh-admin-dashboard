@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import Sidebar from './components/Sidebar';
 import Login from './views/Login';
@@ -10,6 +10,7 @@ import OffboardingSequence from './components/OffboardingSequence';
 import GemmaWidget from './components/GemmaWidget';
 import { checkOnboardingStatus, markOnboardingComplete, getMyGettingStartedGraceStartedAt, fetchMyOnboardingSteps, ONBOARDING_STEPS } from './lib/onboardingData';
 import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
+import { logMobileBlock } from './lib/portalEventsData';
 import { Compass, Monitor } from 'lucide-react';
 import logo from './assets/hacking-hub-logo-sm.png';
 
@@ -78,6 +79,21 @@ export default function App() {
       window.removeEventListener('orientationchange', handleResize);
     };
   }, []);
+
+  // Anonymous-safe (see log_mobile_block() in 050_portal_events.sql) -
+  // fires once per page load the first time the wall actually shows, not
+  // on every resize flip (someone dragging a window narrower and back
+  // shouldn't inflate the count). A ref rather than state here on purpose:
+  // this guard doesn't need to trigger a re-render, just persist across
+  // renders, and setting it synchronously inside the effect is exactly
+  // what the set-state-in-effect lint rule warns against.
+  const mobileBlockLoggedRef = useRef(false);
+  useEffect(() => {
+    if (isMobile && !mobileBlockLoggedRef.current) {
+      mobileBlockLoggedRef.current = true;
+      logMobileBlock().catch(() => {});
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     // Members are only let in if `is_member_allowed` (Supabase RPC) says so - it

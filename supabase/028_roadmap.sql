@@ -40,7 +40,7 @@ UPDATE public.member_profiles SET specialty = 'SOC' WHERE specialty = 'Blue Team
 CREATE TABLE IF NOT EXISTS public.roadmap_items (
   id BIGSERIAL PRIMARY KEY,
   member_email TEXT NOT NULL,
-  phase TEXT NOT NULL CHECK (phase IN ('Core Foundations', 'Specialization')),
+  phase TEXT NOT NULL CHECK (phase IN ('Core Foundations', 'Specialization', 'Projects')),
   category TEXT NOT NULL,
   title TEXT NOT NULL,
   detail TEXT,
@@ -54,6 +54,35 @@ CREATE TABLE IF NOT EXISTS public.roadmap_items (
 -- Adds due_date to a database where this table already existed - the inline
 -- column above only takes effect on a fresh CREATE TABLE.
 ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS due_date DATE;
+
+-- Widens the phase CHECK for a database where this table already existed
+-- before 'Projects' was added (2026-09) - the inline CHECK above only takes
+-- effect on a fresh CREATE TABLE, same reasoning as 026_resources.sql's
+-- category-widening ALTER. Without this, every real (non-mock) "Add
+-- Standard Projects" insert from the admin Roadmaps tab would fail outright
+-- with a constraint violation - PROJECT_CATALOGS/ROADMAP_PHASES in
+-- src/lib/memberOptions.js already assume 'Projects' is a valid phase.
+ALTER TABLE public.roadmap_items DROP CONSTRAINT IF EXISTS roadmap_items_phase_check;
+ALTER TABLE public.roadmap_items ADD CONSTRAINT roadmap_items_phase_check
+  CHECK (phase IN ('Core Foundations', 'Specialization', 'Projects'));
+
+-- Proof-of-work fields for the Projects phase specifically (unused/NULL for
+-- Core Foundations and Specialization items, which stay pure self-toggle).
+-- Unlike a cert, a Project has no external body that can confirm a member
+-- actually did it, so it needs its own review step - same Pending ->
+-- Approved/Rejected trust model as daily_room_logs
+-- (031_daily_room_logs.sql), just with a proof link instead of a WhatsApp-
+-- photo checkbox. `completed` only ever flips to true on admin approval
+-- (see review_project_submission() below) - a member submitting proof does
+-- NOT mark their own item done.
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS proof_url TEXT;
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'Not Submitted';
+ALTER TABLE public.roadmap_items DROP CONSTRAINT IF EXISTS roadmap_items_review_status_check;
+ALTER TABLE public.roadmap_items ADD CONSTRAINT roadmap_items_review_status_check
+  CHECK (review_status IN ('Not Submitted', 'Pending', 'Approved', 'Rejected'));
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS review_note TEXT;
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE;
 
 ALTER TABLE public.roadmap_items ENABLE ROW LEVEL SECURITY;
 
@@ -77,11 +106,26 @@ CREATE POLICY "admins manage roadmap"
 -- Lets a member flip completion on exactly one of their own items - never
 -- the title, detail, phase, or anyone else's row, regardless of what a
 -- crafted request tries to pass.
+-- Re-defined 2026-09 (Projects phase) to refuse self-toggling a Projects
+-- item's completion - never trust the client on this one, since the
+-- Projects UI itself won't call this for that phase, but nothing server-
+-- side previously stopped a direct RPC call (or an old cached client) from
+-- doing it anyway. A Project's `completed` may only ever be set by an
+-- admin's review_project_submission() approval below.
 CREATE OR REPLACE FUNCTION public.toggle_my_roadmap_item(p_item_id BIGINT, p_completed BOOLEAN)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
+DECLARE
+  v_phase TEXT;
 BEGIN
+  SELECT phase INTO v_phase FROM public.roadmap_items
+  WHERE id = p_item_id AND member_email = lower(auth.jwt() ->> 'email');
+
+  IF v_phase = 'Projects' THEN
+    RAISE EXCEPTION 'Projects are marked done by an admin, after you submit proof - see submit_my_project_proof().';
+  END IF;
+
   UPDATE public.roadmap_items
   SET completed = p_completed, updated_at = timezone('utc'::text, now())
   WHERE id = p_item_id AND member_email = lower(auth.jwt() ->> 'email');
@@ -108,6 +152,89 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.update_my_roadmap_item_progress(BIGINT, TEXT, DATE) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.update_my_roadmap_item_progress(BIGINT, TEXT, DATE) FROM PUBLIC, anon;
+
+-- Submits proof for one of the caller's own Projects items - a GitHub repo
+-- with a write-up and screenshots, a Google Drive link, or any other URL.
+-- Deliberately does NOT set completed - unlike a real certification, a
+-- Project has no external body that can confirm it actually happened, so
+-- completion only ever flips on admin approval (review_project_submission()
+-- below), same trust boundary as daily_room_logs. Re-submitting while
+-- Pending or after a Rejected note just resets the clock; the previous
+-- proof_url is simply overwritten, not versioned.
+CREATE OR REPLACE FUNCTION public.submit_my_project_proof(p_item_id BIGINT, p_proof_url TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_phase TEXT;
+BEGIN
+  IF p_proof_url IS NULL OR trim(p_proof_url) = '' OR p_proof_url !~* '^https?://' THEN
+    RAISE EXCEPTION 'Add a real link (GitHub, Google Drive, or any URL) starting with http:// or https://.';
+  END IF;
+
+  SELECT phase INTO v_phase FROM public.roadmap_items
+  WHERE id = p_item_id AND member_email = v_email;
+
+  IF v_phase IS NULL THEN
+    RAISE EXCEPTION 'Item not found.';
+  END IF;
+  IF v_phase != 'Projects' THEN
+    RAISE EXCEPTION 'Proof submission only applies to Projects items.';
+  END IF;
+
+  UPDATE public.roadmap_items
+  SET proof_url = trim(p_proof_url),
+      review_status = 'Pending',
+      submitted_at = timezone('utc'::text, now()),
+      review_note = NULL,
+      updated_at = timezone('utc'::text, now())
+  WHERE id = p_item_id AND member_email = v_email;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.submit_my_project_proof(BIGINT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.submit_my_project_proof(BIGINT, TEXT) FROM PUBLIC, anon;
+
+-- Admin review of a Project proof submission - same Approved/Rejected
+-- pattern as review_daily_room_log() in 031_daily_room_logs.sql. Approving
+-- is the only way a Projects item's `completed` ever becomes true; a
+-- rejection leaves proof_url in place (so the admin's note has something
+-- concrete to react to) but resets review_status to 'Rejected' so the
+-- member sees it needs another look, and can resubmit via
+-- submit_my_project_proof() above to set it back to 'Pending'.
+CREATE OR REPLACE FUNCTION public.review_project_submission(p_item_id BIGINT, p_approved BOOLEAN, p_note TEXT DEFAULT NULL)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_member_email TEXT;
+  v_phase TEXT;
+BEGIN
+  IF NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can review Project submissions.';
+  END IF;
+
+  SELECT member_email, phase INTO v_member_email, v_phase
+  FROM public.roadmap_items WHERE id = p_item_id;
+
+  IF v_member_email IS NULL THEN
+    RAISE EXCEPTION 'Item not found.';
+  END IF;
+  IF v_phase != 'Projects' THEN
+    RAISE EXCEPTION 'This item is not a Projects submission.';
+  END IF;
+
+  UPDATE public.roadmap_items
+  SET review_status = CASE WHEN p_approved THEN 'Approved' ELSE 'Rejected' END,
+      completed = p_approved,
+      review_note = p_note,
+      reviewed_at = timezone('utc'::text, now()),
+      updated_at = timezone('utc'::text, now())
+  WHERE id = p_item_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.review_project_submission(BIGINT, BOOLEAN, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.review_project_submission(BIGINT, BOOLEAN, TEXT) FROM PUBLIC, anon;
 
 -- member_profiles has no member-facing SELECT policy at all (see
 -- 010_member_directory.sql's get_member_directory() for why - the table

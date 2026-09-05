@@ -34,3 +34,17 @@ export async function fetchPortalWeeklyTrend(weeks = 8) {
   if (error) throw error;
   return (data || []).map((row) => ({ weekStart: row.week_start, activeMembers: row.active_members }));
 }
+
+/** Anonymous-safe - fires from App.jsx's mobile gate, which renders before
+ * Login even mounts, so there's often no session (and therefore no email)
+ * to log against at all. Fire-and-forget like every other write here. */
+export async function logMobileBlock() {
+  const { error } = await supabase.rpc('log_mobile_block');
+  if (error) throw error;
+}
+
+export async function fetchMobileBlockCount(days = 7) {
+  const { data, error } = await supabase.rpc('get_mobile_block_count', { p_days: days });
+  if (error) throw error;
+  return data;
+}

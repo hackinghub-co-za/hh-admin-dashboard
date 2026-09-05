@@ -43,13 +43,14 @@ import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, 
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
-import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval } from '../../lib/roadmapData';
+import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
+import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
 import { fetchAllRecommendedRooms, addRecommendedRoom, deleteRecommendedRoom } from '../../lib/recommendedRoomData';
-import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend } from '../../lib/portalEventsData';
+import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend, fetchMobileBlockCount } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
 import {
@@ -92,6 +93,9 @@ import {
   Activity,
   LayoutGrid,
   Swords,
+  Bell,
+  PlayCircle,
+  Smartphone,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -416,6 +420,31 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
   };
 
+  // Approve or reject a Projects proof submission - approving is the only
+  // way that item's `completed` ever becomes true (see
+  // review_project_submission() in 028_roadmap.sql). Rejecting keeps
+  // proof_url on the row so the note has something concrete to react to.
+  const [projectReviewNoteDraft, setProjectReviewNoteDraft] = useState({});
+  const [reviewingProjectId, setReviewingProjectId] = useState(null);
+  const handleReviewProjectSubmission = async (item, approved) => {
+    const note = projectReviewNoteDraft[item.id] || '';
+    const updated = { ...item, reviewStatus: approved ? 'Approved' : 'Rejected', completed: approved, reviewNote: note };
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, roadmapItems.map((i) => (i.id === item.id ? updated : i)));
+      return;
+    }
+    setReviewingProjectId(item.id);
+    try {
+      await reviewProjectSubmission(item.id, approved, note);
+      setRoadmapItems(roadmapItems.map((i) => (i.id === item.id ? updated : i)));
+      setProjectReviewNoteDraft((d) => ({ ...d, [item.id]: '' }));
+    } catch (err) {
+      setRoadmapItemsError(friendlyErrorMessage(err));
+    } finally {
+      setReviewingProjectId(null);
+    }
+  };
+
   const handleDeleteRoadmapItem = async (item) => {
     if (isMockSession) {
       applyMockRoadmapItems(roadmapMemberEmail, roadmapItems.filter((i) => i.id !== item.id));
@@ -589,6 +618,69 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
   };
 
+  // Live Buzzer Trivia (066_live_trivia.sql) - hosted here too, same "keep
+  // every Competitions admin action on one tab" reasoning as Room Races
+  // above. Refetches on every action rather than subscribing to Realtime
+  // itself - the admin is the one driving state changes, so there's
+  // nothing external to listen for here the way there is on the member side.
+  const [triviaSession, setTriviaSession] = useState(null);
+  const [loadingTrivia, setLoadingTrivia] = useState(!isMockSession);
+  const [triviaLeaderboard, setTriviaLeaderboard] = useState([]);
+  const [newTriviaTitle, setNewTriviaTitle] = useState('');
+  const [newTriviaQuestionCount, setNewTriviaQuestionCount] = useState(10);
+  const [triviaActionBusy, setTriviaActionBusy] = useState(false);
+  const [triviaError, setTriviaError] = useState(null);
+
+  const refreshTriviaAdmin = async () => {
+    const session = await fetchLatestTriviaSession();
+    setTriviaSession(session);
+    if (session) setTriviaLeaderboard(await fetchTriviaLeaderboard(session.id));
+  };
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchLatestTriviaSession()
+      .then(async (session) => {
+        if (cancelled) return;
+        setTriviaSession(session);
+        if (session) setTriviaLeaderboard(await fetchTriviaLeaderboard(session.id));
+      })
+      .catch((err) => !cancelled && setTriviaError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingTrivia(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleCreateTrivia = async (e) => {
+    e.preventDefault();
+    if (!newTriviaTitle.trim()) return;
+    setTriviaActionBusy(true);
+    setTriviaError(null);
+    try {
+      await createTriviaSession(newTriviaTitle.trim(), Number(newTriviaQuestionCount) || 10);
+      setNewTriviaTitle('');
+      await refreshTriviaAdmin();
+    } catch (err) {
+      setTriviaError(friendlyErrorMessage(err));
+    } finally {
+      setTriviaActionBusy(false);
+    }
+  };
+
+  const handleTriviaAction = async (action) => {
+    if (!triviaSession) return;
+    setTriviaActionBusy(true);
+    setTriviaError(null);
+    try {
+      await action(triviaSession.id);
+      await refreshTriviaAdmin();
+    } catch (err) {
+      setTriviaError(friendlyErrorMessage(err));
+    } finally {
+      setTriviaActionBusy(false);
+    }
+  };
+
   const handleAddRecommendedRoom = async (e) => {
     e.preventDefault();
     if (!newRecommendedRoom.name.trim() || !newRecommendedRoom.url.trim()) return;
@@ -624,6 +716,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [portalActiveMembers30d, setPortalActiveMembers30d] = useState(null);
   const [portalTabEngagement, setPortalTabEngagement] = useState([]);
   const [portalWeeklyTrend, setPortalWeeklyTrend] = useState([]);
+  const [mobileBlockCount7d, setMobileBlockCount7d] = useState(null);
   const [loadingPortalAnalytics, setLoadingPortalAnalytics] = useState(!isMockSession);
   const [portalAnalyticsError, setPortalAnalyticsError] = useState(null);
 
@@ -635,13 +728,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       fetchPortalActiveMemberCount(30),
       fetchPortalTabEngagement(30),
       fetchPortalWeeklyTrend(8),
+      fetchMobileBlockCount(7),
     ])
-      .then(([active7d, active30d, tabEngagement, weeklyTrend]) => {
+      .then(([active7d, active30d, tabEngagement, weeklyTrend, mobileBlocks7d]) => {
         if (cancelled) return;
         setPortalActiveMembers7d(active7d);
         setPortalActiveMembers30d(active30d);
         setPortalTabEngagement(tabEngagement);
         setPortalWeeklyTrend(weeklyTrend);
+        setMobileBlockCount7d(mobileBlocks7d);
       })
       .catch((err) => !cancelled && setPortalAnalyticsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingPortalAnalytics(false));
@@ -3159,6 +3254,43 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                                                 {item.detail}{item.detail && item.dueDate ? ' · ' : ''}{item.dueDate && `Due ${formatDate(item.dueDate)}`}
                                               </div>
                                             )}
+                                            {item.phase === 'Projects' && item.reviewStatus !== 'Not Submitted' && (
+                                              <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span className={`badge ${item.reviewStatus === 'Approved' ? 'badge-success' : item.reviewStatus === 'Rejected' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.62rem' }}>
+                                                  {item.reviewStatus}
+                                                </span>
+                                                {isSafeUrl(item.proofUrl) && (
+                                                  <a href={item.proofUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75rem' }}>View proof</a>
+                                                )}
+                                                {item.reviewStatus === 'Pending' && (
+                                                  <>
+                                                    <input
+                                                      className="form-input"
+                                                      placeholder="Note (optional, shown to member on reject)"
+                                                      style={{ fontSize: '0.72rem', padding: '4px 8px', width: '220px' }}
+                                                      value={projectReviewNoteDraft[item.id] || ''}
+                                                      onChange={(e) => setProjectReviewNoteDraft((d) => ({ ...d, [item.id]: e.target.value }))}
+                                                    />
+                                                    <button
+                                                      className="btn btn-primary"
+                                                      style={{ fontSize: '0.7rem', padding: '4px 10px' }}
+                                                      disabled={reviewingProjectId === item.id}
+                                                      onClick={() => handleReviewProjectSubmission(item, true)}
+                                                    >
+                                                      Approve
+                                                    </button>
+                                                    <button
+                                                      className="btn btn-secondary"
+                                                      style={{ fontSize: '0.7rem', padding: '4px 10px', color: 'var(--danger)' }}
+                                                      disabled={reviewingProjectId === item.id}
+                                                      onClick={() => handleReviewProjectSubmission(item, false)}
+                                                    >
+                                                      Reject
+                                                    </button>
+                                                  </>
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
                                           {ROADMAP_ITEM_LINKS[item.title] && (
                                             <a
@@ -3365,6 +3497,11 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                   <ul style={{ margin: '0 0 14px', paddingLeft: '18px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
                     {group.memberEmails.map((email) => <li key={email}>{nameForEmail(email)}</li>)}
                   </ul>
+                  {group.recordingUrl && (
+                    <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--accent-cyan)', marginBottom: '12px' }}>
+                      <ExternalLink size={12} /> View recording
+                    </a>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                     <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', flexShrink: 0 }}>Due:</label>
                     <input
@@ -3397,9 +3534,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {completedGroups.map((group) => (
                 <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    <span className="badge badge-success" style={{ fontSize: '0.65rem', marginRight: '8px' }}>{group.activityType}</span>
+                  <div style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{group.activityType}</span>
                     {group.memberEmails.map(nameForEmail).join(', ')}
+                    {group.recordingUrl && (
+                      <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
+                        <ExternalLink size={11} /> Recording
+                      </a>
+                    )}
                   </div>
                   <button onClick={() => handleDeleteGroup(group)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }} aria-label="Delete group">
                     <Trash2 size={14} />
@@ -3678,6 +3820,94 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Live Buzzer Trivia (066_live_trivia.sql) - the one Competitions
+              format that's actually real-time (Supabase Postgres Changes).
+              Members see the same session update live via
+              subscribeToTriviaSession() in the Competitions tab; this panel
+              is purely the host controls. */}
+          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', margin: '32px 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Bell size={14} /> Live Buzzer Trivia
+          </div>
+          {triviaError && (
+            <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
+              {triviaError}
+            </div>
+          )}
+          {isMockSession ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Not available under Mock Admin - this hosts a real live session over Supabase Realtime.</p>
+          ) : loadingTrivia ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading...</p>
+          ) : !triviaSession || triviaSession.status === 'Completed' ? (
+            <>
+              {triviaSession?.status === 'Completed' && (
+                <div className="glass-card" style={{ marginBottom: '14px' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '10px' }}>Last session: {triviaSession.title} — final standings</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {triviaLeaderboard.map((row, i) => (
+                      <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span>{i + 1}. {row.memberName || nameForLogEmail(row.memberEmail)}</span>
+                        <span style={{ fontWeight: 700 }}>{row.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <form onSubmit={handleCreateTrivia} className="glass-card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: '1 1 220px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Session title</label>
+                  <input className="form-input" placeholder="e.g. Friday Night Trivia" value={newTriviaTitle} onChange={(e) => setNewTriviaTitle(e.target.value)} required />
+                </div>
+                <div style={{ width: '110px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Questions</label>
+                  <input type="number" className="form-input" min="1" max="21" value={newTriviaQuestionCount} onChange={(e) => setNewTriviaQuestionCount(e.target.value)} />
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={triviaActionBusy}>
+                  <Plus size={14} /> {triviaActionBusy ? 'Creating...' : 'Create Session'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                <div style={{ fontWeight: 700 }}>{triviaSession.title}</div>
+                <span className={`badge ${triviaSession.status === 'Active' ? 'badge-success' : 'badge-warning'}`}>{triviaSession.status}</span>
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+                {triviaSession.status === 'Waiting'
+                  ? `${triviaLeaderboard.length} member${triviaLeaderboard.length === 1 ? '' : 's'} in the lobby`
+                  : `Question ${triviaSession.currentQuestionIndex + 1} of ${triviaSession.totalQuestions} · ${triviaLeaderboard.length} playing`}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                {triviaSession.status === 'Waiting' && (
+                  <button className="btn btn-primary" disabled={triviaActionBusy} onClick={() => handleTriviaAction(startTriviaSession)}>
+                    <PlayCircle size={14} /> Start Session
+                  </button>
+                )}
+                {triviaSession.status === 'Active' && (
+                  <button className="btn btn-primary" disabled={triviaActionBusy} onClick={() => handleTriviaAction(advanceTriviaQuestion)}>
+                    Next Question
+                  </button>
+                )}
+                <button className="btn btn-secondary" style={{ color: 'var(--danger)' }} disabled={triviaActionBusy} onClick={() => handleTriviaAction(endTriviaSession)}>
+                  End Session
+                </button>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Live Scoreboard</div>
+              {triviaLeaderboard.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nobody's joined yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {triviaLeaderboard.map((row, i) => (
+                    <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span>{i + 1}. {row.memberName || nameForLogEmail(row.memberEmail)}</span>
+                      <span style={{ fontWeight: 700 }}>{row.score}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -4436,6 +4666,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                   </div>
                   <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{portalActiveMembers30d ?? '—'}</h2>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Distinct members with any portal activity in the last 30 days</div>
+                </div>
+
+                <div className="glass-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Mobile Sign-Ins Blocked</span>
+                    <Smartphone size={20} color="var(--warning)" />
+                  </div>
+                  <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{mobileBlockCount7d ?? '—'}</h2>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Times the "Please Use a Desktop" wall showed, last 7 days - real signal on whether responsive design is worth building</div>
                 </div>
               </div>
 

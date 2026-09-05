@@ -30,8 +30,8 @@ import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScor
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition } from '../../lib/competitionData';
-import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations } from '../../lib/roadmapData';
-import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups } from '../../lib/matchmakerData';
+import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
+import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
@@ -42,6 +42,10 @@ import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from
 import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib/merchStoreData';
 import { challengeToDuel, fetchMyDuels, fetchDuelQuestions, submitDuelAnswer } from '../../lib/quizDuelData';
 import { challengeToRoomRace, fetchMyRoomRaces, submitRoomRaceProof } from '../../lib/roomRaceData';
+import {
+  fetchLatestTriviaSession, subscribeToTriviaSession, subscribeToTriviaParticipants, subscribeToTriviaBuzzes,
+  fetchCurrentTriviaQuestion, fetchTriviaLeaderboard, joinTriviaSession, buzzInTrivia,
+} from '../../lib/triviaData';
 import { fetchTodaysRecommendedRoom } from '../../lib/recommendedRoomData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
@@ -206,6 +210,20 @@ const MOCK_DIRECTORY = [];
 // stays true) - remove this block once the preview's done.
 const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Offensive Security', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Offensive Security' };
 const DEMO_MATCHMAKER_GROUP = { id: 99, activityType: 'Project', memberEmails: ['teammate@example.com'], status: 'Active', dueDate: '2026-09-23' };
+// Two already-presented groups so Mock Member can preview the showcase +
+// rating flow without a real Supabase session - one the mock member isn't
+// in (ratable), one they are (their own past group, shown read-only).
+const DEMO_SHOWCASE_GROUPS = [
+  { id: 101, activityType: 'Presentation', memberEmails: ['thabo@example.com', 'lindiwe@example.com'], status: 'Completed', dueDate: '2026-08-15', recordingUrl: 'https://meet.google.com/demo-showcase-one' },
+  { id: 102, activityType: 'Project', memberEmails: ['teammate@example.com'], status: 'Completed', dueDate: '2026-08-01', recordingUrl: 'https://meet.google.com/demo-showcase-two' },
+];
+const DEMO_GROUP_RATINGS = {
+  101: [
+    { rating: 5, comment: 'Really clear walkthrough of the attack chain, learned a lot.', createdAt: '2026-08-16T10:00:00Z' },
+    { rating: 4, comment: null, createdAt: '2026-08-17T10:00:00Z' },
+  ],
+  102: [],
+};
 
 // Descriptions longer than this collapse behind a "Read more" toggle on
 // event/resource cards - a long description was making tiles quite tall.
@@ -935,6 +953,105 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .finally(() => setLoadingMyRoomRaces(false));
   };
 
+  // Live Buzzer Trivia (supabase/066_live_trivia.sql) - the one
+  // Competitions format that's actually real-time. triviaSession tracks
+  // the single live/most-recent session; a Postgres Changes subscription
+  // on it (below) is what makes the lobby flip to Active, and the question
+  // advance, for every joined member at once with no refresh. Scoped to
+  // the Competitions tab being open, not the whole portal - no reason to
+  // hold a live socket open on a tab nobody's looking at.
+  const [triviaSession, setTriviaSession] = useState(null);
+  const [loadingTrivia, setLoadingTrivia] = useState(!isMockSession);
+  const [triviaJoined, setTriviaJoined] = useState(false);
+  const [triviaJoining, setTriviaJoining] = useState(false);
+  const [triviaQuestion, setTriviaQuestion] = useState(null);
+  const [triviaLeaderboard, setTriviaLeaderboard] = useState([]);
+  const [triviaBuzzResult, setTriviaBuzzResult] = useState(null); // 'correct' | 'wrong' | 'too-late' | null
+  const [triviaBuzzing, setTriviaBuzzing] = useState(false);
+
+  const refreshTriviaLeaderboard = (sessionId) => {
+    fetchTriviaLeaderboard(sessionId)
+      .then((rows) => {
+        setTriviaLeaderboard(rows);
+        setTriviaJoined(rows.some((r) => r.isMe));
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    if (isMockSession || activeTab !== 'competitions') return;
+    let cancelled = false;
+    let unsubSession = null;
+    let unsubParticipants = null;
+    let unsubBuzzes = null;
+
+    const attach = (session) => {
+      if (cancelled || !session) return;
+      refreshTriviaLeaderboard(session.id);
+      if (session.status === 'Active') {
+        fetchCurrentTriviaQuestion(session.id).then((q) => !cancelled && setTriviaQuestion(q)).catch(() => {});
+      }
+      unsubSession = subscribeToTriviaSession(session.id, (updated) => {
+        if (cancelled) return;
+        setTriviaSession(updated);
+        setTriviaBuzzResult(null);
+        if (updated.status === 'Active') {
+          fetchCurrentTriviaQuestion(session.id).then((q) => !cancelled && setTriviaQuestion(q)).catch(() => {});
+        } else {
+          setTriviaQuestion(null);
+        }
+      });
+      unsubParticipants = subscribeToTriviaParticipants(session.id, () => refreshTriviaLeaderboard(session.id));
+      unsubBuzzes = subscribeToTriviaBuzzes(session.id, () => refreshTriviaLeaderboard(session.id));
+    };
+
+    fetchLatestTriviaSession()
+      .then((session) => {
+        if (cancelled) return;
+        setTriviaSession(session);
+        attach(session);
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setLoadingTrivia(false));
+
+    return () => {
+      cancelled = true;
+      unsubSession?.();
+      unsubParticipants?.();
+      unsubBuzzes?.();
+    };
+  }, [isMockSession, activeTab]);
+
+  const handleJoinTrivia = async () => {
+    if (!triviaSession) return;
+    setTriviaJoining(true);
+    try {
+      await joinTriviaSession(triviaSession.id);
+      setTriviaJoined(true);
+      refreshTriviaLeaderboard(triviaSession.id);
+    } catch (err) {
+      setCompetitionsError(friendlyMemberErrorMessage(err));
+    } finally {
+      setTriviaJoining(false);
+    }
+  };
+
+  const handleBuzzIn = async (chosenIndex) => {
+    if (!triviaSession || triviaBuzzing || triviaBuzzResult) return;
+    setTriviaBuzzing(true);
+    try {
+      const won = await buzzInTrivia(triviaSession.id, chosenIndex);
+      setTriviaBuzzResult(won ? 'correct' : 'wrong');
+    } catch {
+      // A common, expected case here is "someone already won this
+      // question" - the row-lock in buzz_in_trivia() means whoever loses
+      // the race gets exactly this error, not a real failure.
+      setTriviaBuzzResult('too-late');
+    } finally {
+      setTriviaBuzzing(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'competitions') loadMyDuelsAndRaces();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1461,6 +1578,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   };
 
   const handleToggleMyRoadmapItem = async (item) => {
+    // Projects items are never self-toggled - completion only ever comes
+    // from an admin's review_project_submission approval (see the
+    // Projects-specific proof UI in My Roadmap). This guard exists because
+    // this same handler is also wired to the Dashboard's compact roadmap
+    // preview tile, which renders every phase in one flat list and has no
+    // room for the full proof-submission form - without this check, that
+    // tile would let a member optimistically "complete" a Project with a
+    // single click, and the server-side toggle_my_roadmap_item RPC also
+    // now refuses this, so the click would silently do nothing anyway.
+    if (item.phase === 'Projects') {
+      setActiveTab?.('roadmap');
+      return;
+    }
     // updatedAt is bumped optimistically too - the toggle RPC sets it
     // server-side to the same effect, and doing it here means the "gone
     // quiet" banner clears the moment a member actually touches their
@@ -1509,6 +1639,35 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       await updateMyRoadmapItemProgress(item.id, { detail: item.detail, dueDate: item.dueDate });
     } catch (err) {
       setRoadmapError(friendlyMemberErrorMessage(err));
+    }
+  };
+
+  // Projects proof submission - unlike a cert, a Project has no external
+  // body that can confirm it happened, so completion only ever flips on
+  // admin approval (review_project_submission). This just moves the item
+  // to 'Pending'; item.proofUrl is kept live-editable via the existing
+  // handleRoadmapItemFieldChange (same pattern as detail/dueDate above),
+  // this is the explicit "actually send it" action.
+  const [submittingProofItemId, setSubmittingProofItemId] = useState(null);
+  const handleSubmitProjectProof = async (item) => {
+    const url = (item.proofUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) {
+      setRoadmapError('Add a real link (GitHub, Google Drive, or any URL) starting with http:// or https://.');
+      return;
+    }
+    setRoadmapError(null);
+    setSubmittingProofItemId(item.id);
+    setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, proofUrl: url, reviewStatus: 'Pending', reviewNote: '', submittedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : i)));
+    if (isMockSession) {
+      setSubmittingProofItemId(null);
+      return;
+    }
+    try {
+      await submitMyProjectProof(item.id, url);
+    } catch (err) {
+      setRoadmapError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSubmittingProofItemId(null);
     }
   };
 
@@ -1616,6 +1775,93 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       return next;
     });
     setShowWheelModal(false);
+  };
+
+  // Presentation showcase - once a group shares a recording, it's visible
+  // to every approved member (030_matchmaker.sql, "members read groups
+  // with recordings"), not just the group itself, so anyone can watch and
+  // rate it. ratingsByGroupId caches both the anonymised rating list and
+  // the caller's own prior rating (if any), keyed by group id, fetched
+  // once up front since a showcase is never roster-sized.
+  const [showcaseGroups, setShowcaseGroups] = useState(isMockSession ? DEMO_SHOWCASE_GROUPS : []);
+  const [loadingShowcase, setLoadingShowcase] = useState(!isMockSession);
+  const [ratingsByGroupId, setRatingsByGroupId] = useState(isMockSession ? DEMO_GROUP_RATINGS : {});
+  const [myRatingByGroupId, setMyRatingByGroupId] = useState({});
+  const [ratingDraftByGroupId, setRatingDraftByGroupId] = useState({});
+  const [submittingRatingGroupId, setSubmittingRatingGroupId] = useState(null);
+  const [submittingRecording, setSubmittingRecording] = useState(false);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchShowcaseGroups()
+      .then(async (groups) => {
+        setShowcaseGroups(groups);
+        const entries = await Promise.all(groups.map(async (g) => {
+          const [ratings, mine] = await Promise.all([fetchGroupRatings(g.id), fetchMyGroupRating(g.id)]);
+          return [g.id, ratings, mine];
+        }));
+        setRatingsByGroupId(Object.fromEntries(entries.map(([id, ratings]) => [id, ratings])));
+        setMyRatingByGroupId(Object.fromEntries(entries.filter(([, , mine]) => mine).map(([id, , mine]) => [id, mine])));
+      })
+      .catch((err) => setMatchmakerError(friendlyMemberErrorMessage(err)))
+      .finally(() => setLoadingShowcase(false));
+  }, [isMockSession]);
+
+  // Recording link editing reuses the roadmap proof pattern above: the
+  // input reads/writes the group's own field directly in myGroups (no
+  // separate draft state to keep in sync via an effect), and this handler
+  // is the explicit "actually send it" action.
+  const handleActiveGroupRecordingChange = (value) => {
+    setMyGroups((prev) => prev.map((g) => (g.id === activeGroup.id ? { ...g, recordingUrl: value } : g)));
+  };
+
+  const handleSubmitGroupRecording = async () => {
+    const url = (activeGroup.recordingUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) {
+      setMatchmakerError('Add a real link to the recording, starting with http:// or https://.');
+      return;
+    }
+    setMatchmakerError(null);
+    setSubmittingRecording(true);
+    if (isMockSession) {
+      setMyGroups((prev) => prev.map((g) => (g.id === activeGroup.id ? { ...g, recordingUrl: url } : g)));
+      setSubmittingRecording(false);
+      return;
+    }
+    try {
+      await submitGroupRecording(activeGroup.id, url);
+      refreshMatchmakerData();
+    } catch (err) {
+      setMatchmakerError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSubmittingRecording(false);
+    }
+  };
+
+  const handleRateGroup = async (group) => {
+    const draft = ratingDraftByGroupId[group.id] || {};
+    if (!draft.rating) {
+      setMatchmakerError('Pick a star rating before submitting.');
+      return;
+    }
+    setMatchmakerError(null);
+    setSubmittingRatingGroupId(group.id);
+    if (isMockSession) {
+      setRatingsByGroupId((prev) => ({ ...prev, [group.id]: [{ rating: draft.rating, comment: draft.comment || null, createdAt: new Date().toISOString() }, ...(prev[group.id] || [])] }));
+      setMyRatingByGroupId((prev) => ({ ...prev, [group.id]: { rating: draft.rating, comment: draft.comment || null } }));
+      setSubmittingRatingGroupId(null);
+      return;
+    }
+    try {
+      await rateGroup(group.id, draft.rating, draft.comment);
+      const [ratings, mine] = await Promise.all([fetchGroupRatings(group.id), fetchMyGroupRating(group.id)]);
+      setRatingsByGroupId((prev) => ({ ...prev, [group.id]: ratings }));
+      setMyRatingByGroupId((prev) => ({ ...prev, [group.id]: mine }));
+    } catch (err) {
+      setMatchmakerError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSubmittingRatingGroupId(null);
+    }
   };
 
   // Daily TryHackMe Room Logs - self-reported, admin-approved, feeds the
@@ -3190,22 +3436,41 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <div key={c.category}>
                         <div style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px' }}>{c.category}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {c.items.map((item) => (
+                          {c.items.map((item) => {
+                            const isProjects = g.phase === 'Projects';
+                            const reviewStatus = item.reviewStatus || 'Not Submitted';
+                            // A Projects item's row-level "done" look tracks review_status,
+                            // not a self-toggle - it's only ever true once an admin approves.
+                            const rowDone = isProjects ? reviewStatus === 'Approved' : item.completed;
+                            const rowColor = isProjects
+                              ? { Approved: 'success', Pending: 'warning', Rejected: 'danger', 'Not Submitted': null }[reviewStatus]
+                              : (item.completed ? 'success' : null);
+                            return (
                             <div
                               key={item.id}
-                              onClick={() => handleToggleMyRoadmapItem(item)}
+                              onClick={isProjects ? undefined : () => handleToggleMyRoadmapItem(item)}
                               style={{
                                 display: 'flex',
                                 alignItems: 'flex-start',
                                 gap: '10px',
                                 padding: '12px 14px',
                                 borderRadius: 'var(--border-radius-md)',
-                                background: item.completed ? 'rgba(var(--success-rgb), 0.03)' : 'rgba(var(--overlay-rgb), 0.01)',
-                                border: item.completed ? '1px solid rgba(var(--success-rgb), 0.15)' : '1px solid var(--border-color)',
-                                cursor: 'pointer',
+                                background: rowColor ? `rgba(var(--${rowColor}-rgb), 0.03)` : 'rgba(var(--overlay-rgb), 0.01)',
+                                border: rowColor ? `1px solid rgba(var(--${rowColor}-rgb), 0.15)` : '1px solid var(--border-color)',
+                                cursor: isProjects ? 'default' : 'pointer',
                               }}
                             >
-                              {item.completed ? (
+                              {isProjects ? (
+                                reviewStatus === 'Approved' ? (
+                                  <CheckSquare size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                ) : reviewStatus === 'Pending' ? (
+                                  <Clock size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                ) : reviewStatus === 'Rejected' ? (
+                                  <AlertTriangle size={18} color="var(--danger)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                ) : (
+                                  <Square size={18} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                )
+                              ) : item.completed ? (
                                 <CheckSquare size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '1px' }} />
                               ) : (
                                 <Square size={18} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '1px' }} />
@@ -3213,8 +3478,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div style={{
                                   fontSize: '0.9rem',
-                                  textDecoration: item.completed ? 'line-through' : 'none',
-                                  color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                  textDecoration: rowDone ? 'line-through' : 'none',
+                                  color: rowDone ? 'var(--text-secondary)' : 'var(--text-primary)',
                                   userSelect: 'none',
                                 }}>
                                   {item.title}
@@ -3228,7 +3493,56 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                     {ROADMAP_ITEM_DESCRIPTIONS[item.title]}
                                   </button>
                                 )}
-                                {g.phase === 'Core Foundations' ? (
+                                {isProjects ? (
+                                  <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '6px' }}>
+                                    {reviewStatus === 'Approved' ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>Approved</span>
+                                        {isSafeUrl(item.proofUrl) && (
+                                          <a href={item.proofUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
+                                            View submission
+                                          </a>
+                                        )}
+                                      </div>
+                                    ) : reviewStatus === 'Pending' ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span className="badge badge-warning" style={{ fontSize: '0.68rem' }}>Pending Review</span>
+                                        {isSafeUrl(item.proofUrl) && (
+                                          <a href={item.proofUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
+                                            View submission
+                                          </a>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <>
+                                        {reviewStatus === 'Rejected' && (
+                                          <p style={{ fontSize: '0.78rem', color: 'var(--danger)', margin: '0 0 6px' }}>
+                                            Not approved{item.reviewNote ? `: ${item.reviewNote}` : '.'} Update your link and resubmit.
+                                          </p>
+                                        )}
+                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                          <input
+                                            type="url"
+                                            value={item.proofUrl || ''}
+                                            onChange={(e) => handleRoadmapItemFieldChange(item.id, 'proofUrl', e.target.value)}
+                                            placeholder="GitHub repo, Google Drive, or any URL"
+                                            className="form-input"
+                                            style={{ fontSize: '0.75rem', padding: '5px 8px', flex: 1, minWidth: '180px' }}
+                                          />
+                                          <button
+                                            type="button"
+                                            className="btn btn-primary"
+                                            disabled={submittingProofItemId === item.id}
+                                            onClick={() => handleSubmitProjectProof(item)}
+                                            style={{ fontSize: '0.75rem', padding: '5px 10px' }}
+                                          >
+                                            {submittingProofItemId === item.id ? 'Submitting...' : reviewStatus === 'Rejected' ? 'Resubmit' : 'Submit Proof'}
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : g.phase === 'Core Foundations' ? (
                                   <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                                     <input
                                       type="text"
@@ -3359,7 +3673,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 )}
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -3501,6 +3816,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                 </div>
               </div>
+              <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                  Once You've Presented
+                </div>
+                {isSafeUrl(activeGroup.recordingUrl) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', marginBottom: '10px' }}>
+                    <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>Recording Shared</span>
+                    <a href={activeGroup.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-cyan)' }}>View recording</a>
+                  </div>
+                )}
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                  Drop the link to your recorded Google Meet so the rest of the community can watch and rate your {activeGroup.activityType.toLowerCase()}.
+                </p>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <input
+                    type="url"
+                    value={activeGroup.recordingUrl || ''}
+                    onChange={(e) => handleActiveGroupRecordingChange(e.target.value)}
+                    placeholder="https://meet.google.com/..."
+                    className="form-input"
+                    style={{ fontSize: '0.82rem', padding: '6px 10px', flex: 1, minWidth: '200px' }}
+                  />
+                  <button type="button" className="btn btn-primary" disabled={submittingRecording} onClick={handleSubmitGroupRecording} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+                    {submittingRecording ? 'Saving...' : activeGroup.recordingUrl ? 'Update Link' : 'Share Recording'}
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="glass-card" style={{ textAlign: 'center', padding: '40px 24px' }}>
@@ -3537,6 +3879,102 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               onClose={() => setShowWheelModal(false)}
             />
           )}
+
+          <div style={{ marginTop: '32px' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Video size={16} color="var(--accent-purple)" /> Presentation Showcase
+            </h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Groups that have shared their recording - watch and leave a rating. Comments are anonymous.
+            </p>
+            {!isMockSession && loadingShowcase ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+            ) : showcaseGroups.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No recordings shared yet - check back once a group has presented.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                {showcaseGroups.map((group) => {
+                  const isOwnGroup = group.memberEmails.some((e) => e.toLowerCase() === myEmailLower);
+                  const ratings = ratingsByGroupId[group.id] || [];
+                  const avgRating = ratings.length ? (ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length) : null;
+                  const myRating = myRatingByGroupId[group.id];
+                  const draft = ratingDraftByGroupId[group.id] || { rating: myRating?.rating || 0, comment: myRating?.comment || '' };
+                  const comments = ratings.filter((r) => r.comment);
+
+                  return (
+                    <div key={group.id} className="glass-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' }}>
+                        <span className="badge badge-warning">{group.activityType}</span>
+                        {avgRating !== null && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            <Star size={13} color="var(--warning)" fill="var(--warning)" /> {avgRating.toFixed(1)} ({ratings.length})
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                        {group.memberEmails.map(nameForEmail).join(', ')}
+                      </p>
+                      {isSafeUrl(group.recordingUrl) && (
+                        <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--accent-cyan)', marginBottom: '14px' }}>
+                          <Video size={14} /> Watch Recording
+                        </a>
+                      )}
+
+                      {isOwnGroup ? (
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                          This is your own group's presentation - teammates can't rate their own work.
+                        </p>
+                      ) : (
+                        <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                          <div style={{ display: 'flex', gap: '3px', marginBottom: '8px' }}>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => setRatingDraftByGroupId((prev) => ({ ...prev, [group.id]: { ...draft, rating: n } }))}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                aria-label={`Rate ${n} star${n === 1 ? '' : 's'}`}
+                              >
+                                <Star size={18} color="var(--warning)" fill={n <= draft.rating ? 'var(--warning)' : 'none'} />
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            value={draft.comment}
+                            onChange={(e) => setRatingDraftByGroupId((prev) => ({ ...prev, [group.id]: { ...draft, comment: e.target.value } }))}
+                            placeholder="Optional anonymous comment..."
+                            className="form-input"
+                            rows={2}
+                            style={{ fontSize: '0.82rem', padding: '6px 10px', width: '100%', resize: 'vertical', marginBottom: '8px' }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={submittingRatingGroupId === group.id}
+                            onClick={() => handleRateGroup(group)}
+                            style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                          >
+                            {submittingRatingGroupId === group.id ? 'Submitting...' : myRating ? 'Update Rating' : 'Submit Rating'}
+                          </button>
+                        </div>
+                      )}
+
+                      {comments.length > 0 && (
+                        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {comments.map((c, idx) => (
+                            <div key={idx} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                              <MessageSquare size={13} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                              "{c.comment}"
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <div style={{ marginTop: '32px' }}>
             <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '4px' }}>Need an idea?</h4>
@@ -5523,6 +5961,117 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className="glass-card" style={{ marginTop: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Bell size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Live Buzzer Trivia</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              A live, hosted trivia session — everyone sees the same question at the same moment, first correct buzz wins the point.
+            </p>
+            {isMockSession ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to join a live session for real.</p>
+            ) : loadingTrivia ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Checking for a live session...</p>
+            ) : !triviaSession ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No live trivia scheduled right now — check back when one's announced.</p>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{triviaSession.title}</div>
+                  <span className={`badge ${triviaSession.status === 'Active' ? 'badge-success' : triviaSession.status === 'Waiting' ? 'badge-warning' : ''}`}>{triviaSession.status}</span>
+                </div>
+
+                {triviaSession.status === 'Waiting' && (
+                  <div style={{ textAlign: 'center', padding: '20px' }}>
+                    {triviaJoined ? (
+                      <p style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>You're in — waiting for the host to start...</p>
+                    ) : (
+                      <button type="button" className="btn btn-primary" onClick={handleJoinTrivia} disabled={triviaJoining}>
+                        {triviaJoining ? 'Joining...' : 'Join Live Trivia'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {triviaSession.status === 'Active' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 220px', gap: '20px' }}>
+                    <div>
+                      {!triviaJoined ? (
+                        <div style={{ textAlign: 'center', padding: '20px' }}>
+                          <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>This session is already live — jump in to play the next question.</p>
+                          <button type="button" className="btn btn-primary" onClick={handleJoinTrivia} disabled={triviaJoining}>
+                            {triviaJoining ? 'Joining...' : 'Join Now'}
+                          </button>
+                        </div>
+                      ) : !triviaQuestion ? (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading question...</p>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                            <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{triviaQuestion.domain}</span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Question {triviaQuestion.questionNumber} of {triviaQuestion.totalQuestions}</span>
+                          </div>
+                          <h4 style={{ marginBottom: '16px', lineHeight: 1.5 }}>{triviaQuestion.question}</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {triviaQuestion.choices.map((choice, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 14px' }}
+                                onClick={() => handleBuzzIn(idx)}
+                                disabled={triviaBuzzing || !!triviaBuzzResult || triviaQuestion.locked}
+                              >
+                                {choice}
+                              </button>
+                            ))}
+                          </div>
+                          {triviaBuzzResult && (
+                            <p style={{ marginTop: '14px', fontWeight: 600, color: triviaBuzzResult === 'correct' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                              {triviaBuzzResult === 'correct' ? "You buzzed in first — correct! 🎉" : triviaBuzzResult === 'too-late' ? 'Someone else already won this one.' : 'Not quite — wait for the next question.'}
+                            </p>
+                          )}
+                          {!triviaBuzzResult && triviaQuestion.locked && (
+                            <p style={{ marginTop: '14px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>This question's already been won — hang tight for the next one.</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Live Scoreboard</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {triviaLeaderboard.slice(0, 8).map((row, i) => (
+                          <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '6px 10px', borderRadius: 'var(--border-radius-sm)', background: row.isMe ? 'rgba(var(--accent-rgb), 0.08)' : 'transparent' }}>
+                            <span>{i + 1}. {row.memberName || row.memberEmail}{row.isMe ? ' (you)' : ''}</span>
+                            <span style={{ fontWeight: 700 }}>{row.score}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {triviaSession.status === 'Completed' && (
+                  <div>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '14px' }}>Final standings:</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {triviaLeaderboard.map((row, i) => (
+                        <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', padding: '10px 14px', borderRadius: 'var(--border-radius-md)', background: i === 0 ? 'var(--medal-gold-bg)' : 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {i === 0 && <Trophy size={15} color="var(--medal-gold)" />}
+                            {i + 1}. {row.memberName || row.memberEmail}{row.isMe ? ' (you)' : ''}
+                          </span>
+                          <span style={{ fontWeight: 700 }}>{row.score}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

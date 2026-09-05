@@ -14,6 +14,7 @@ function mapGroupRow(row) {
     memberEmails: row.member_emails || [],
     status: row.status,
     dueDate: row.due_date,
+    recordingUrl: row.recording_url,
   };
 }
 
@@ -40,7 +41,7 @@ export async function leaveOptinPool(email) {
 export async function fetchMyGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date')
+    .select('id, activity_type, member_emails, status, due_date, recording_url')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
@@ -50,10 +51,57 @@ export async function fetchMyGroups() {
 export async function fetchAllGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date')
+    .select('id, activity_type, member_emails, status, due_date, recording_url')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
+}
+
+/** Every group that has shared a recording - the "watch and rate" showcase.
+ * RLS (030_matchmaker.sql, "members read groups with recordings") already
+ * scopes this to recording_url IS NOT NULL for any approved member, own
+ * group or not, so no extra filtering is needed here. */
+export async function fetchShowcaseGroups() {
+  const { data, error } = await supabase
+    .from('matchmaker_groups')
+    .select('id, activity_type, member_emails, status, due_date, recording_url')
+    .not('recording_url', 'is', null)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapGroupRow);
+}
+
+/** A member of the group shares (or updates) the link to their recorded
+ * presentation. */
+export async function submitGroupRecording(groupId, recordingUrl) {
+  const { error } = await supabase.rpc('submit_group_recording', { p_group_id: groupId, p_recording_url: recordingUrl });
+  if (error) throw error;
+}
+
+/** Rate a group's presentation (1-5) with an optional anonymous comment -
+ * re-rating just overwrites the caller's own previous rating. */
+export async function rateGroup(groupId, rating, comment) {
+  const { error } = await supabase.rpc('rate_matchmaker_group', {
+    p_group_id: groupId,
+    p_rating: rating,
+    p_comment: comment || null,
+  });
+  if (error) throw error;
+}
+
+/** Every rating + comment for a group, anonymised (no rater identity). */
+export async function fetchGroupRatings(groupId) {
+  const { data, error } = await supabase.rpc('get_group_ratings', { p_group_id: groupId });
+  if (error) throw error;
+  return (data || []).map((row) => ({ rating: row.rating, comment: row.comment, createdAt: row.created_at }));
+}
+
+/** What the signed-in member already rated this group, if anything. */
+export async function fetchMyGroupRating(groupId) {
+  const { data, error } = await supabase.rpc('get_my_group_rating', { p_group_id: groupId });
+  if (error) throw error;
+  const row = (data || [])[0];
+  return row ? { rating: row.rating, comment: row.comment } : null;
 }
 
 /** Admin: shuffle the current opt-in pool into groups of 2-4 and consume it.
