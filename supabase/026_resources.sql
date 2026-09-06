@@ -279,3 +279,22 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'KodeKloud'
 );
+
+-- Free Microsoft certification vouchers for South Africans, via a YES
+-- (Youth Employment Service) x Microsoft partnership - relevant because
+-- it's a real, no-cost path to AZ-900 and SC-900 specifically, both on the
+-- Elite Operative sponsorship list (see 028_roadmap.sql's Cloud Security /
+-- IAM catalogs). Capped at 50,000 vouchers total, first-registered-first-
+-- served, so this is worth surfacing over the paid Elite Operative
+-- sponsorship route while it's still running.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'YES x Microsoft AI Skills Initiative',
+  'Course',
+  'Free AZ-900 (Azure Fundamentals) and SC-900 (Security, Compliance & Identity Fundamentals) certification vouchers for South Africans - complete the free Microsoft Learn modules, pass the practice exam at 70%+, and claim your voucher. Also covers DP-900 and, at intermediate level, AZ-500. Limited to 50,000 vouchers total.',
+  'https://yes-aiskills.co.za/',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'YES x Microsoft AI Skills Initiative'
+);
