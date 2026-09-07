@@ -11,6 +11,7 @@ import GemmaWidget from './components/GemmaWidget';
 import { checkOnboardingStatus, markOnboardingComplete, getMyGettingStartedGraceStartedAt, fetchMyOnboardingSteps, ONBOARDING_STEPS } from './lib/onboardingData';
 import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
 import { logMobileBlock } from './lib/portalEventsData';
+import { getMyRole } from './lib/teamData';
 import { Compass, Monitor } from 'lucide-react';
 import logo from './assets/hacking-hub-logo-sm.png';
 
@@ -117,9 +118,24 @@ export default function App() {
       }
 
       const email = session.user.email;
-      const isAdminEmail = email.endsWith('@hackinghub.co.za');
+      // Real role from profiles.role (supabase/067_permission_scopes.sql) -
+      // NOT guessed from the email domain any more. That domain guess used
+      // to auto-grant full admin to any @hackinghub.co.za sign-in; now a
+      // fresh sign-in always starts as 'member' server-side (handle_new_user()),
+      // and the founder assigns admin/community_manager/mentor explicitly
+      // via the Team & Roles tab. Same "fail toward the safe default, don't
+      // hard-block sign-in over a transient error" philosophy as the checks
+      // below - a failed role fetch just means "treat as a plain member for
+      // this session," never the reverse.
+      let role = 'member';
+      try {
+        role = (await getMyRole()) || 'member';
+      } catch (err) {
+        console.error('Role check failed - defaulting to member for this session:', err.message);
+      }
+      const isStaff = role !== 'member';
 
-      if (!isAdminEmail) {
+      if (!isStaff) {
         let allowed = true;
         let checkFailed = false;
         try {
@@ -143,7 +159,7 @@ export default function App() {
         }
       }
 
-      if (isAdminEmail) {
+      if (isStaff) {
         setNeedsOnboarding(false);
         setNeedsOffboarding(false);
         setGettingStartedGateActive(false);
@@ -203,7 +219,7 @@ export default function App() {
       setUser({
         email,
         user_metadata: session.user.user_metadata,
-        role: isAdminEmail ? 'admin' : 'member',
+        role,
       });
       setProviderToken(session.provider_token || null);
       setIsMockSession(false);
@@ -386,13 +402,18 @@ export default function App() {
     return <Login onLoginSuccess={handleMockLogin} accessDeniedMessage={accessDeniedMessage} />;
   }
 
-  const isAdmin = user.role === 'admin';
+  // Covers every non-member role (admin/community_manager/mentor) - none
+  // of them are real paying community members, so none of them go through
+  // the member onboarding/offboarding journey or see Gemma. Which specific
+  // tabs each of the three actually gets is decided inside Sidebar/
+  // AdminDashboard themselves, off the real role on `user`.
+  const isStaff = user.role !== 'member';
 
-  if (!isAdmin && needsOffboarding) {
+  if (!isStaff && needsOffboarding) {
     return <OffboardingSequence user={user} onDone={handleExitDone} />;
   }
 
-  if (!isAdmin && needsOnboarding) {
+  if (!isStaff && needsOnboarding) {
     return <OnboardingSequence user={user} onComplete={handleOnboardingDone} />;
   }
 
@@ -404,15 +425,15 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
-        onReplayIntro={!isAdmin ? handleReplayIntro : undefined}
-        restrictToOnboarding={!isAdmin && gettingStartedGateActive}
+        onReplayIntro={!isStaff ? handleReplayIntro : undefined}
+        restrictToOnboarding={!isStaff && gettingStartedGateActive}
         isMockSession={isMockSession}
       />
 
       {/* Main Panel View Area */}
       <main className="main-content">
         {/* Dynamic Dashboard views */}
-        {isAdmin ? (
+        {isStaff ? (
           <AdminDashboard activeTab={activeTab} setActiveTab={setActiveTab} providerToken={providerToken} isMockSession={isMockSession} user={user} />
         ) : (
           <MemberPortal
@@ -430,7 +451,7 @@ export default function App() {
 
       {/* Gemma - member-only floating assistant, not shown during onboarding/
           offboarding takeovers (this only renders once those gates have passed) */}
-      {!isAdmin && <GemmaWidget user={user} isMockSession={isMockSession} />}
+      {!isStaff && <GemmaWidget user={user} isMockSession={isMockSession} />}
     </div>
   );
 }

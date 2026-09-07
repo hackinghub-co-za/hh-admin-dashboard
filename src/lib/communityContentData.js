@@ -22,6 +22,7 @@ function mapWin(row) {
   return {
     id: row.id,
     member: row.member_name,
+    memberEmail: row.member_email || '',
     achievement: row.achievement,
     achievedDate: row.achieved_date,
     linkedinUrl: row.linkedin_url || '',
@@ -88,11 +89,12 @@ export async function fetchAllCommunityWins() {
   return (data || []).map(mapWin);
 }
 
-export async function addCommunityWin({ member, achievement, achievedDate, linkedinUrl, createdBy }) {
+export async function addCommunityWin({ member, memberEmail, achievement, achievedDate, linkedinUrl, createdBy }) {
   const { data, error } = await supabase
     .from('community_wins')
     .insert({
       member_name: member,
+      member_email: memberEmail ? memberEmail.toLowerCase() : null,
       achievement,
       achieved_date: achievedDate,
       linkedin_url: linkedinUrl || null,
@@ -104,11 +106,12 @@ export async function addCommunityWin({ member, achievement, achievedDate, linke
   return mapWin(data);
 }
 
-export async function updateCommunityWin(id, { member, achievement, achievedDate, linkedinUrl, active }) {
+export async function updateCommunityWin(id, { member, memberEmail, achievement, achievedDate, linkedinUrl, active }) {
   const { error } = await supabase
     .from('community_wins')
     .update({
       member_name: member,
+      member_email: memberEmail ? memberEmail.toLowerCase() : null,
       achievement,
       achieved_date: achievedDate,
       linkedin_url: linkedinUrl || null,

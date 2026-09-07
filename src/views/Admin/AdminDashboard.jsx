@@ -53,6 +53,7 @@ import { fetchAllRecommendedRooms, addRecommendedRoom, deleteRecommendedRoom } f
 import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend, fetchMobileBlockCount } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
+import { fetchTeamMembers, setMemberRole } from '../../lib/teamData';
 import {
   Calendar,
   Users,
@@ -96,6 +97,8 @@ import {
   Bell,
   PlayCircle,
   Smartphone,
+  UserCog,
+  ShieldCheck,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -124,6 +127,15 @@ const EXPENSE_CATEGORY_COLORS = {
 };
 
 export default function AdminDashboard({ activeTab, setActiveTab, providerToken, isMockSession, user }) {
+  // Scoped team roles (supabase/067_permission_scopes.sql) - this component
+  // now renders for community_manager and mentor sign-ins too, not just the
+  // founder. isFounder gates the one thing that's still admin-exclusive
+  // client-side (the Team & Roles tab below); everything else a
+  // community_manager/mentor shouldn't reach is already kept off their
+  // Sidebar menu, and enforced for real server-side via RLS regardless.
+  const role = user?.role || 'admin';
+  const isFounder = role === 'admin';
+
   // Bumped by the "Refresh" button on the Admin Overview tab - added to every
   // data-fetching useEffect's dependency array below so a click re-runs all
   // of them. Nothing here is live/polling otherwise: every tab's data is a
@@ -1337,7 +1349,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   ] : []);
   const [loadingWins, setLoadingWins] = useState(!isMockSession);
   const [winsError, setWinsError] = useState(null);
-  const [newWin, setNewWin] = useState({ member: '', achievement: '', achievedDate: '', linkedinUrl: '' });
+  const [newWin, setNewWin] = useState({ member: '', memberEmail: '', achievement: '', achievedDate: '', linkedinUrl: '' });
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1352,7 +1364,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const handleAddWin = async (e) => {
     e.preventDefault();
     if (!newWin.member.trim() || !newWin.achievement.trim() || !newWin.achievedDate) return;
-    const payload = { member: newWin.member.trim(), achievement: newWin.achievement.trim(), achievedDate: newWin.achievedDate, linkedinUrl: newWin.linkedinUrl.trim() };
+    const payload = { member: newWin.member.trim(), memberEmail: newWin.memberEmail.trim(), achievement: newWin.achievement.trim(), achievedDate: newWin.achievedDate, linkedinUrl: newWin.linkedinUrl.trim() };
     if (isMockSession) {
       setWins([{ id: Date.now(), ...payload, active: true }, ...wins].sort((a, b) => new Date(b.achievedDate) - new Date(a.achievedDate)));
     } else {
@@ -1364,7 +1376,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         return;
       }
     }
-    setNewWin({ member: '', achievement: '', achievedDate: '', linkedinUrl: '' });
+    setNewWin({ member: '', memberEmail: '', achievement: '', achievedDate: '', linkedinUrl: '' });
   };
 
   // Fires the moment a cert calendar entry is marked Passed, so a Recent Win
@@ -1374,6 +1386,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const announceCertWin = async (cert) => {
     const payload = {
       member: cert.member,
+      memberEmail: cert.memberEmail || '',
       achievement: `passed ${cert.cert}`,
       achievedDate: cert.date,
       linkedinUrl: '',
@@ -1401,15 +1414,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   };
 
   const [editingWinId, setEditingWinId] = useState(null);
-  const [editWinForm, setEditWinForm] = useState({ member: '', achievement: '', achievedDate: '', linkedinUrl: '', active: true });
+  const [editWinForm, setEditWinForm] = useState({ member: '', memberEmail: '', achievement: '', achievedDate: '', linkedinUrl: '', active: true });
 
   const startEditWin = (w) => {
     setEditingWinId(w.id);
-    setEditWinForm({ member: w.member, achievement: w.achievement, achievedDate: w.achievedDate, linkedinUrl: w.linkedinUrl, active: w.active });
+    setEditWinForm({ member: w.member, memberEmail: w.memberEmail || '', achievement: w.achievement, achievedDate: w.achievedDate, linkedinUrl: w.linkedinUrl, active: w.active });
   };
 
   const handleSaveWinEdit = async (win) => {
-    const payload = { member: editWinForm.member.trim(), achievement: editWinForm.achievement.trim(), achievedDate: editWinForm.achievedDate, linkedinUrl: editWinForm.linkedinUrl.trim(), active: editWinForm.active };
+    const payload = { member: editWinForm.member.trim(), memberEmail: editWinForm.memberEmail.trim(), achievement: editWinForm.achievement.trim(), achievedDate: editWinForm.achievedDate, linkedinUrl: editWinForm.linkedinUrl.trim(), active: editWinForm.active };
     if (isMockSession) {
       setWins(wins.map((w) => (w.id === win.id ? { ...w, ...payload } : w)));
     } else {
@@ -1999,6 +2012,74 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const selectedMember = selectedMemberEmail
     ? memberRoster.find(m => m.email.toLowerCase() === selectedMemberEmail.toLowerCase())
     : null;
+
+  // Team & Roles (supabase/067_permission_scopes.sql) - founder-only, both
+  // here and server-side (set_member_role/list_team_members both raise if
+  // the caller isn't role='admin'). Assigning a role only works on an
+  // account that's signed in at least once already, since it's an UPDATE
+  // against an existing profiles row, not an invite system.
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [loadingTeam, setLoadingTeam] = useState(!isMockSession);
+  const [teamError, setTeamError] = useState(null);
+  const [roleAssignForm, setRoleAssignForm] = useState({ email: '', role: 'community_manager' });
+  const [assigningRole, setAssigningRole] = useState(false);
+
+  // No synchronous setLoadingTeam(true) here - loadingTeam's initial state
+  // is already !isMockSession, so the effect below only ever needs to flip
+  // it back to false once the fetch settles, never set it true itself
+  // (same fix as loadingMatchmaker/loadingShowcase elsewhere in this app).
+  const loadTeamMembers = () => {
+    if (isMockSession) return;
+    fetchTeamMembers()
+      .then(setTeamMembers)
+      .catch((err) => setTeamError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingTeam(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'team' && isFounder) loadTeamMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isFounder, isMockSession, dataRefreshKey]);
+
+  const handleAssignRole = async (e) => {
+    e.preventDefault();
+    if (!roleAssignForm.email.trim()) return;
+    setTeamError(null);
+    setAssigningRole(true);
+    if (isMockSession) {
+      setTeamMembers((prev) => {
+        const email = roleAssignForm.email.trim().toLowerCase();
+        const rest = prev.filter((t) => t.email !== email);
+        return roleAssignForm.role === 'member' ? rest : [...rest, { email, fullName: '', role: roleAssignForm.role }];
+      });
+      setRoleAssignForm({ email: '', role: 'community_manager' });
+      setAssigningRole(false);
+      return;
+    }
+    try {
+      await setMemberRole(roleAssignForm.email.trim(), roleAssignForm.role);
+      setRoleAssignForm({ email: '', role: 'community_manager' });
+      loadTeamMembers();
+    } catch (err) {
+      setTeamError(friendlyErrorMessage(err));
+    } finally {
+      setAssigningRole(false);
+    }
+  };
+
+  const handleRevokeRole = async (member) => {
+    setTeamError(null);
+    if (isMockSession) {
+      setTeamMembers((prev) => prev.filter((t) => t.email !== member.email));
+      return;
+    }
+    try {
+      await setMemberRole(member.email, 'member');
+      setTeamMembers((prev) => prev.filter((t) => t.email !== member.email));
+    } catch (err) {
+      setTeamError(friendlyErrorMessage(err));
+    }
+  };
 
   // RENDER SECTIONS BASED ON ACTIVE TAB
   switch (activeTab) {
@@ -4842,8 +4923,9 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
             </h3>
             {winsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{winsError}</p>}
 
-            <form onSubmit={handleAddWin} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 140px 1fr auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+            <form onSubmit={handleAddWin} style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 2fr 140px 1fr auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
               <input className="form-input" value={newWin.member} onChange={(e) => setNewWin({ ...newWin, member: e.target.value })} placeholder="Member name" />
+              <input className="form-input" value={newWin.memberEmail} onChange={(e) => setNewWin({ ...newWin, memberEmail: e.target.value })} placeholder="Email (for their headshot)" />
               <input className="form-input" value={newWin.achievement} onChange={(e) => setNewWin({ ...newWin, achievement: e.target.value })} placeholder="e.g. earned CompTIA Security+" />
               <input type="date" className="form-input" value={newWin.achievedDate} onChange={(e) => setNewWin({ ...newWin, achievedDate: e.target.value })} />
               <input className="form-input" value={newWin.linkedinUrl} onChange={(e) => setNewWin({ ...newWin, linkedinUrl: e.target.value })} placeholder="LinkedIn link (optional)" />
@@ -4858,8 +4940,9 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {wins.map((w) =>
                   editingWinId === w.id ? (
-                    <div key={w.id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 140px 1fr auto', gap: '10px', alignItems: 'center', padding: '10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
+                    <div key={w.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 2fr 140px 1fr auto', gap: '10px', alignItems: 'center', padding: '10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
                       <input className="form-input" value={editWinForm.member} onChange={(e) => setEditWinForm({ ...editWinForm, member: e.target.value })} />
+                      <input className="form-input" value={editWinForm.memberEmail} onChange={(e) => setEditWinForm({ ...editWinForm, memberEmail: e.target.value })} placeholder="Email (for their headshot)" />
                       <input className="form-input" value={editWinForm.achievement} onChange={(e) => setEditWinForm({ ...editWinForm, achievement: e.target.value })} />
                       <input type="date" className="form-input" value={editWinForm.achievedDate} onChange={(e) => setEditWinForm({ ...editWinForm, achievedDate: e.target.value })} />
                       <input className="form-input" value={editWinForm.linkedinUrl} onChange={(e) => setEditWinForm({ ...editWinForm, linkedinUrl: e.target.value })} />
@@ -5744,6 +5827,97 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               </div>
             )}
           </div>
+        </div>
+      );
+    }
+
+    case 'team': {
+      if (!isFounder) {
+        return (
+          <div>
+            <p style={{ color: 'var(--text-muted)' }}>Only the founder can manage team roles.</p>
+          </div>
+        );
+      }
+      const ROLE_LABELS = { admin: 'Founder', community_manager: 'Community Manager', mentor: 'Mentor' };
+      const ROLE_BADGE = { admin: 'badge-success', community_manager: 'badge-warning', mentor: 'badge-warning' };
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><UserCog size={28} color="var(--accent-cyan)" /> Team &amp; Roles</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              Assign a Community Manager or Mentor role to a real account. They need to have signed in at least once already - this updates their existing profile, it doesn't send an invite.
+            </p>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — changes here are local only and will be lost on your next login.
+            </div>
+          )}
+          {teamError && (
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
+              {teamError}
+            </div>
+          )}
+
+          <form onSubmit={handleAssignRole} className="glass-card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '28px' }}>
+            <input
+              className="form-input"
+              style={{ flex: '1 1 260px' }}
+              type="email"
+              placeholder="Their sign-in email"
+              value={roleAssignForm.email}
+              onChange={(e) => setRoleAssignForm({ ...roleAssignForm, email: e.target.value })}
+              required
+            />
+            <select
+              className="form-input"
+              style={{ width: '200px' }}
+              value={roleAssignForm.role}
+              onChange={(e) => setRoleAssignForm({ ...roleAssignForm, role: e.target.value })}
+            >
+              <option value="community_manager">Community Manager</option>
+              <option value="mentor">Mentor</option>
+              <option value="admin">Founder (full admin)</option>
+            </select>
+            <button type="submit" className="btn btn-primary" disabled={assigningRole}>
+              <ShieldCheck size={14} /> {assigningRole ? 'Assigning...' : 'Assign Role'}
+            </button>
+          </form>
+
+          <h3 style={{ fontSize: '1rem', marginBottom: '14px' }}>Current Team ({teamMembers.length})</h3>
+          {!isMockSession && loadingTeam ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading...</p>
+          ) : teamMembers.length === 0 ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Nobody has a role beyond Member yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {teamMembers.map((t) => (
+                <div key={t.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.85rem' }}>
+                    <strong>{t.fullName || t.email}</strong>
+                    {t.fullName && <span style={{ color: 'var(--text-muted)', marginLeft: '8px' }}>{t.email}</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span className={`badge ${ROLE_BADGE[t.role] || 'badge-warning'}`} style={{ fontSize: '0.68rem' }}>{ROLE_LABELS[t.role] || t.role}</span>
+                    {t.role !== 'admin' && (
+                      <button
+                        onClick={() => handleRevokeRole(t)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }}
+                        aria-label="Revoke role"
+                        title="Set back to plain member"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     }

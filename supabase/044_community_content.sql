@@ -73,6 +73,14 @@ CREATE TABLE IF NOT EXISTS public.community_wins (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- member_name is free text, which made it impossible to reliably show a
+-- win's real headshot next to their name (the same problem, and the same
+-- fix, as cert_calendar's member_email - see 024_cert_calendar.sql). An
+-- admin sets this when adding/editing a win; the member side resolves the
+-- headshot client-side against the already-loaded directory by email, not
+-- by fuzzy-matching member_name.
+ALTER TABLE public.community_wins ADD COLUMN IF NOT EXISTS member_email TEXT;
+
 ALTER TABLE public.community_wins ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "members read active wins" ON public.community_wins;

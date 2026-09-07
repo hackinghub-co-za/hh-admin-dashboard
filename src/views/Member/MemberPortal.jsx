@@ -4285,7 +4285,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: WIN_AVATAR_COLORS[victoryIndex % WIN_AVATAR_COLORS.length], flexShrink: 0 }}></div>
+                      {(() => {
+                        // Resolved by member_email against the already-loaded
+                        // directory - member_name alone (free text on this
+                        // table) isn't reliable enough to match a real
+                        // headshot to (e.g. "Philisiwe N." vs a directory
+                        // fullName of "Philisiwe Ncube").
+                        const winEmail = communityWins[victoryIndex]?.memberEmail?.toLowerCase();
+                        const winHeadshot = winEmail ? directory.find((m) => m.email.toLowerCase() === winEmail)?.headshotUrl : null;
+                        return winHeadshot ? (
+                          <img
+                            src={winHeadshot}
+                            alt=""
+                            style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-color)' }}
+                          />
+                        ) : (
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: WIN_AVATAR_COLORS[victoryIndex % WIN_AVATAR_COLORS.length], flexShrink: 0 }}></div>
+                        );
+                      })()}
                       {isSafeUrl(communityWins[victoryIndex]?.linkedinUrl) ? (
                         <a
                           href={communityWins[victoryIndex].linkedinUrl}

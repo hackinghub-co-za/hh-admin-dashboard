@@ -26,6 +26,7 @@ import {
   Moon,
   Bell,
   CheckCheck,
+  UserCog,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
@@ -334,8 +335,19 @@ const markReleaseSeen = () => {
   }
 };
 
+// Display label for the role badge in the profile section - real role
+// names, not the raw DB value ('community_manager' -> 'Community Manager').
+const ROLE_LABELS = {
+  admin: 'Founder',
+  community_manager: 'Community Manager',
+  mentor: 'Mentor',
+  member: 'Member',
+};
+
 export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, isMockSession }) {
-  const isAdmin = user?.role === 'admin';
+  const role = user?.role || 'member';
+  const isAdmin = role === 'admin';
+  const isStaff = role !== 'member';
   const [hoveredId, setHoveredId] = useState(null);
   // Auto-opens the latest What's New on sign-in for members (not admins -
   // they still get the badge/click flow) instead of relying on someone
@@ -345,7 +357,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
   // it seen happens right here too, in the same pass, rather than waiting
   // for a click.
   const [showReleaseNotes, setShowReleaseNotes] = useState(() => {
-    const shouldAutoOpen = !isAdmin && hasUnseenRelease();
+    const shouldAutoOpen = !isStaff && hasUnseenRelease();
     if (shouldAutoOpen) markReleaseSeen();
     return shouldAutoOpen;
   });
@@ -366,6 +378,13 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     storeTheme(next);
   };
 
+  // Three admin-side menus now, not two - what a community_manager or
+  // mentor actually sees is scoped to what supabase/067_permission_scopes.sql
+  // really grants them server-side (RLS is the real boundary; hiding a tab
+  // here is just so nobody sees a button that would just fail). Neither new
+  // role gets 'members' - member_profiles has no column-level RLS, so
+  // there's no safe way yet to show the roster without also exposing
+  // money_owed/phone/age alongside it (see that migration's header note).
   const menuItems = isAdmin
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -382,6 +401,20 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'insights', label: 'Insights', icon: BarChart3 },
         { id: 'community-content', label: 'Community Content', icon: Megaphone },
+        { id: 'team', label: 'Team & Roles', icon: UserCog },
+      ]
+    : role === 'community_manager'
+    ? [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
+        { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
+        { id: 'community-content', label: 'Community Content', icon: Megaphone },
+      ]
+    : role === 'mentor'
+    ? [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
+        { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
       ]
     : [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -512,7 +545,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
               height: '40px',
               borderRadius: '50%',
               background: 'var(--bg-tertiary)',
-              border: `1px solid ${isAdmin ? 'var(--success)' : 'var(--warning)'}`,
+              border: `1px solid ${isStaff ? 'var(--success)' : 'var(--warning)'}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -554,8 +587,8 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
             }}
           >
             <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user?.user_metadata?.full_name || 'HH User'}</span>
-            <span className={`badge ${isAdmin ? 'badge-success' : 'badge-warning'}`} style={{ padding: '2px 6px', fontSize: '0.65rem', width: 'fit-content' }}>
-              {user?.role || 'Member'}
+            <span className={`badge ${isStaff ? 'badge-success' : 'badge-warning'}`} style={{ padding: '2px 6px', fontSize: '0.65rem', width: 'fit-content' }}>
+              {ROLE_LABELS[role] || role}
             </span>
           </span>
         </div>
