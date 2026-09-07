@@ -14,6 +14,7 @@ function mapRace(row) {
     isMemberA: row.is_member_a,
     status: row.status,
     winnerEmail: row.winner_email,
+    acceptedAt: row.accepted_at,
     mySubmittedAt: row.my_submitted_at,
     myApprovedAt: row.my_approved_at,
     opponentSubmittedAt: row.opponent_submitted_at,
@@ -21,15 +22,29 @@ function mapRace(row) {
   };
 }
 
-export async function challengeToRoomRace(opponentEmail, opponentName, roomName, roomUrl) {
+// No room to name any more - that's assigned automatically, once accepted,
+// by the daily 8am SAST cron (assign_room_race_rooms() in
+// 063_room_races.sql), so neither player picks or previews it.
+export async function challengeToRoomRace(opponentEmail, opponentName) {
   const { data, error } = await supabase.rpc('challenge_to_room_race', {
     p_opponent_email: opponentEmail,
     p_opponent_name: opponentName || null,
-    p_room_name: roomName,
-    p_room_url: roomUrl || null,
   });
   if (error) throw error;
   return data;
+}
+
+/** The challenged member (member_b) accepts - flips the race to Active and
+ * makes it eligible for the next 8am room assignment. */
+export async function acceptRoomRace(raceId) {
+  const { error } = await supabase.rpc('accept_room_race', { p_race_id: raceId });
+  if (error) throw error;
+}
+
+/** The challenged member (member_b) turns the challenge down. */
+export async function declineRoomRace(raceId) {
+  const { error } = await supabase.rpc('decline_room_race', { p_race_id: raceId });
+  if (error) throw error;
 }
 
 export async function fetchMyRoomRaces() {
@@ -46,13 +61,16 @@ export async function submitRoomRaceProof(raceId, proofConfirmed) {
   if (error) throw error;
 }
 
-// Admin-only - fetches every active race with both participants' submission
-// state, for the Room Logs tab's approval queue.
+// Admin-only - fetches every active, room-assigned race with both
+// participants' submission state, for the Room Logs tab's approval queue.
+// Excludes Active races still waiting on the 8am room assignment (nothing
+// for an admin to approve yet) and Pending ones (not even accepted yet).
 export async function fetchAllActiveRoomRaces() {
   const { data, error } = await supabase
     .from('room_races')
     .select('*')
     .eq('status', 'Active')
+    .not('room_name', 'is', null)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map((row) => ({

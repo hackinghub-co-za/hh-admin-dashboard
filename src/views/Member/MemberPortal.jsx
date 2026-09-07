@@ -41,7 +41,7 @@ import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib/merchStoreData';
 import { challengeToDuel, fetchMyDuels, fetchDuelQuestions, submitDuelAnswer } from '../../lib/quizDuelData';
-import { challengeToRoomRace, fetchMyRoomRaces, submitRoomRaceProof } from '../../lib/roomRaceData';
+import { challengeToRoomRace, fetchMyRoomRaces, submitRoomRaceProof, acceptRoomRace, declineRoomRace } from '../../lib/roomRaceData';
 import {
   fetchLatestTriviaSession, subscribeToTriviaSession, subscribeToTriviaParticipants, subscribeToTriviaBuzzes,
   fetchCurrentTriviaQuestion, fetchTriviaLeaderboard, joinTriviaSession, buzzInTrivia,
@@ -918,10 +918,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // lists and play UI live in the Competitions tab below.
   const [duelChallengeBusy, setDuelChallengeBusy] = useState(false);
   const [duelChallengeMsg, setDuelChallengeMsg] = useState(null);
-  const [showRoomRaceChallengeForm, setShowRoomRaceChallengeForm] = useState(false);
-  const [roomRaceChallengeForm, setRoomRaceChallengeForm] = useState({ roomName: '', roomUrl: '' });
   const [raceChallengeBusy, setRaceChallengeBusy] = useState(false);
   const [raceChallengeMsg, setRaceChallengeMsg] = useState(null);
+  const [raceResponseBusy, setRaceResponseBusy] = useState(null);
 
   const [myDuels, setMyDuels] = useState([]);
   const [loadingMyDuels, setLoadingMyDuels] = useState(!isMockSession);
@@ -1072,21 +1071,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  const handleChallengeToRoomRace = async (e) => {
-    e.preventDefault();
-    if (!selectedDirectoryMember || !roomRaceChallengeForm.roomName.trim()) return;
+  const handleChallengeToRoomRace = async () => {
+    if (!selectedDirectoryMember) return;
     setRaceChallengeBusy(true);
     setRaceChallengeMsg(null);
     try {
-      await challengeToRoomRace(
-        selectedDirectoryMember.email,
-        selectedDirectoryMember.fullName,
-        roomRaceChallengeForm.roomName.trim(),
-        roomRaceChallengeForm.roomUrl.trim()
-      );
-      setRaceChallengeMsg({ type: 'success', text: `Race sent to ${selectedDirectoryMember.fullName || 'them'}! Check My Room Races in Competitions.` });
-      setRoomRaceChallengeForm({ roomName: '', roomUrl: '' });
-      setShowRoomRaceChallengeForm(false);
+      await challengeToRoomRace(selectedDirectoryMember.email, selectedDirectoryMember.fullName);
+      setRaceChallengeMsg({ type: 'success', text: `Race challenge sent to ${selectedDirectoryMember.fullName || 'them'} - once they accept, a room is randomly assigned to you both at 8am. Check My Room Races in Competitions.` });
       loadMyDuelsAndRaces();
     } catch (err) {
       setRaceChallengeMsg({ type: 'error', text: friendlyMemberErrorMessage(err) });
@@ -1099,8 +1090,27 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     setSelectedDirectoryMember(null);
     setDuelChallengeMsg(null);
     setRaceChallengeMsg(null);
-    setShowRoomRaceChallengeForm(false);
-    setRoomRaceChallengeForm({ roomName: '', roomUrl: '' });
+  };
+
+  // Accept/decline a race someone else challenged this member to - only
+  // ever shown for a race where the caller is member_b (the recipient),
+  // still 'Pending'. Accepting doesn't reveal a room; that only happens
+  // for everyone accepted-but-unassigned, at once, at the next 8am sweep.
+  const handleRespondToRoomRace = async (raceId, accept) => {
+    setRaceResponseBusy(raceId);
+    setCompetitionsError(null);
+    try {
+      if (accept) {
+        await acceptRoomRace(raceId);
+      } else {
+        await declineRoomRace(raceId);
+      }
+      loadMyDuelsAndRaces();
+    } catch (err) {
+      setCompetitionsError(friendlyMemberErrorMessage(err));
+    } finally {
+      setRaceResponseBusy(null);
+    }
   };
 
   const handleOpenDuel = async (duelId) => {
@@ -1298,36 +1308,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={handleChallengeToDuel} disabled={duelChallengeBusy}>
                 <Swords size={13} /> {duelChallengeBusy ? 'Sending...' : 'Challenge to Quiz Duel'}
               </button>
-              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setShowRoomRaceChallengeForm((v) => !v)}>
-                <Flag size={13} /> Challenge to Room Race
+              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={handleChallengeToRoomRace} disabled={raceChallengeBusy}>
+                <Flag size={13} /> {raceChallengeBusy ? 'Sending...' : 'Challenge to Room Race'}
               </button>
             </div>
             {duelChallengeMsg && (
               <p style={{ fontSize: '0.8rem', marginTop: '10px', color: duelChallengeMsg.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{duelChallengeMsg.text}</p>
-            )}
-            {showRoomRaceChallengeForm && (
-              <form onSubmit={handleChallengeToRoomRace} style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="Room name (e.g. OWASP Top 10)"
-                  value={roomRaceChallengeForm.roomName}
-                  onChange={(e) => setRoomRaceChallengeForm((f) => ({ ...f, roomName: e.target.value }))}
-                  className="form-input"
-                  style={{ fontSize: '0.85rem' }}
-                  required
-                />
-                <input
-                  type="url"
-                  placeholder="Room URL (optional)"
-                  value={roomRaceChallengeForm.roomUrl}
-                  onChange={(e) => setRoomRaceChallengeForm((f) => ({ ...f, roomUrl: e.target.value }))}
-                  className="form-input"
-                  style={{ fontSize: '0.85rem' }}
-                />
-                <button type="submit" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px', alignSelf: 'flex-start' }} disabled={raceChallengeBusy}>
-                  {raceChallengeBusy ? 'Sending...' : 'Send Race Challenge'}
-                </button>
-              </form>
             )}
             {raceChallengeMsg && (
               <p style={{ fontSize: '0.8rem', marginTop: '10px', color: raceChallengeMsg.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{raceChallengeMsg.text}</p>
@@ -5845,7 +5831,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             )}
           </div>
 
-          <div className="glass-card" style={{ marginTop: '32px' }}>
+          {/* Shared across Duels, Room Races, and Trivia below - every
+              action across all three (challenge, accept/decline, submit
+              proof, join, buzz) reports into this one state, so it needs
+              one visible surface, not just whichever card happened to
+              check it first. */}
+          {competitionsError && (
+            <div style={{ padding: '12px 16px', marginTop: '32px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
+              {competitionsError}
+            </div>
+          )}
+
+          <div className="glass-card" style={{ marginTop: competitionsError ? '16px' : '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
               <Swords size={20} color="var(--accent-cyan)" />
               <h3 style={{ margin: 0 }}>Head-to-Head Duels</h3>
@@ -5855,8 +5852,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </p>
             {isMockSession ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to challenge someone for real.</p>
-            ) : competitionsError ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>{competitionsError}</p>
             ) : loadingMyDuels ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your duels...</p>
             ) : myDuels.length === 0 ? (
@@ -5929,7 +5924,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <h3 style={{ margin: 0 }}>Room Races</h3>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              Race a member to finish the same TryHackMe room. Submit your proof below once you're done — same WhatsApp-proof rule as daily room logging, and whoever's approved by an admin first wins.
+              Race a member to finish the same TryHackMe room. Once they accept, a random room is assigned to you both at 8am - neither of you picks it, so it's a fair shot either way. Submit your proof once you're done — same WhatsApp-proof rule as daily room logging, and whoever's approved by an admin first wins.
             </p>
             {isMockSession ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to race someone for real.</p>
@@ -5939,28 +5934,53 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No races yet — open a member's profile in the Members directory to challenge them.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {myRoomRaces.map((r) => (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                        {isSafeUrl(r.roomUrl) ? <a href={r.roomUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)' }}>{r.roomName}</a> : r.roomName}
-                        {' '}vs {r.opponentName || r.opponentEmail}
+                {myRoomRaces.map((r) => {
+                  // member_b is always the challenged member, never the
+                  // challenger, so !isMemberA means "it's on me to respond."
+                  const awaitingMyResponse = r.status === 'Pending' && !r.isMemberA;
+                  const awaitingRoom = r.status === 'Active' && !r.roomName;
+                  const badgeClass = r.status === 'Completed'
+                    ? (r.winnerEmail === user?.email ? 'badge-success' : 'badge-warning')
+                    : r.status === 'Declined' ? 'badge-danger' : 'badge-warning';
+                  return (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                          {r.roomName ? (
+                            isSafeUrl(r.roomUrl) ? <a href={r.roomUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)' }}>{r.roomName}</a> : r.roomName
+                          ) : (
+                            <span style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontWeight: 400 }}>Room not assigned yet</span>
+                          )}
+                          {' '}vs {r.opponentName || r.opponentEmail}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {r.status === 'Pending' && (awaitingMyResponse ? 'They challenged you - accept or decline below' : 'Waiting for them to accept')}
+                          {awaitingRoom && `Accepted${r.acceptedAt ? ` ${formatDate(r.acceptedAt)}` : ''} - a random room is assigned to you both at 8am`}
+                          {r.status === 'Active' && r.roomName && (r.myApprovedAt ? 'Waiting on your opponent' : r.mySubmittedAt ? 'Submitted — waiting on admin approval' : 'Not submitted yet')}
+                          {r.status === 'Completed' && (r.winnerEmail === user?.email ? 'You won!' : 'They won')}
+                          {r.status === 'Declined' && 'Declined'}
+                          {r.status === 'Cancelled' && 'Cancelled'}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                        {r.status === 'Active' && (r.myApprovedAt ? 'Waiting on your opponent' : r.mySubmittedAt ? 'Submitted — waiting on admin approval' : 'Not submitted yet')}
-                        {r.status === 'Completed' && (r.winnerEmail === user?.email ? 'You won!' : 'They won')}
-                        {r.status === 'Cancelled' && 'Cancelled'}
-                      </div>
+                      {awaitingMyResponse ? (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleRespondToRoomRace(r.id, true)} disabled={raceResponseBusy === r.id}>
+                            {raceResponseBusy === r.id ? '...' : 'Accept'}
+                          </button>
+                          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleRespondToRoomRace(r.id, false)} disabled={raceResponseBusy === r.id}>
+                            Decline
+                          </button>
+                        </div>
+                      ) : r.status === 'Active' && r.roomName && !r.mySubmittedAt ? (
+                        <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSubmitRaceProof(r.id)} disabled={raceProofBusy === r.id}>
+                          {raceProofBusy === r.id ? 'Submitting...' : "I've Finished It"}
+                        </button>
+                      ) : (
+                        <span className={`badge ${badgeClass}`}>{r.status}</span>
+                      )}
                     </div>
-                    {r.status === 'Active' && !r.mySubmittedAt ? (
-                      <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSubmitRaceProof(r.id)} disabled={raceProofBusy === r.id}>
-                        {raceProofBusy === r.id ? 'Submitting...' : "I've Finished It"}
-                      </button>
-                    ) : (
-                      <span className={`badge ${r.status === 'Completed' ? (r.winnerEmail === user?.email ? 'badge-success' : 'badge-warning') : 'badge-warning'}`}>{r.status}</span>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
