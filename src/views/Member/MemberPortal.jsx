@@ -118,7 +118,6 @@ import {
   ShoppingBag,
   Swords,
   Flag,
-  BarChart3,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -3442,51 +3441,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </span>
                     )}
                   </div>
-
-                  {/* Progress by Item - a per-item percentage view alongside
-                      the plain done/not-done checklist below. Completed
-                      items always read 100%; anything still in progress
-                      reads whatever fraction the member last self-reported
-                      into that item's detail field (roadmapItemProgressPercent
-                      above), or 0% if it's a plain checkbox item nobody's
-                      logged a fraction against. */}
-                  {g.phase === 'Core Foundations' && (
-                    <div style={{ padding: '16px 18px', marginBottom: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.015)', border: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '14px' }}>
-                        <BarChart3 size={14} color="var(--accent-cyan)" />
-                        <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-                          Progress by Item
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-                        {g.categories.flatMap((c) => c.items).map((item) => {
-                          const pct = roadmapItemProgressPercent(item);
-                          return (
-                            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <span style={{ fontSize: '0.79rem', color: 'var(--text-secondary)', minWidth: '180px', maxWidth: '180px', flexShrink: 0, lineHeight: 1.3 }}>
-                                {item.title}
-                              </span>
-                              <div style={{ flex: 1, height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div
-                                  style={{
-                                    width: `${pct}%`,
-                                    height: '100%',
-                                    background: pct >= 100 ? 'var(--success)' : 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))',
-                                    borderRadius: '4px',
-                                    transition: 'width 0.4s ease',
-                                  }}
-                                />
-                              </div>
-                              <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', width: '36px', textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                                {pct}%
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
                     {g.categories.map((c) => (
                       <div key={c.category}>
@@ -3533,12 +3487,39 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                               )}
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
                                   fontSize: '0.9rem',
                                   textDecoration: rowDone ? 'line-through' : 'none',
                                   color: rowDone ? 'var(--text-secondary)' : 'var(--text-primary)',
                                   userSelect: 'none',
                                 }}>
-                                  {item.title}
+                                  <span>{item.title}</span>
+                                  {/* Small inline pie marker - at-a-glance
+                                      per-item progress right next to the
+                                      name, reading whatever fraction the
+                                      member's self-reported into detail
+                                      (roadmapItemProgressPercent above),
+                                      100% once actually ticked done. */}
+                                  {g.phase === 'Core Foundations' && (() => {
+                                    const pct = roadmapItemProgressPercent(item);
+                                    return (
+                                      <span
+                                        title={`${pct}% complete`}
+                                        style={{
+                                          flexShrink: 0,
+                                          width: '15px',
+                                          height: '15px',
+                                          borderRadius: '50%',
+                                          border: '1px solid var(--border-color)',
+                                          background: pct >= 100
+                                            ? 'var(--success)'
+                                            : `conic-gradient(var(--accent-cyan) 0% ${pct}%, var(--bg-tertiary) ${pct}% 100%)`,
+                                        }}
+                                      />
+                                    );
+                                  })()}
                                 </div>
                                 {ROADMAP_ITEM_DESCRIPTIONS[item.title] && (
                                   <button
