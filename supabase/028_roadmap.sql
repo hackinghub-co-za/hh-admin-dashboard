@@ -538,3 +538,53 @@ WHERE NOT EXISTS (
     AND ri2.category = 'Certifications'
     AND ri2.title = c.title
 );
+
+-- =========================================================================
+-- LINKEDIN PLAYBOOK GATED BEHIND SPECIALIZATION (2026-09) - "Post once a
+-- week" should only come into play once a member's Specialization phase is
+-- actually visible to them (SPECIALIZATION_UNLOCK_MIN Core Foundations
+-- certs done + roadmap_foundations_approved_at set - see
+-- MemberPortal.jsx's specializationUnlocked). Before this, the item was
+-- freehand-typed by a coach into whatever phase they picked - there's no
+-- seed catalog for it like Core Foundations/Specialization/Projects have -
+-- and habitually landed in Core Foundations, live from day one for members
+-- who haven't even been assigned a track yet, defaulting the weekly post
+-- preview to generic SOC content (linkedInPlaybookData.js's
+-- resolveDomain() fallback).
+--
+-- Enforced with a trigger rather than only a one-time backfill, since
+-- there's no seed catalog to fix at the source - every future addition is
+-- an admin freehand-typing this exact title into the Add Checklist Item
+-- form (AdminDashboard.jsx), which defaults its Phase dropdown to Core
+-- Foundations. A trigger means this invariant holds regardless of what
+-- that form defaults to, now or after any future change to it.
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION public.enforce_linkedin_post_item_phase()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.title = 'Post once a week' THEN
+    NEW.phase := 'Specialization';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_linkedin_post_item_phase ON public.roadmap_items;
+CREATE TRIGGER trg_enforce_linkedin_post_item_phase
+  BEFORE INSERT OR UPDATE ON public.roadmap_items
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_linkedin_post_item_phase();
+
+-- One-time backfill for every row that already exists under the old
+-- Core Foundations placement - the trigger above only governs writes from
+-- here on, this catches what's already sitting in the table. Its title
+-- isn't in any track's SPECIALIZATION_CATALOGS (memberOptions.js), so this
+-- re-sort doesn't change anyone's Specialization completion percentage or
+-- move Projects any closer to unlocking.
+UPDATE public.roadmap_items
+SET phase = 'Specialization'
+WHERE title = 'Post once a week' AND phase != 'Specialization';

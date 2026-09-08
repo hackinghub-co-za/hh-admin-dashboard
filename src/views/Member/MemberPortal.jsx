@@ -118,6 +118,7 @@ import {
   ShoppingBag,
   Swords,
   Flag,
+  BarChart3,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -299,6 +300,25 @@ function randomSpecializationQuote() {
   return SPECIALIZATION_QUOTES[Math.floor(Math.random() * SPECIALIZATION_QUOTES.length)];
 }
 
+// Per-item percentage for the Core Foundations "Progress by Item" chart. A
+// completed item is always 100% regardless of what its detail says (a
+// member could tick the box after logging "6/6" or without ever logging a
+// fraction at all - either way, done is done). Otherwise, tries to read a
+// self-reported "x/y" fraction out of the item's free-text detail field
+// (update_my_roadmap_item_progress lets a member log "9/20 collections",
+// "307/1000", etc.) - most Core Foundations items never get one and are
+// just done/not-done, which correctly renders as an empty 0% bar.
+function roadmapItemProgressPercent(item) {
+  if (item.completed) return 100;
+  const match = (item.detail || '').match(/(\d+)\s*\/\s*(\d+)/);
+  if (match) {
+    const num = Number(match[1]);
+    const den = Number(match[2]);
+    if (den > 0) return Math.max(0, Math.min(100, Math.round((num / den) * 100)));
+  }
+  return 0;
+}
+
 // Recent Wins used to carry a static "Today"/"Recently" label that was
 // accurate once and then just sat there. This computes a live one from the
 // real achieved_date instead, so it stays honest as time passes.
@@ -445,8 +465,13 @@ const MOCK_ROADMAP_ITEMS = [
   { id: 14, phase: 'Core Foundations', category: 'Certifications', title: 'AI-901', detail: '', completed: true, sortOrder: 36, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 4, phase: 'Core Foundations', category: 'Networking', title: 'Get to 1000 LinkedIn connections', detail: '307/1000', completed: false, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 5, phase: 'Core Foundations', category: 'Networking', title: 'Add banner and fix headshot', detail: '', completed: true, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 6, phase: 'Core Foundations', category: 'Networking', title: 'Post once a week', detail: 'THM Medium-level room with a write-up', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 7, phase: 'Core Foundations', category: 'Networking', title: 'Attend events/webinars', detail: '', completed: false, sortOrder: 40, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  // Specialization, not Core Foundations - matches the real, server-enforced
+  // placement now (028_roadmap.sql's trigger pins this exact title there
+  // regardless of what phase it's added under), so the mock demo shows the
+  // LinkedIn widget only once Specialization is actually unlocked, same as
+  // a real member would see.
+  { id: 6, phase: 'Specialization', category: 'Networking', title: 'Post once a week', detail: 'THM Medium-level room with a write-up', completed: false, sortOrder: 5, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 8, phase: 'Specialization', category: 'Red Teaming', title: 'THM Junior Pentester', detail: '100% complete', completed: true, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 9, phase: 'Specialization', category: 'Red Teaming', title: 'Burp Suite Practitioner Certification', detail: '', completed: false, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 10, phase: 'Specialization', category: 'Red Teaming', title: 'eJPT', detail: '', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
@@ -3417,6 +3442,51 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </span>
                     )}
                   </div>
+
+                  {/* Progress by Item - a per-item percentage view alongside
+                      the plain done/not-done checklist below. Completed
+                      items always read 100%; anything still in progress
+                      reads whatever fraction the member last self-reported
+                      into that item's detail field (roadmapItemProgressPercent
+                      above), or 0% if it's a plain checkbox item nobody's
+                      logged a fraction against. */}
+                  {g.phase === 'Core Foundations' && (
+                    <div style={{ padding: '16px 18px', marginBottom: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.015)', border: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '14px' }}>
+                        <BarChart3 size={14} color="var(--accent-cyan)" />
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+                          Progress by Item
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+                        {g.categories.flatMap((c) => c.items).map((item) => {
+                          const pct = roadmapItemProgressPercent(item);
+                          return (
+                            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ fontSize: '0.79rem', color: 'var(--text-secondary)', minWidth: '180px', maxWidth: '180px', flexShrink: 0, lineHeight: 1.3 }}>
+                                {item.title}
+                              </span>
+                              <div style={{ flex: 1, height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div
+                                  style={{
+                                    width: `${pct}%`,
+                                    height: '100%',
+                                    background: pct >= 100 ? 'var(--success)' : 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))',
+                                    borderRadius: '4px',
+                                    transition: 'width 0.4s ease',
+                                  }}
+                                />
+                              </div>
+                              <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', width: '36px', textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                                {pct}%
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
                     {g.categories.map((c) => (
                       <div key={c.category}>
@@ -3675,6 +3745,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       Complete {SPECIALIZATION_UNLOCK_MIN} Core Foundations certs to become eligible — you're at {coreFoundationsDone}/{SPECIALIZATION_UNLOCK_MIN}.
                     </p>
                   )}
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '10px' }}>
+                    Your weekly LinkedIn posting plan unlocks here too, tailored to your track once it's assigned.
+                  </p>
                 </div>
               )}
 

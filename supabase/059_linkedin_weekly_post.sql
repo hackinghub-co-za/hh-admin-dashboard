@@ -139,13 +139,24 @@ AS $$
 $$;
 GRANT EXECUTE ON FUNCTION public.unsubscribe_from_linkedin_reminders(TEXT) TO anon, authenticated;
 
--- Everyone active, opted in, and assigned a real track, who hasn't
--- confirmed for the current ISO week - a single aggregate query (an
+-- Everyone active, opted in, with Specialization actually unlocked, who
+-- hasn't confirmed for the current ISO week - a single aggregate query (an
 -- anti-join against this week's confirmations), much cheaper than pulling
 -- every member_profiles row into Deno and filtering there. Callable by the
 -- service role (the edge function; bypasses this check entirely, same as
 -- every other SECURITY DEFINER function here) or by an admin - never by an
 -- ordinary member, since this reveals exactly who hasn't posted.
+--
+-- "Specialization unlocked" is checked the same two-part way the roadmap UI
+-- does it (see MemberPortal.jsx's specializationUnlocked), not just "has a
+-- track" - a coach can assign a track before a member has actually cleared
+-- Core Foundations, and this reminder shouldn't nudge someone to post
+-- before the item has even appeared on their roadmap (028_roadmap.sql now
+-- keeps "Post once a week" pinned to the Specialization phase, which stays
+-- hidden until this same condition is true). The 8 titles and the 5-count
+-- threshold must be kept in sync with CORE_FOUNDATIONS_CATALOG and
+-- SPECIALIZATION_UNLOCK_MIN in src/lib/memberOptions.js - same duplication
+-- already accepted for assign_my_core_foundations() above.
 CREATE OR REPLACE FUNCTION public.get_members_needing_linkedin_reminder()
 RETURNS TABLE (email TEXT, full_name TEXT, roadmap_track TEXT)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -162,6 +173,18 @@ BEGIN
     AND mp.linkedin_reminder_opted_out = false
     AND mp.roadmap_track IS NOT NULL
     AND mp.roadmap_track != 'Not Assigned'
+    AND mp.roadmap_foundations_approved_at IS NOT NULL
+    AND (
+      SELECT count(*) FROM public.roadmap_items ri
+      WHERE ri.member_email = mp.email
+        AND ri.phase = 'Core Foundations'
+        AND ri.category = 'Certifications'
+        AND ri.completed = true
+        AND ri.title IN (
+          'CISCO Junior Cyber Pathway', 'Immersive Labs', 'TryHackMe Pre-Security',
+          'TryHackMe Cyber 101', 'AZ-900', 'AI-901', 'SC-900', 'CompTIA Security+'
+        )
+    ) >= 5
     AND NOT EXISTS (
       SELECT 1 FROM public.linkedin_weekly_posts lwp
       WHERE lwp.member_email = mp.email
