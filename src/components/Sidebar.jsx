@@ -27,6 +27,7 @@ import {
   Bell,
   CheckCheck,
   UserCog,
+  ArrowLeftRight,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
@@ -344,10 +345,17 @@ const ROLE_LABELS = {
   member: 'Member',
 };
 
-export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, isMockSession }) {
+export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, isMockSession, staffViewActive, onToggleStaffView }) {
   const role = user?.role || 'member';
   const isAdmin = role === 'admin';
+  // isStaff/isAdmin stay the account's real, permanent role - used for the
+  // profile badge and for whether the view-toggle button below even shows.
+  // viewRole is what's actually being looked at right now (App.jsx mounts
+  // MemberPortal instead of AdminDashboard the moment staffViewActive goes
+  // false) - a community_manager who's a real member too, like Thakgalang,
+  // needs the member menu while viewing as a member, not her staff one.
   const isStaff = role !== 'member';
+  const viewRole = isStaff && staffViewActive ? role : 'member';
   const [hoveredId, setHoveredId] = useState(null);
   // Auto-opens the latest What's New on sign-in for members (not admins -
   // they still get the badge/click flow) instead of relying on someone
@@ -385,7 +393,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
   // role gets 'members' - member_profiles has no column-level RLS, so
   // there's no safe way yet to show the roster without also exposing
   // money_owed/phone/age alongside it (see that migration's header note).
-  const menuItems = isAdmin
+  const menuItems = viewRole === 'admin'
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'members', label: 'Members', icon: Contact },
@@ -403,14 +411,17 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'community-content', label: 'Community Content', icon: Megaphone },
         { id: 'team', label: 'Team & Roles', icon: UserCog },
       ]
-    : role === 'community_manager'
+    : viewRole === 'community_manager'
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
+        { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
+        { id: 'jobs', label: 'Job Board', icon: Briefcase },
+        { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'community-content', label: 'Community Content', icon: Megaphone },
       ]
-    : role === 'mentor'
+    : viewRole === 'mentor'
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
@@ -625,6 +636,22 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
             onHover={setHoveredId}
             onLeave={() => setHoveredId(null)}
             onClick={toggleTheme}
+          />
+        )}
+
+        {/* A staff account that's also a real member (Community Manager,
+            Mentor, or the founder) can flip between the two - Thakgalang
+            keeps her own roadmap/1-on-1s/competitions as a member on the
+            exact same email she manages the community with. */}
+        {onToggleStaffView && (
+          <TooltipButton
+            id="toggle-staff-view"
+            icon={ArrowLeftRight}
+            label={staffViewActive ? 'View as Member' : 'Back to Staff View'}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onLeave={() => setHoveredId(null)}
+            onClick={onToggleStaffView}
           />
         )}
 

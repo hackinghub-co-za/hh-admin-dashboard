@@ -47,16 +47,26 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
 
   // Developer bypass for quick local testing without real Google credentials.
   // Gated behind import.meta.env.DEV below so Vite strips it out of production
-  // builds entirely - it never ships to portal.hackinghub.co.za.
+  // builds entirely - it never ships to portal.hackinghub.co.za. Four real
+  // roles now (supabase/067_permission_scopes.sql), plus the member-leaving
+  // variant - role is passed straight through as the actual role string
+  // AdminDashboard/Sidebar key off (`user.role`), not translated through an
+  // admin/member boolean the way it used to be.
+  const MOCK_IDENTITIES = {
+    admin: { email: 'admin@hackinghub.co.za', fullName: 'Hacking Hub Admin' },
+    community_manager: { email: 'cm@hackinghub.co.za', fullName: 'Mock Community Manager' },
+    mentor: { email: 'mentor@hackinghub.co.za', fullName: 'Mock Mentor' },
+    member: { email: 'member@hackinghub.co.za', fullName: 'Sanele Khumalo' },
+    'member-leaving': { email: 'member@hackinghub.co.za', fullName: 'Departing Member' },
+  };
+
   const handleMockLogin = (role) => {
     const isLeaving = role === 'member-leaving';
+    const identity = MOCK_IDENTITIES[role];
     onLoginSuccess({
-      email: role === 'admin' ? 'admin@hackinghub.co.za' : 'member@hackinghub.co.za',
-      user_metadata: {
-        full_name: role === 'admin' ? 'Hacking Hub Admin' : isLeaving ? 'Departing Member' : 'Sanele Khumalo',
-        avatar_url: null,
-      },
-      role: role === 'admin' ? 'admin' : 'member',
+      email: identity.email,
+      user_metadata: { full_name: identity.fullName, avatar_url: null },
+      role: isLeaving ? 'member' : role,
       mockLeaving: isLeaving,
     });
   };
@@ -188,6 +198,20 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
                 style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px' }}
               >
                 <Key size={14} /> Mock Member
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => handleMockLogin('community_manager')}
+                style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px' }}
+              >
+                <Key size={14} /> Mock Community Manager
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => handleMockLogin('mentor')}
+                style={{ fontSize: '0.8rem', justifyContent: 'center', padding: '10px' }}
+              >
+                <Key size={14} /> Mock Mentor
               </button>
             </div>
             <button

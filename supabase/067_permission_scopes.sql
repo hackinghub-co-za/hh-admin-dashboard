@@ -469,10 +469,12 @@ $$;
 GRANT EXECUTE ON FUNCTION public.review_project_submission(BIGINT, BOOLEAN, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.review_project_submission(BIGINT, BOOLEAN, TEXT) FROM PUBLIC, anon;
 
+-- Also open to community_manager, not just mentor - founder confirmed
+-- Community Manager should be able to mark cert results too.
 DROP POLICY IF EXISTS "admins manage cert calendar" ON public.cert_calendar;
 CREATE POLICY "admins manage cert calendar"
   ON public.cert_calendar FOR ALL
-  USING (public.is_admin(auth.uid()) OR public.is_mentor(auth.uid()));
+  USING (public.is_admin(auth.uid()) OR public.is_mentor(auth.uid()) OR public.is_community_manager(auth.uid()));
 
 DROP POLICY IF EXISTS "admins manage cv reviews" ON public.cv_reviews;
 CREATE POLICY "admins manage cv reviews"
@@ -488,3 +490,53 @@ DROP POLICY IF EXISTS "admins manage interviews" ON public.member_interviews;
 CREATE POLICY "admins manage interviews"
   ON public.member_interviews FOR ALL
   USING (public.is_admin(auth.uid()) OR public.is_mentor(auth.uid()));
+
+-- =========================================================================
+-- PART 4: COMMUNITY MANAGER, widened further (2026-09) - Job Board and
+-- Events, per the founder's follow-up. Job Board never had a moderation
+-- step (member-submitted listings already go live immediately, see
+-- 025_job_board.sql), so this only ever affects who can edit/remove any
+-- listing. Events is the more interesting one: it already had TWO separate
+-- admin gates - a general "admins manage community events" RLS policy
+-- (add/edit/delete any event) and a narrower, deliberately
+-- exact-email-only approve_community_event() RPC (only siya@hackinghub.co.za,
+-- specifically to keep event approval out of every admin's hands) - both
+-- are widened below to also accept a community_manager, alongside siya
+-- specifically, not instead of her.
+-- =========================================================================
+
+DROP POLICY IF EXISTS "admins manage job board" ON public.job_board;
+CREATE POLICY "admins manage job board"
+  ON public.job_board FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
+DROP POLICY IF EXISTS "admins manage community events" ON public.community_events;
+CREATE POLICY "admins manage community events"
+  ON public.community_events FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
+DROP POLICY IF EXISTS "admins manage event rsvps" ON public.event_rsvps;
+CREATE POLICY "admins manage event rsvps"
+  ON public.event_rsvps FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
+-- Approval itself stays deliberately narrower than general community_events
+-- management (matching the original design intent - see 019_events.sql's
+-- own comment on why this is a dedicated RPC rather than a policy): now
+-- exactly siya@hackinghub.co.za OR any community_manager, not every admin.
+DROP FUNCTION IF EXISTS public.approve_community_event(BIGINT);
+CREATE FUNCTION public.approve_community_event(p_event_id BIGINT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF lower(auth.jwt() ->> 'email') != 'siya@hackinghub.co.za' AND NOT public.is_community_manager(auth.uid()) THEN
+    RAISE EXCEPTION 'Only siya@hackinghub.co.za or a Community Manager can approve events';
+  END IF;
+  UPDATE public.community_events SET status = 'Approved' WHERE id = p_event_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.approve_community_event(BIGINT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.approve_community_event(BIGINT) FROM PUBLIC, anon;

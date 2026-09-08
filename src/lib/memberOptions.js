@@ -93,6 +93,49 @@ export const ROADMAP_ITEM_LINKS = {
   'CompTIA SecAI+': 'https://www.comptia.org/en/certifications/secai/',
   'OWASP Top 10 for LLM Applications': 'https://genai.owasp.org/initiatives/top-10-for-llm-and-genai/',
   'THM AI Security': 'https://tryhackme.com/paths',
+  // SOC specialization (SPECIALIZATION_CATALOGS.SOC below) - CySA+ and
+  // SC-200 are deliberately absent here, same as Terraform Associate
+  // below: all three already have a real in-app guide modal (richer than
+  // a bare external link), so the fallback in MemberPortal.jsx's roadmap
+  // rendering opens that instead whenever a title has no entry here.
+  'THM SOC Level 1': 'https://tryhackme.com/path/outline/soclevel1',
+  'Blue Team Level 1': 'https://www.centri.org/certifications/blue-team-level-1',
+  // Offensive Security specialization (SPECIALIZATION_CATALOGS['Offensive Security'] below)
+  'eJPT': 'https://ine.com/security/certifications/ejpt-certification',
+  'THM Junior Pentester': 'https://tryhackme.com/path/outline/jrpenetrationtester',
+  'THM Offensive Pentesting': 'https://tryhackme.com/path/outline/offensivepentesting',
+  'Burp Suite Certified Practitioner': 'https://portswigger.net/web-security/certification',
+  'OSCP': 'https://www.offsec.com/courses/pen-200/',
+  // Cloud Security specialization (SPECIALIZATION_CATALOGS['Cloud Security'] below)
+  'AZ-104': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-administrator/',
+  'SC-100': 'https://learn.microsoft.com/en-us/credentials/certifications/cybersecurity-architect-expert/',
+  'AZ-305': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-solutions-architect/',
+  // SC-500 is Microsoft's newer "Cloud and AI Security Engineer Associate"
+  // exam, confirmed by the founder - it's what AZ-500 (Azure Security
+  // Engineer Associate) has been superseded by, not a typo.
+  'SC-500': 'https://learn.microsoft.com/en-us/credentials/certifications/cloud-and-ai-security-engineer-associate/?practice-assessment-type=certification',
+  // DevSecOps specialization (SPECIALIZATION_CATALOGS.DevSecOps below)
+  'Linux Essentials': 'https://lpi.org/certifications/linux-essentials-overview',
+  'GH-900': 'https://learn.microsoft.com/en-us/credentials/certifications/github-foundations/',
+  'GH-500': 'https://learn.microsoft.com/en-us/credentials/certifications/github-advanced-security/',
+  'KCNA': 'https://training.linuxfoundation.org/certification/kubernetes-cloud-native-associate/',
+  'KCSA': 'https://training.linuxfoundation.org/certification/kubernetes-and-cloud-native-security-associate-kcsa/',
+  'AZ-400': 'https://learn.microsoft.com/en-us/credentials/certifications/devops-engineer-expert/',
+  // 'Python (or any programming language)' is deliberately open-ended (see
+  // its defaultDetail in SPECIALIZATION_CATALOGS.DevSecOps) - no single
+  // canonical link fits, so it's left without one.
+  //
+  // GRC specialization (SPECIALIZATION_CATALOGS.GRC below)
+  'ISO/IEC 27001 Foundation': 'https://www.iso.org/standard/27001',
+  'NIST Cybersecurity Framework (CSF)': 'https://www.nist.gov/cyberframework',
+  'ISC2 CGRC': 'https://www.isc2.org/certifications/cgrc',
+  'ISACA CRISC': 'https://www.isaca.org/credentialing/crisc',
+  'ISACA IT Risk Fundamentals': 'https://www.isaca.org/credentialing/it-risk-fundamentals-certificate',
+  'ITIL 4 Foundation': 'https://www.peoplecert.org/products/ITIL-4/itil-4-foundation',
+  // 'POPIA/GDPR Practitioner' is left unlinked - unlike the others above,
+  // it doesn't map cleanly to one specific real-world certification body
+  // (POPIA and GDPR are two different laws with different practitioner
+  // programs), so a link here would be a guess rather than a real one.
 };
 
 // Short "what is this" line shown under every roadmap item's title (Core
@@ -739,6 +782,20 @@ export const TRACK_COLORS = {
 };
 export const OTHER_GROUP_COLOR = '#94a3b8';
 export const TEAM_GROUP_COLOR = '#f5b942';
+
+// One-line "what actually is this domain" - shown as a hover tooltip on
+// each group's name in the Members directory's By Domain view
+// (GroupedMemberDirectory.jsx), so someone browsing the roster gets a real
+// answer without leaving the page.
+export const TRACK_DESCRIPTIONS = {
+  'Offensive Security': 'Attacking systems on purpose, with permission - penetration testing, red teaming, and exploit development.',
+  'SOC': 'The front line - monitoring, detecting, and responding to real attacks as they happen.',
+  'Cloud Security': 'Securing AWS and Azure environments - identity, network, and posture in infrastructure that never stops changing.',
+  'DevSecOps': 'Security built into the pipeline itself - CI/CD, infrastructure as code, and container security.',
+  'IAM': 'Who gets access to what, and proving it - identity, authentication, and access governance.',
+  'AI Security': 'Securing AI systems, and using AI as a security tool - prompt injection, model risk, and the newest attack surface.',
+  'GRC': 'Governance, Risk & Compliance - policy, audits, and translating security into language the business understands.',
+};
 
 /**
  * Splits a flat member list into { team, tracks, other } for the grouped

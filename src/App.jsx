@@ -44,6 +44,19 @@ export default function App() {
   // session - `providerToken` alone isn't reliable for this since Supabase only
   // returns it right after the OAuth redirect, not on session restore.
   const [isMockSession, setIsMockSession] = useState(false);
+  // A community_manager/mentor/admin account can also just be a real
+  // community member - Thakgalang, for instance, keeps her own roadmap,
+  // 1-on-1s, and competitions as Thakgalang the member, on the same email
+  // as Thakgalang the Community Manager. staffViewActive is which side of
+  // that they're currently looking at; the toggle to flip it lives in
+  // Sidebar's profile section, shown whenever the account has a non-member
+  // role at all. Defaults to the staff view on sign-in, same as before this
+  // existed.
+  const [staffViewActive, setStaffViewActive] = useState(true);
+  const handleToggleStaffView = () => {
+    setStaffViewActive((v) => !v);
+    setActiveTab('dashboard');
+  };
   // Set when a real (non-mock) sign-in is rejected because the email isn't a
   // recognized active member - shown on the login screen.
   const [accessDeniedMessage, setAccessDeniedMessage] = useState(null);
@@ -408,6 +421,10 @@ export default function App() {
   // tabs each of the three actually gets is decided inside Sidebar/
   // AdminDashboard themselves, off the real role on `user`.
   const isStaff = user.role !== 'member';
+  // What actually renders below - a staff account that's flipped the
+  // switch to "view as member" sees exactly the same MemberPortal a real
+  // member would, same as if isStaff were false outright.
+  const showStaffDashboard = isStaff && staffViewActive;
 
   if (!isStaff && needsOffboarding) {
     return <OffboardingSequence user={user} onDone={handleExitDone} />;
@@ -425,15 +442,17 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
-        onReplayIntro={!isStaff ? handleReplayIntro : undefined}
-        restrictToOnboarding={!isStaff && gettingStartedGateActive}
+        onReplayIntro={!showStaffDashboard ? handleReplayIntro : undefined}
+        restrictToOnboarding={!showStaffDashboard && gettingStartedGateActive}
         isMockSession={isMockSession}
+        staffViewActive={staffViewActive}
+        onToggleStaffView={isStaff ? handleToggleStaffView : undefined}
       />
 
       {/* Main Panel View Area */}
       <main className="main-content">
         {/* Dynamic Dashboard views */}
-        {isStaff ? (
+        {showStaffDashboard ? (
           <AdminDashboard activeTab={activeTab} setActiveTab={setActiveTab} providerToken={providerToken} isMockSession={isMockSession} user={user} />
         ) : (
           <MemberPortal
@@ -451,7 +470,7 @@ export default function App() {
 
       {/* Gemma - member-only floating assistant, not shown during onboarding/
           offboarding takeovers (this only renders once those gates have passed) */}
-      {!isStaff && <GemmaWidget user={user} isMockSession={isMockSession} />}
+      {!showStaffDashboard && <GemmaWidget user={user} isMockSession={isMockSession} />}
     </div>
   );
 }

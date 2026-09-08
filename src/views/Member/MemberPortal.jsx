@@ -3528,7 +3528,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       </>
                                     )}
                                   </div>
-                                ) : g.phase === 'Core Foundations' ? (
+                                ) : (g.phase === 'Core Foundations' || g.phase === 'Specialization') ? (
                                   <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                                     <input
                                       type="text"
@@ -3569,6 +3569,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setActiveTab('resources'); setShowSecurityPlusGuide(true); }}
+                                        className="btn btn-secondary"
+                                        style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                      >
+                                        <ExternalLink size={12} /> Open Link / Resource
+                                      </button>
+                                    ) : (item.title === 'CySA+' || item.title === 'Terraform Associate' || item.title === 'SC-200') ? (
+                                      // Same in-app-guide move as CompTIA Security+ above -
+                                      // these three Specialization items have a real guide
+                                      // modal instead of just a bare external link.
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveTab('resources');
+                                          if (item.title === 'CySA+') setShowCySAPlusGuide(true);
+                                          else if (item.title === 'Terraform Associate') setShowTerraformGuide(true);
+                                          else setShowSC200Guide(true);
+                                        }}
                                         className="btn btn-secondary"
                                         style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                                       >
@@ -3625,36 +3643,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                     )}
                                   </div>
                                 ) : (
+                                  // Unreached today - every real phase (Core Foundations,
+                                  // Specialization, Projects) is handled by one of the
+                                  // three branches above. Kept only as a safe fallback if
+                                  // ROADMAP_PHASES ever grows a fourth phase.
                                   <div onClick={(e) => e.stopPropagation()}>
                                     {item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>}
-                                    {ROADMAP_ITEM_LINKS[item.title] ? (
-                                      <a
-                                        href={ROADMAP_ITEM_LINKS[item.title]}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn btn-secondary"
-                                        style={{ fontSize: '0.75rem', padding: '5px 10px', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none' }}
-                                      >
-                                        <ExternalLink size={12} /> Open Link / Resource
-                                      </a>
-                                    ) : (item.title === 'CySA+' || item.title === 'Terraform Associate' || item.title === 'SC-200') && (
-                                      // No plain URL for these either - they're in-app guides
-                                      // (IN_APP_ARTICLE_RESOURCES above), the same ones the
-                                      // Resources tab's study guide cards open.
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveTab('resources');
-                                          if (item.title === 'CySA+') setShowCySAPlusGuide(true);
-                                          else if (item.title === 'Terraform Associate') setShowTerraformGuide(true);
-                                          else setShowSC200Guide(true);
-                                        }}
-                                        className="btn btn-secondary"
-                                        style={{ fontSize: '0.75rem', padding: '5px 10px', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                                      >
-                                        <ExternalLink size={12} /> Open Link / Resource
-                                      </button>
-                                    )}
                                   </div>
                                 )}
                               </div>
@@ -5358,23 +5352,28 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </button>
           </div>
 
+          {(() => {
+            // Passed exams get their own section entirely now, instead of
+            // just sinking to the bottom of the same countdown grid -
+            // certCalendar already arrives sorted soonest-first from
+            // fetchCertCalendar, so both groups keep that date order.
+            const upcomingCerts = certCalendar.filter((c) => c.result !== 'Passed');
+            const passedCerts = certCalendar.filter((c) => c.result === 'Passed');
+            return (
+          <>
           <div className="glass-card" style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3>Community Operatives Exam Countdown</h3>
-              <span className="badge badge-success">{certCalendar.length} Active Targets</span>
+              <span className="badge badge-success">{upcomingCerts.length} Active Target{upcomingCerts.length === 1 ? '' : 's'}</span>
             </div>
 
             {loadingCertCalendar && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading cert calendar...</p>}
+            {!loadingCertCalendar && upcomingCerts.length === 0 && (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No upcoming exam dates on the calendar right now.</p>
+            )}
 
-            {/* Passed exams sink to the bottom rather than cluttering the
-                top of an otherwise soonest-date-first list - a stable sort
-                on just the pass/fail split preserves the existing date
-                order within each group (certCalendar already arrives
-                sorted soonest-first from fetchCertCalendar). */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              {[...certCalendar]
-                .sort((a, b) => (a.result === 'Passed' ? 1 : 0) - (b.result === 'Passed' ? 1 : 0))
-                .map((c) => {
+              {upcomingCerts.map((c) => {
                 const targetDate = new Date(c.date);
                 const today = new Date();
                 const diffTime = targetDate - today;
@@ -5462,6 +5461,57 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               })}
             </div>
           </div>
+
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3>Certifications Earned</h3>
+              <span className="badge badge-success">{passedCerts.length} Passed</span>
+            </div>
+            {passedCerts.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No passed certs logged yet — they'll show up here the moment one's marked Passed.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                {passedCerts.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => setSelectedCert(c)}
+                    style={{
+                      padding: '20px',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(var(--success-rgb), 0.04)',
+                      border: '1px solid var(--success)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    className="hover-glow"
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
+                        <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <CheckCircle2 size={12} /> Passed
+                        </span>
+                      </div>
+                      <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {c.cert} <Info size={14} color="var(--accent-cyan)" />
+                      </div>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Passed:</span>
+                      <strong style={{ color: 'var(--success)' }}>{formatDate(c.date)}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          </>
+            );
+          })()}
 
           {/* Certification Details Breakdown Modal */}
           {selectedCert && (

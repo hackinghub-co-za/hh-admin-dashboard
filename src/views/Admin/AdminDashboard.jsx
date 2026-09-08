@@ -1593,13 +1593,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // Member-submitted events awaiting approval (019_events.sql) - admins can
   // see every event regardless of status via their own RLS policy, filtered
   // down to Pending here. Approval itself is further restricted server-side
-  // to exactly siya@hackinghub.co.za, not every admin account.
+  // (approve_community_event()) to exactly siya@hackinghub.co.za or a
+  // community_manager, not every admin account - mirrored here so the
+  // button/explanatory text match what the RPC will actually allow.
   const [communityEvents, setCommunityEvents] = useState([]);
   const [loadingCommunityEvents, setLoadingCommunityEvents] = useState(!isMockSession);
   const [approvingEventId, setApprovingEventId] = useState(null);
   const [approveEventError, setApproveEventError] = useState(null);
   const [selectedPendingEvent, setSelectedPendingEvent] = useState(null);
-  const canApproveEvents = (user?.email || '').toLowerCase() === 'siya@hackinghub.co.za';
+  const canApproveEvents = (user?.email || '').toLowerCase() === 'siya@hackinghub.co.za' || role === 'community_manager';
 
   useEffect(() => {
     if (isMockSession) return;
@@ -2083,7 +2085,61 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
 
   // RENDER SECTIONS BASED ON ACTIVE TAB
   switch (activeTab) {
-    case 'dashboard':
+    case 'dashboard': {
+      // Admin Overview below is founder-only - churn rate, revenue per
+      // member, monthly revenue trend, none of which is a community_manager
+      // or mentor's business. They land here by default too (activeTab
+      // starts 'dashboard' for everyone), so this early return replaces the
+      // whole financial view with a light, role-appropriate one instead of
+      // just hiding a few tiles inside it.
+      if (!isFounder) {
+        const ROLE_LANDING = {
+          community_manager: {
+            greeting: 'Community Manager',
+            blurb: "You've got Matchmaker, Room Logs, Meetups & Events, Job Board, Cert Calendar, and Community Content - competitions, accountability, and what the community sees when they open the app.",
+            links: [
+              { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
+              { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
+              { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
+              { id: 'jobs', label: 'Job Board', icon: Briefcase },
+              { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
+              { id: 'community-content', label: 'Community Content', icon: Megaphone },
+            ],
+          },
+          mentor: {
+            greeting: 'Mentor',
+            blurb: "You've got Roadmaps and Cert Calendar - reviewing progress, approving Projects submissions, and marking exam results.",
+            links: [
+              { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
+              { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
+            ],
+          },
+        }[role] || { greeting: 'there', blurb: '', links: [] };
+
+        return (
+          <div>
+            <div style={{ marginBottom: '32px' }}>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome, {ROLE_LANDING.greeting}</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>{ROLE_LANDING.blurb}</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+              {ROLE_LANDING.links.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveTab(id)}
+                  className="glass-card hover-glow"
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '20px', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', background: 'rgba(var(--overlay-rgb), 0.02)' }}
+                >
+                  <Icon size={20} color="var(--accent-cyan)" />
+                  <span style={{ fontWeight: 600 }}>{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div>
           <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
@@ -2505,6 +2561,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
           </div>
         </div>
       );
+    }
 
     case 'members': {
       // Extracted so the exact same card renders both in the flat grid
@@ -4101,7 +4158,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
               Events members added themselves via the Events tab. Only visible to their submitter until approved.
-              {!canApproveEvents && ' Only siya@hackinghub.co.za can approve these.'}
+              {!canApproveEvents && ' Only siya@hackinghub.co.za or a Community Manager can approve these.'}
             </p>
             {approveEventError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>{approveEventError}</p>}
             {isMockSession ? (
@@ -4158,7 +4215,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                       <button
                         className="btn btn-primary"
                         disabled={!canApproveEvents || approvingEventId === ev.id}
-                        title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za can approve events'}
+                        title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za or a Community Manager can approve events'}
                         onClick={() => handleApproveEvent(ev.id)}
                         style={{ fontSize: '0.8rem', padding: '8px 14px' }}
                       >
@@ -4258,7 +4315,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                   <button
                     className="btn btn-primary"
                     disabled={!canApproveEvents || approvingEventId === selectedPendingEvent.id}
-                    title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za can approve events'}
+                    title={canApproveEvents ? undefined : 'Only siya@hackinghub.co.za or a Community Manager can approve events'}
                     onClick={async () => {
                       await handleApproveEvent(selectedPendingEvent.id);
                       setSelectedPendingEvent(null);
@@ -5130,24 +5187,24 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               </form>
             </div>
 
-            {/* Member Cert Countdown Cards */}
+            {/* Member Cert Countdown Cards - upcoming/pending and passed are
+                two real, separate sections now rather than one list with
+                passed entries just sorted to the bottom of it. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h3>Upcoming Member Exams</h3>
-                <span className="badge badge-success">{certs.length} Members Scheduled</span>
+                <span className="badge badge-success">{certs.filter((c) => c.result !== 'Passed').length} Members Scheduled</span>
               </div>
 
               {certsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{certsError}</p>}
               {loadingCerts && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>Loading cert calendar...</p>}
-
-              {/* Passed exams sink to the bottom - this section is about what's
-                  still upcoming, so a resolved cert shouldn't compete for the
-                  same visual priority as one still awaiting a result. */}
+              {!loadingCerts && certs.filter((c) => c.result !== 'Passed').length === 0 && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No upcoming or pending exams right now.</p>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                {[...certs]
-                  .sort((a, b) => (a.result === 'Passed' ? 1 : 0) - (b.result === 'Passed' ? 1 : 0))
-                  .map((c) => {
+                {certs.filter((c) => c.result !== 'Passed').map((c) => {
                   const targetDate = new Date(c.date);
                   const today = new Date();
                   const diffTime = targetDate - today;
@@ -5244,6 +5301,86 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                   );
                 })}
               </div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3>Passed Certifications</h3>
+                <span className="badge badge-success">{certs.filter((c) => c.result === 'Passed').length} Passed</span>
+              </div>
+              {!loadingCerts && certs.filter((c) => c.result === 'Passed').length === 0 && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No passed certs logged yet.</p>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                {certs.filter((c) => c.result === 'Passed').map((c) => {
+                  if (editingCertId === c.id) {
+                    return (
+                      <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <input className="form-input" value={editCertForm.member} onChange={(e) => setEditCertForm({ ...editCertForm, member: e.target.value })} placeholder="Member name" />
+                        <input type="email" className="form-input" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })} placeholder="Member email (optional)" />
+                        <input className="form-input" value={editCertForm.cert} onChange={(e) => setEditCertForm({ ...editCertForm, cert: e.target.value })} placeholder="Certification" />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <input type="date" className="form-input" value={editCertForm.date} onChange={(e) => setEditCertForm({ ...editCertForm, date: e.target.value })} />
+                          <input className="form-input" value={editCertForm.cohort} onChange={(e) => setEditCertForm({ ...editCertForm, cohort: e.target.value })} placeholder="Cohort" />
+                        </div>
+                        <select className="form-input" value={editCertForm.result} onChange={(e) => setEditCertForm({ ...editCertForm, result: e.target.value })}>
+                          <option value="Pending">Pending</option>
+                          <option value="Passed">Passed</option>
+                          <option value="Failed">Failed</option>
+                        </select>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setEditingCertId(null)}>Cancel</button>
+                          <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSaveCertEdit(c)}>Save</button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedCert(c)}
+                      style={{
+                        padding: '20px',
+                        borderRadius: 'var(--border-radius-md)',
+                        background: 'rgba(var(--success-rgb), 0.04)',
+                        border: '1px solid var(--success)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                      className="hover-glow"
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="badge badge-success">Passed</span>
+                            <button onClick={(e) => { e.stopPropagation(); startEditCert(c); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }} aria-label="Edit entry">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteCert(c); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'flex' }} aria-label="Delete entry">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {c.cert} <Info size={14} color="var(--accent-cyan)" />
+                        </div>
+                      </div>
+                      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Passed:</span>
+                        <strong style={{ color: 'var(--success)' }}>{formatDate(c.date)}</strong>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
             </div>
           </div>
 

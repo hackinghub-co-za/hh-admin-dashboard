@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { ROADMAP_TRACKS, TEAM_MEMBERS, TRACK_COLORS, OTHER_GROUP_COLOR, TEAM_GROUP_COLOR, groupMembersByDomain } from '../lib/memberOptions';
+import { ROADMAP_TRACKS, TEAM_MEMBERS, TRACK_COLORS, TRACK_DESCRIPTIONS, OTHER_GROUP_COLOR, TEAM_GROUP_COLOR, groupMembersByDomain } from '../lib/memberOptions';
 
 function initialsFor(name) {
   return (name || '?')
@@ -134,7 +134,12 @@ export default function GroupedMemberDirectory({ members, getEmail, getName, get
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem' }}>{g.name}</span>
+                <span
+                  style={{ fontWeight: 700, fontSize: '1rem', borderBottom: TRACK_DESCRIPTIONS[g.name] ? '1px dotted var(--text-muted)' : 'none' }}
+                  title={TRACK_DESCRIPTIONS[g.name]}
+                >
+                  {g.name}
+                </span>
                 <span
                   style={{
                     fontFamily: 'var(--font-mono)',
