@@ -67,6 +67,13 @@ ALTER TABLE public.community_events
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Pending'
     CHECK (status IN ('Pending', 'Approved'));
 
+-- Optional seat cap - NULL (the default, and every event until the
+-- Hackathon below) means unlimited, same as every event behaved before this
+-- column existed. Set, rsvp_for_event() below enforces it server-side:
+-- first-to-RSVP fills the seats, the (capacity+1)th caller is rejected.
+ALTER TABLE public.community_events
+  ADD COLUMN IF NOT EXISTS capacity INTEGER CHECK (capacity IS NULL OR capacity > 0);
+
 -- Fixes up a table that already existed before 'Study Session' was added to
 -- the CREATE TABLE's inline CHECK above - a no-op on a fresh install where
 -- the constraint was already created correctly.
@@ -138,6 +145,12 @@ WHERE id = 6;
 -- re-run after real submissions exist.
 UPDATE public.community_events SET status = 'Approved' WHERE id = 6;
 
+-- The HH Hackathon ('Capture, Build, Ship') was added directly via SQL, not
+-- by the seed block above, so it's capped here by title instead - a no-op on
+-- a fresh install where that event doesn't exist yet. 25 seats, first come
+-- first served, per the founder.
+UPDATE public.community_events SET capacity = 25 WHERE title = 'HH Hackathon: Capture, Build, Ship';
+
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
 -- the first member-created event gets id 8, not a collision with 1-7.
 SELECT setval(pg_get_serial_sequence('public.community_events', 'id'), 7, true);
@@ -197,15 +210,36 @@ CREATE POLICY "admins manage event rsvps"
 -- Self-service RSVP, scoped to only the caller's own row, keyed off their
 -- verified sign-in email - never a client-supplied one. ON CONFLICT DO NOTHING
 -- makes re-RSVPing (e.g. a double click) a harmless no-op instead of an error.
+--
+-- Events with a capacity set (see the column above) are enforced here,
+-- server-side, not just in the UI - a member hitting this RPC directly can't
+-- take a 26th seat on a 25-cap event. Someone re-RSVPing to an event they're
+-- already in is always let through regardless of capacity, since they're not
+-- taking a new seat. LANGUAGE plpgsql (not the original sql) because the cap
+-- check needs a conditional before the insert.
 CREATE OR REPLACE FUNCTION public.rsvp_for_event(p_event_id INTEGER)
 RETURNS VOID
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_capacity INTEGER;
+  v_caller_email TEXT := lower(auth.jwt() ->> 'email');
+BEGIN
+  SELECT capacity INTO v_capacity FROM public.community_events WHERE id = p_event_id;
+
+  IF v_capacity IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM public.event_rsvps WHERE event_id = p_event_id AND email = v_caller_email)
+     AND (SELECT count(*) FROM public.event_rsvps WHERE event_id = p_event_id) >= v_capacity
+  THEN
+    RAISE EXCEPTION 'This event is full - all % seats are taken', v_capacity;
+  END IF;
+
   INSERT INTO public.event_rsvps (event_id, email)
-  VALUES (p_event_id, lower(auth.jwt() ->> 'email'))
+  VALUES (p_event_id, v_caller_email)
   ON CONFLICT (event_id, email) DO NOTHING;
+END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.rsvp_for_event(INTEGER) TO authenticated;

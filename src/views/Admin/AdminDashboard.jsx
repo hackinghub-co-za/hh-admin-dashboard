@@ -4130,8 +4130,13 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                     }}
                   >
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                         <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{ev.type}</span>
+                        {ev.capacity != null && (
+                          <span className="badge" style={{ fontSize: '0.65rem', background: 'rgba(var(--success-rgb), 0.15)', color: 'var(--success)', border: '1px solid rgba(var(--success-rgb), 0.2)' }} title="Capped, enforced server-side on rsvp_for_event()">
+                            Capped at {ev.capacity}
+                          </span>
+                        )}
                         <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{ev.title}</h4>
                       </div>
                       <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>

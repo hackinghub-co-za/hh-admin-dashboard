@@ -4775,6 +4775,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               const hasRsvped = hasRsvpedToEvent(e.id);
               const rsvpCount = rsvpCountForEvent(e);
               const rsvping = rsvpingEventId === e.id;
+              const isCapped = e.capacity != null;
+              const isFull = isCapped && rsvpCount !== null && rsvpCount >= e.capacity && !hasRsvped;
               return (
                 <div key={e.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
@@ -4786,10 +4788,28 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                         </span>
                       )}
                     </div>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                      <Users size={13} /> {rsvpCount === null ? '…' : rsvpCount} RSVPs
+                    <span
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: isFull ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: isCapped ? 600 : 400, whiteSpace: 'nowrap' }}
+                      title={isCapped ? `Capped at ${e.capacity} seats, first come first served` : undefined}
+                    >
+                      <Users size={13} /> {rsvpCount === null ? '…' : rsvpCount}{isCapped ? ` / ${e.capacity}` : ''} RSVPs
                     </span>
                   </div>
+                  {isCapped && (
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        padding: '6px 10px',
+                        borderRadius: 'var(--border-radius-sm, 6px)',
+                        background: isFull ? 'rgba(var(--danger-rgb), 0.1)' : 'rgba(var(--success-rgb), 0.1)',
+                        color: isFull ? 'var(--danger)' : 'var(--success)',
+                        border: `1px solid rgba(${isFull ? 'var(--danger-rgb)' : 'var(--success-rgb)'}, 0.25)`,
+                      }}
+                    >
+                      {isFull ? `Full — all ${e.capacity} seats taken` : `Only ${e.capacity} seats — first come, first served`}
+                    </div>
+                  )}
                   <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{e.title}</h4>
                   <ExpandableText text={e.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }} />
                   <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
@@ -4813,16 +4833,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <div style={{ position: 'relative', marginTop: '4px' }}>
                     <button
                       onClick={() => handleEventRsvp(e.id)}
-                      disabled={rsvping}
-                      title={hasRsvped ? "Click to remove your RSVP" : undefined}
+                      disabled={rsvping || isFull}
+                      title={hasRsvped ? "Click to remove your RSVP" : isFull ? `All ${e.capacity} seats are taken` : undefined}
                       className={`btn ${hasRsvped ? 'btn-secondary' : 'btn-primary'}`}
                       style={{ justifyContent: 'center', width: '100%' }}
                     >
                       {rsvping
                         ? (hasRsvped ? 'Leaving...' : 'Joining...')
-                        : hasRsvped
-                          ? <><CheckCircle2 size={14} /> You're There</>
-                          : <><Sparkles size={14} /> Yes I'm There</>}
+                        : isFull
+                          ? 'Event Full'
+                          : hasRsvped
+                            ? <><CheckCircle2 size={14} /> You're There</>
+                            : <><Sparkles size={14} /> Yes I'm There</>}
                     </button>
                     {burstingEventId === e.id && (
                       <div style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>

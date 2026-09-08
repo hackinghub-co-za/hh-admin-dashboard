@@ -12,7 +12,7 @@ import { supabase } from './supabase';
 export async function fetchCommunityEvents() {
   const { data, error } = await supabase
     .from('community_events')
-    .select('id, type, title, description, date, time, location, link, created_by, status')
+    .select('id, type, title, description, date, time, location, link, created_by, status, capacity')
     .order('date', { ascending: true });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -26,6 +26,7 @@ export async function fetchCommunityEvents() {
     link: row.link || '',
     createdBy: row.created_by || '',
     status: row.status,
+    capacity: row.capacity, // null = unlimited seats
   }));
 }
 
