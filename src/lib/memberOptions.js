@@ -41,7 +41,7 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Ope
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
 // own self-described directory badge); this one is coach-assigned.
 export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
-export const ROADMAP_PHASES = ['Core Foundations', 'Specialization', 'Projects'];
+export const ROADMAP_PHASES = ['Core Foundations', 'Specialization', 'Projects', 'Advanced'];
 
 // A member only sees their Projects section once they've completed this
 // share of their own track's Specialization catalog (PROJECT_CATALOGS
@@ -50,6 +50,14 @@ export const ROADMAP_PHASES = ['Core Foundations', 'Specialization', 'Projects']
 // catalogs vary in length by track (4 to 10 items) where a fixed count
 // wouldn't scale fairly across tracks.
 export const PROJECTS_UNLOCK_PERCENT = 50;
+
+// A member only sees Advanced once their own track's Projects checklist
+// (PROJECT_CATALOGS below) is fully done - real project work is the proof
+// of readiness for Tier 2/senior content, not just a percentage past a
+// threshold the way Projects itself unlocks. 100, not 50, deliberately -
+// every track's PROJECT_CATALOGS today is only 2 items, so "fully done"
+// is a real, reachable bar, not a token gate.
+export const ADVANCED_UNLOCK_PERCENT = 100;
 
 // The standard Core Foundations "Certifications" catalog every assigned
 // roadmap draws from, regardless of track - a member needs at least
@@ -136,6 +144,13 @@ export const ROADMAP_ITEM_LINKS = {
   // it doesn't map cleanly to one specific real-world certification body
   // (POPIA and GDPR are two different laws with different practitioner
   // programs), so a link here would be a guess rather than a real one.
+  //
+  // SOC Advanced (ADVANCED_CATALOGS.SOC below) - SC-500 already has an
+  // entry above (Cloud Security specialization), reused as-is since it's
+  // the exact same exam either way.
+  'CompTIA SecurityX': 'https://www.comptia.org/en/certifications/securityx/',
+  'AWS Certified Security – Specialty': 'https://aws.amazon.com/certification/certified-security-specialty/',
+  'THM SOC Level 2': 'https://tryhackme.com/path/outline/soclevel2',
 };
 
 // Short "what is this" line shown under every roadmap item's title (Core
@@ -646,6 +661,36 @@ export const PROJECT_CATALOGS = {
     items: [
       { title: 'Mock Risk Assessment', defaultDetail: 'Perform a risk assessment for a hypothetical org using a real framework (NIST RMF or ISO 27001), document findings' },
       { title: 'Compliance Gap Analysis', defaultDetail: "Assess a hypothetical company's posture against a real regulation (POPIA or GDPR), document gaps and remediation" },
+    ],
+  },
+};
+
+// The Advanced phase - for members already working the job, not trying to
+// land it. Only SOC has a catalog today (the one track with an obvious,
+// well-known Tier 1 -> Tier 2/senior progression to draw on); the other
+// tracks would each need their own genuinely-researched "what comes after
+// the first job" content, not a reskin of this one, so they're deliberately
+// left undefined for now rather than guessed at.
+//
+// Unlike SPECIALIZATION_CATALOGS/PROJECT_CATALOGS above, items carry their
+// own `category` instead of one shared category on the catalog - Advanced
+// content spans genuinely different themes (certs, hands-on detection work,
+// automation, leadership) that read better as separate groups on the
+// roadmap than one flat list.
+export const ADVANCED_CATALOGS = {
+  SOC: {
+    items: [
+      { category: 'Tier 2 Certifications', title: 'CompTIA SecurityX', defaultDetail: '' },
+      { category: 'Tier 2 Certifications', title: 'SC-500', defaultDetail: '' },
+      { category: 'Tier 2 Certifications', title: 'AWS Certified Security – Specialty', defaultDetail: '' },
+      { category: 'Detection & Threat Hunting', title: 'Write & Tune 3 Detection Rules', defaultDetail: 'Document the logic and false-positive rate for each, at your own SOC' },
+      { category: 'Detection & Threat Hunting', title: 'Run a Real Threat Hunt', defaultDetail: 'Pick one MITRE ATT&CK technique, hunt for it in your environment, write up what you found' },
+      { category: 'Detection & Threat Hunting', title: 'THM SOC Level 2', defaultDetail: '' },
+      { category: 'Automation & AI Workflows', title: 'Automate a Real SOC Workflow', defaultDetail: 'AI-assisted or scripted - document the manual time it replaces' },
+      { category: 'Automation & AI Workflows', title: 'Build a SOAR Playbook', defaultDetail: 'If your SOC has the tooling for it' },
+      { category: 'Incident Leadership', title: 'Own a Real Incident End-to-End', defaultDetail: 'Sanitized write-up: detection, containment, eradication, lessons learned' },
+      { category: 'Incident Leadership', title: 'Mentor a Tier 1 Analyst', defaultDetail: 'Through one real triage case this quarter' },
+      { category: 'Incident Leadership', title: 'Present Findings to a Stakeholder', defaultDetail: '' },
     ],
   },
 };

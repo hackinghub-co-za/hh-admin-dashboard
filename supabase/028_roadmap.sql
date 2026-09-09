@@ -40,7 +40,7 @@ UPDATE public.member_profiles SET specialty = 'SOC' WHERE specialty = 'Blue Team
 CREATE TABLE IF NOT EXISTS public.roadmap_items (
   id BIGSERIAL PRIMARY KEY,
   member_email TEXT NOT NULL,
-  phase TEXT NOT NULL CHECK (phase IN ('Core Foundations', 'Specialization', 'Projects')),
+  phase TEXT NOT NULL CHECK (phase IN ('Core Foundations', 'Specialization', 'Projects', 'Advanced')),
   category TEXT NOT NULL,
   title TEXT NOT NULL,
   detail TEXT,
@@ -62,9 +62,14 @@ ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS due_date DATE;
 -- Standard Projects" insert from the admin Roadmaps tab would fail outright
 -- with a constraint violation - PROJECT_CATALOGS/ROADMAP_PHASES in
 -- src/lib/memberOptions.js already assume 'Projects' is a valid phase.
+--
+-- Widened again (2026-09) to add 'Advanced' - the Tier 1 -> Tier 2/senior
+-- phase for members already working the job (ADVANCED_CATALOGS in
+-- memberOptions.js, SOC only for now), unlocked once a member's own
+-- track's Projects checklist is fully done (ADVANCED_UNLOCK_PERCENT).
 ALTER TABLE public.roadmap_items DROP CONSTRAINT IF EXISTS roadmap_items_phase_check;
 ALTER TABLE public.roadmap_items ADD CONSTRAINT roadmap_items_phase_check
-  CHECK (phase IN ('Core Foundations', 'Specialization', 'Projects'));
+  CHECK (phase IN ('Core Foundations', 'Specialization', 'Projects', 'Advanced'));
 
 -- Proof-of-work fields for the Projects phase specifically (unused/NULL for
 -- Core Foundations and Specialization items, which stay pure self-toggle).
@@ -310,10 +315,37 @@ GRANT EXECUTE ON FUNCTION public.unsubscribe_from_roadmap_reminders(TEXT) TO ano
 --     already sent for". roadmap_reminder_sent_at only needs to block a
 --     second send on that same day (e.g. the cron firing twice by
 --     accident), not track cadence itself.
---   - needs_disengagement_alert flags day 21 specifically, for both
---     populations (21 is also a multiple of 3, so a newcomer hits it too) -
---     the point in either cadence where "just remind them" stops being
---     enough and a human should know.
+--   - needs_disengagement_alert flags day 21 of inactivity specifically,
+--     for both populations - the point in either cadence where "just
+--     remind them" stops being enough and a human should know. Unchanged
+--     below - still keyed off days_since_touch, not the newcomer send
+--     cadence, since it's about genuine inactivity, not a calendar date.
+--
+-- Widened 2026-09 (the "Gemma Check-Ins" pitch) so a newcomer's cadence is
+-- no longer purely reactive: today, an actively-engaged newcomer who
+-- touches their roadmap daily never triggers day 3/6/9...30 at all, since
+-- those checkpoints were measured from days_since_touch (time since their
+-- LAST roadmap edit), which keeps resetting. Newcomers now hit those same
+-- checkpoints on a fixed calendar cadence from their join date instead -
+-- days_since_touch is still computed and returned (is_on_track below reads
+-- it) but no longer gates *whether* a newcomer gets emailed, only *what*
+-- Gemma writes once she does. Everyone past their first 30 days is
+-- completely unchanged - still purely reactive, day 7/14/21/30 of genuine
+-- inactivity, nothing else.
+--
+-- The join below is now LEFT, not INNER - a brand new member with zero
+-- roadmap_items yet (no coach setup, or assign_my_core_foundations() hasn't
+-- fired because onboarding isn't finished) used to be invisible to this
+-- function entirely; now they're included with days_since_touch NULL, and
+-- is_on_track treats NULL as "on track" (nothing to nudge them about yet),
+-- so day 3 still reaches them with a welcome-flavored tip rather than a
+-- confusing "you've gone quiet" message about a roadmap that doesn't exist.
+--
+-- DROP first, not just CREATE OR REPLACE - the return row type changed
+-- (is_on_track and days_since_joined added), and Postgres refuses to
+-- CREATE OR REPLACE a function whose OUT-parameter row shape differs from
+-- what's already there.
+DROP FUNCTION IF EXISTS public.get_stale_roadmap_members_for_reminder();
 CREATE OR REPLACE FUNCTION public.get_stale_roadmap_members_for_reminder()
 RETURNS TABLE (
   email TEXT,
@@ -321,6 +353,8 @@ RETURNS TABLE (
   job_readiness TEXT,
   days_since_touch INT,
   is_newcomer BOOLEAN,
+  is_on_track BOOLEAN,
+  days_since_joined INT,
   needs_disengagement_alert BOOLEAN
 )
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -341,10 +375,11 @@ BEGIN
         COALESCE(mp.manual_start_date, mp.onboarded_at::date) IS NOT NULL
         AND COALESCE(mp.manual_start_date, mp.onboarded_at::date) > (timezone('utc'::text, now())::date - 30)
       ) AS is_newcomer,
+      (timezone('utc'::text, now())::date - COALESCE(mp.manual_start_date, mp.onboarded_at::date))::INT AS days_since_joined,
       mp.roadmap_reminder_sent_at,
       mp.roadmap_disengagement_alert_sent_at
     FROM public.member_profiles mp
-    JOIN public.roadmap_items ri ON ri.member_email = mp.email
+    LEFT JOIN public.roadmap_items ri ON ri.member_email = mp.email
     WHERE mp.status IN ('Active', 'Active (Permanent)')
       AND mp.roadmap_reminder_opted_out = false
     GROUP BY mp.email, mp.full_name, mp.job_readiness, mp.manual_start_date, mp.onboarded_at,
@@ -356,17 +391,17 @@ BEGIN
     t.job_readiness,
     t.days_since_touch,
     t.is_newcomer,
+    (t.days_since_touch IS NULL OR t.days_since_touch <= 2) AS is_on_track,
+    t.days_since_joined,
     (
       t.days_since_touch = 21
       AND (t.roadmap_disengagement_alert_sent_at IS NULL OR t.roadmap_disengagement_alert_sent_at::date < timezone('utc'::text, now())::date)
     ) AS needs_disengagement_alert
   FROM touches t
   WHERE (t.roadmap_reminder_sent_at IS NULL OR t.roadmap_reminder_sent_at::date < timezone('utc'::text, now())::date)
-    AND t.days_since_touch > 0
-    AND t.days_since_touch <= 30
     AND (
-      (t.is_newcomer AND t.days_since_touch % 3 = 0)
-      OR (NOT t.is_newcomer AND t.days_since_touch IN (7, 14, 21, 30))
+      (t.is_newcomer AND t.days_since_joined > 0 AND t.days_since_joined <= 30 AND t.days_since_joined % 3 = 0)
+      OR (NOT t.is_newcomer AND t.days_since_touch > 0 AND t.days_since_touch <= 30 AND t.days_since_touch IN (7, 14, 21, 30))
     );
 END;
 $$;

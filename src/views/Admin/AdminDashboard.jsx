@@ -14,7 +14,7 @@ import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 // payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
 // the real file has been removed and purged from git history entirely.
 import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -368,6 +368,51 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       setRoadmapItemsError(friendlyErrorMessage(err));
     } finally {
       setAddingStandardProjects(false);
+    }
+  };
+
+  // Same quick-fill idea as the three above, for ADVANCED_CATALOGS - but
+  // unlike those, an Advanced catalog's items each carry their own
+  // `category` (Tier 2 Certifications, Detection & Threat Hunting, etc.)
+  // rather than one shared category for the whole catalog, since Advanced
+  // content spans genuinely different themes. So "already has it" and the
+  // new item's category both key off the item itself, not one catalog-level
+  // category. Same "not gated on the member-facing unlock" reasoning as
+  // Add Standard Projects above - curating ahead of time is a different
+  // action from what the member actually sees.
+  const [addingStandardAdvanced, setAddingStandardAdvanced] = useState(false);
+
+  const handleAddStandardAdvanced = async (catalog) => {
+    if (!roadmapMemberEmail || !catalog) return;
+    const existingKeys = new Set(roadmapItems.filter((i) => i.phase === 'Advanced').map((i) => `${i.category}::${i.title}`));
+    const missing = catalog.items.filter((c) => !existingKeys.has(`${c.category}::${c.title}`));
+    if (missing.length === 0) return;
+
+    setAddingStandardAdvanced(true);
+    let nextSortOrder = Math.max(0, ...roadmapItems.map((i) => i.sortOrder), 0) + 10;
+    const newItems = missing.map((c) => {
+      const item = { phase: 'Advanced', category: c.category, title: c.title, detail: c.defaultDetail };
+      const sortOrder = nextSortOrder;
+      nextSortOrder += 10;
+      return { ...item, sortOrder };
+    });
+
+    if (isMockSession) {
+      applyMockRoadmapItems(roadmapMemberEmail, [...roadmapItems, ...newItems.map((item) => ({ id: Date.now() + item.sortOrder, memberEmail: roadmapMemberEmail, completed: false, ...item }))]);
+      setAddingStandardAdvanced(false);
+      return;
+    }
+
+    try {
+      const created = [];
+      for (const item of newItems) {
+        created.push(await addRoadmapItem({ memberEmail: roadmapMemberEmail, ...item }));
+      }
+      setRoadmapItems([...roadmapItems, ...created]);
+    } catch (err) {
+      setRoadmapItemsError(friendlyErrorMessage(err));
+    } finally {
+      setAddingStandardAdvanced(false);
     }
   };
 
@@ -3143,6 +3188,13 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       const missingProjectsCount = projectsCatalog
         ? projectsCatalog.items.length - roadmapItems.filter((i) => i.phase === 'Projects' && i.category === projectsCatalog.category).length
         : 0;
+      // ADVANCED_CATALOGS items each carry their own category (see
+      // handleAddStandardAdvanced above), so "already has it" is keyed on
+      // the category+title pair, not title alone within one shared category.
+      const advancedCatalog = roadmapSelected?.profile?.roadmapTrack ? ADVANCED_CATALOGS[roadmapSelected.profile.roadmapTrack] : null;
+      const missingAdvancedCount = advancedCatalog
+        ? advancedCatalog.items.filter((c) => !roadmapItems.some((i) => i.phase === 'Advanced' && i.category === c.category && i.title === c.title)).length
+        : 0;
 
       // Every active member who's hit the Specialization completion count but
       // hasn't been approved yet, across the whole roster - not just whoever
@@ -3521,6 +3573,16 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                           <Milestone size={16} /> {addingStandardProjects ? 'Adding...' : `Add Standard Projects (${missingProjectsCount} missing)`}
                         </button>
                       )}
+                      {advancedCatalog && missingAdvancedCount > 0 && (
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => handleAddStandardAdvanced(advancedCatalog)}
+                          disabled={addingStandardAdvanced}
+                          title="Stays locked for the member until their Projects checklist is fully done"
+                        >
+                          <Milestone size={16} /> {addingStandardAdvanced ? 'Adding...' : `Add Standard Advanced (${missingAdvancedCount} missing)`}
+                        </button>
+                      )}
                     </div>
                   )}
                 </>
@@ -3853,6 +3915,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                       <div style={{ fontSize: '0.85rem' }}>
                         <strong>{nameForLogEmail(log.memberEmail)}</strong>
                         <span style={{ color: 'var(--text-muted)' }}> · {formatDate(log.logDate)} · {log.roomCount} room{log.roomCount === 1 ? '' : 's'}{log.adminNote ? ` · "${log.adminNote}"` : ''}</span>
+                        {/* Now that admins and Community Managers both review
+                            room logs (067_permission_scopes.sql), it's worth
+                            knowing which one actually did - reviewed_by has
+                            been captured server-side since this table was
+                            built, just never surfaced here until now. */}
+                        {log.reviewedBy && (
+                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}> · reviewed by {nameForLogEmail(log.reviewedBy)}</span>
+                        )}
                       </div>
                       <span className={`badge ${statusColor[log.status]}`} style={{ fontSize: '0.65rem' }}>{log.status}</span>
                     </div>

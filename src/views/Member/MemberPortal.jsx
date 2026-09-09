@@ -49,7 +49,7 @@ import {
 import { fetchTodaysRecommendedRoom } from '../../lib/recommendedRoomData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECTS_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -3289,9 +3289,25 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       const specializationPercent = specializationCatalogTotal > 0 ? Math.round((specializationCatalogDone / specializationCatalogTotal) * 100) : 0;
       const projectsUnlocked = specializationCatalogTotal > 0 && specializationPercent >= PROJECTS_UNLOCK_PERCENT;
 
-      const visiblePhaseGroups = roadmapPhaseGroups.filter((g) => (g.phase !== 'Specialization' || specializationUnlocked) && (g.phase !== 'Projects' || projectsUnlocked));
+      // Advanced unlocks off actual Projects completion, not another
+      // Specialization-style percentage of Specialization - real project
+      // work is the proof of readiness for Tier 1 -> Tier 2/senior content,
+      // so the bar is the member's own track's Projects checklist itself.
+      const projectsCatalogForTrack = PROJECT_CATALOGS[roadmapTrack] || null;
+      const projectsCatalogTitles = new Set((projectsCatalogForTrack?.items || []).map((c) => c.title));
+      const projectsCatalogTotal = projectsCatalogForTrack?.items.length || 0;
+      const projectsCatalogDone = roadmapItems.filter((i) => i.phase === 'Projects' && projectsCatalogTitles.has(i.title) && i.completed).length;
+      const projectsCompletePercent = projectsCatalogTotal > 0 ? Math.round((projectsCatalogDone / projectsCatalogTotal) * 100) : 0;
+      const advancedUnlocked = projectsCatalogTotal > 0 && projectsCompletePercent >= ADVANCED_UNLOCK_PERCENT;
+
+      const visiblePhaseGroups = roadmapPhaseGroups.filter((g) =>
+        (g.phase !== 'Specialization' || specializationUnlocked)
+        && (g.phase !== 'Projects' || projectsUnlocked)
+        && (g.phase !== 'Advanced' || advancedUnlocked)
+      );
       const hasLockedSpecialization = !specializationUnlocked && roadmapPhaseGroups.some((g) => g.phase === 'Specialization');
       const hasLockedProjects = !projectsUnlocked && roadmapPhaseGroups.some((g) => g.phase === 'Projects');
+      const hasLockedAdvanced = !advancedUnlocked && roadmapPhaseGroups.some((g) => g.phase === 'Advanced');
 
       return (
         <div>
@@ -3579,7 +3595,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       </>
                                     )}
                                   </div>
-                                ) : (g.phase === 'Core Foundations' || g.phase === 'Specialization') ? (
+                                ) : (g.phase === 'Core Foundations' || g.phase === 'Specialization' || g.phase === 'Advanced') ? (
                                   <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                                     <input
                                       type="text"
@@ -3695,9 +3711,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                   </div>
                                 ) : (
                                   // Unreached today - every real phase (Core Foundations,
-                                  // Specialization, Projects) is handled by one of the
-                                  // three branches above. Kept only as a safe fallback if
-                                  // ROADMAP_PHASES ever grows a fourth phase.
+                                  // Specialization, Projects, Advanced) is handled by one
+                                  // of the three branches above. Kept only as a safe
+                                  // fallback if ROADMAP_PHASES ever grows another phase.
                                   <div onClick={(e) => e.stopPropagation()}>
                                     {item.detail && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.detail}</div>}
                                   </div>
@@ -3738,6 +3754,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <p style={{ color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Projects is locked</p>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                     Complete {PROJECTS_UNLOCK_PERCENT}% of your Specialization checklist to unlock — you're at {specializationPercent}% ({specializationCatalogDone}/{specializationCatalogTotal}).
+                  </p>
+                </div>
+              )}
+
+              {hasLockedAdvanced && (
+                <div style={{ textAlign: 'center', padding: '32px 24px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px dashed var(--border-color)' }}>
+                  <Lock size={28} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
+                  <p style={{ color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Advanced is locked</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Complete your Projects checklist to unlock — you're at {projectsCompletePercent}% ({projectsCatalogDone}/{projectsCatalogTotal}).
                   </p>
                 </div>
               )}

@@ -1,4 +1,4 @@
-// Hacking Hub Admin Dashboard - Roadmap "Gone Quiet" Email Reminder
+// Hacking Hub Admin Dashboard - Roadmap Reminder + Newcomer Check-In Email
 //
 // Deploy with: supabase functions deploy roadmap-reminder-email --no-verify-jwt
 // Requires these secrets set first:
@@ -17,13 +17,26 @@
 // pattern gemma-chat/index.ts uses); this function's only job is deciding
 // who qualifies and sending what she wrote.
 //
-// Cadence (founder-specified, 2026-08) - fully computed by the
+// Cadence (founder-specified, 2026-08, widened 2026-09 - the "Gemma
+// Check-Ins" pitch) - fully computed by the
 // get_stale_roadmap_members_for_reminder() database function, not this
-// file: a newcomer (first 30 days) gets checked in every 3 days; everyone
-// else gets exactly 4 touches, at day 7, 14, 21, and 30. Day 21 also
-// triggers a separate, plain-text disengagement alert to
-// ADMIN_ALERT_EMAIL - a human should know before a member quietly
-// disappears, not just the member.
+// file:
+//   - A newcomer (first 30 days) is emailed every 3 days, day 3 through 30,
+//     on a fixed calendar cadence from their join date - active or not.
+//     What Gemma writes branches on member.is_on_track: genuinely on track
+//     gets a real tip about one portal feature they likely haven't found
+//     yet (buildTipPrompt, NEWCOMER_TIPS below); actually gone quiet gets
+//     the same gentle nudge everyone else can get (buildReminderPrompt).
+//     One send per newcomer per checkpoint, always - never both.
+//   - Everyone past their first 30 days is unchanged: exactly 4 touches, at
+//     day 7, 14, 21, and 30 of genuine inactivity (days_since_touch), never
+//     a calendar date, and always the nudge - there's no "tip" branch for
+//     this population since they aren't emailed at all unless they've
+//     actually gone quiet.
+//   - Day 21 of inactivity (for anyone, newcomer or not) also triggers a
+//     separate, plain-text disengagement alert to ADMIN_ALERT_EMAIL - a
+//     human should know before a member quietly disappears, not just the
+//     member.
 //
 // Triggered daily by pg_cron (see supabase/047_roadmap_reminder_cron.sql).
 // --no-verify-jwt is required because pg_cron's http call carries no
@@ -66,6 +79,40 @@ Hard rules:
 - Write in Gemma's own voice, not a generic corporate reminder.`;
 }
 
+// One real portal feature to spotlight per newcomer checkpoint (day 3, 6,
+// 9 ... 30) - a fixed rotation, not random, so the same member never gets
+// the same tip twice across their first month, and everyone hitting the
+// same checkpoint gets a deliberately-chosen feature rather than a random
+// grab-bag. Chosen for what's realistically usable this early - nothing
+// gated behind Specialization (e.g. the LinkedIn Playbook, which
+// 028_roadmap.sql's trigger deliberately pins there), since a newcomer in
+// their first month is almost always still in Core Foundations.
+const NEWCOMER_TIPS: Record<number, string> = {
+  3: 'the Resources tab, which has real study guides for Security+, CySA+, Terraform, and SC-200 built right into the portal',
+  6: "Matchmaker - opting in pairs them with another member for accountability or a joint project",
+  9: 'logging a completed TryHackMe room in Competitions - the only way real progress shows up on the leaderboard',
+  12: "the daily Recommended Room on their Dashboard - a fresh TryHackMe room suggestion every day, no digging required",
+  15: 'the Events tab - HH Meetups, Sunday Catchups, and other real community events they can RSVP to',
+  18: 'the Cert Calendar, for once they are ready to actually book an exam date',
+  21: 'Trivia sessions - live, competitive, and a fun break from solo studying',
+  24: "Gemma's own CV Review tool, whenever they're ready for feedback on a real CV",
+  27: "Gemma's mock Interview Prep tool - genuinely useful well before an actual interview is on the calendar",
+  30: 'the Job Board - real, curated roles for whenever they are ready to start applying',
+};
+
+function buildTipPrompt(fullName: string | null, daysSinceJoined: number): string {
+  const firstName = (fullName || '').trim().split(' ')[0] || 'there';
+  const tip = NEWCOMER_TIPS[daysSinceJoined] || NEWCOMER_TIPS[3];
+  return `You are Gemma, a friendly, sharp AI assistant embedded in the Hacking Hub member portal - a cybersecurity coaching community. Your voice is warm, a little playful, never corporate.
+
+Write a short check-in email body to ${firstName}, a member who joined Hacking Hub ${daysSinceJoined} days ago and is doing well so far - genuinely on track, not behind on anything. This is NOT a nudge or a reminder, they don't need one. Instead, warmly introduce them to one specific portal feature they may not have found yet: ${tip}.
+
+Hard rules:
+- Genuinely encouraging about their progress so far, then a natural, low-pressure introduction to the feature above - never a generic "check out the portal" line, name the actual feature.
+- Plain text, 3-4 sentences. No subject line, no "Hi ${firstName}," greeting, no sign-off - all three are added separately by the template.
+- Write in Gemma's own voice, not a generic corporate tip email.`;
+}
+
 async function callGemini(apiKey: string, prompt: string): Promise<string> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
@@ -101,13 +148,13 @@ async function sendEmail(resendApiKey: string, toEmail: string, subject: string,
   }
 }
 
-function reminderEmailHtml(firstName: string, body: string, unsubscribeUrl: string): string {
+function reminderEmailHtml(firstName: string, body: string, unsubscribeUrl: string, ctaLabel = 'Open your roadmap'): string {
   return `
     <p>Hi ${firstName},</p>
     <p>${body.replace(/\n/g, '<br>')}</p>
     <p>— Gemma</p>
     <p style="margin:22px 0;">
-      <a href="${PORTAL_URL}" style="display:inline-block;background:#17954f;color:#ffffff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:600;">Open your roadmap</a>
+      <a href="${PORTAL_URL}" style="display:inline-block;background:#17954f;color:#ffffff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:600;">${ctaLabel}</a>
     </p>
     <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">
     <p style="font-size:12px;color:#888;">Don't want these? <a href="${unsubscribeUrl}">Unsubscribe</a>.</p>
@@ -162,12 +209,23 @@ Deno.serve(async (req) => {
 
   for (const member of targets) {
     try {
-      const prompt = buildReminderPrompt(member.full_name, member.job_readiness, member.days_since_touch, member.is_newcomer);
+      // Only a newcomer can ever land here with is_on_track true - a
+      // non-newcomer only ever appears in the result set once
+      // days_since_touch has reached 7+, which is_on_track's own <= 2
+      // threshold can never satisfy. Written explicitly anyway (rather than
+      // relying on that never happening) so the tip-vs-nudge branch reads
+      // as the newcomer-only behavior it's meant to be.
+      const isTip = member.is_newcomer && member.is_on_track;
+      const prompt = isTip
+        ? buildTipPrompt(member.full_name, member.days_since_joined)
+        : buildReminderPrompt(member.full_name, member.job_readiness, member.days_since_touch, member.is_newcomer);
       const body = await callGemini(geminiKey, prompt);
       const firstName = (member.full_name || '').trim().split(' ')[0] || 'there';
       const unsubscribeUrl = `${supabaseUrl}/functions/v1/roadmap-reminder-unsubscribe?email=${encodeURIComponent(member.email)}`;
+      const subject = isTip ? 'A tip for your first month at Hacking Hub' : 'Your Hacking Hub roadmap - checking in';
+      const ctaLabel = isTip ? 'Open the portal' : 'Open your roadmap';
 
-      await sendEmail(resendKey, member.email, 'Your Hacking Hub roadmap - checking in', reminderEmailHtml(firstName, body, unsubscribeUrl));
+      await sendEmail(resendKey, member.email, subject, reminderEmailHtml(firstName, body, unsubscribeUrl, ctaLabel));
 
       const { error: markError } = await adminClient.rpc('mark_roadmap_reminder_sent', { p_email: member.email });
       if (markError) {
