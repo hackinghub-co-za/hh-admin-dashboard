@@ -14,7 +14,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",
+    "dompurify": "^3.4.15",
     "lucide-react": "^1.29.0",
+    "marked": "^18.0.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "recharts": "^3.10.1"

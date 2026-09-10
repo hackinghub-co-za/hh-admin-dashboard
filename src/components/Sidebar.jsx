@@ -28,6 +28,7 @@ import {
   CheckCheck,
   UserCog,
   ArrowLeftRight,
+  ShieldAlert,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
@@ -436,6 +437,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'events', label: 'Events', icon: CalendarDays },
         { id: 'jobs', label: 'Job Board', icon: Briefcase },
         { id: 'resources', label: 'Resources', icon: Library },
+        { id: 'breakdowns', label: 'Breakdowns', icon: ShieldAlert },
         { id: 'certs', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'competitions', label: 'Competitions', icon: Trophy },
         { id: 'reviews', label: 'Reviews', icon: Star },
