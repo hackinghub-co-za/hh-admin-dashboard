@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import ExamReadinessModal from '../../components/ExamReadinessModal';
@@ -20,6 +20,7 @@ import CompetitionRulesModal from '../../components/CompetitionRulesModal';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SecurityPanel from '../../components/SecurityPanel';
+import { isPasskeySupported } from '../../lib/passkeyData';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
 import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
@@ -1423,6 +1424,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // needed to react to it changing later.
   const [editingProfile, setEditingProfile] = useState(!!autoOpenProfileEdit);
   const [savingProfile, setSavingProfile] = useState(false);
+  // The Security (passkeys) tile on the Members tab: prominent at the top
+  // while the member has no passkey yet, then tucked to the bottom of the
+  // page once they've added one. `null` = SecurityPanel hasn't reported yet.
+  const [myPasskeyCount, setMyPasskeyCount] = useState(null);
+  const handlePasskeyCount = useCallback((n) => setMyPasskeyCount(n), []);
+  const promoteSecurityTile = isPasskeySupported() && !isMockSession && myPasskeyCount === 0;
   const [uploadingHeadshot, setUploadingHeadshot] = useState(false);
   const [headshotError, setHeadshotError] = useState(null);
   const emptyProfileForm = {
@@ -2961,9 +2968,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <SecurityPanel isMockSession={isMockSession} />
-          </div>
+          {promoteSecurityTile && (
+            <div style={{ marginBottom: '24px' }}>
+              <SecurityPanel isMockSession={isMockSession} onCountChange={handlePasskeyCount} />
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
             <div style={{ display: 'flex', gap: '8px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '10px 16px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', maxWidth: '360px', flexGrow: 1 }}>
@@ -3050,6 +3059,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {!loadingDirectory && filteredDirectory.length === 0 && (
             <p style={{ color: 'var(--text-muted)' }}>No members match that search.</p>
+          )}
+
+          {!promoteSecurityTile && (
+            <div style={{ marginTop: '40px' }}>
+              <SecurityPanel isMockSession={isMockSession} onCountChange={handlePasskeyCount} />
+            </div>
           )}
 
           {editingProfile && (

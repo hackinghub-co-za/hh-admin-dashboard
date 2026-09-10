@@ -17,7 +17,7 @@ import { formatDate } from '../lib/dateFormat';
 //
 // Enrolling needs a real, confirmed Supabase session, so under the Mock
 // Admin/Member dev bypass (no session) the panel just explains itself.
-export default function SecurityPanel({ isMockSession = false }) {
+export default function SecurityPanel({ isMockSession = false, onCountChange }) {
   const supported = isPasskeySupported();
 
   const [passkeys, setPasskeys] = useState([]);
@@ -46,6 +46,16 @@ export default function SecurityPanel({ isMockSession = false }) {
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
   }, [isMockSession, supported]);
+
+  // Report how many passkeys the member has, so a parent that positions this
+  // panel (the Members tab) can move it: prominent at the top while there
+  // are none, dropped to the bottom once one is added. Mock/unsupported
+  // report 0 immediately - the parent keeps those out of the top slot.
+  useEffect(() => {
+    if (isMockSession || !supported) { onCountChange?.(0); return; }
+    if (loading) return;
+    onCountChange?.(passkeys.length);
+  }, [passkeys, loading, isMockSession, supported, onCountChange]);
 
   const handleAdd = async () => {
     setAdding(true);
