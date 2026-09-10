@@ -9,4 +9,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// `experimental.passkey` opts into Supabase Auth's passkey (WebAuthn) API -
+// still beta as of 2026, so it's off unless explicitly requested. Powers the
+// "Sign in with a passkey" button (src/views/Login.jsx) and the passkey
+// manager in src/components/SecurityPanel.jsx. The Relying Party name/ID and
+// allowed origins are set in the Supabase dashboard (Auth -> Passkeys), not
+// here - the client never passes them. RP ID is effectively permanent once
+// members start enrolling: changing it invalidates every existing passkey.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    experimental: { passkey: true },
+  },
+});

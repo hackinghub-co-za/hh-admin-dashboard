@@ -19,6 +19,7 @@ import MatchmakerWheelModal from '../../components/MatchmakerWheelModal';
 import CompetitionRulesModal from '../../components/CompetitionRulesModal';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
+import SecurityPanel from '../../components/SecurityPanel';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
 import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
@@ -2958,6 +2959,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <Pencil size={16} /> Edit My Profile
               </button>
             </div>
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <SecurityPanel isMockSession={isMockSession} />
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>

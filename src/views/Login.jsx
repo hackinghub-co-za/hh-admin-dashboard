@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendlyErrorMessage } from '../lib/errorMessages';
-import { Key, AlertCircle, LogOut, Users, Award, Trophy, CalendarDays } from 'lucide-react';
+import { isPasskeySupported, isUserCancellation, signInWithPasskey } from '../lib/passkeyData';
+import { Key, KeyRound, AlertCircle, LogOut, Users, Award, Trophy, CalendarDays } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 
 const FEATURES = [
@@ -14,7 +15,26 @@ const FEATURES = [
 export default function Login({ onLoginSuccess, accessDeniedMessage }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const displayMessage = error || accessDeniedMessage;
+  const passkeysAvailable = isPasskeySupported();
+
+  // Passkey sign-in: no email typed, the authenticator picks the account.
+  // On success supabase-js dispatches SIGNED_IN and App.jsx's
+  // onAuthStateChange runs the same membership + role checks as a Google
+  // sign-in, so there's nothing to do here but trigger it and surface errors.
+  // A member only has a passkey to use here if they added one first from the
+  // Security panel after signing in with Google.
+  const handlePasskeyLogin = async () => {
+    setPasskeyLoading(true);
+    setError(null);
+    try {
+      await signInWithPasskey();
+    } catch (err) {
+      if (!isUserCancellation(err)) setError(friendlyErrorMessage(err));
+      setPasskeyLoading(false);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -169,11 +189,23 @@ export default function Login({ onLoginSuccess, accessDeniedMessage }) {
         <button
           className="btn btn-primary"
           onClick={handleGoogleLogin}
-          disabled={loading}
-          style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '1rem', marginBottom: '24px' }}
+          disabled={loading || passkeyLoading}
+          style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '1rem', marginBottom: passkeysAvailable ? '12px' : '24px' }}
         >
           {loading ? 'Connecting...' : 'Sign in with Google'}
         </button>
+
+        {passkeysAvailable && (
+          <button
+            className="btn btn-secondary"
+            onClick={handlePasskeyLogin}
+            disabled={loading || passkeyLoading}
+            style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '0.95rem', marginBottom: '24px' }}
+          >
+            <KeyRound size={16} />
+            {passkeyLoading ? 'Follow your browser’s prompt…' : 'Sign in with a passkey'}
+          </button>
+        )}
 
         {import.meta.env.DEV && (
           <>

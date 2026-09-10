@@ -29,9 +29,11 @@ import {
   UserCog,
   ArrowLeftRight,
   ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
+import SecurityPanel from './SecurityPanel';
 import { LATEST_RELEASE_VERSION } from '../data/releaseNotes';
 import { getStoredTheme, storeTheme, applyTheme } from '../lib/theme';
 import { fetchAdminNotifications, markNotificationRead, markAllNotificationsRead } from '../lib/adminNotificationsData';
@@ -371,6 +373,11 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     return shouldAutoOpen;
   });
 
+  // Passkey manager. Members reach this from their Members tab (the profile
+  // surface); staff have no equivalent page, so the same panel opens from
+  // here in a modal.
+  const [showSecurity, setShowSecurity] = useState(false);
+
   const openReleaseNotes = () => {
     setShowReleaseNotes(true);
     markReleaseSeen();
@@ -669,6 +676,18 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           />
         )}
 
+        {isStaff && (
+          <TooltipButton
+            id="security"
+            icon={ShieldCheck}
+            label="Security & Passkeys"
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onLeave={() => setHoveredId(null)}
+            onClick={() => setShowSecurity(true)}
+          />
+        )}
+
         <TooltipButton
           id="sign-out"
           icon={LogOut}
@@ -682,6 +701,17 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
       </div>
     </aside>
     {showReleaseNotes && <ReleaseNotesModal onClose={() => setShowReleaseNotes(false)} />}
+    {showSecurity && createPortal(
+      <div
+        style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+        onClick={() => setShowSecurity(false)}
+      >
+        <div style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+          <SecurityPanel isMockSession={isMockSession} />
+        </div>
+      </div>,
+      document.body
+    )}
     </>
   );
 }
