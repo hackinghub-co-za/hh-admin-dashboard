@@ -20,6 +20,7 @@ import CompetitionRulesModal from '../../components/CompetitionRulesModal';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SecurityPanel from '../../components/SecurityPanel';
+import SurveyBanner from '../../components/SurveyBanner';
 import { isPasskeySupported } from '../../lib/passkeyData';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
 import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
@@ -4171,6 +4172,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               )}
             </div>
           </div>
+
+          {/* Time-boxed survey nudge - renders nothing once its window closes
+              (src/components/SurveyBanner.jsx), then that file can be removed. */}
+          <SurveyBanner />
 
           {/* Getting Started checklist - shown until every onboarding step is
               done, then never again. Resumable across sessions (persisted via
