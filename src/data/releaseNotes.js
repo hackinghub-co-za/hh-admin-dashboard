@@ -6,6 +6,104 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.10',
+    date: '2026-09-10',
+    headline: 'Free Microsoft cert vouchers, passkey sign-in, and a weekly incident breakdown.',
+    intro: "Claim a free AZ-900 or SC-900 voucher through the new YES x Microsoft partnership, sign in with a passkey instead of Google, get a technical breakdown of a real security incident every Friday, and unlock an Advanced phase on your Roadmap once your Projects are done — plus accept-or-decline on Room Races and seat limits on events.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🎟️',
+            title: 'Free Microsoft certification vouchers for South Africans',
+            body: "The YES x Microsoft AI Skills Initiative gives out free AZ-900 and SC-900 exam vouchers (also DP-900, and AZ-500 at intermediate level). Work through the free Microsoft Learn modules, pass the practice exam at 70%+, and claim your voucher — 50,000 total, first registered, first served, so don't sit on it.",
+            where: 'Resources → Cert Prep',
+          },
+          {
+            icon: '🧗',
+            title: 'An Advanced phase on your Roadmap',
+            body: "Finish 100% of your Projects checklist and an Advanced section unlocks — Tier 2 certs and real on-the-job work like tuning detection rules, running a threat hunt, building a SOAR playbook, and owning an incident end to end. It's for members already working the job, not trying to land it. SOC track has the first full catalog.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '📊',
+            title: 'Log partial progress on Roadmap items',
+            body: "Core Foundations items with real ground to cover — like Immersive Labs collections — now take a \"9 / 20\" style progress note and a due date you set yourself, with a small progress dial next to the item so you can see how far along you are at a glance.",
+            where: 'My Roadmap',
+          },
+        ],
+      },
+      {
+        label: 'Breakdowns',
+        color: '#38bdf8',
+        items: [
+          {
+            icon: '🛡️',
+            title: 'A weekly incident breakdown',
+            body: "Every Friday, a technical breakdown of one real security incident — how the attack worked, what the SOC saw or missed, and a detection exercise to try. It lands in your inbox Friday morning, and every past edition is kept on the new Breakdowns tab. One-click unsubscribe from the email if you'd rather just read them in the portal.",
+            where: 'Breakdowns',
+          },
+        ],
+      },
+      {
+        label: 'Your Account',
+        color: '#22d3ee',
+        items: [
+          {
+            icon: '🔑',
+            title: 'Sign in with a passkey',
+            body: "Add a passkey — Face ID, Touch ID, Windows Hello, or a security key — and sign in without Google on that device. Google stays exactly as it was, as the way you add a passkey and the way back in if you lose a device. Add one from the Security section on the Members tab.",
+            where: 'Members → Security',
+          },
+        ],
+      },
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🤝',
+            title: 'Room Races now need both people to accept',
+            body: "Challenging someone to a Room Race no longer starts it immediately — they get to accept or decline first. Once they accept, a random room is assigned to you both at 8am, same as before. You can see who's still deciding on My Room Races.",
+            where: "Competitions → Room Races, or a member's profile",
+          },
+        ],
+      },
+      {
+        label: 'Community',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '🪑',
+            title: 'Some events now have limited seats',
+            body: "Events with a capacity show a live count like \"12 / 25 RSVPs\" and a \"first come, first served\" note. Once the seats are full, RSVPs close until someone drops out. Events with no cap are unchanged.",
+            where: 'Events',
+          },
+          {
+            icon: '🖼️',
+            title: 'Recent Wins show real headshots',
+            body: "The Dashboard's Recent Wins feed now shows the member's actual photo next to what they achieved, instead of a coloured dot.",
+            where: 'Dashboard → Recent Wins',
+          },
+        ],
+      },
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '💼',
+            title: 'The LinkedIn plan now unlocks with Specialization',
+            body: "Your weekly LinkedIn posting plan and the \"Post once a week\" Roadmap item now live in the Specialization phase, so they appear once you've unlocked Specialization and are tailored to your assigned track. The weekly reminder email follows the same rule.",
+            where: 'My Roadmap, or Resources → LinkedIn Strategy',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.06',
     date: '2026-09-06',
     headline: 'Live trivia, project proof, and rating presentations.',
