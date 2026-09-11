@@ -6009,15 +6009,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     (a, b) => b.rooms - a.rooms || b.daysLogged - a.daysLogged || a.member.localeCompare(b.member)
                   );
                   const prizeByKey = computeCompetitionPrizes(sorted);
+                  // Standard "1224" competition ranking: rows tied on rooms (the
+                  // real ranking metric) share one rank number instead of the
+                  // sequential row position - the days-logged/name tiebreak above
+                  // is a stable sort order only, it was never meant to imply a
+                  // real placement difference between two members with the exact
+                  // same rooms completed. Without this, two people tied for 1st
+                  // (and literally splitting the same prize money below) used to
+                  // show as #1 gold / #2 silver, which read as a real ranking
+                  // difference that didn't exist.
+                  let rank = 0;
                   return sorted.map((row, i) => {
-                    const medal = i === 0
+                    if (i === 0 || row.rooms !== sorted[i - 1].rooms) rank = i + 1;
+                    const prize = prizeByKey[row.email || row.member];
+                    // Medal color follows whether this row actually won a prize
+                    // (rank alone isn't enough - a member with 0 rooms should
+                    // never get a trophy just for happening to sit in row 2 of a
+                    // mostly-empty leaderboard), and always matches the prize
+                    // group's shared rank so tied winners get the same medal.
+                    const medal = !prize
+                      ? null
+                      : rank === 1
                       ? { bg: 'var(--medal-gold-bg)', color: 'var(--medal-gold)' }
-                      : i === 1
+                      : rank === 2
                       ? { bg: 'var(--medal-silver-bg)', color: 'var(--medal-silver)' }
-                      : i === 2
+                      : rank === 3
                       ? { bg: 'var(--medal-bronze-bg)', color: 'var(--medal-bronze)' }
                       : null;
-                    const prize = prizeByKey[row.email || row.member];
                     const directoryMatch = row.email ? directory.find((m) => m.email.toLowerCase() === row.email.toLowerCase()) : null;
                     return (
                       <tr
@@ -6028,10 +6046,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                         <td style={{ padding: '14px 12px' }}>
                           {medal ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: medal.color, fontWeight: 700 }}>
-                              <Trophy size={15} /> #{i + 1}
+                              <Trophy size={15} /> #{rank}
                             </span>
                           ) : (
-                            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{i + 1}</span>
+                            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>#{rank}</span>
                           )}
                         </td>
                         <td style={{ padding: '14px 12px', fontWeight: 600 }}>
