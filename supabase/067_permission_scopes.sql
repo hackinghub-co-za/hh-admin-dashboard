@@ -165,13 +165,27 @@ BEGIN
     RAISE EXCEPTION 'Room log not found.';
   END IF;
 
+  -- Reviewing is meant to happen exactly once per log - the admin UI pulls
+  -- Approve/Reject the moment a log leaves Pending. But both admins and
+  -- Community Managers can review (widened above), so two reviewers can
+  -- have the same Pending log open at once; without this guard, both
+  -- clicking Approve would each run the credit below, double-counting the
+  -- member's rooms_completed/days_logged. Scoping the UPDATE to
+  -- status = 'Pending' and checking FOUND makes this atomic under real
+  -- concurrency - Postgres serializes the two UPDATEs on the same row, and
+  -- whichever runs second sees the already-changed status and matches zero
+  -- rows.
   UPDATE public.daily_room_logs
   SET status = CASE WHEN p_approved THEN 'Approved' ELSE 'Rejected' END,
       reviewed_by = lower(auth.jwt() ->> 'email'),
       reviewed_at = timezone('utc'::text, now()),
       admin_note = p_admin_note,
       updated_at = timezone('utc'::text, now())
-  WHERE id = p_log_id;
+  WHERE id = p_log_id AND status = 'Pending';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This log has already been reviewed - refresh the page.';
+  END IF;
 
   IF p_approved THEN
     UPDATE public.competition_standings
