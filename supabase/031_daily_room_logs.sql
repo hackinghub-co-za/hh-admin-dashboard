@@ -68,6 +68,16 @@ BEGIN
     RAISE EXCEPTION 'Confirm you have posted a once-view photo of each room in the WhatsApp group before submitting.';
   END IF;
 
+  -- The "Log Today's Rooms" form has no RSVP gate of its own - a member who
+  -- never clicked "Yes I'm In" could otherwise submit, get approved by an
+  -- admin, and see nothing happen, because review_daily_room_log() credits
+  -- competition_standings by matching this email against an existing row -
+  -- silently a no-op when there isn't one. Block that dead end here instead
+  -- of letting it fail invisibly two steps later.
+  IF NOT EXISTS (SELECT 1 FROM public.competition_standings WHERE email = v_email) THEN
+    RAISE EXCEPTION 'RSVP for the competition first (the "Yes I''m In" button above) before logging rooms.';
+  END IF;
+
   SELECT status INTO v_existing_status
   FROM public.daily_room_logs
   WHERE member_email = v_email AND log_date = CURRENT_DATE;
