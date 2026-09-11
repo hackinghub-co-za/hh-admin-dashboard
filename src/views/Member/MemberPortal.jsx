@@ -32,7 +32,7 @@ import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarD
 import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScore, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
-import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition } from '../../lib/competitionData';
+import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
@@ -2300,6 +2300,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
+  // The real, currently-running competition (070_competition_seasons.sql) -
+  // title/dates/prizes, admin-settable now instead of a hardcoded object.
+  // dbCompetition starts null and FALLBACK_CURRENT_COMPETITION covers the
+  // brief gap before the fetch resolves (and Mock Member, which has no
+  // session to fetch against) so the tab never flashes empty.
+  const [dbCompetition, setDbCompetition] = useState(null);
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCurrentCompetition()
+      .then((data) => !cancelled && setDbCompetition(data))
+      .catch(() => {}); // fails open to the fallback below - not worth its own error banner
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
   const hasRsvpedForCompetition = competitionLeaderboard.some((row) => row.email === user?.email);
 
   const celebrateRsvp = () => {
@@ -2344,25 +2359,34 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  const currentCompetition = {
+  // Fallback only - covers the brief gap before dbCompetition's fetch
+  // resolves, and Mock Member (no session to fetch against). Once the real
+  // fetch lands, this stops being used entirely; kept in the exact shape
+  // 070_competition_seasons.sql seeds so there's no visible difference
+  // between "fallback" and "real" on first paint.
+  const FALLBACK_CURRENT_COMPETITION = {
     title: 'Q3 2026 Community CTF Sprint',
     platform: 'TryHackMe',
     startDate: '2026-08-31',
     endDate: '2026-10-23', // last Friday of the ~8-week run
     description: 'Complete as many rooms as you can in the HH TryHackMe team space this quarter. Standings are ranked by rooms completed — top 3 finishers win prizes. A tie for a prize-winning spot splits that combined prize money evenly among everyone tied.',
     prizes: [
-      { place: '1st', reward: 'Any certification voucher, up to R6,000' },
-      { place: '2nd', reward: 'Any certification voucher, up to R3,000' },
-      { place: '3rd', reward: 'Any certification voucher, up to R1,000' },
+      { place: '1st', reward: 'Any certification voucher, up to R6,000', amount: 6000 },
+      { place: '2nd', reward: 'Any certification voucher, up to R3,000', amount: 3000 },
+      { place: '3rd', reward: 'Any certification voucher, up to R1,000', amount: 1000 },
     ],
   };
+  const currentCompetition = dbCompetition || FALLBACK_CURRENT_COMPETITION;
 
   // Rand value behind each "up to" voucher tier above - only used to
   // compute an actual split when there's a tie, e.g. 2 members tied for
   // 1st split R6,000+R3,000 into R4,500 each; a 4-way tie for 1st still
   // only splits the full R10,000 pool (there's no 4th prize to add) into
-  // R2,500 each, leaving nothing for anyone below them.
-  const COMPETITION_PRIZE_AMOUNTS = [6000, 3000, 1000];
+  // R2,500 each, leaving nothing for anyone below them. Driven by the
+  // active competition's own prizes now, not a fixed constant, so a
+  // future competition with different prize amounts computes ties
+  // correctly without a code change.
+  const COMPETITION_PRIZE_AMOUNTS = currentCompetition.prizes.map((p) => p.amount);
 
   // Walks the leaderboard (already sorted most-rooms-first) top to bottom,
   // grouping consecutive equal-rooms members into tie groups and handing

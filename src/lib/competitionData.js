@@ -41,3 +41,62 @@ export async function optOutOfCompetition() {
   const { error } = await supabase.rpc('opt_out_of_competition');
   if (error) throw error;
 }
+
+function mapCompetition(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    platform: row.platform || '',
+    description: row.description || '',
+    startDate: row.start_date,
+    endDate: row.end_date,
+    prizes: row.prizes || [],
+    isCurrent: row.is_current,
+    standingsSnapshot: row.standings_snapshot || null,
+    archivedAt: row.archived_at || null,
+  };
+}
+
+/** The competition currently running (title/dates/prizes) - replaces what
+ * used to be a hardcoded object in MemberPortal.jsx. null only if nobody's
+ * ever started one, which shouldn't happen once 070_competition_seasons.sql
+ * has run (it seeds the real, currently-running one on first apply). */
+export async function fetchCurrentCompetition() {
+  const { data, error } = await supabase
+    .from('competitions')
+    .select('id, title, platform, description, start_date, end_date, prizes, is_current')
+    .eq('is_current', true)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapCompetition(data) : null;
+}
+
+/** Admin/CM: every past (archived) competition, most recent first, each
+ * carrying the full standings snapshot from the moment it ended - the
+ * lossless history start_new_competition() preserves instead of just
+ * wiping competition_standings outright. */
+export async function fetchPastCompetitions() {
+  const { data, error } = await supabase
+    .from('competitions')
+    .select('id, title, platform, description, start_date, end_date, prizes, is_current, standings_snapshot, archived_at')
+    .eq('is_current', false)
+    .order('end_date', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapCompetition);
+}
+
+/** Admin/CM: archives the current competition (with a full standings
+ * snapshot) and starts a new one - competition_standings is cleared for a
+ * fresh quarter as part of the same call; daily_room_logs is untouched. */
+export async function startNewCompetition({ title, platform, description, startDate, endDate, prizes }) {
+  const { data, error } = await supabase.rpc('start_new_competition', {
+    p_title: title,
+    p_platform: platform || null,
+    p_description: description || null,
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_prizes: prizes || [],
+  });
+  if (error) throw error;
+  return data;
+}

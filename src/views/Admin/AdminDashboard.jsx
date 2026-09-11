@@ -48,6 +48,7 @@ import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoad
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog, correctRoomLogReview } from '../../lib/roomLogData';
+import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition } from '../../lib/competitionData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
 import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
 import { fetchAllRecommendedRooms, addRecommendedRoom, deleteRecommendedRoom } from '../../lib/recommendedRoomData';
@@ -71,6 +72,8 @@ import {
   ExternalLink,
   RefreshCw,
   Award,
+  Trophy,
+  History,
   Megaphone,
   Info,
   Download,
@@ -638,6 +641,106 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [reviewingRoomLogId, setReviewingRoomLogId] = useState(null);
   const [rejectNoteDraft, setRejectNoteDraft] = useState({});
   const [correctingRoomLogId, setCorrectingRoomLogId] = useState(null);
+
+  // Competition seasons (070_competition_seasons.sql) - the real, currently-
+  // running competition (title/dates/prizes), replacing what used to be a
+  // hardcoded object in MemberPortal.jsx, plus the ability to archive it
+  // and start a fresh one instead of standings accumulating forever.
+  const [currentCompetitionRow, setCurrentCompetitionRow] = useState(null);
+  const [pastCompetitions, setPastCompetitions] = useState([]);
+  const [loadingCompetitions, setLoadingCompetitions] = useState(!isMockSession);
+  const [competitionsError, setCompetitionsError] = useState(null);
+  const [expandedPastCompetitionId, setExpandedPastCompetitionId] = useState(null);
+  const [showNewCompetitionForm, setShowNewCompetitionForm] = useState(false);
+  const emptyNewCompetitionForm = {
+    title: '', platform: 'TryHackMe', description: '', startDate: '', endDate: '',
+    firstReward: '', firstAmount: '', secondReward: '', secondAmount: '', thirdReward: '', thirdAmount: '',
+  };
+  const [newCompetitionForm, setNewCompetitionForm] = useState(emptyNewCompetitionForm);
+  const [startingCompetition, setStartingCompetition] = useState(false);
+
+  // Plain async helper (not called directly from the effect below - see its
+  // comment) for re-fetching after starting a new competition, where a
+  // synchronous "loading" flip at the top is exactly what's wanted.
+  const loadCompetitions = async () => {
+    setLoadingCompetitions(true);
+    setCompetitionsError(null);
+    try {
+      const [current, past] = await Promise.all([fetchCurrentCompetition(), fetchPastCompetitions()]);
+      setCurrentCompetitionRow(current);
+      setPastCompetitions(past);
+    } catch (err) {
+      setCompetitionsError(friendlyErrorMessage(err));
+    } finally {
+      setLoadingCompetitions(false);
+    }
+  };
+
+  // Deliberately not just `loadCompetitions()` here - calling an async
+  // function that itself sets state synchronously before its first await,
+  // directly from an effect body, is exactly the cascading-render footgun
+  // the effect-purity lint rule catches. Same .then/.catch/.finally shape
+  // every other fetch-on-mount effect in this file already uses.
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    Promise.all([fetchCurrentCompetition(), fetchPastCompetitions()])
+      .then(([current, past]) => {
+        if (cancelled) return;
+        setCurrentCompetitionRow(current);
+        setPastCompetitions(past);
+      })
+      .catch((err) => !cancelled && setCompetitionsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingCompetitions(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  // Pre-fills the form with the current competition's own values (bumped
+  // dates, same prize shape) so starting the next quarter is mostly a date
+  // edit, not retyping everything - only opens once currentCompetitionRow
+  // has actually loaded.
+  const openNewCompetitionForm = () => {
+    const c = currentCompetitionRow;
+    setNewCompetitionForm(c ? {
+      title: '', platform: c.platform || 'TryHackMe', description: c.description || '', startDate: '', endDate: '',
+      firstReward: c.prizes?.[0]?.reward || '', firstAmount: c.prizes?.[0]?.amount ?? '',
+      secondReward: c.prizes?.[1]?.reward || '', secondAmount: c.prizes?.[1]?.amount ?? '',
+      thirdReward: c.prizes?.[2]?.reward || '', thirdAmount: c.prizes?.[2]?.amount ?? '',
+    } : emptyNewCompetitionForm);
+    setShowNewCompetitionForm(true);
+  };
+
+  const handleStartNewCompetition = async (e) => {
+    e.preventDefault();
+    const f = newCompetitionForm;
+    if (!f.title.trim() || !f.startDate || !f.endDate) return;
+    if (!window.confirm(
+      `Start "${f.title}"? This archives the current competition's final standings and clears the leaderboard to zero - every member will need to RSVP again for the new one. This can't be undone.`
+    )) return;
+    setStartingCompetition(true);
+    setCompetitionsError(null);
+    try {
+      const prizes = [
+        f.firstReward.trim() && { place: '1st', reward: f.firstReward.trim(), amount: Number(f.firstAmount) || 0 },
+        f.secondReward.trim() && { place: '2nd', reward: f.secondReward.trim(), amount: Number(f.secondAmount) || 0 },
+        f.thirdReward.trim() && { place: '3rd', reward: f.thirdReward.trim(), amount: Number(f.thirdAmount) || 0 },
+      ].filter(Boolean);
+      await startNewCompetition({
+        title: f.title.trim(),
+        platform: f.platform.trim(),
+        description: f.description.trim(),
+        startDate: f.startDate,
+        endDate: f.endDate,
+        prizes,
+      });
+      await loadCompetitions();
+      setShowNewCompetitionForm(false);
+    } catch (err) {
+      setCompetitionsError(friendlyErrorMessage(err));
+    } finally {
+      setStartingCompetition(false);
+    }
+  };
 
   useEffect(() => {
     if (isMockSession) return;
@@ -3982,6 +4085,144 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><ListChecks size={28} color="var(--accent-cyan)" /> Room Logs</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Members' self-reported daily TryHackMe room counts. Approving credits the Competitions leaderboard.</p>
+          </div>
+
+          {/* Competition Management (070_competition_seasons.sql) - the
+              real, currently-running competition, and starting a new one
+              once a quarter ends instead of standings accumulating
+              forever. Everything below this card is scoped to the Room
+              Logs the current competition has collected, so it sits above
+              that as the "what period are we even looking at" control. */}
+          <div className="glass-card" style={{ marginBottom: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Trophy size={18} color="var(--warning)" /> Competition</h3>
+              {!isMockSession && !showNewCompetitionForm && (
+                <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }} onClick={openNewCompetitionForm}>
+                  <RefreshCw size={14} /> Start New Competition
+                </button>
+              )}
+            </div>
+
+            {isMockSession ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Admin - this reads the real competition from Supabase.</p>
+            ) : (
+              <>
+                {competitionsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>{competitionsError}</p>}
+
+                {!showNewCompetitionForm && (
+                  loadingCompetitions ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+                  ) : !currentCompetitionRow ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No competition running right now - start one above.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontWeight: 700 }}>{currentCompetitionRow.title}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                        {formatDate(currentCompetitionRow.startDate)} → {formatDate(currentCompetitionRow.endDate)}{currentCompetitionRow.platform ? ` · ${currentCompetitionRow.platform}` : ''}
+                      </div>
+                      {currentCompetitionRow.prizes?.length > 0 && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                          {currentCompetitionRow.prizes.map((p) => (
+                            <span key={p.place} className="badge badge-warning" style={{ fontSize: '0.68rem' }}>{p.place}: {p.reward}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+
+                {showNewCompetitionForm && (
+                  <form onSubmit={handleStartNewCompetition} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--warning)' }}>
+                    {currentCompetitionRow && (
+                      <p style={{ fontSize: '0.78rem', color: 'var(--warning)', margin: 0 }}>
+                        Starting a new competition archives "{currentCompetitionRow.title}"'s final standings and clears the leaderboard to zero - members will need to RSVP again.
+                      </p>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+                      <input className="form-input" placeholder="Title, e.g. Q4 2026 Community CTF Sprint" value={newCompetitionForm.title} onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, title: e.target.value })} required />
+                      <input className="form-input" placeholder="Platform, e.g. TryHackMe" value={newCompetitionForm.platform} onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, platform: e.target.value })} />
+                    </div>
+                    <textarea className="form-input" rows={2} placeholder="Description, shown to members" value={newCompetitionForm.description} onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, description: e.target.value })} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Start date</label>
+                        <input type="date" className="form-input" value={newCompetitionForm.startDate} onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, startDate: e.target.value })} required />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>End date</label>
+                        <input type="date" className="form-input" value={newCompetitionForm.endDate} onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, endDate: e.target.value })} required />
+                      </div>
+                    </div>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Prizes (leave a reward blank to skip that place)</label>
+                    {[
+                      { key: 'first', label: '1st' },
+                      { key: 'second', label: '2nd' },
+                      { key: 'third', label: '3rd' },
+                    ].map(({ key, label }) => (
+                      <div key={key} style={{ display: 'grid', gridTemplateColumns: '40px 2fr 1fr', gap: '10px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{label}</span>
+                        <input
+                          className="form-input"
+                          placeholder="Reward, e.g. Any certification voucher, up to R6,000"
+                          value={newCompetitionForm[`${key}Reward`]}
+                          onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, [`${key}Reward`]: e.target.value })}
+                        />
+                        <input
+                          type="number" min="0" className="form-input" placeholder="Rand value"
+                          value={newCompetitionForm[`${key}Amount`]}
+                          onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, [`${key}Amount`]: e.target.value })}
+                        />
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                      <button type="button" className="btn btn-secondary" style={{ fontSize: '0.82rem' }} onClick={() => setShowNewCompetitionForm(false)}>Cancel</button>
+                      <button type="submit" className="btn btn-primary" style={{ fontSize: '0.82rem' }} disabled={startingCompetition}>
+                        {startingCompetition ? 'Starting...' : 'Archive & Start New Competition'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {!showNewCompetitionForm && pastCompetitions.length > 0 && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <History size={13} /> Past Competitions ({pastCompetitions.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {pastCompetitions.map((c) => {
+                        const isExpanded = expandedPastCompetitionId === c.id;
+                        const snapshot = [...(c.standingsSnapshot || [])].sort((a, b) => b.roomsCompleted - a.roomsCompleted);
+                        return (
+                          <div key={c.id} style={{ borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', background: 'rgba(var(--overlay-rgb), 0.01)' }}>
+                            <button
+                              onClick={() => setExpandedPastCompetitionId(isExpanded ? null : c.id)}
+                              style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)' }}
+                            >
+                              <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{c.title}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                {formatDate(c.startDate)} → {formatDate(c.endDate)} · {snapshot.length} finisher{snapshot.length === 1 ? '' : 's'}
+                              </span>
+                            </button>
+                            {isExpanded && (
+                              <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {snapshot.length === 0 ? (
+                                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nobody RSVP'd for this one.</p>
+                                ) : snapshot.map((row, i) => (
+                                  <div key={row.email} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '4px 0' }}>
+                                    <span>#{i + 1} {row.memberName || row.email}</span>
+                                    <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{row.roomsCompleted} rooms · {row.daysLogged} days</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Stats - scoped to Approved logs only, so a big Pending backlog
