@@ -1797,8 +1797,20 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // this admin is allowed to (canApproveEvents, above) - the event is
   // already saved either way, so if this admin can't auto-approve it just
   // sits in the same Pending queue below for whoever can.
+  // HH-run event types (as opposed to an external community's own event, like
+  // the ISC2/BSides/DevFest ones the founder has been adding with their own
+  // logos) default to the Hacking Hub shield instead of sitting blank - real
+  // branding on every HH Meetup, Sunday Catchup, Study Session, or the
+  // Hackathon without a manual upload each time. Hosted once at a stable
+  // shared path (not per-event, since a new event has no id yet to key on)
+  // and referenced by URL - the type <select>'s onChange below is what
+  // actually applies/clears it, careful never to stomp a manually uploaded
+  // image regardless of which way type changes.
+  const HH_EVENT_IMAGE_URL = 'https://kveiflphktpvsddhkspz.supabase.co/storage/v1/object/public/event-images/_hh-branding/logo.png';
+  const HH_RUN_EVENT_TYPES = ['HH Meetup', 'Sunday Catchup', 'Study Session'];
+
   const [showAddEventForm, setShowAddEventForm] = useState(false);
-  const [newEvent, setNewEvent] = useState({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: '' });
+  const [newEvent, setNewEvent] = useState({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL });
   const [addingEvent, setAddingEvent] = useState(false);
 
   // Optional logo/cover image (event-images bucket, 019_events.sql). Uploaded
@@ -1836,7 +1848,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         await approveCommunityEvent(created.id);
       }
       setCommunityEvents(await fetchCommunityEvents());
-      setNewEvent({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: '' });
+      setNewEvent({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL });
       setShowAddEventForm(false);
     } catch (err) {
       setApproveEventError(friendlyErrorMessage(err));
@@ -4256,7 +4268,20 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               </p>
               {approveEventError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: 0 }}>{approveEventError}</p>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <select className="form-input" value={newEvent.type} onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}>
+                <select
+                  className="form-input"
+                  value={newEvent.type}
+                  onChange={(e) => {
+                    const type = e.target.value;
+                    let imageUrl = newEvent.imageUrl;
+                    if (HH_RUN_EVENT_TYPES.includes(type) && !imageUrl) {
+                      imageUrl = HH_EVENT_IMAGE_URL; // switched to an HH-run type with no image yet - default the shield
+                    } else if (!HH_RUN_EVENT_TYPES.includes(type) && imageUrl === HH_EVENT_IMAGE_URL) {
+                      imageUrl = ''; // switched away, and it was only ever the auto-default - clear it, never a manual upload
+                    }
+                    setNewEvent({ ...newEvent, type, imageUrl });
+                  }}
+                >
                   {['HH Meetup', 'Industry Event', 'Sunday Catchup', 'Study Session'].map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <input className="form-input" placeholder="Title" value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} required />
