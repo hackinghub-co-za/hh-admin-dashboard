@@ -466,6 +466,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   };
 
   const handleToggleRoadmapItemDone = async (item) => {
+    // Projects items only ever get marked done through the proof-review flow
+    // (handleReviewProjectSubmission -> review_project_submission(), which
+    // also sets review_status/reviewed_at/review_note) - never this generic
+    // checkbox. Toggling `completed` here directly would leave review_status
+    // stuck wherever it was (e.g. still 'Not Submitted' or 'Pending' while
+    // completed reads true), the exact split-state review_project_submission
+    // exists to prevent. The button below is disabled for Projects items for
+    // the same reason; this guard covers any other caller too.
+    if (item.phase === 'Projects') return;
     const updated = { ...item, completed: !item.completed };
     if (isMockSession) {
       applyMockRoadmapItems(roadmapMemberEmail, roadmapItems.map((i) => (i.id === item.id ? updated : i)));
@@ -3554,7 +3563,13 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                                         </div>
                                       ) : (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                          <button onClick={() => handleToggleRoadmapItemDone(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0 }} aria-label={item.completed ? 'Mark not done' : 'Mark done'}>
+                                          <button
+                                            onClick={() => handleToggleRoadmapItemDone(item)}
+                                            disabled={item.phase === 'Projects'}
+                                            style={{ background: 'none', border: 'none', cursor: item.phase === 'Projects' ? 'default' : 'pointer', padding: 0, flexShrink: 0, opacity: item.phase === 'Projects' ? 0.5 : 1 }}
+                                            aria-label={item.phase === 'Projects' ? 'Projects are marked done via proof review below, not by toggling directly' : (item.completed ? 'Mark not done' : 'Mark done')}
+                                            title={item.phase === 'Projects' ? 'Projects are marked done via proof review below, not by toggling directly.' : undefined}
+                                          >
                                             {item.completed ? <CheckSquare size={18} color="var(--success)" /> : <Square size={18} color="var(--text-muted)" />}
                                           </button>
                                           <div style={{ flex: 1, minWidth: 0 }}>
