@@ -12,7 +12,7 @@ const SECTIONS = [
   },
   {
     heading: 'Daily limit',
-    body: 'Up to 5 rooms per day, and only one submission per day. Extra rooms beyond 5 on a given day don\'t carry over or add up.',
+    body: 'Up to 5 rooms per day. You can keep updating today\'s count as many times as you like - but once an admin approves it, it\'s locked for the day. Extra rooms beyond 5 on a given day don\'t carry over or add up.',
   },
   {
     heading: 'No blackout days',
