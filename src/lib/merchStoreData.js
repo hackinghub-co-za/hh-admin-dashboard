@@ -70,10 +70,17 @@ export async function fetchAllMerchOrders() {
   return (data || []).map(mapOrder);
 }
 
-/** Admin-only: Fulfilled/Cancelled. The webhook never calls this - it
- * writes Paid/Needs Review directly via the service-role key, bypassing
- * RLS entirely; this is the admin FOR ALL policy's only real use. */
+/** Admin-only: Fulfilled/Cancelled, or manually resolving a 'Needs Review'
+ * order (amount-mismatched by the webhook) to Paid/Cancelled after
+ * reconciling with the real PayFast/bank record by hand. The webhook itself
+ * never calls this - it writes Paid/Needs Review directly via the
+ * service-role key, bypassing RLS entirely; this is the admin FOR ALL
+ * policy's other real use besides fulfillment. Setting paid_at here when
+ * manually resolving to Paid keeps it meaning the same thing it does on the
+ * webhook's own Paid write. */
 export async function updateMerchOrderStatus(orderId, status) {
-  const { error } = await supabase.from('merch_orders').update({ status }).eq('id', orderId);
+  const update = { status };
+  if (status === 'Paid') update.paid_at = new Date().toISOString();
+  const { error } = await supabase.from('merch_orders').update(update).eq('id', orderId);
   if (error) throw error;
 }

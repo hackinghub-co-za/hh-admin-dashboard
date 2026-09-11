@@ -1373,9 +1373,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   };
 
   // Merch Orders - see supabase/060_merch_orders.sql / src/lib/merchStoreData.js.
-  // Read-only from the admin's perspective except fulfillment status - the
-  // actual 'Paid'/'Needs Review' transitions only ever happen server-side,
-  // via payfast-webhook's service-role key, never from here.
+  // Read-only from the admin's perspective except fulfillment status and
+  // resolving a 'Needs Review' order - the initial 'Paid'/'Needs Review'
+  // transition only ever happens server-side, via payfast-webhook's
+  // service-role key, never from here; but once the webhook has parked an
+  // order in 'Needs Review' (real payment amount didn't match the order
+  // total), an admin needs a way to move it forward after manually
+  // reconciling against the real PayFast/bank record - see
+  // handleResolveNeedsReviewOrder below.
   const [merchOrders, setMerchOrders] = useState(isMockSession ? [
     { id: 1, memberEmail: 'demo.member1@example.com', memberName: 'Demo Member', items: [{ product: 'Hoodie', size: 'L', quantity: 1, unitPrice: 600 }], totalAmount: 600, deliveryNotes: "I'll collect at the next meetup", status: 'Paid', createdAt: '2026-08-20T10:00:00Z', paidAt: '2026-08-20T10:05:00Z' },
   ] : []);
@@ -1403,6 +1408,19 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         setMerchOrders(prevOrders);
       }
     }
+  };
+
+  // Manually resolving a 'Needs Review' order (webhook-flagged amount
+  // mismatch) - the only admin path to move it out of that dead end. Gated
+  // behind a confirm since 'Paid' here is an admin asserting they've
+  // personally checked the real PayFast/bank record, bypassing the
+  // automatic amount-match check that parked it here in the first place.
+  const handleResolveNeedsReviewOrder = (order, resolution) => {
+    const confirmMsg = resolution === 'Paid'
+      ? `Mark this order Paid? Only confirm this after manually checking PayFast/your bank record that a payment of R${order.totalAmount} was actually received for order #${order.id} - the automatic amount-match check already flagged it as not matching, so this overrides that check.`
+      : `Cancel this order? Use this if the mismatched payment turns out to be unrelated to this order, or the order shouldn't be fulfilled.`;
+    if (!window.confirm(confirmMsg)) return;
+    handleUpdateMerchOrderStatus(order, resolution);
   };
 
   // Focus 5 - see supabase/038_focus_five.sql / src/lib/focusFiveData.js.
@@ -4974,7 +4992,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Merch Orders</h1>
-            <p>Real orders, paid for via a real PayFast checkout - kept out of membership revenue entirely (see supabase/060_merch_orders.sql). Status only ever moves to Paid/Needs Review server-side, from the payment itself - fulfillment status below is the only thing you set here.</p>
+            <p>Real orders, paid for via a real PayFast checkout - kept out of membership revenue entirely (see supabase/060_merch_orders.sql). The initial Paid/Needs Review status is set server-side, from the payment itself - below you can only set fulfillment status, or manually resolve a Needs Review order after reconciling it by hand.</p>
           </div>
 
           {merchOrdersError && (
@@ -5036,6 +5054,16 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                           Mark Fulfilled
                         </button>
                         <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px', color: 'var(--danger)' }} onClick={() => handleUpdateMerchOrderStatus(order, 'Cancelled')}>
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                    {order.status === 'Needs Review' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleResolveNeedsReviewOrder(order, 'Paid')}>
+                          Mark Paid (Reconciled)
+                        </button>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px', color: 'var(--danger)' }} onClick={() => handleResolveNeedsReviewOrder(order, 'Cancelled')}>
                           Cancel
                         </button>
                       </div>
