@@ -88,3 +88,80 @@ CREATE POLICY "admins manage merch orders"
 
 CREATE INDEX IF NOT EXISTS idx_merch_orders_member_email ON public.merch_orders (member_email);
 CREATE INDEX IF NOT EXISTS idx_merch_orders_status ON public.merch_orders (status);
+
+-- =========================================================================
+-- PART 2: FIX - total_amount was never actually validated against real
+-- product pricing anywhere. The self-attributed-INSERT policy above locks
+-- down member_email/status/m_payment_id/pf_payment_id/paid_at, but
+-- total_amount sailed straight through from the client (merchCartTotal in
+-- MemberPortal.jsx's handleMerchCheckout) with only `total_amount > 0`
+-- enforced - nothing tied it to `items` or MERCH_CATALOG
+-- (src/lib/merchStoreData.js) at all.
+--
+-- That matters because payfast-webhook/index.ts's merch branch marks an
+-- order 'Paid' by comparing PayFast's real ITN amount_gross against exactly
+-- this total_amount (a cent's float-rounding tolerance). A member could
+-- insert an order for a real Hoodie/M (items correctly describing it) but
+-- hand-set total_amount to 1, then either pay only R1 through the normal
+-- checkout flow (createPayfastCheckoutUrl is also called with this same
+-- client-computed total, not a server-verified one) or call
+-- supabase.functions.invoke('payfast-checkout', ...) directly with
+-- amount: 1 and that order's id - either way a genuine R1 PayFast payment
+-- would then match the order's (also R1) total_amount and get marked
+-- 'Paid' for what should have been a R600 item, with no mismatch for the
+-- webhook's existing check to catch.
+--
+-- Fix: recompute the true price from `items` against a server-side mirror
+-- of MERCH_CATALOG on every insert and overwrite total_amount with that
+-- figure - the same "regardless of what this sends" idiom the INSERT
+-- policy above already uses for member_email/status/etc. This makes the
+-- webhook's amount-vs-total_amount check trustworthy again: an underpaid
+-- order now has a total_amount reflecting its real price, so a mismatched
+-- payment correctly lands in 'Needs Review' instead of 'Paid'. Keep the
+-- prices below in sync with MERCH_CATALOG by hand if pricing ever changes -
+-- there's no existing single-source-of-truth mechanism between SQL and the
+-- frontend for this small fixed catalog to hook into.
+CREATE OR REPLACE FUNCTION public.validate_merch_order_total()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  item JSONB;
+  unit_price NUMERIC;
+  qty NUMERIC;
+  computed_total NUMERIC := 0;
+BEGIN
+  IF NEW.items IS NULL OR jsonb_typeof(NEW.items) != 'array' OR jsonb_array_length(NEW.items) = 0 THEN
+    RAISE EXCEPTION 'Merch order must have at least one item.';
+  END IF;
+
+  FOR item IN SELECT * FROM jsonb_array_elements(NEW.items)
+  LOOP
+    unit_price := CASE lower(item->>'product')
+      WHEN 'deskpad' THEN 200
+      WHEN 'top' THEN 400
+      WHEN 'hoodie' THEN 600
+      ELSE NULL
+    END;
+    IF unit_price IS NULL THEN
+      RAISE EXCEPTION 'Unknown merch product: %', item->>'product';
+    END IF;
+
+    qty := COALESCE((item->>'quantity')::NUMERIC, 1);
+    IF qty < 1 THEN
+      RAISE EXCEPTION 'Invalid quantity for %: %', item->>'product', item->>'quantity';
+    END IF;
+
+    computed_total := computed_total + (unit_price * qty);
+  END LOOP;
+
+  NEW.total_amount := computed_total;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validate_merch_order_total ON public.merch_orders;
+CREATE TRIGGER trg_validate_merch_order_total
+  BEFORE INSERT ON public.merch_orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.validate_merch_order_total();

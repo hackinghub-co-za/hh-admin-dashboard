@@ -2766,7 +2766,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // payment (myLastPayment) - falls back to Basic Access/rank 1 only when
   // there's no payment on record yet, or the plan name doesn't match one of
   // the 4 defined tiers (e.g. a one-off 'Custom Plan' or 'Maintenance Fee').
-  const matchedTier = myLastPayment ? ALL_TIERS.find(t => t.name === myLastPayment.plan) : null;
+  // A PayFast-sourced row stores item_name verbatim (payfast-webhook's
+  // params.get('item_name')), and handlePayfastPay below always sends that
+  // as `Hacking Hub - ${tier.name}` - so myLastPayment.plan carries that
+  // prefix for anything paid via PayFast, while an admin-recorded EFT
+  // payment (RecordEftPaymentModal, MEMBERSHIP_TIERS) stores the bare tier
+  // name with no prefix. Stripping the prefix before matching handles both
+  // sources; without it, every PayFast-paid member matched no tier at all
+  // here and silently fell back to rank 1, regardless of what they actually
+  // paid for.
+  const normalizedPlan = myLastPayment?.plan?.replace(/^Hacking Hub - /, '');
+  const matchedTier = normalizedPlan ? ALL_TIERS.find(t => t.name === normalizedPlan) : null;
   const currentPlanRank = matchedTier?.rank || 1;
   const upgradeTiers = ALL_TIERS.filter(t => t.rank >= currentPlanRank);
 
