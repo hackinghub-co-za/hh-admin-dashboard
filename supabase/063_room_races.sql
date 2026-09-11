@@ -90,6 +90,22 @@ CREATE INDEX IF NOT EXISTS idx_room_races_status ON public.room_races(status);
 -- until the challenged member accepts (accept_room_race() below). No room
 -- is named here any more; that's assigned automatically, to whoever
 -- accepts, by assign_room_race_rooms() further down.
+--
+-- p_opponent_name is kept in the signature (the frontend already calls this
+-- with the name it has on hand, no need to churn that) but is no longer
+-- trusted - it used to be written straight onto room_races.member_b_name,
+-- shown directly to the challenged member and to whichever admin/CM later
+-- reviews the race. Any signed-in member could call this RPC directly
+-- (bypassing the UI, which only ever sends the real name from the members
+-- directory) with an arbitrary p_opponent_name and put whatever text they
+-- wanted next to a real opponent's real email - same shape as the
+-- rsvp_for_competition() bug fixed in 053_competition_opt_out.sql. (053's
+-- own comment on that fix cites this function as already resolving "the
+-- caller's own real name" server-side, which was true - member_a_name via
+-- v_name below always was resolved this way - but member_b_name, the
+-- opponent's name, was not; that half is what this fix closes.) Resolved
+-- server-side from member_profiles instead, same COALESCE-to-email
+-- fallback used everywhere else in this file.
 DROP FUNCTION IF EXISTS public.challenge_to_room_race(TEXT, TEXT, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.challenge_to_room_race(p_opponent_email TEXT, p_opponent_name TEXT)
 RETURNS BIGINT
@@ -99,6 +115,7 @@ DECLARE
   v_email TEXT := lower(auth.jwt() ->> 'email');
   v_opponent TEXT := lower(p_opponent_email);
   v_name TEXT;
+  v_opponent_name TEXT;
   v_id BIGINT;
 BEGIN
   IF v_opponent = v_email THEN
@@ -109,9 +126,10 @@ BEGIN
   END IF;
 
   SELECT full_name INTO v_name FROM public.member_profiles WHERE email = v_email;
+  SELECT full_name INTO v_opponent_name FROM public.member_profiles WHERE email = v_opponent;
 
   INSERT INTO public.room_races (member_a_email, member_a_name, member_b_email, member_b_name, status)
-  VALUES (v_email, v_name, v_opponent, p_opponent_name, 'Pending')
+  VALUES (v_email, v_name, v_opponent, COALESCE(v_opponent_name, v_opponent), 'Pending')
   RETURNING id INTO v_id;
 
   RETURN v_id;

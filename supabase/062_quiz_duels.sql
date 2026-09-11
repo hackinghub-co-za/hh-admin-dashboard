@@ -185,6 +185,19 @@ $$;
 -- Starts a duel immediately - no accept/decline step, matching "you pick
 -- your rival, no admin needed" from the roadmap. Picks 10 random questions
 -- (or fewer if the bank is smaller), same fixed set for both players.
+--
+-- p_opponent_name is kept in the signature (the frontend already calls this
+-- with the name it has on hand, no need to churn that) but is no longer
+-- trusted - it used to be written straight onto quiz_duels.member_b_name,
+-- which a duel win can carry into the public community_wins feed via
+-- announce_duel_win() below ("Won a head-to-head Quiz Duel against <name>").
+-- Any signed-in member could call this RPC directly (bypassing the UI,
+-- which only ever sends the real name from the members directory) with an
+-- arbitrary p_opponent_name and put whatever text they wanted next to a
+-- real opponent's real email, in front of the whole community - same shape
+-- as the rsvp_for_competition() bug fixed in 053_competition_opt_out.sql.
+-- Resolved server-side from member_profiles instead, same COALESCE-to-email
+-- fallback used everywhere else in this file for "a member's real name."
 CREATE OR REPLACE FUNCTION public.challenge_to_duel(p_opponent_email TEXT, p_opponent_name TEXT)
 RETURNS BIGINT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -193,6 +206,7 @@ DECLARE
   v_email TEXT := lower(auth.jwt() ->> 'email');
   v_opponent TEXT := lower(p_opponent_email);
   v_name TEXT;
+  v_opponent_name TEXT;
   v_question_ids JSONB;
   v_id BIGINT;
 BEGIN
@@ -204,6 +218,7 @@ BEGIN
   END IF;
 
   SELECT full_name INTO v_name FROM public.member_profiles WHERE email = v_email;
+  SELECT full_name INTO v_opponent_name FROM public.member_profiles WHERE email = v_opponent;
 
   SELECT jsonb_agg(id) INTO v_question_ids FROM (
     SELECT id FROM public.duel_questions ORDER BY random() LIMIT 10
@@ -214,7 +229,7 @@ BEGIN
   END IF;
 
   INSERT INTO public.quiz_duels (member_a_email, member_a_name, member_b_email, member_b_name, question_ids, expires_at)
-  VALUES (v_email, v_name, v_opponent, p_opponent_name, v_question_ids, timezone('utc'::text, now()) + interval '48 hours')
+  VALUES (v_email, v_name, v_opponent, COALESCE(v_opponent_name, v_opponent), v_question_ids, timezone('utc'::text, now()) + interval '48 hours')
   RETURNING id INTO v_id;
 
   RETURN v_id;
