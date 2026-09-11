@@ -39,6 +39,24 @@ function pfEncode(value: string): string {
   return encodeURIComponent(value).replace(/%20/g, '+');
 }
 
+// Real, fixed membership prices - matches ALL_TIERS in MemberPortal.jsx
+// (Basic Access R200, Monthly Operative R600, Permanent Access R1000;
+// Elite Operative is "Apply Only", never paid through this flow at all).
+// Without this, `amount` below came straight from the client with only a
+// `> 0` check - any signed-in Google account (is_member_allowed() gates
+// the React UI, not this function - a valid Supabase session exists the
+// moment OAuth completes, before that check ever runs) could request a
+// checkout URL for any amount, pay it for real, and payfast-webhook grants
+// member_profiles portal access on ANY 'COMPLETE' payment regardless of
+// amount. A merch checkout doesn't need an entry here: merch_orders' own
+// BEFORE INSERT trigger (validate_merch_order_total(), 060_merch_orders.sql)
+// already recomputes the real total server-side, and payfast-webhook only
+// ever marks a merch order Paid if PayFast's real amount_gross matches
+// that trusted total - so merch is already safe end-to-end without this.
+// Membership has no such downstream check at all, which is what makes
+// this the one place an amount for it is ever actually decided.
+const VALID_MEMBERSHIP_AMOUNTS = new Set([200, 600, 1000]);
+
 function generateSignature(data: Record<string, string>, passphrase: string): string {
   const parts: string[] = [];
   for (const key in data) {
@@ -100,6 +118,13 @@ Deno.serve(async (req) => {
     const amountNum = Number(amount);
     if (!amountNum || amountNum <= 0) {
       return new Response(JSON.stringify({ error: 'Invalid amount.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!merchOrderId && !VALID_MEMBERSHIP_AMOUNTS.has(amountNum)) {
+      console.error('payfast-checkout: rejected non-catalog membership amount', amountNum, 'from', email);
+      return new Response(JSON.stringify({ error: 'Not a real membership price.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
