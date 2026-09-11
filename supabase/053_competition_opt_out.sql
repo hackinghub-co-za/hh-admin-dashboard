@@ -34,15 +34,35 @@ ALTER TABLE public.competition_standings
 -- would silently no-op instead of clearing the flag. rooms_completed/
 -- days_logged/member_name are deliberately left untouched on conflict, same
 -- as before - only opted_out flips back.
+--
+-- p_member_name is kept in the signature (the frontend already calls this
+-- with it, no need to churn that) but is no longer trusted - it used to be
+-- written straight onto competition_standings, a public leaderboard tied to
+-- real prize money, so any signed-in member could call this RPC directly
+-- (bypassing the UI, which only ever sends their real Google name) with an
+-- arbitrary p_member_name and impersonate someone else, or post whatever
+-- they wanted, in front of the whole community. Resolved server-side from
+-- member_profiles instead, same pattern challenge_to_room_race()
+-- (063_room_races.sql) and notify_admin_of_roadmap_completion()
+-- (061_admin_notifications.sql) already use for "the caller's own real
+-- name" - COALESCE to email for the rare member with no full_name set yet,
+-- same fallback those use too.
 CREATE OR REPLACE FUNCTION public.rsvp_for_competition(p_member_name TEXT)
 RETURNS VOID
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_name TEXT;
+BEGIN
+  SELECT full_name INTO v_name FROM public.member_profiles WHERE email = v_email;
+
   INSERT INTO public.competition_standings (email, member_name, rooms_completed, days_logged)
-  VALUES (lower(auth.jwt() ->> 'email'), p_member_name, 0, 0)
+  VALUES (v_email, COALESCE(v_name, v_email), 0, 0)
   ON CONFLICT (email) DO UPDATE SET opted_out = false;
+END;
 $$;
 
 -- Mirrors rsvp_for_competition's own self-service, own-row-only pattern -
