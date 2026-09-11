@@ -46,8 +46,19 @@ export async function fetchAllRoomLogs() {
 }
 
 /** Admin: approve or reject a submission - approving credits
- * competition_standings for that member. */
+ * competition_standings for that member. Only works once, on a still-Pending
+ * log (server-enforced) - see correctRoomLogReview for changing a decision
+ * that's already been made. */
 export async function reviewRoomLog(logId, approved, adminNote) {
   const { error } = await supabase.rpc('review_daily_room_log', { p_log_id: logId, p_approved: approved, p_admin_note: adminNote || null });
+  if (error) throw error;
+}
+
+/** Admin: change an already-reviewed log's decision (e.g. undo a mistaken
+ * click) - review_daily_room_log() itself is one-shot by design, so this is
+ * a separate RPC that safely re-derives the competition_standings credit
+ * rather than re-running the same increment. */
+export async function correctRoomLogReview(logId, newApproved, adminNote) {
+  const { error } = await supabase.rpc('correct_room_log_review', { p_log_id: logId, p_new_approved: newApproved, p_admin_note: adminNote || null });
   if (error) throw error;
 }

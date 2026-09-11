@@ -47,7 +47,7 @@ import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStor
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
-import { fetchAllRoomLogs, reviewRoomLog } from '../../lib/roomLogData';
+import { fetchAllRoomLogs, reviewRoomLog, correctRoomLogReview } from '../../lib/roomLogData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
 import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
 import { fetchAllRecommendedRooms, addRecommendedRoom, deleteRecommendedRoom } from '../../lib/recommendedRoomData';
@@ -637,6 +637,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [roomLogsError, setRoomLogsError] = useState(null);
   const [reviewingRoomLogId, setReviewingRoomLogId] = useState(null);
   const [rejectNoteDraft, setRejectNoteDraft] = useState({});
+  const [correctingRoomLogId, setCorrectingRoomLogId] = useState(null);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -845,6 +846,31 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       setRoomLogsError(friendlyErrorMessage(err));
     } finally {
       setReviewingRoomLogId(null);
+    }
+  };
+
+  // Changes an already-reviewed log's decision (correct_room_log_review()) -
+  // review_daily_room_log() itself is one-shot by design (see its own
+  // comment), so undoing a mistaken click needs this separate path. Confirms
+  // first since flipping Approved -> Rejected actually removes standings
+  // credit already given, not just a cosmetic status change.
+  const handleCorrectRoomLog = async (log) => {
+    const flipToApproved = log.status !== 'Approved';
+    const verb = flipToApproved ? 'approve' : 'reject (removing the rooms/day credit already given)';
+    if (!window.confirm(`Change this to ${verb}?`)) return;
+    setCorrectingRoomLogId(log.id);
+    if (isMockSession) {
+      setRoomLogs(roomLogs.map((l) => (l.id === log.id ? { ...l, status: flipToApproved ? 'Approved' : 'Rejected' } : l)));
+      setCorrectingRoomLogId(null);
+      return;
+    }
+    try {
+      await correctRoomLogReview(log.id, flipToApproved, log.adminNote || null);
+      setRoomLogs(await fetchAllRoomLogs());
+    } catch (err) {
+      setRoomLogsError(friendlyErrorMessage(err));
+    } finally {
+      setCorrectingRoomLogId(null);
     }
   };
 
@@ -3582,6 +3608,35 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                                                 {item.detail}{item.detail && item.dueDate ? ' · ' : ''}{item.dueDate && `Due ${formatDate(item.dueDate)}`}
                                               </div>
                                             )}
+                                            {item.phase === 'Projects' && item.reviewStatus === 'Not Submitted' && (
+                                              // Manual override, not the normal review path - a member who did the
+                                              // work before this proof-submission system existed (or shared it
+                                              // outside the app) has no other way to ever get credited, since the
+                                              // Approve/Reject controls below only ever appear once a member has
+                                              // submitted. review_project_submission() itself has no restriction
+                                              // requiring 'Pending' first, so this is safe to expose - just kept
+                                              // visually distinct (secondary button, explicit "Without Proof"
+                                              // wording) so it reads as the exception, not the default click.
+                                              <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No proof submitted yet</span>
+                                                <input
+                                                  className="form-input"
+                                                  placeholder="Note (optional, e.g. why this is credited without proof)"
+                                                  style={{ fontSize: '0.72rem', padding: '4px 8px', width: '220px' }}
+                                                  value={projectReviewNoteDraft[item.id] || ''}
+                                                  onChange={(e) => setProjectReviewNoteDraft((d) => ({ ...d, [item.id]: e.target.value }))}
+                                                />
+                                                <button
+                                                  className="btn btn-secondary"
+                                                  style={{ fontSize: '0.7rem', padding: '4px 10px' }}
+                                                  disabled={reviewingProjectId === item.id}
+                                                  title="Credit this Project even though the member never submitted proof through the normal flow"
+                                                  onClick={() => handleReviewProjectSubmission(item, true)}
+                                                >
+                                                  Approve Without Proof
+                                                </button>
+                                              </div>
+                                            )}
                                             {item.phase === 'Projects' && item.reviewStatus !== 'Not Submitted' && (
                                               <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                                 <span className={`badge ${item.reviewStatus === 'Approved' ? 'badge-success' : item.reviewStatus === 'Rejected' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.62rem' }}>
@@ -4062,7 +4117,17 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                           <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}> · reviewed by {nameForLogEmail(log.reviewedBy)}</span>
                         )}
                       </div>
-                      <span className={`badge ${statusColor[log.status]}`} style={{ fontSize: '0.65rem' }}>{log.status}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        <span className={`badge ${statusColor[log.status]}`} style={{ fontSize: '0.65rem' }}>{log.status}</span>
+                        <button
+                          onClick={() => handleCorrectRoomLog(log)}
+                          disabled={correctingRoomLogId === log.id}
+                          title={log.status === 'Approved' ? 'Change to Rejected (removes the credit already given)' : 'Change to Approved'}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex', fontSize: '0.7rem', gap: '4px', alignItems: 'center' }}
+                        >
+                          <RefreshCw size={11} /> Correct
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

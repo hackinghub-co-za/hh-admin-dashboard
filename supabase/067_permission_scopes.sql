@@ -198,6 +198,73 @@ $$;
 GRANT EXECUTE ON FUNCTION public.review_daily_room_log(BIGINT, BOOLEAN, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.review_daily_room_log(BIGINT, BOOLEAN, TEXT) FROM PUBLIC, anon;
 
+-- review_daily_room_log() above is deliberately one-shot (Pending-only) so
+-- two reviewers can't double-credit the same log. That leaves no way to
+-- undo a mistaken click, though - an admin who meant Reject and hit Approve
+-- (or the reverse) was stuck with it permanently. This is the correction
+-- path: only ever touches an ALREADY-reviewed log (Approved or Rejected,
+-- never Pending - review_daily_room_log() already owns that transition),
+-- and safely re-derives the standings credit rather than just re-running
+-- the same increment - undoes the old credit first if it was Approved,
+-- then re-applies it if the new decision is also Approved, so flipping
+-- Approved -> Approved with a different note (say, correcting an admin_note
+-- typo) is a safe no-op on rooms_completed, not a double-count. FOR UPDATE
+-- locks the row for the whole correction, same reasoning as the Pending
+-- guard above - two corrections on the same log can't both read the same
+-- "old status" and mis-adjust standings.
+CREATE OR REPLACE FUNCTION public.correct_room_log_review(p_log_id BIGINT, p_new_approved BOOLEAN, p_admin_note TEXT DEFAULT NULL)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_member_email TEXT;
+  v_room_count INTEGER;
+  v_old_status TEXT;
+  v_new_status TEXT := CASE WHEN p_new_approved THEN 'Approved' ELSE 'Rejected' END;
+BEGIN
+  IF NOT (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())) THEN
+    RAISE EXCEPTION 'Only admins can correct a room log review.';
+  END IF;
+
+  SELECT member_email, room_count, status INTO v_member_email, v_room_count, v_old_status
+  FROM public.daily_room_logs WHERE id = p_log_id FOR UPDATE;
+
+  IF v_member_email IS NULL THEN
+    RAISE EXCEPTION 'Room log not found.';
+  END IF;
+  IF v_old_status = 'Pending' THEN
+    RAISE EXCEPTION 'This log has not been reviewed yet - use Approve/Reject instead.';
+  END IF;
+  IF v_old_status = v_new_status THEN
+    RAISE EXCEPTION 'Already %.', v_old_status;
+  END IF;
+
+  IF v_old_status = 'Approved' THEN
+    UPDATE public.competition_standings
+    SET rooms_completed = greatest(0, rooms_completed - v_room_count),
+        days_logged = greatest(0, days_logged - 1)
+    WHERE email = v_member_email;
+  END IF;
+
+  UPDATE public.daily_room_logs
+  SET status = v_new_status,
+      reviewed_by = lower(auth.jwt() ->> 'email'),
+      reviewed_at = timezone('utc'::text, now()),
+      admin_note = p_admin_note,
+      updated_at = timezone('utc'::text, now())
+  WHERE id = p_log_id;
+
+  IF p_new_approved THEN
+    UPDATE public.competition_standings
+    SET rooms_completed = rooms_completed + v_room_count,
+        days_logged = days_logged + 1
+    WHERE email = v_member_email;
+  END IF;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.correct_room_log_review(BIGINT, BOOLEAN, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.correct_room_log_review(BIGINT, BOOLEAN, TEXT) FROM PUBLIC, anon;
+
 DROP POLICY IF EXISTS "admins manage room races" ON public.room_races;
 CREATE POLICY "admins manage room races"
   ON public.room_races FOR ALL
