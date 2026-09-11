@@ -40,6 +40,7 @@ RETURNS TABLE (
   "time" TEXT,
   location TEXT,
   link TEXT,
+  image_url TEXT,
   rsvp_count INTEGER
 )
 LANGUAGE sql
@@ -56,6 +57,7 @@ AS $$
     ce."time",
     ce.location,
     ce.link,
+    ce.image_url,
     COUNT(er.email)::INTEGER AS rsvp_count
   FROM public.community_events ce
   LEFT JOIN public.event_rsvps er ON er.event_id = ce.id

@@ -41,7 +41,7 @@ import {
 } from '../../lib/communityContentData';
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown, unapproveBreakdown, deleteBreakdown } from '../../lib/breakdownsData';
-import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent } from '../../lib/eventsData';
+import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, uploadEventImage } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
@@ -101,6 +101,7 @@ import {
   UserCog,
   ShieldCheck,
   ShieldAlert,
+  ImagePlus,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -1797,8 +1798,32 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // already saved either way, so if this admin can't auto-approve it just
   // sits in the same Pending queue below for whoever can.
   const [showAddEventForm, setShowAddEventForm] = useState(false);
-  const [newEvent, setNewEvent] = useState({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '' });
+  const [newEvent, setNewEvent] = useState({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: '' });
   const [addingEvent, setAddingEvent] = useState(false);
+
+  // Optional logo/cover image (event-images bucket, 019_events.sql). Uploaded
+  // under a random draft key while the event doesn't have a real id yet -
+  // re-picking a file while still drafting just replaces the same draft
+  // upload, same "list then remove" pattern as uploadHeadshot(). The draft
+  // key is only ever used for this one upload; the event's own id is what
+  // matters once it's saved.
+  const [draftEventImageKey] = useState(() => `draft-${Math.random().toString(36).slice(2)}`);
+  const [uploadingEventImage, setUploadingEventImage] = useState(false);
+
+  const handleEventImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingEventImage(true);
+    setApproveEventError(null);
+    try {
+      const imageUrl = await uploadEventImage(draftEventImageKey, file);
+      setNewEvent((prev) => ({ ...prev, imageUrl }));
+    } catch (err) {
+      setApproveEventError(friendlyErrorMessage(err));
+    } finally {
+      setUploadingEventImage(false);
+    }
+  };
 
   const handleAddEvent = async (e) => {
     e.preventDefault();
@@ -1811,7 +1836,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         await approveCommunityEvent(created.id);
       }
       setCommunityEvents(await fetchCommunityEvents());
-      setNewEvent({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '' });
+      setNewEvent({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: '' });
       setShowAddEventForm(false);
     } catch (err) {
       setApproveEventError(friendlyErrorMessage(err));
@@ -4243,6 +4268,18 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                 <input className="form-input" placeholder="Location (optional)" value={newEvent.location} onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })} />
               </div>
               <input className="form-input" placeholder="Link (optional)" value={newEvent.link} onChange={(e) => setNewEvent({ ...newEvent, link: e.target.value })} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {newEvent.imageUrl && (
+                  <img src={newEvent.imageUrl} alt="" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }} />
+                )}
+                <label
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '8px 14px', cursor: uploadingEventImage ? 'default' : 'pointer', opacity: uploadingEventImage ? 0.7 : 1, display: 'inline-flex' }}
+                >
+                  <ImagePlus size={13} /> {uploadingEventImage ? 'Uploading...' : newEvent.imageUrl ? 'Change Logo/Image' : 'Add Logo/Image (optional)'}
+                  <input type="file" accept="image/*" onChange={handleEventImageChange} disabled={uploadingEventImage} style={{ display: 'none' }} />
+                </label>
+              </div>
               <button type="submit" className="btn btn-primary" disabled={addingEvent} style={{ alignSelf: 'flex-end' }}>
                 {addingEvent ? 'Adding...' : 'Add Event'}
               </button>
@@ -4285,20 +4322,25 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                       flexWrap: 'wrap',
                     }}
                   >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{ev.type}</span>
-                        {ev.capacity != null && (
-                          <span className="badge" style={{ fontSize: '0.65rem', background: 'rgba(var(--success-rgb), 0.15)', color: 'var(--success)', border: '1px solid rgba(var(--success-rgb), 0.2)' }} title="Capped, enforced server-side on rsvp_for_event()">
-                            Capped at {ev.capacity}
-                          </span>
-                        )}
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{ev.title}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      {ev.imageUrl && (
+                        <img src={ev.imageUrl} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', flexShrink: 0 }} />
+                      )}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                          <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{ev.type}</span>
+                          {ev.capacity != null && (
+                            <span className="badge" style={{ fontSize: '0.65rem', background: 'rgba(var(--success-rgb), 0.15)', color: 'var(--success)', border: '1px solid rgba(var(--success-rgb), 0.2)' }} title="Capped, enforced server-side on rsvp_for_event()">
+                              Capped at {ev.capacity}
+                            </span>
+                          )}
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{ev.title}</h4>
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          {formatDate(ev.date)}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'}
+                          {ev.createdBy && ` | Submitted by ${ev.createdBy}`}
+                        </p>
                       </div>
-                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                        {formatDate(ev.date)}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'}
-                        {ev.createdBy && ` | Submitted by ${ev.createdBy}`}
-                      </p>
                     </div>
                     {isSafeUrl(ev.link) && (
                       <a href={ev.link} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>

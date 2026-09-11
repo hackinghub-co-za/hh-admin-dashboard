@@ -520,6 +520,16 @@ CREATE POLICY "admins manage event rsvps"
   ON public.event_rsvps FOR ALL
   USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
 
+-- Same widening for the event-images storage bucket (019_events.sql) -
+-- admin-only there since is_community_manager() didn't exist yet at that
+-- point on a fresh install.
+DROP POLICY IF EXISTS "staff manage event images" ON storage.objects;
+CREATE POLICY "staff manage event images"
+  ON storage.objects FOR ALL
+  TO authenticated
+  USING (bucket_id = 'event-images' AND (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())))
+  WITH CHECK (bucket_id = 'event-images' AND (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())));
+
 -- Approval itself stays deliberately narrower than general community_events
 -- management (matching the original design intent - see 019_events.sql's
 -- own comment on why this is a dedicated RPC rather than a policy): now

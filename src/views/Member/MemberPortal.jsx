@@ -4928,6 +4928,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               const isFull = isCapped && rsvpCount !== null && rsvpCount >= e.capacity && !hasRsvped;
               return (
                 <div key={e.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {e.imageUrl && (
+                    <img
+                      src={e.imageUrl}
+                      alt=""
+                      style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}
+                    />
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <span className={`badge ${typeStyle.className || ''}`} style={typeStyle.style}>{e.type}</span>

@@ -12,7 +12,7 @@ import { supabase } from './supabase';
 export async function fetchCommunityEvents() {
   const { data, error } = await supabase
     .from('community_events')
-    .select('id, type, title, description, date, time, location, link, created_by, status, capacity')
+    .select('id, type, title, description, date, time, location, link, image_url, created_by, status, capacity')
     .order('date', { ascending: true });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -24,6 +24,7 @@ export async function fetchCommunityEvents() {
     time: row.time || '',
     location: row.location || '',
     link: row.link || '',
+    imageUrl: row.image_url || '',
     createdBy: row.created_by || '',
     status: row.status,
     capacity: row.capacity, // null = unlimited seats
@@ -34,7 +35,7 @@ export async function fetchCommunityEvents() {
  * enforces created_by can only ever be the caller's own email). Always lands
  * as 'Pending' server-side regardless of what's sent - only visible to its
  * submitter and admins until approved via approveCommunityEvent(). */
-export async function createCommunityEvent({ type, title, description, date, time, location, link, createdBy }) {
+export async function createCommunityEvent({ type, title, description, date, time, location, link, imageUrl, createdBy }) {
   const { data, error } = await supabase
     .from('community_events')
     .insert({
@@ -45,6 +46,7 @@ export async function createCommunityEvent({ type, title, description, date, tim
       time: time || null,
       location: location || null,
       link: link || null,
+      image_url: imageUrl || null,
       created_by: createdBy.toLowerCase(),
     })
     .select()
@@ -59,9 +61,35 @@ export async function createCommunityEvent({ type, title, description, date, tim
     time: data.time || '',
     location: data.location || '',
     link: data.link || '',
+    imageUrl: data.image_url || '',
     createdBy: data.created_by || '',
     status: data.status,
   };
+}
+
+/** Uploads an event logo/cover image to the public event-images bucket
+ * (019_events.sql) and returns its public URL. RLS restricts writes to
+ * admins/community_managers, same as event management generally - a plain
+ * member's own "Add Event" submission never shows this control. One file
+ * per event id, so re-uploading for the same event cleanly replaces it
+ * rather than accumulating orphaned files, same reasoning as
+ * uploadHeadshot() (memberDirectoryData.js). Pass the event's real id once
+ * it exists (after creation) or a temporary key while still drafting a new
+ * one - either way the caller is responsible for saving the returned URL
+ * onto the event's image_url. */
+export async function uploadEventImage(eventKey, file) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${eventKey}/image.${ext}`;
+  const { data: existing } = await supabase.storage.from('event-images').list(String(eventKey));
+  if (existing?.length) {
+    await supabase.storage.from('event-images').remove(existing.map((f) => `${eventKey}/${f.name}`));
+  }
+  const { error } = await supabase.storage
+    .from('event-images')
+    .upload(path, file, { cacheControl: '3600', contentType: file.type });
+  if (error) throw error;
+  const { data } = supabase.storage.from('event-images').getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
 }
 
 /** Approves a pending community event, making it visible to every member.

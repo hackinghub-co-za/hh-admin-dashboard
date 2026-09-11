@@ -74,6 +74,44 @@ ALTER TABLE public.community_events
 ALTER TABLE public.community_events
   ADD COLUMN IF NOT EXISTS capacity INTEGER CHECK (capacity IS NULL OR capacity > 0);
 
+-- Optional logo/cover image - most events don't set one and the member/
+-- public cards render fine without it; useful for an external community's
+-- own branding (e.g. a partner meetup's logo) or a hero image for HH's own
+-- bigger events. Just a URL, not an upload path itself - see the
+-- event-images bucket below for where an uploaded file's public URL
+-- actually comes from.
+ALTER TABLE public.community_events
+  ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+-- EVENT IMAGE STORAGE - a dedicated public bucket for the optional image
+-- above. Unlike member-headshots (010_member_directory.sql, member-owned,
+-- one file per member's own email-prefixed folder), events aren't
+-- member-owned content - an admin curates them, so write access here is
+-- staff-only rather than scoped by folder. Public read, same as headshots.
+-- Admin-only here, same as "admins manage community events" originally was
+-- below - is_community_manager() doesn't exist yet at this point on a fresh
+-- install (it's defined in 067_permission_scopes.sql, which runs later and
+-- is what widens this same policy to community_manager too, the same
+-- pattern it already uses for the table's own RLS).
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('event-images', 'event-images', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "public read event images" ON storage.objects;
+CREATE POLICY "public read event images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'event-images');
+
+DROP POLICY IF EXISTS "staff manage event images" ON storage.objects;
+CREATE POLICY "staff manage event images"
+  ON storage.objects FOR ALL
+  TO authenticated
+  USING (bucket_id = 'event-images' AND public.is_admin(auth.uid()))
+  WITH CHECK (bucket_id = 'event-images' AND public.is_admin(auth.uid()));
+
 -- Fixes up a table that already existed before 'Study Session' was added to
 -- the CREATE TABLE's inline CHECK above - a no-op on a fresh install where
 -- the constraint was already created correctly.
