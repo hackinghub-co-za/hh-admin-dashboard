@@ -152,8 +152,15 @@ UPDATE public.community_events SET status = 'Approved' WHERE id = 6;
 UPDATE public.community_events SET capacity = 25 WHERE title = 'HH Hackathon: Capture, Build, Ship';
 
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
--- the first member-created event gets id 8, not a collision with 1-7.
-SELECT setval(pg_get_serial_sequence('public.community_events', 'id'), 7, true);
+-- the first member-created event gets id 8, not a collision with 1-7. GREATEST
+-- against the table's real current max(id), not a bare 7 - a bare 7 is only
+-- correct on a fresh install; re-running this idempotent script against a
+-- live database that has since accumulated real rows past id 7 would rewind
+-- the sequence backward, and the next insert would collide with an existing
+-- row (hit in practice: id 8 already existed, `duplicate key value violates
+-- unique constraint "community_events_pkey"`, from re-running this file long
+-- after real events existed).
+SELECT setval(pg_get_serial_sequence('public.community_events', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM public.community_events), 7), true);
 
 -- Approval is intentionally scoped to one specific person, not every admin -
 -- a SECURITY DEFINER RPC rather than a broader RLS policy, so it can check an
