@@ -2130,9 +2130,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Study Session': { style: { background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-cyan)', border: '1px solid rgba(56, 189, 248, 0.25)' } },
   };
 
-  const filteredEvents = eventTypeFilter === 'All'
+  // The Events tab is a "what's on" board, not an archive - fetchCommunityEvents()
+  // itself has no date filter (communityEvents also backs the lifetime "Events
+  // joined" stat on My Journey So Far, which needs every event a member ever
+  // RSVP'd to, past included), so filtering to today-or-later happens here,
+  // right where the browsable grid is built. Matches the same "upcoming only"
+  // default the public website already applies (get_public_community_events(),
+  // 052_public_events.sql) - a stale event sitting at the top of the list (the
+  // fetch orders oldest-first) reads as an abandoned community either place.
+  const filteredEvents = (eventTypeFilter === 'All'
     ? communityEvents
-    : communityEvents.filter(e => e.type === eventTypeFilter);
+    : communityEvents.filter(e => e.type === eventTypeFilter)
+  ).filter((e) => daysUntilEvent(e.date) >= 0);
 
   // Dashboard "Upcoming Event" spotlight - the soonest real, approved event
   // that hasn't happened yet, not a hardcoded placeholder. undefined once
@@ -4847,7 +4856,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {(() => {
             const myRsvpedEvents = communityEvents
-              .filter((e) => hasRsvpedToEvent(e.id))
+              .filter((e) => hasRsvpedToEvent(e.id) && daysUntilEvent(e.date) >= 0)
               .sort((a, b) => new Date(a.date) - new Date(b.date));
             if (myRsvpedEvents.length === 0) return null;
             return (
