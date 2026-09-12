@@ -6594,16 +6594,23 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       // Calculate Year, Month (the real current month - this used to be a
       // hardcoded '2026-08' literal, so it silently stopped updating the
       // moment the real month moved past August, same root cause as the
-      // frozen `today` anchor above), and Week (Past 7 days) Gross Revenue
-      const yearlyRevenue = payments.reduce((acc, p) => acc + p.amount, 0);
+      // frozen `today` anchor above), and Week (Past 7 days) Gross Revenue.
+      // Filtered to revenuePayments (same 'Funds Received'/'REFUNDED' scope
+      // as the Overview tab's totalGrossRevenue, defined above) rather than
+      // the raw `payments` array - this was the same "sums everything with
+      // no type filter" bug duplicated here under different variable names,
+      // so yearlyRevenue was silently netting out both live REFUNDED rows'
+      // negative amounts already, just never consistently with any other
+      // revenue figure on this page.
+      const yearlyRevenue = revenuePayments.reduce((acc, p) => acc + p.amount, 0);
 
       const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-      const monthlyRevenue = payments
+      const monthlyRevenue = revenuePayments
         .filter(p => p.date.startsWith(currentMonthKey))
         .reduce((acc, p) => acc + p.amount, 0);
 
       const past7DaysCutoff = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const weeklyRevenue = payments
+      const weeklyRevenue = revenuePayments
         .filter(p => new Date(p.date) >= past7DaysCutoff)
         .reduce((acc, p) => acc + p.amount, 0);
 
@@ -6651,7 +6658,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         .slice(0, 5);
 
       // Revenue Distribution by Plan
-      const planBreakdown = payments.reduce((acc, p) => {
+      const planBreakdown = revenuePayments.reduce((acc, p) => {
         acc[p.plan] = (acc[p.plan] || 0) + p.amount;
         return acc;
       }, {});
