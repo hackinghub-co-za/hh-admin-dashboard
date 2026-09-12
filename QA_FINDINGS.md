@@ -15,7 +15,7 @@ Started 2026-09-11.
 - [x] Events (RSVP, capacity, images, self-submission flow, past-event filtering)
 - [x] Job Board (member view)
 - [ ] Resources (Cert Prep guides, LinkedIn Strategy, Podcasts)
-- [ ] Breakdowns (archive list, markdown rendering, unsubscribe)
+- [x] Breakdowns (archive list, markdown rendering, unsubscribe)
 - [x] Cert Calendar (booking, Exam Readiness tracker, practice quizzes)
 - [x] Competitions (daily room logs, standings + tie-splitting, Head-to-Head Duels, Room Races, Live Buzzer Trivia, rules guide)
 - [x] Reviews (member view)
@@ -37,7 +37,7 @@ Started 2026-09-11.
 - [x] Finances
 - [x] Reviews admin
 - [ ] Insights
-- [ ] Community Content (broadcasts, wins, suggested content, Weekly Breakdowns management)
+- [x] Community Content (broadcasts, wins, suggested content, Weekly Breakdowns management)
 - [ ] Team & Roles (role assignment, permission-scope correctness per role)
 
 ### Cross-cutting / backend
@@ -123,6 +123,28 @@ Claimed: **Job Board** (member + admin) and **Reviews** (member + admin) - two s
 Everything else read in this pass held up: Job Board's "no moderation, member listings go live immediately" design (documented and consistent - `addJobListing()`/RLS INSERT policy self-attributes `created_by` server-side, matching the reviews/events/cert-calendar pattern); `deleteJobListing()`'s admin-only RLS gate (widened to `community_manager` too in `067_permission_scopes.sql`'s PART 4, already verified in the earlier permission-scope pass); the admin Job Board tab's optimistic-delete-with-rollback-on-failure (a harmless cosmetic quirk: on a failed delete, the listing reappears at the end of the list rather than its original position - not worth a fix). One cross-reference worth noting for whoever eventually claims the **Push notification edge functions** checklist item: `push-new-job` (meant to notify members of a new Job Board listing) is never actually invoked anywhere in `src/` - dead code, consistent with the broader unfinished/unconfigured state of the push-notification feature already flagged in this session's own chat history (missing secrets, missing `google_oauth_tokens`/`push_tokens` tables).
 
 **Next up**: Still unclaimed - **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions - note the dead `push-new-job` call site above, Gemma AI edge functions, cron jobs, referral program).
+
+---
+
+### 2026-09-12 (sixth pass, same day)
+
+Claimed: **Community Content** (admin: broadcasts, wins, suggested content, Weekly Breakdowns management) + **Breakdowns** (member: archive list, markdown rendering, unsubscribe) - a natural pair since Weekly Breakdowns management is the admin half of the member Breakdowns tab. Read `068_weekly_breakdowns.sql`, `044_community_content.sql`, `045_suggested_content.sql`, the relevant slice of `067_permission_scopes.sql`, `src/lib/breakdownsData.js`, `src/lib/communityContentData.js`, `src/lib/renderMarkdown.js`, and both tabs in `AdminDashboard.jsx`/`MemberPortal.jsx`. Both checklist boxes checked off.
+
+#### [Community Content] An Approved or already-Sent weekly breakdown had no server-side protection from being edited or deleted
+- **Severity**: Medium-High
+- **Where**: `supabase/068_weekly_breakdowns.sql` - `"staff manage breakdowns"` RLS policy (pre-fix)
+- **What's wrong**: `updateBreakdown()`/`deleteBreakdown()` (`breakdownsData.js`) are documented "edit a Draft's plan fields" / "only makes sense for a Draft," and the admin UI only ever renders Edit/Delete for a Draft row (`AdminDashboard.jsx`, `{b.status === 'Draft' && (...)}`). But the RLS policy backing both has no status condition at all - the same "client-side gate, no server-side mirror" shape as the Projects-completion-bypass bug fixed earlier in this project's QA history. A Sent edition is what members already read on the Breakdowns tab and received by email; nothing stopped a direct write from silently rewriting or deleting it after the fact. No live symptom yet (0 Approved/Sent rows exist today - the feature is new), but the first real Friday send would have been exposed to this immediately.
+- **Status**: Fixed (commit `4d1d688`) - a `BEFORE UPDATE OR DELETE` trigger now blocks any content-column change or a delete once `status <> 'Draft'`; the three status-transition RPCs (approve/unapprove/mark-sent) are unaffected since they only ever touch `status`/`approved_*`/`sent_at`/`recipient_count`/`broadcast_id`. Verified live with a disposable test row: approved it (status-only change, allowed), confirmed a content edit and a delete were both rejected with a clear error, confirmed pulling it back to Draft restored both, then cleaned up.
+
+#### [Community Content] Suggested Content never got the same Community Manager widening as its two admin-page siblings
+- **Severity**: Medium
+- **Where**: `supabase/045_suggested_content.sql` - `"admins manage suggested content"` (pre-fix)
+- **What's wrong**: This table's own header comment describes it as "the same admin-authored/member-read-only shape as community_broadcasts/community_wins" - both already widened to `community_manager` in `067_permission_scopes.sql`. This one never was. All three are managed from the exact same admin page (`AdminDashboard.jsx`, case `'community-content'`, whose own intro text explicitly promises all three are "editable here") - a community_manager could already use the Community Broadcast and Recent Wins forms on that page, but would hit a silent RLS-denied error submitting the Suggested Content form sitting directly below them on the same screen. Same finding-shape as the Quiz Duels widening gap fixed earlier this same day.
+- **Status**: Fixed (commit `3dcc50d`) - widened in `067_permission_scopes.sql` (not `045` directly - `is_community_manager()` doesn't exist yet at `045`'s point in migration order, same constraint `019_events.sql` already documents for `approve_community_event()`), matching the exact convention already used for every other post-hoc widening in that file. Applied live via `npx supabase db query --linked`; verified via `pg_get_expr` on `pg_policy` that the live policy now includes `is_community_manager(auth.uid())`.
+
+Everything else read in this pass held up: `renderMarkdown()`'s DOMPurify sanitization on `body_md` before `dangerouslySetInnerHTML` (a compromised CM/admin account still can't inject a script, by design); the member Breakdowns tab's archive-list/detail-pane split and its "no breakdowns yet" empty state; `unsubscribe_from_breakdown_emails()`'s anonymous cold-click shape (no in-app resubscribe/status toggle exists anywhere for this, but that's consistent with its two siblings - `roadmap_reminder_opted_out`, `linkedin_reminder_opted_out` - neither of which has in-app UI either, so this reads as a deliberate, established pattern across all three email types rather than a one-off gap); `get_breakdown_recipients()`/`get_breakdown_facilitator_emails()`'s admin-or-service-role gating.
+
+**Next up**: Still unclaimed - **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions - note the dead `push-new-job` call site from the previous pass, Gemma AI edge functions, cron jobs, referral program - note also `weekly-breakdown-email`/`breakdown-nudge`/`breakdown-unsubscribe` edge functions themselves were not read this pass, only the DB/RLS/UI they sit on top of).
 
 ---
 
