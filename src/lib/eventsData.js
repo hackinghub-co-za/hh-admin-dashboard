@@ -92,6 +92,29 @@ export async function uploadEventImage(eventKey, file) {
   return `${data.publicUrl}?t=${Date.now()}`;
 }
 
+/** Admin/CM: edit an existing event's fields - available both before and
+ * after approval (the existing "admins manage community events" FOR ALL
+ * RLS policy already covers this write, same as approve/delete - no new
+ * policy or RPC needed). Status is deliberately not editable here; that
+ * stays approveCommunityEvent()'s own job. */
+export async function updateCommunityEvent(eventId, { type, title, description, date, time, location, link, imageUrl, capacity }) {
+  const { error } = await supabase
+    .from('community_events')
+    .update({
+      type,
+      title,
+      description: description || null,
+      date,
+      time: time || null,
+      location: location || null,
+      link: link || null,
+      image_url: imageUrl || null,
+      capacity: capacity === '' || capacity === null || capacity === undefined ? null : Number(capacity),
+    })
+    .eq('id', eventId);
+  if (error) throw error;
+}
+
 /** Approves a pending community event, making it visible to every member.
  * Server-side restricted to exactly siya@hackinghub.co.za regardless of who
  * calls this - not every admin account. */

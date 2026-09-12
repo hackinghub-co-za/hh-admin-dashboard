@@ -41,7 +41,7 @@ import {
 } from '../../lib/communityContentData';
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown, unapproveBreakdown, deleteBreakdown } from '../../lib/breakdownsData';
-import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, uploadEventImage } from '../../lib/eventsData';
+import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, uploadEventImage } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
@@ -1965,16 +1965,21 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const HH_EVENT_IMAGE_URL = 'https://kveiflphktpvsddhkspz.supabase.co/storage/v1/object/public/event-images/_hh-branding/logo.png';
   const HH_RUN_EVENT_TYPES = ['HH Meetup', 'Sunday Catchup', 'Study Session'];
 
+  const EMPTY_EVENT_FORM = { type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL, capacity: '' };
   const [showAddEventForm, setShowAddEventForm] = useState(false);
-  const [newEvent, setNewEvent] = useState({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL });
+  const [newEvent, setNewEvent] = useState(EMPTY_EVENT_FORM);
   const [addingEvent, setAddingEvent] = useState(false);
+  // Non-null while editing an already-existing event (Pending or Live/
+  // Approved - either way, editing is a plain field update, never a status
+  // change) instead of drafting a new one. Same form/state below serves
+  // both; only the submit handler and a couple of labels branch on it.
+  const [editingEventId, setEditingEventId] = useState(null);
 
-  // Optional logo/cover image (event-images bucket, 019_events.sql). Uploaded
-  // under a random draft key while the event doesn't have a real id yet -
-  // re-picking a file while still drafting just replaces the same draft
-  // upload, same "list then remove" pattern as uploadHeadshot(). The draft
-  // key is only ever used for this one upload; the event's own id is what
-  // matters once it's saved.
+  // Optional logo/cover image (event-images bucket, 019_events.sql). A new
+  // event has no real id yet, so it uploads under a random draft key until
+  // saved; editing an existing one uploads straight to that event's own id.
+  // Either way, re-picking a file just replaces the prior upload at the
+  // same path, same "list then remove" pattern as uploadHeadshot().
   const [draftEventImageKey] = useState(() => `draft-${Math.random().toString(36).slice(2)}`);
   const [uploadingEventImage, setUploadingEventImage] = useState(false);
 
@@ -1984,7 +1989,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     setUploadingEventImage(true);
     setApproveEventError(null);
     try {
-      const imageUrl = await uploadEventImage(draftEventImageKey, file);
+      const imageUrl = await uploadEventImage(editingEventId || draftEventImageKey, file);
       setNewEvent((prev) => ({ ...prev, imageUrl }));
     } catch (err) {
       setApproveEventError(friendlyErrorMessage(err));
@@ -1993,19 +1998,41 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
   };
 
-  const handleAddEvent = async (e) => {
+  const resetEventForm = () => {
+    setNewEvent(EMPTY_EVENT_FORM);
+    setEditingEventId(null);
+    setShowAddEventForm(false);
+  };
+
+  // Opens the same form pre-filled with an existing event's values -
+  // available on a Pending submission or an already-Live one alike, per
+  // the founder's request that both admins and Community Managers be able
+  // to correct an event's details either side of approval.
+  const startEditEvent = (ev) => {
+    setEditingEventId(ev.id);
+    setNewEvent({
+      type: ev.type, title: ev.title, description: ev.description || '', date: ev.date, time: ev.time || '',
+      location: ev.location || '', link: ev.link || '', imageUrl: ev.imageUrl || '', capacity: ev.capacity ?? '',
+    });
+    setShowAddEventForm(true);
+  };
+
+  const handleSaveEvent = async (e) => {
     e.preventDefault();
     if (!newEvent.title || !newEvent.date) return;
     setAddingEvent(true);
     setApproveEventError(null);
     try {
-      const created = await createCommunityEvent({ ...newEvent, createdBy: user?.email });
-      if (canApproveEvents) {
-        await approveCommunityEvent(created.id);
+      if (editingEventId) {
+        await updateCommunityEvent(editingEventId, newEvent);
+      } else {
+        const created = await createCommunityEvent({ ...newEvent, createdBy: user?.email });
+        if (canApproveEvents) {
+          await approveCommunityEvent(created.id);
+        }
       }
       setCommunityEvents(await fetchCommunityEvents());
-      setNewEvent({ type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL });
-      setShowAddEventForm(false);
+      resetEventForm();
     } catch (err) {
       setApproveEventError(friendlyErrorMessage(err));
     } finally {
@@ -4593,17 +4620,19 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               <p>The real, live Events tab members see, plus what's still waiting on your review below.</p>
             </div>
             {!isMockSession && (
-              <button className="btn btn-primary" style={{ flexShrink: 0 }} onClick={() => setShowAddEventForm((v) => !v)}>
+              <button className="btn btn-primary" style={{ flexShrink: 0 }} onClick={() => (showAddEventForm ? resetEventForm() : setShowAddEventForm(true))}>
                 <Plus size={16} /> {showAddEventForm ? 'Cancel' : 'Add Event'}
               </button>
             )}
           </div>
 
           {showAddEventForm && (
-            <form onSubmit={handleAddEvent} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-              <h3 style={{ margin: 0 }}>Add Event</h3>
+            <form onSubmit={handleSaveEvent} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <h3 style={{ margin: 0 }}>{editingEventId ? 'Edit Event' : 'Add Event'}</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                For a listing that came in via the shareable submission form instead of a member's own portal login.
+                {editingEventId
+                  ? "Editable any time, whether it's still Pending or already Live - this only changes its details, never its approval status."
+                  : "For a listing that came in via the shareable submission form instead of a member's own portal login."}
               </p>
               {approveEventError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: 0 }}>{approveEventError}</p>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -4631,7 +4660,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                 <input className="form-input" placeholder="Time (optional)" value={newEvent.time} onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })} />
                 <input className="form-input" placeholder="Location (optional)" value={newEvent.location} onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })} />
               </div>
-              <input className="form-input" placeholder="Link (optional)" value={newEvent.link} onChange={(e) => setNewEvent({ ...newEvent, link: e.target.value })} />
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+                <input className="form-input" placeholder="Link (optional)" value={newEvent.link} onChange={(e) => setNewEvent({ ...newEvent, link: e.target.value })} />
+                <input
+                  type="number" min="1" className="form-input" placeholder="Seat cap (optional)"
+                  value={newEvent.capacity}
+                  onChange={(e) => setNewEvent({ ...newEvent, capacity: e.target.value })}
+                  title="Leave blank for unlimited seats"
+                />
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 {newEvent.imageUrl && (
                   <img src={newEvent.imageUrl} alt="" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }} />
@@ -4645,7 +4682,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                 </label>
               </div>
               <button type="submit" className="btn btn-primary" disabled={addingEvent} style={{ alignSelf: 'flex-end' }}>
-                {addingEvent ? 'Adding...' : 'Add Event'}
+                {addingEvent ? (editingEventId ? 'Saving...' : 'Adding...') : (editingEventId ? 'Save Changes' : 'Add Event')}
               </button>
             </form>
           )}
@@ -4706,11 +4743,16 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                         </p>
                       </div>
                     </div>
-                    {isSafeUrl(ev.link) && (
-                      <a href={ev.link} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-                        <Link size={13} /> Event Link
-                      </a>
-                    )}
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      {isSafeUrl(ev.link) && (
+                        <a href={ev.link} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                          <Link size={13} /> Event Link
+                        </a>
+                      )}
+                      <button onClick={() => startEditEvent(ev)} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                        <Pencil size={13} /> Edit
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -4770,6 +4812,13 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                         style={{ fontSize: '0.8rem', padding: '8px 14px' }}
                       >
                         <Info size={14} /> Details
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => startEditEvent(ev)}
+                        style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                      >
+                        <Pencil size={14} /> Edit
                       </button>
                       <button
                         className="btn btn-secondary"
