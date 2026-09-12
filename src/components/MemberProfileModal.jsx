@@ -5,7 +5,7 @@ import { formatDate } from '../lib/dateFormat';
 import { fetchMemberInterviews } from '../lib/memberInterviewsData';
 import { fetchMemberLinkedInPostStatus } from '../lib/linkedInPostData';
 
-export default function MemberProfileModal({ member, profile, onSave, onDelete, onClose, today, isMockSession }) {
+export default function MemberProfileModal({ member, profile, onSave, onDelete, onSetExpectedTotalPayment, savingExpectedTotalPayment, onClose, today, isMockSession }) {
   const [form, setForm] = useState({
     // Defaults to the real first-payment date (still shown separately,
     // read-only, as "First Payment" below) - editable here since it's wrong
@@ -49,6 +49,36 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
   // Whether this member has confirmed posting on LinkedIn this week
   // (supabase/059_linkedin_weekly_post.sql) - same self-fetching,
   // mock-guarded pattern as realInterviews above.
+  // Expected Total Payment (076_expected_total_payment.sql) - a separate,
+  // dedicated mini-form rather than part of the main profile form below,
+  // since setting it triggers an immediate server-side recompute of Money
+  // Owed that this modal needs to reflect right away, not just whatever's
+  // sitting in local form state.
+  const [expectedTotalInput, setExpectedTotalInput] = useState(profile?.expectedTotalPayment ?? '');
+  const hasExpectedTotal = profile?.expectedTotalPayment !== null && profile?.expectedTotalPayment !== undefined;
+  // Saving the expected total triggers a parent refetch that updates
+  // `profile` in place (this modal instance stays mounted, not remounted) -
+  // without this, the read-only Money Owed display and this input would
+  // keep showing the pre-save values until the modal is closed and reopened.
+  // Adjusted during render rather than in a useEffect (React's own
+  // recommended pattern for "reset state when a prop changes") so it lands
+  // in the same commit instead of triggering a separate cascading render.
+  const [syncedMoneyOwed, setSyncedMoneyOwed] = useState(profile?.moneyOwed);
+  const [syncedExpectedTotal, setSyncedExpectedTotal] = useState(profile?.expectedTotalPayment);
+  if (syncedMoneyOwed !== profile?.moneyOwed || syncedExpectedTotal !== profile?.expectedTotalPayment) {
+    setSyncedMoneyOwed(profile?.moneyOwed);
+    setSyncedExpectedTotal(profile?.expectedTotalPayment);
+    setExpectedTotalInput(profile?.expectedTotalPayment ?? '');
+    setForm((f) => ({ ...f, moneyOwed: profile?.moneyOwed ?? 0 }));
+  }
+  const handleSaveExpectedTotal = () => {
+    onSetExpectedTotalPayment(member.email, expectedTotalInput, member.totalSpent);
+  };
+  const handleClearExpectedTotal = () => {
+    setExpectedTotalInput('');
+    onSetExpectedTotalPayment(member.email, '', member.totalSpent);
+  };
+
   const [linkedInStatus, setLinkedInStatus] = useState(null);
   useEffect(() => {
     if (isMockSession || !member?.email) return;
@@ -543,9 +573,51 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
             </div>
           </div>
 
+          {!isMockSession && (
+            <div style={{ padding: '14px', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-md)' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                Expected Total Payment (R) — Permanent Access / Elite Operative
+              </label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="form-input"
+                  placeholder="e.g. 12000.00"
+                  style={{ maxWidth: '200px' }}
+                  value={expectedTotalInput}
+                  onChange={(e) => setExpectedTotalInput(e.target.value)}
+                />
+                <button type="button" className="btn btn-secondary" onClick={handleSaveExpectedTotal} disabled={savingExpectedTotalPayment}>
+                  {savingExpectedTotalPayment ? 'Saving...' : 'Save'}
+                </button>
+                {hasExpectedTotal && (
+                  <button type="button" className="btn btn-secondary" onClick={handleClearExpectedTotal} disabled={savingExpectedTotalPayment}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                {hasExpectedTotal
+                  ? "Once set, Money Owed below is calculated automatically (expected total minus everything they've paid) and updates on its own whenever a payment is logged, edited, or removed."
+                  : 'Only for a member who owes one fixed total rather than a recurring monthly fee. Leave blank to keep Money Owed as a plain manually-entered number, as it is now.'}
+              </p>
+            </div>
+          )}
+
           <div>
             <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Money Owed (R)</label>
-            <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={form.moneyOwed} onChange={update('moneyOwed')} />
+            {hasExpectedTotal ? (
+              <>
+                <input type="number" className="form-input" value={form.moneyOwed} disabled style={{ opacity: 0.7, cursor: 'not-allowed' }} />
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Auto-calculated - R {Number(profile.expectedTotalPayment).toLocaleString('en-ZA', { minimumFractionDigits: 2 })} expected minus R {member.totalSpent.toLocaleString('en-ZA', { minimumFractionDigits: 2 })} paid so far. Clear the Expected Total above to edit this by hand again.
+                </p>
+              </>
+            ) : (
+              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={form.moneyOwed} onChange={update('moneyOwed')} />
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>

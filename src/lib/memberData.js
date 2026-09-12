@@ -24,6 +24,11 @@ export async function fetchMemberProfiles() {
       linkedin: row.linkedin || '',
       phone: row.phone || '',
       moneyOwed: Number(row.money_owed) || 0,
+      // 076_expected_total_payment.sql - null means the auto-calculated
+      // Money Owed isn't enabled for this member (Permanent Access / Elite
+      // Operative only); moneyOwed above stays a plain manually-edited
+      // number for everyone else, exactly as before this existed.
+      expectedTotalPayment: row.expected_total_payment === null ? null : Number(row.expected_total_payment),
       jobReadiness: row.job_readiness || 'Not Started',
       interviewsHad: row.interviews_had || 0,
       roadmapTrack: row.roadmap_track || 'Not Assigned',
@@ -73,6 +78,20 @@ export async function upsertMemberProfile(email, profile) {
     // exit_feedback_rating / exit_feedback_text / left_at are intentionally omitted -
     // those are only ever written by the member themselves via submit_exit_feedback(),
     // never by an admin edit, and omitting a key from an upsert leaves it untouched.
+  });
+  if (error) throw error;
+}
+
+/** Sets (or, with null, clears) a member's Expected Total Payment
+ * (076_expected_total_payment.sql) - once set, Money Owed is recalculated
+ * server-side as expected total minus everything they've paid, and stays
+ * that way automatically as payments are added/edited/deleted. Admin-only
+ * (RLS/RPC-enforced), for Permanent Access / Elite Operative members who
+ * owe one fixed total rather than a recurring monthly fee. */
+export async function setMemberExpectedTotalPayment(email, expectedTotal) {
+  const { error } = await supabase.rpc('set_member_expected_total_payment', {
+    p_email: email.toLowerCase(),
+    p_expected_total: expectedTotal === '' || expectedTotal === undefined ? null : Number(expectedTotal),
   });
   if (error) throw error;
 }

@@ -19,6 +19,7 @@ import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
   upsertMemberProfile,
+  setMemberExpectedTotalPayment,
   permanentlyDeleteMember,
   fetchDeletedMemberEmails,
   fetchManualMembers,
@@ -1234,6 +1235,37 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     setMemberProfiles((prev) => ({ ...prev, [email.toLowerCase()]: profileData }));
     if (!isMockSession) {
       upsertMemberProfile(email, profileData).catch((err) => setSavedMemberDataError(friendlyErrorMessage(err)));
+    }
+  };
+
+  // Sets/clears a member's Expected Total Payment (076_expected_total_payment.sql) -
+  // separate from handleSaveMemberProfile above since Money Owed becomes
+  // server-computed once this is set, so the fresh value has to come back
+  // from the DB rather than being guessed client-side. totalSpentSoFar is
+  // only used for the Mock Admin preview, which has no real trigger to
+  // recompute anything.
+  const [savingExpectedTotalPayment, setSavingExpectedTotalPayment] = useState(false);
+  const handleSetExpectedTotalPayment = async (email, expectedTotal, totalSpentSoFar) => {
+    const lowerEmail = email.toLowerCase();
+    if (isMockSession) {
+      setMemberProfiles((prev) => ({
+        ...prev,
+        [lowerEmail]: {
+          ...prev[lowerEmail],
+          expectedTotalPayment: expectedTotal === '' ? null : Number(expectedTotal),
+          moneyOwed: expectedTotal === '' ? (prev[lowerEmail]?.moneyOwed || 0) : Math.max(Number(expectedTotal) - (totalSpentSoFar || 0), 0),
+        },
+      }));
+      return;
+    }
+    setSavingExpectedTotalPayment(true);
+    try {
+      await setMemberExpectedTotalPayment(lowerEmail, expectedTotal);
+      setMemberProfiles(await fetchMemberProfiles());
+    } catch (err) {
+      setSavedMemberDataError(friendlyErrorMessage(err));
+    } finally {
+      setSavingExpectedTotalPayment(false);
     }
   };
 
@@ -3607,6 +3639,8 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               profile={selectedMember.profile}
               onSave={handleSaveMemberProfile}
               onDelete={handleDeleteMemberProfile}
+              onSetExpectedTotalPayment={handleSetExpectedTotalPayment}
+              savingExpectedTotalPayment={savingExpectedTotalPayment}
               onClose={() => setSelectedMemberEmail(null)}
               today={today}
               isMockSession={isMockSession}
