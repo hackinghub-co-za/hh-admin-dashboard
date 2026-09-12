@@ -17,6 +17,14 @@
 -- it's still Pending, but once an admin approves it, it's locked for the
 -- day. A Rejected log can be corrected and resubmitted (e.g. the proof
 -- wasn't actually posted) - only Approved is final.
+--
+-- REVISION (2026-09-12): weekend cap. Saturday/Sunday's max drops from 5 to
+-- 2 - log_date's day-of-week decides which cap applies, so a log dated on a
+-- weekend is capped at 2 regardless of which day it's actually submitted
+-- on. Enforced twice, same "don't trust the client alone" reasoning as
+-- everything else in this file: the CHECK constraint below is the real
+-- backstop, submit_daily_room_log()'s own check just gives a clearer error
+-- message than a raw constraint violation would.
 
 CREATE TABLE IF NOT EXISTS public.daily_room_logs (
   id BIGSERIAL PRIMARY KEY,
@@ -32,6 +40,18 @@ CREATE TABLE IF NOT EXISTS public.daily_room_logs (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
   UNIQUE (member_email, log_date)
 );
+
+-- Replaces the flat 1-5 CHECK above with a day-of-week-aware one, for a
+-- table that already existed before the weekend cap - a fresh CREATE TABLE
+-- above already gets the flat constraint, so this only ever has anything
+-- to do on a database where 031 ran before this revision. NOT VALID: the
+-- new cap is a going-forward rule, not a retroactive rewrite of history -
+-- real rows already approved under the old 1-5 rule (e.g. 4 rooms logged
+-- on a Saturday last month) stay exactly as they are, only a fresh
+-- insert/update is ever checked against it.
+ALTER TABLE public.daily_room_logs DROP CONSTRAINT IF EXISTS daily_room_logs_room_count_check;
+ALTER TABLE public.daily_room_logs ADD CONSTRAINT daily_room_logs_room_count_check
+  CHECK (room_count BETWEEN 1 AND (CASE WHEN EXTRACT(DOW FROM log_date) IN (0, 6) THEN 2 ELSE 5 END)) NOT VALID;
 
 ALTER TABLE public.daily_room_logs ENABLE ROW LEVEL SECURITY;
 
@@ -60,9 +80,15 @@ AS $$
 DECLARE
   v_email TEXT := lower(auth.jwt() ->> 'email');
   v_existing_status TEXT;
+  v_is_weekend BOOLEAN := EXTRACT(DOW FROM CURRENT_DATE) IN (0, 6);
+  v_max_rooms INTEGER := CASE WHEN v_is_weekend THEN 2 ELSE 5 END;
 BEGIN
-  IF p_room_count IS NULL OR p_room_count < 1 OR p_room_count > 5 THEN
-    RAISE EXCEPTION 'You can log between 1 and 5 rooms per day.';
+  IF p_room_count IS NULL OR p_room_count < 1 OR p_room_count > v_max_rooms THEN
+    IF v_is_weekend THEN
+      RAISE EXCEPTION 'Weekend submissions are capped at 2 rooms per day.';
+    ELSE
+      RAISE EXCEPTION 'You can log between 1 and 5 rooms per day.';
+    END IF;
   END IF;
   IF NOT p_proof_confirmed THEN
     RAISE EXCEPTION 'Confirm you have posted a once-view photo of each room in the WhatsApp group before submitting.';
