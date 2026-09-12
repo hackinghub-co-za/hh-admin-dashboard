@@ -3012,6 +3012,44 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           </div>
 
+          {/* Moved above the search bar (was below it, past the whole
+              directory-controls row) - a member who's just referred someone
+              was landing back on this tab and not finding this card without
+              scrolling past everything else first. Right under the "Refer a
+              Friend" button that creates these is the more findable spot. */}
+          {myReferrals.length > 0 && (
+            <div className="glass-card" style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserPlus size={16} color="var(--accent-cyan)" /> Your Referrals
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {myReferrals.map((r) => {
+                  // Pending: no badge at all - a plain "still waiting" state
+                  // doesn't need visual weight. Joined and Reward Paid are
+                  // the two states actually worth calling out.
+                  const statusBadge = r.status === 'Reward Paid'
+                    ? { label: `R${REFERRAL_REWARD_AMOUNT} Paid`, cls: 'badge-success' }
+                    : r.status === 'Joined'
+                      ? { label: 'Reward Pending', cls: 'badge-warning' }
+                      : null;
+                  return (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                      <span style={{ fontWeight: 600 }}>{r.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {statusBadge && <span className={`badge ${statusBadge.cls}`} style={{ fontSize: '0.7rem' }}>{statusBadge.label}</span>}
+                        {isSafeUrl(r.linkedin) && (
+                          <a href={r.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Link size={13} /> LinkedIn
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {promoteSecurityTile && (
             <div style={{ marginBottom: '24px' }}>
               <SecurityPanel isMockSession={isMockSession} onCountChange={handlePasskeyCount} />
@@ -3046,39 +3084,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </button>
             </div>
           </div>
-
-          {myReferrals.length > 0 && (
-            <div className="glass-card" style={{ marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <UserPlus size={16} color="var(--accent-cyan)" /> Your Referrals
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {myReferrals.map((r) => {
-                  // Pending: no badge at all - a plain "still waiting" state
-                  // doesn't need visual weight. Joined and Reward Paid are
-                  // the two states actually worth calling out.
-                  const statusBadge = r.status === 'Reward Paid'
-                    ? { label: `R${REFERRAL_REWARD_AMOUNT} Paid`, cls: 'badge-success' }
-                    : r.status === 'Joined'
-                      ? { label: 'Reward Pending', cls: 'badge-warning' }
-                      : null;
-                  return (
-                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
-                      <span style={{ fontWeight: 600 }}>{r.name}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        {statusBadge && <span className={`badge ${statusBadge.cls}`} style={{ fontSize: '0.7rem' }}>{statusBadge.label}</span>}
-                        {isSafeUrl(r.linkedin) && (
-                          <a href={r.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Link size={13} /> LinkedIn
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {loadingDirectory && <p style={{ color: 'var(--text-muted)' }}>Loading members...</p>}
           {directoryError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{directoryError}</p>}
