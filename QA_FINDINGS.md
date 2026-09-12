@@ -12,7 +12,7 @@ Started 2026-09-11.
 - [ ] Matchmaker (opt-in, group formation, wheel reveal, presentation ratings/showcase)
 - [ ] Members directory (search, grouped-by-domain view, profile modal, referrals, Security/passkeys panel)
 - [ ] 1-on-1 Meetings (booking, CV Review, Interview Prep, other Gemma tools)
-- [ ] Events (RSVP, capacity, images, self-submission flow, past-event filtering)
+- [x] Events (RSVP, capacity, images, self-submission flow, past-event filtering)
 - [ ] Job Board (member view)
 - [ ] Resources (Cert Prep guides, LinkedIn Strategy, Podcasts)
 - [ ] Breakdowns (archive list, markdown rendering, unsubscribe)
@@ -29,7 +29,7 @@ Started 2026-09-11.
 - [x] Members management (roster, status transitions, role assignment gating)
 - [x] Roadmaps management (approvals, catalog assignment, Projects proof review)
 - [x] Room Logs review (approve/reject, standings updates)
-- [ ] Meetups & Events admin (approve/reject, image upload, capacity, add-event auto-approve)
+- [x] Meetups & Events admin (approve/reject, image upload, capacity, add-event auto-approve)
 - [ ] Job Board admin
 - [x] Merch Orders
 - [x] Payments & Subscriptions
@@ -91,6 +91,22 @@ Claimed: **Members management** (roster, status transitions, role assignment gat
 Everything else read in this pass held up: `is_member_allowed()`'s allow-list logic (`status != 'Left'` correctly lets `'Leaving'` still sign in for the farewell screen, matching its own documented one-more-sign-in behavior); the admin-only gating on `grant_member_portal_access()`/`permanentlyDeleteMember` (RLS-enforced via `is_admin()`, consistent with the client-side "only rendered for a member already marked 'Left'" delete-button gate); `updateStatus()`'s one-time `offboardingStartedAt` stamp (correctly doesn't reset itself on every keystroke while already `'Leaving'`).
 
 **Next up**: Still unclaimed - **Meetups & Events admin**, **Job Board admin**, **Reviews (member + admin)**, **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions, Gemma AI edge functions, cron jobs, referral program).
+
+---
+
+### 2026-09-12 (fourth pass, same day)
+
+Claimed: **Events** (member: RSVP, capacity, images, self-submission, past-event filtering) + **Meetups & Events admin** (approve/reject, image upload, capacity, add-event auto-approve) - a natural pair, both checklist items unclaimed. Read `019_events.sql` (the consolidated, current source of truth per its own header - approval is further restricted by `067_permission_scopes.sql`, already covered by the earlier permission-scope pass), `src/lib/eventsData.js`, and the Events tab in both `MemberPortal.jsx` and `AdminDashboard.jsx` (case `'events'` / case `'meetups'`). Both checklist boxes checked off.
+
+#### [Meetups & Events admin] "Live Events" list never filtered out past events, despite its own copy claiming it does
+- **Severity**: Medium
+- **Where**: `src/views/Admin/AdminDashboard.jsx` - `liveCommunityEvents` (~line 2094, pre-fix)
+- **What's wrong**: The member-side Events tab already has a dedicated, previously-shipped fix filtering to upcoming-only (`daysUntilEvent(e.date) >= 0` in `MemberPortal.jsx`, referenced in this file's own recent git history: "fix: hide past events from the member Events tab"). This admin-side list's own header comment claimed it shows "the exact same data the member-side Events tab shows," and its own empty-state copy already read "Nothing approved and upcoming yet" - but the actual filter was just `e.status === 'Approved'`, with no date check at all. Confirmed live: 7 real approved events already in the past (`Meet-up` 2026-08-13, two `SC-900 Study Session`s, `0xCoffee JHB`, `HH Catchup`, `Sunday Catchup`, `Security Tech Update` 2026-09-10) were sitting in this list today, and would keep accumulating forever as more events pass, contradicting both its own documentation and its own displayed copy.
+- **Status**: Fixed (commit `dabd123`) - added the same "event date >= start of today" filter, computed with a fresh `Date()` rather than reusing this function's `today` variable (which is declared later in the same function body - referencing it here would throw a temporal-dead-zone error). Note: this does mean there's now no UI path to edit a past-but-approved event's details (e.g., fix a typo after the fact) - previously possible since it just sat in the same undifferentiated list forever. Matches the same tradeoff the founder already accepted on the member side; not treated as a regression worth blocking on, but worth knowing about if a "past events archive" view is ever wanted.
+
+Everything else read in this pass held up: `rsvp_for_event()`'s capacity enforcement (server-side, correctly lets an already-RSVP'd member back in regardless of a full event, since they're not taking a new seat); `unrsvp_from_event()`'s idempotent no-op shape; the member-side "Add Event" always landing Pending server-side (`WITH CHECK status = 'Pending'`, so a crafted request can't insert a pre-approved event); the admin "Add Event" form's auto-approve-if-eligible logic (`canApproveEvents`, matching `approve_community_event()`'s own siya-or-community_manager gate exactly - already verified correct in the earlier permission-scope pass); `event-images` storage bucket policies (public read, staff-only write); the HH-branding auto-logo assignment/clearing logic when switching event type; `uploadEventImage()`'s one-file-per-event-id replace-on-reupload behavior.
+
+**Next up**: Still unclaimed - **Job Board (member view + admin)** (a natural next pair, same shape as this pass), **Reviews (member + admin)**, **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions, Gemma AI edge functions, cron jobs, referral program).
 
 ---
 
