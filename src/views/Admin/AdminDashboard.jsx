@@ -49,6 +49,8 @@ import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingD
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog, correctRoomLogReview } from '../../lib/roomLogData';
 import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog, fetchAllOneOnOneLogs } from '../../lib/oneOnOneLogsData';
+import { hasStoredCalendarSyncToken, fetchCalendarSyncedMeetings } from '../../lib/calendarSyncData';
+import { supabase } from '../../lib/supabase';
 import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition } from '../../lib/competitionData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
 import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
@@ -1149,6 +1151,61 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .catch(() => {}); // non-critical - the Calendar sync above still works on its own
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
+
+  // Third source, alongside the two above: the daily unattended calendar
+  // sync (sync-last-1on1-dates, 073_admin_calendar_sync.sql) - same
+  // attendee-email matching as the manual button, just running every
+  // morning against a stored refresh token instead of this admin's own
+  // live browser session. Merged the same "whichever is more recent" way.
+  const [autoSyncedMeetingDatesByEmail, setAutoSyncedMeetingDatesByEmail] = useState({});
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCalendarSyncedMeetings()
+      .then((rows) => {
+        if (cancelled) return;
+        const byEmail = {};
+        rows.forEach((r) => {
+          (byEmail[r.member_email] || (byEmail[r.member_email] = [])).push(r.meeting_date);
+        });
+        setAutoSyncedMeetingDatesByEmail(byEmail);
+      })
+      .catch(() => {}); // non-critical - the other two sources still work on their own
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  // Whether this staff member still needs to go through the one-time
+  // "Enable daily calendar sync" consent flow - only relevant for admin/
+  // mentor (community_manager doesn't run 1-on-1s). null while unknown, so
+  // the button doesn't flash on before the check resolves.
+  const [hasCalendarSyncToken, setHasCalendarSyncToken] = useState(null);
+  const [enablingCalendarSync, setEnablingCalendarSync] = useState(false);
+  useEffect(() => {
+    if (isMockSession || (role !== 'admin' && role !== 'mentor')) return;
+    let cancelled = false;
+    hasStoredCalendarSyncToken()
+      .then((has) => !cancelled && setHasCalendarSyncToken(has))
+      .catch(() => !cancelled && setHasCalendarSyncToken(null));
+    return () => { cancelled = true; };
+  }, [isMockSession, role]);
+
+  // Forces Google's full consent screen (prompt=consent) - the only way to
+  // get Google to reissue a refresh token for a scope this account already
+  // granted before (the normal sign-in flow's access_type: 'offline' alone
+  // only returns one on a user's very first authorization). App.jsx's
+  // session listener picks up session.provider_refresh_token on the
+  // resulting redirect and persists it via store-calendar-sync-token.
+  const handleEnableCalendarSync = async () => {
+    setEnablingCalendarSync(true);
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+      },
+    });
+  };
 
   const handleSyncLastMeetings = () => {
     setLoadingMeetingSync(true);
@@ -2387,17 +2444,22 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         monthsInHH: m.firstPaymentDate ? Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))) : 0,
         profile,
         status,
-        // Whichever is more recent of the live Calendar sync and a
-        // manually-logged session (see loggedMeetingDatesByEmail above) -
-        // never lets a real logged session sit unreflected just because
-        // nobody's re-run the Calendar sync since.
+        // Whichever is more recent of three sources: the on-demand live
+        // Calendar sync, the daily automated Calendar sync (see
+        // autoSyncedMeetingDatesByEmail above), and a manually-logged
+        // session (loggedMeetingDatesByEmail) - never lets a real logged or
+        // synced session sit unreflected just because one of the other
+        // sources hasn't caught up yet.
         lastMeetingDate: (() => {
-          const synced = lastMeetingByEmail[m.email.toLowerCase()] || null;
-          const logged = loggedMeetingDatesByEmail[m.email.toLowerCase()];
-          const loggedLatest = logged?.length ? logged.reduce((a, b) => (new Date(b) > new Date(a) ? b : a)) : null;
-          if (!synced) return loggedLatest;
-          if (!loggedLatest) return synced;
-          return new Date(loggedLatest) > new Date(synced) ? loggedLatest : synced;
+          const latest = (email) => {
+            const dates = [
+              lastMeetingByEmail[email] || null,
+              ...(autoSyncedMeetingDatesByEmail[email] || []),
+              ...(loggedMeetingDatesByEmail[email] || []),
+            ].filter(Boolean);
+            return dates.length ? dates.reduce((a, b) => (new Date(b) > new Date(a) ? b : a)) : null;
+          };
+          return latest(m.email.toLowerCase());
         })(),
       };
     })
@@ -3146,11 +3208,27 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                   Sign in with Google to sync last 1on1 dates
                 </span>
               )}
+              {!isMockSession && (role === 'admin' || role === 'mentor') && hasCalendarSyncToken === false && (
+                <button className="btn btn-secondary" onClick={handleEnableCalendarSync} disabled={enablingCalendarSync}>
+                  <RefreshCw size={16} className={enablingCalendarSync ? 'animate-spin' : ''} />
+                  {enablingCalendarSync ? 'Redirecting...' : 'Enable Daily Calendar Sync'}
+                </button>
+              )}
               <button className="btn btn-primary" onClick={() => setShowAddMemberModal(true)}>
                 <UserPlus size={16} /> Add Member Manually
               </button>
             </div>
           </div>
+          {!isMockSession && (role === 'admin' || role === 'mentor') && hasCalendarSyncToken === false && (
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '20px', marginTop: '-16px' }}>
+              Daily calendar sync isn't enabled yet - click "Enable Daily Calendar Sync" above (one-time Google consent) so last-1on1 dates and the overdue-1on1 digest email stay current every morning without anyone clicking "Sync Last 1on1 Dates" by hand.
+            </p>
+          )}
+          {!isMockSession && hasCalendarSyncToken === true && (
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '20px', marginTop: '-16px' }}>
+              Daily calendar sync is enabled - last-1on1 dates refresh automatically every morning.
+            </p>
+          )}
 
           {isMockSession && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
@@ -3172,9 +3250,9 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               Couldn't sync from Google Calendar: {meetingSyncError}
             </div>
           )}
-          {(Object.keys(lastMeetingByEmail).length > 0 || Object.keys(loggedMeetingDatesByEmail).length > 0) && !meetingSyncError && (
+          {(Object.keys(lastMeetingByEmail).length > 0 || Object.keys(autoSyncedMeetingDatesByEmail).length > 0 || Object.keys(loggedMeetingDatesByEmail).length > 0) && !meetingSyncError && (
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '20px', marginTop: '-16px' }}>
-              Last 1on1 dates come from two sources, whichever is more recent: attendee-email matching against your Google Calendar since Jan 2026 (via "Sync Last 1on1 Dates" above — a member booked under a different email won't be caught), and sessions logged by hand on the Roadmaps tab.
+              Last 1on1 dates come from three sources, whichever is more recent: attendee-email matching against your Google Calendar since Jan 2026 (via "Sync Last 1on1 Dates" above, or automatically every morning once daily sync is enabled — a member booked under a different email won't be caught either way), and sessions logged by hand on the Roadmaps tab.
             </p>
           )}
 
@@ -5390,6 +5468,9 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       const combinedMeetingDatesByEmail = {};
       Object.entries(meetingDatesByEmail).forEach(([email, dates]) => {
         combinedMeetingDatesByEmail[email] = [...dates];
+      });
+      Object.entries(autoSyncedMeetingDatesByEmail).forEach(([email, dates]) => {
+        (combinedMeetingDatesByEmail[email] || (combinedMeetingDatesByEmail[email] = [])).push(...dates);
       });
       Object.entries(loggedMeetingDatesByEmail).forEach(([email, dates]) => {
         (combinedMeetingDatesByEmail[email] || (combinedMeetingDatesByEmail[email] = [])).push(...dates);

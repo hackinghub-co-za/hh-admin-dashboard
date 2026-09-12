@@ -237,6 +237,22 @@ export default function App() {
       setProviderToken(session.provider_token || null);
       setIsMockSession(false);
       setLoading(false);
+
+      // Google only includes a refresh token on this redirect when this
+      // account/scope combination hasn't been authorized before, or when
+      // AdminDashboard's "Enable Daily Calendar Sync" button forced
+      // prompt=consent to get one reissued (073_admin_calendar_sync.sql).
+      // Opportunistically persist it whenever it shows up for admin/mentor -
+      // that's the only durable credential the daily sync-last-1on1-dates
+      // cron has to work with; a plain sign-in never surfaces one again
+      // once Google's already handed it over the first time. Fire-and-forget:
+      // never block sign-in on this, and a failure here just means the
+      // consent flow needs to be run again later.
+      if (session.provider_refresh_token && (role === 'admin' || role === 'mentor')) {
+        supabase.functions
+          .invoke('store-calendar-sync-token', { body: { refresh_token: session.provider_refresh_token } })
+          .catch((err) => console.error('Could not store calendar sync token:', err.message));
+      }
     };
 
     // Check initial active session
