@@ -13,12 +13,12 @@ Started 2026-09-11.
 - [ ] Members directory (search, grouped-by-domain view, profile modal, referrals, Security/passkeys panel)
 - [ ] 1-on-1 Meetings (booking, CV Review, Interview Prep, other Gemma tools)
 - [x] Events (RSVP, capacity, images, self-submission flow, past-event filtering)
-- [ ] Job Board (member view)
+- [x] Job Board (member view)
 - [ ] Resources (Cert Prep guides, LinkedIn Strategy, Podcasts)
 - [ ] Breakdowns (archive list, markdown rendering, unsubscribe)
 - [x] Cert Calendar (booking, Exam Readiness tracker, practice quizzes)
 - [x] Competitions (daily room logs, standings + tie-splitting, Head-to-Head Duels, Room Races, Live Buzzer Trivia, rules guide)
-- [ ] Reviews (member view)
+- [x] Reviews (member view)
 - [x] My Subscription & Upgrades (PayFast checkout, EFT details, merch store + orders)
 - [ ] Onboarding sequence + Getting Started hard gate (3-day grace)
 - [ ] Offboarding sequence (member marked Leaving, exit feedback)
@@ -30,12 +30,12 @@ Started 2026-09-11.
 - [x] Roadmaps management (approvals, catalog assignment, Projects proof review)
 - [x] Room Logs review (approve/reject, standings updates)
 - [x] Meetups & Events admin (approve/reject, image upload, capacity, add-event auto-approve)
-- [ ] Job Board admin
+- [x] Job Board admin
 - [x] Merch Orders
 - [x] Payments & Subscriptions
 - [x] Cert Calendar admin (result marking, cert-pass email trigger)
 - [x] Finances
-- [ ] Reviews admin
+- [x] Reviews admin
 - [ ] Insights
 - [ ] Community Content (broadcasts, wins, suggested content, Weekly Breakdowns management)
 - [ ] Team & Roles (role assignment, permission-scope correctness per role)
@@ -107,6 +107,22 @@ Claimed: **Events** (member: RSVP, capacity, images, self-submission, past-event
 Everything else read in this pass held up: `rsvp_for_event()`'s capacity enforcement (server-side, correctly lets an already-RSVP'd member back in regardless of a full event, since they're not taking a new seat); `unrsvp_from_event()`'s idempotent no-op shape; the member-side "Add Event" always landing Pending server-side (`WITH CHECK status = 'Pending'`, so a crafted request can't insert a pre-approved event); the admin "Add Event" form's auto-approve-if-eligible logic (`canApproveEvents`, matching `approve_community_event()`'s own siya-or-community_manager gate exactly - already verified correct in the earlier permission-scope pass); `event-images` storage bucket policies (public read, staff-only write); the HH-branding auto-logo assignment/clearing logic when switching event type; `uploadEventImage()`'s one-file-per-event-id replace-on-reupload behavior.
 
 **Next up**: Still unclaimed - **Job Board (member view + admin)** (a natural next pair, same shape as this pass), **Reviews (member + admin)**, **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions, Gemma AI edge functions, cron jobs, referral program).
+
+---
+
+### 2026-09-12 (fifth pass, same day)
+
+Claimed: **Job Board** (member + admin) and **Reviews** (member + admin) - two smaller, structurally similar areas (self-service member submission + simple admin CRUD, no moderation step on either), read together since both were quick. Read `025_job_board.sql`, `005_reviews.sql`, `src/lib/jobBoardData.js`, `src/lib/reviewsData.js`, and the Job Board / Reviews tabs in both `MemberPortal.jsx` and `AdminDashboard.jsx`. All four checklist boxes checked off.
+
+#### [Reviews] RLS policies never lowercased the caller's JWT email before comparing - the one table in this codebase still doing the case-sensitive version of this check
+- **Severity**: Medium
+- **Where**: `supabase/005_reviews.sql` - `"Members insert own reviews"` and `"Members view public and own reviews"` (pre-fix)
+- **What's wrong**: `submitReview()` (`reviewsData.js`) already lowercases `email` before every INSERT (`email: email.toLowerCase()`), and the member-side Reviews tab explicitly relies on being able to read back a private review it just submitted (the header literally reads "N Reviews **Visible to You**", meaning public + the caller's own regardless of visibility). But both RLS policies compared the raw, non-lowercased `auth.jwt() ->> 'email'` against the already-lowercased `email` column - `auth.jwt() ->> 'email' = email` and `... OR auth.jwt() ->> 'email' = email` respectively. Every other identity check in this codebase (job_board, community_events, one_on_one_logs, event_rsvps, and every table built after this one) consistently does `lower(auth.jwt() ->> 'email') = ...` for exactly this reason - this file (`005_reviews.sql`) is literally the earliest-numbered migration in the project, predating that convention. If a real Google account's JWT `email` claim ever comes back with any uppercase character (not something this app can control or guarantee against), every review submission from that account would be silently rejected by RLS on INSERT, and if one somehow got through, that member would never see their own private review in their own "Reviews Visible to You" list - it would just be invisible, indistinguishable from having failed to save.
+- **Status**: Fixed - both policies now use `lower(auth.jwt() ->> 'email') = email`, matching the rest of the codebase's established convention exactly. Applied live via `npx supabase db query --linked`; verified via `pg_get_expr` on `pg_policy` that both live policy definitions now lowercase. No JS changed - `npm run build && npm run lint` still at baseline (37 problems, 36 errors, 1 warning).
+
+Everything else read in this pass held up: Job Board's "no moderation, member listings go live immediately" design (documented and consistent - `addJobListing()`/RLS INSERT policy self-attributes `created_by` server-side, matching the reviews/events/cert-calendar pattern); `deleteJobListing()`'s admin-only RLS gate (widened to `community_manager` too in `067_permission_scopes.sql`'s PART 4, already verified in the earlier permission-scope pass); the admin Job Board tab's optimistic-delete-with-rollback-on-failure (a harmless cosmetic quirk: on a failed delete, the listing reappears at the end of the list rather than its original position - not worth a fix). One cross-reference worth noting for whoever eventually claims the **Push notification edge functions** checklist item: `push-new-job` (meant to notify members of a new Job Board listing) is never actually invoked anywhere in `src/` - dead code, consistent with the broader unfinished/unconfigured state of the push-notification feature already flagged in this session's own chat history (missing secrets, missing `google_oauth_tokens`/`push_tokens` tables).
+
+**Next up**: Still unclaimed - **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions - note the dead `push-new-job` call site above, Gemma AI edge functions, cron jobs, referral program).
 
 ---
 
