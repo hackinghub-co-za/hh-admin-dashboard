@@ -2429,9 +2429,19 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // HH stayed at their pre-refund total forever - caught live: Sasha Martin
   // Ndau paid R200 + R300 then got the R300 refunded, but every "Total
   // Spent" display for her still showed R500, not the real R200.
+  // Two passes, deliberately: a refund/reversal must count toward
+  // totalSpent (so it nets out correctly - see the comment above) but must
+  // never become anyone's "first/last payment date" or "last plan" - its
+  // own `plan` value is a placeholder like "Refund", not a real plan name,
+  // and its date is when money went back OUT, not a new payment coming in.
+  // A single-pass version of this (checked in, then reverted the same day)
+  // let Sasha Martin Ndau's refund - dated after her real last payment,
+  // `plan: 'Refund'` - overwrite her card's Last Plan badge with "Refund"
+  // and her "days since last payment" with the refund date instead of her
+  // real last purchase.
   const memberRosterMap = new Map();
   payments
-    .filter(p => (p.type === 'Funds Received' || p.type === 'Funds Received (Reversal)' || p.type === 'REFUNDED') && !deletedEmails.has(p.email.toLowerCase()))
+    .filter(p => p.type === 'Funds Received' && !deletedEmails.has(p.email.toLowerCase()))
     .forEach(p => {
       const key = p.email.toLowerCase();
       const entry = memberRosterMap.get(key) || {
@@ -2451,8 +2461,28 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         entry.lastPlan = p.plan;
         entry.member = p.member;
       }
+      entry.paymentCount += 1;
+      memberRosterMap.set(key, entry);
+    });
+  payments
+    .filter(p => (p.type === 'Funds Received' || p.type === 'Funds Received (Reversal)' || p.type === 'REFUNDED') && !deletedEmails.has(p.email.toLowerCase()))
+    .forEach(p => {
+      const key = p.email.toLowerCase();
+      // A member whose only row is itself a refund (no genuine payment to
+      // have seeded an entry in the pass above - see the "Tegranyota2004"
+      // finding in QA_FINDINGS.md) still gets an entry here rather than
+      // staying invisible, seeded from the refund itself for lack of
+      // anything better.
+      const entry = memberRosterMap.get(key) || {
+        email: p.email,
+        member: p.member,
+        firstPaymentDate: p.date,
+        lastPaymentDate: p.date,
+        lastPlan: p.plan,
+        totalSpent: 0,
+        paymentCount: 0,
+      };
       entry.totalSpent += p.amount;
-      if (p.type === 'Funds Received') entry.paymentCount += 1;
       memberRosterMap.set(key, entry);
     });
 
