@@ -72,6 +72,53 @@ CREATE POLICY "staff manage breakdowns"
   ON public.weekly_breakdowns FOR ALL
   USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
 
+-- updateBreakdown()/deleteBreakdown() (breakdownsData.js) are documented as
+-- "edit a Draft's plan fields" / "only makes sense for a Draft" - the admin
+-- UI only ever renders Edit/Delete for a Draft row (AdminDashboard.jsx,
+-- {b.status === 'Draft' && (...)}). But the RLS policy above has no status
+-- condition at all, so nothing server-side actually stopped a direct write
+-- from editing or deleting an already-Approved or already-Sent edition -
+-- the exact same "client-side gate with no server-side mirror" shape as
+-- the Projects-completion-bypass bug fixed earlier in this project's own
+-- QA history. A Sent edition is what members already read on the
+-- Breakdowns tab and received by email; silently rewriting or deleting it
+-- after the fact should never be a side effect of the generic update/
+-- delete path. The three status-transition RPCs below (approve/unapprove/
+-- mark-sent) are unaffected - they only ever touch status/approved_*/
+-- sent_at/recipient_count/broadcast_id, never the content columns this
+-- guards.
+CREATE OR REPLACE FUNCTION public._guard_breakdown_content_edit()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.status <> 'Draft' THEN
+      RAISE EXCEPTION 'Only a Draft can be deleted (this one is %). Pull it back to Draft first if you need to remove it.', OLD.status;
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  IF OLD.status <> 'Draft' AND (
+    NEW.title IS DISTINCT FROM OLD.title OR
+    NEW.source_label IS DISTINCT FROM OLD.source_label OR
+    NEW.difficulty IS DISTINCT FROM OLD.difficulty OR
+    NEW.blurb IS DISTINCT FROM OLD.blurb OR
+    NEW.body_md IS DISTINCT FROM OLD.body_md OR
+    NEW.full_url IS DISTINCT FROM OLD.full_url OR
+    NEW.send_date IS DISTINCT FROM OLD.send_date
+  ) THEN
+    RAISE EXCEPTION 'Only a Draft''s content can be edited (this one is %). Pull it back to Draft first.', OLD.status;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_breakdown_content_edit ON public.weekly_breakdowns;
+CREATE TRIGGER guard_breakdown_content_edit
+  BEFORE UPDATE OR DELETE ON public.weekly_breakdowns
+  FOR EACH ROW EXECUTE FUNCTION public._guard_breakdown_content_edit();
+
 -- Approve an edition - a Community Manager or the founder. Only moves
 -- Draft -> Approved, and only if it's actually complete: an empty blurb or
 -- body can't be approved into the Friday send. Records who signed off.
