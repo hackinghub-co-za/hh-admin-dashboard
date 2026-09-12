@@ -27,12 +27,24 @@ CREATE POLICY "Admins manage reviews" ON public.reviews
 
 -- A member can only insert a review under their own verified sign-in email, never
 -- someone else's - enforced server-side, not just trusted from the client.
+--
+-- REVISION (2026-09-12): both policies below now lower() the JWT email
+-- before comparing. submitReview() (reviewsData.js) already lowercases
+-- `email` before every INSERT, but this file predates the lower(auth.jwt()
+-- ->> 'email') convention every other table in this codebase uses for the
+-- exact same "is this the caller's own row" check (job_board, community_
+-- events, one_on_one_logs, etc.) - a bare, case-sensitive comparison here
+-- meant a real Google account whose JWT email claim ever came back with
+-- any uppercase character would have every review INSERT silently rejected
+-- by RLS, and would never see their own already-submitted private review
+-- in "Reviews Visible to You" (MemberPortal.jsx) either, since the SELECT
+-- policy had the identical bug.
 DROP POLICY IF EXISTS "Members insert own reviews" ON public.reviews;
 CREATE POLICY "Members insert own reviews" ON public.reviews
-    FOR INSERT WITH CHECK (auth.jwt() ->> 'email' = email);
+    FOR INSERT WITH CHECK (lower(auth.jwt() ->> 'email') = email);
 
 -- A member sees Public reviews from anyone, plus their own regardless of visibility -
 -- never another member's private submission.
 DROP POLICY IF EXISTS "Members view public and own reviews" ON public.reviews;
 CREATE POLICY "Members view public and own reviews" ON public.reviews
-    FOR SELECT USING (visibility = 'Public' OR auth.jwt() ->> 'email' = email);
+    FOR SELECT USING (visibility = 'Public' OR lower(auth.jwt() ->> 'email') = email);
