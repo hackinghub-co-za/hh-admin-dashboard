@@ -7,10 +7,10 @@ Started 2026-09-11.
 ## Coverage checklist
 
 ### Member-facing
-- [ ] Dashboard (Journey So Far, Getting Started checklist, login streak, survey banner, next 1-on-1, recommended room, community broadcasts, recent wins, suggested content)
+- [x] Dashboard (Journey So Far, Getting Started checklist, login streak, survey banner, next 1-on-1, recommended room, community broadcasts, recent wins, suggested content)
 - [x] My Roadmap (Core Foundations / Specialization / Projects / Advanced phases, unlock gates, progress logging, LinkedIn weekly-post plan)
 - [ ] Matchmaker (opt-in, group formation, wheel reveal, presentation ratings/showcase)
-- [ ] Members directory (search, grouped-by-domain view, profile modal, referrals, Security/passkeys panel)
+- [x] Members directory (search, grouped-by-domain view, profile modal, referrals, Security/passkeys panel)
 - [ ] 1-on-1 Meetings (booking, CV Review, Interview Prep, other Gemma tools)
 - [x] Events (RSVP, capacity, images, self-submission flow, past-event filtering)
 - [x] Job Board (member view)
@@ -20,9 +20,9 @@ Started 2026-09-11.
 - [x] Competitions (daily room logs, standings + tie-splitting, Head-to-Head Duels, Room Races, Live Buzzer Trivia, rules guide)
 - [x] Reviews (member view)
 - [x] My Subscription & Upgrades (PayFast checkout, EFT details, merch store + orders)
-- [ ] Onboarding sequence + Getting Started hard gate (3-day grace)
-- [ ] Offboarding sequence (member marked Leaving, exit feedback)
-- [ ] Passkey sign-in + Security panel (member and staff sides, Login.jsx)
+- [x] Onboarding sequence + Getting Started hard gate (3-day grace)
+- [x] Offboarding sequence (member marked Leaving, exit feedback)
+- [x] Passkey sign-in + Security panel (member and staff sides, Login.jsx)
 
 ### Admin/staff-facing
 - [x] Admin Overview (metrics, churn rate, revenue per member)
@@ -46,7 +46,7 @@ Started 2026-09-11.
 - [ ] Gemma AI edge functions (chat, CV/LinkedIn review, interview prep)
 - [ ] Cron jobs (schedules correct, CRON_SECRET checked, each job idempotent if it fires twice)
 - [x] RLS/permission-scope audit across `067_permission_scopes.sql` (does every widened table/RPC actually match the intended role matrix?)
-- [ ] Referral program (Refer a Friend, reward status transitions)
+- [x] Referral program (Refer a Friend, reward status transitions)
 
 ## Findings log
 
@@ -145,6 +145,22 @@ Claimed: **Community Content** (admin: broadcasts, wins, suggested content, Week
 Everything else read in this pass held up: `renderMarkdown()`'s DOMPurify sanitization on `body_md` before `dangerouslySetInnerHTML` (a compromised CM/admin account still can't inject a script, by design); the member Breakdowns tab's archive-list/detail-pane split and its "no breakdowns yet" empty state; `unsubscribe_from_breakdown_emails()`'s anonymous cold-click shape (no in-app resubscribe/status toggle exists anywhere for this, but that's consistent with its two siblings - `roadmap_reminder_opted_out`, `linkedin_reminder_opted_out` - neither of which has in-app UI either, so this reads as a deliberate, established pattern across all three email types rather than a one-off gap); `get_breakdown_recipients()`/`get_breakdown_facilitator_emails()`'s admin-or-service-role gating.
 
 **Next up**: Still unclaimed - **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions - note the dead `push-new-job` call site from the previous pass, Gemma AI edge functions, cron jobs, referral program - note also `weekly-breakdown-email`/`breakdown-nudge`/`breakdown-unsubscribe` edge functions themselves were not read this pass, only the DB/RLS/UI they sit on top of).
+
+---
+
+### 2026-09-12 (seventh pass, same day)
+
+Claimed a wider sweep of smaller, mostly-independent areas in one go given the volume still unclaimed: **Dashboard** (member home tab), **Onboarding sequence + Getting Started hard gate**, **Offboarding sequence**, **Passkey sign-in + Security panel**, **Members directory**, **Referral program**. Read `032_login_streak.sql`, `064_recommended_rooms.sql` (cross-checked against its `067` widening), `006_onboarding.sql`, `008_offboarding.sql`, `010_member_directory.sql`, `039_referrals.sql`, `src/lib/passkeyData.js`, `src/components/SecurityPanel.jsx`, `src/components/SurveyBanner.jsx`, `src/components/OffboardingSequence.jsx`, `src/lib/offboardingData.js`, `src/lib/referralsData.js`, and the corresponding tabs/render sections in `App.jsx`/`MemberPortal.jsx`. All six checklist boxes checked off - no bugs found in any of them.
+
+No findings this pass - everything read held up under a skeptical pass:
+- **Dashboard**: `nextCommunityEvent` correctly filters to Approved + upcoming-only (matches the Events tab's own already-fixed pattern); `recommended_rooms` RLS *is* correctly widened to `community_manager` in `067` (only the original `064` file looked admin-only in isolation); `SurveyBanner` is a clean, self-contained, time-boxed component.
+- **Onboarding**: the 3-day-grace hard gate's backfill logic (giving already-onboarded members a fresh grace period on rollout, rather than instantly hard-locking everyone past 3 days old) is careful and correct; `mark_my_onboarding_step_complete()` pins `step_key` to a fixed CHECK-constrained vocabulary and `completed_at` to the server clock, never trusting either from the client. Noted, not a bug: the hard gate's tab restriction (`MemberPortal.jsx`, `['dashboard','meetings','members']`) is enforced client-side only (a `useEffect` snap-back), but every other tab it would reveal exposes nothing more sensitive than what those three allowed tabs already show, so this is a soft UX nudge, not a security boundary, consistent with how this codebase treats every other purely-cosmetic tab gate.
+- **Offboarding**: `submit_exit_feedback()` is tightly scoped (own row, only out of `'Leaving'`, idempotent), and `handleExitDone` (`App.jsx`) immediately signs the member out after finalizing to `'Left'`, so there's no stale-state window where a "just left" member could still see the portal.
+- **Passkey/Security**: this app is a thin wrapper around Supabase Auth's own built-in WebAuthn API (`supabase.auth.signInWithPasskey/.registerPasskey/.passkey.*`) with no custom table or RLS of its own to audit; a passkey always resolves to the same `auth.users` row as the member's existing Google identity (registration requires an already-confirmed session), so every downstream check (`is_member_allowed`, role, RLS) is correctly provider-agnostic with nothing passkey-specific to bypass.
+- **Members directory**: `010_member_directory.sql` is already the most heavily-hardened file in the schema by its own history (multiple past security-fix rounds folded back in) - `get_member_directory()`'s column whitelist correctly excludes `age`/`gender` (deliberately peer-invisible, readable only via the separate `get_my_age_and_gender()` own-row getter) and every other genuinely sensitive column (`money_owed`, `phone`, offboarding fields); `update_my_directory_profile()` is UPDATE-only (can't self-provision a new row) and scoped to exactly the same public-facing column set.
+- **Referral program**: self-service INSERT/SELECT correctly scoped to the caller's own `referrer_email`; `REFERRAL_REWARD_AMOUNT` is purely a display constant (column header, "Refer a Friend" badge) with no automated expense-recording tied to a `'Reward Paid'` status change - a manual bookkeeping step, which reads as the intended design rather than a gap.
+
+**Next up**: Still unclaimed - **Matchmaker**, **1-on-1 Meetings**, **Resources**, **Insights**, **Team & Roles**, and the whole **Cross-cutting/backend** section (email edge functions still-unread list: `breakdown-nudge`, `overdue-1on1-digest`, `linkedin-post-reminder-email`, `roadmap-reminder-email`, `push-1on1-reminder`, `weekly-breakdown-email`; push notification edge functions - note the dead `push-new-job` call site; Gemma AI edge functions; cron jobs).
 
 ---
 
