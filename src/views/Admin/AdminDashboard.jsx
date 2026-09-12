@@ -2090,8 +2090,21 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
 
   const pendingCommunityEvents = communityEvents.filter((e) => e.status === 'Pending');
   // The exact same approved events the member-side Events tab shows -
-  // already sorted soonest-first by fetchCommunityEvents()'s own query.
-  const liveCommunityEvents = communityEvents.filter((e) => e.status === 'Approved');
+  // already sorted soonest-first by fetchCommunityEvents()'s own query. Also
+  // matches the member-side Events tab's own "upcoming only" filter
+  // (daysUntilEvent(e.date) >= 0 in MemberPortal.jsx) - this card's own
+  // empty-state copy already said "Nothing approved and upcoming yet" and
+  // its own header comment claimed "the exact same data the member-side
+  // Events tab reads," but until this fix it had no date filter at all, so
+  // a real approved event from months ago (7 of them, live: Meet-up
+  // 2026-08-13, SC-900 Study Session x2, 0xCoffee JHB, HH Catchup, Sunday
+  // Catchup, Security Tech Update) kept cluttering this list forever.
+  // `today` (the component's shared "real now") isn't declared until later
+  // in this function, so this uses its own fresh Date() rather than
+  // referencing it before initialization.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const liveCommunityEvents = communityEvents.filter((e) => e.status === 'Approved' && new Date(`${e.date}T00:00:00`) >= startOfToday);
 
   const handleApproveEvent = async (eventId) => {
     setApprovingEventId(eventId);
