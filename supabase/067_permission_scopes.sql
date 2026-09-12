@@ -615,6 +615,24 @@ CREATE POLICY "staff manage event images"
 -- management (matching the original design intent - see 019_events.sql's
 -- own comment on why this is a dedicated RPC rather than a policy): now
 -- exactly siya@hackinghub.co.za OR any community_manager, not every admin.
+--
+-- QA fix (2026-09-12): this originally called public.is_community_manager()
+-- for the second half of that check, same as every other widened
+-- policy/RPC in this file. But is_community_manager() itself resolves TRUE
+-- for role='admin' too (see its PART 1 definition above) - deliberately, so
+-- the "is_admin() OR is_community_manager()" idiom used everywhere else
+-- reads cleanly. Every other call site already OR's in is_admin()
+-- explicitly, so that inclusive definition is harmless there. Here it was
+-- the opposite problem: the whole point of this function, stated in three
+-- separate comments (019_events.sql's original header, this file's PART 4
+-- header, and the paragraph directly above), is to keep approval OUT of
+-- every admin's hands except siya specifically. Because
+-- is_community_manager() already says "yes" for any admin, the old check
+-- silently let every admin approve events - exactly the access the
+-- exact-email design was built to prevent, and exactly what
+-- AdminDashboard.jsx's canApproveEvents already (correctly) assumes does
+-- NOT happen. Fixed by checking role = 'community_manager' directly here
+-- instead of going through the inclusive helper.
 DROP FUNCTION IF EXISTS public.approve_community_event(BIGINT);
 CREATE FUNCTION public.approve_community_event(p_event_id BIGINT)
 RETURNS VOID
@@ -623,7 +641,10 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF lower(auth.jwt() ->> 'email') != 'siya@hackinghub.co.za' AND NOT public.is_community_manager(auth.uid()) THEN
+  IF lower(auth.jwt() ->> 'email') != 'siya@hackinghub.co.za'
+     AND NOT EXISTS (
+       SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'community_manager'
+     ) THEN
     RAISE EXCEPTION 'Only siya@hackinghub.co.za or a Community Manager can approve events';
   END IF;
   UPDATE public.community_events SET status = 'Approved' WHERE id = p_event_id;
