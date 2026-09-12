@@ -32,6 +32,7 @@ import { fetchCertCalendar, addCertCalendarEntry } from '../../lib/certCalendarD
 import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScore, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
+import { fetchMyJobApplications, addJobApplication, updateJobApplication, deleteJobApplication } from '../../lib/jobApplicationsData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
@@ -124,6 +125,7 @@ import {
   ShoppingBag,
   Swords,
   Flag,
+  Trash2,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -2628,6 +2630,120 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const filteredResources = resourceCategoryFilter === 'All'
     ? resources
     : resources.filter(r => r.category === resourceCategoryFilter);
+
+  // Personal Job Application Tracker (075_job_application_tracker.sql) -
+  // private to this member, same "no real session under Mock Member" split
+  // as everything else on this tab.
+  const MOCK_JOB_APPLICATIONS = [
+    { id: 1, jobTitle: 'SOC Analyst', company: 'Nedbank', location: 'Johannesburg', applicationDate: '2026-09-01', salaryRange: 'R25k - R32k', cvUsed: 'Cybersecurity CV v2', status: 'Interview' },
+    { id: 2, jobTitle: 'Junior Penetration Tester', company: 'Telkom', location: 'Remote', applicationDate: '2026-08-20', salaryRange: 'R30k - R38k', cvUsed: 'Cybersecurity CV v2', status: 'Applied' },
+  ];
+  const [jobApplications, setJobApplications] = useState(isMockSession ? MOCK_JOB_APPLICATIONS : []);
+  const [loadingJobApplications, setLoadingJobApplications] = useState(!isMockSession);
+  const [jobApplicationsError, setJobApplicationsError] = useState(null);
+  const [showJobApplicationForm, setShowJobApplicationForm] = useState(false);
+  const [editingJobApplicationId, setEditingJobApplicationId] = useState(null);
+  const [savingJobApplication, setSavingJobApplication] = useState(false);
+  const [jobApplicationFormError, setJobApplicationFormError] = useState(null);
+  const [deletingJobApplicationId, setDeletingJobApplicationId] = useState(null);
+  const emptyJobApplicationForm = { jobTitle: '', company: '', location: '', applicationDate: new Date().toISOString().slice(0, 10), salaryRange: '', cvUsed: '', status: 'Applied' };
+  const [jobApplicationForm, setJobApplicationForm] = useState(emptyJobApplicationForm);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyJobApplications()
+      .then((data) => !cancelled && setJobApplications(data))
+      .catch((err) => !cancelled && setJobApplicationsError(friendlyMemberErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingJobApplications(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const openAddJobApplicationForm = () => {
+    setEditingJobApplicationId(null);
+    setJobApplicationForm(emptyJobApplicationForm);
+    setJobApplicationFormError(null);
+    setShowJobApplicationForm(true);
+  };
+
+  const openEditJobApplicationForm = (app) => {
+    setEditingJobApplicationId(app.id);
+    setJobApplicationForm({
+      jobTitle: app.jobTitle, company: app.company, location: app.location,
+      applicationDate: app.applicationDate, salaryRange: app.salaryRange, cvUsed: app.cvUsed, status: app.status,
+    });
+    setJobApplicationFormError(null);
+    setShowJobApplicationForm(true);
+  };
+
+  const handleSaveJobApplication = async (e) => {
+    e.preventDefault();
+    if (!jobApplicationForm.jobTitle.trim() || !jobApplicationForm.company.trim()) return;
+    setSavingJobApplication(true);
+    setJobApplicationFormError(null);
+    const payload = {
+      jobTitle: jobApplicationForm.jobTitle.trim(),
+      company: jobApplicationForm.company.trim(),
+      location: jobApplicationForm.location.trim(),
+      applicationDate: jobApplicationForm.applicationDate,
+      salaryRange: jobApplicationForm.salaryRange.trim(),
+      cvUsed: jobApplicationForm.cvUsed.trim(),
+      status: jobApplicationForm.status,
+    };
+    try {
+      if (isMockSession) {
+        if (editingJobApplicationId) {
+          setJobApplications((prev) => prev.map((a) => (a.id === editingJobApplicationId ? { ...a, ...payload } : a)));
+        } else {
+          setJobApplications((prev) => [{ id: -(prev.length + 1), ...payload }, ...prev]);
+        }
+      } else if (editingJobApplicationId) {
+        const updated = await updateJobApplication(editingJobApplicationId, payload);
+        setJobApplications((prev) => prev.map((a) => (a.id === editingJobApplicationId ? updated : a)));
+      } else {
+        const created = await addJobApplication({ ...payload, memberEmail: user?.email });
+        setJobApplications((prev) => [created, ...prev]);
+      }
+      setShowJobApplicationForm(false);
+    } catch (err) {
+      setJobApplicationFormError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSavingJobApplication(false);
+    }
+  };
+
+  const handleDeleteJobApplication = async (id) => {
+    setDeletingJobApplicationId(id);
+    try {
+      if (!isMockSession) await deleteJobApplication(id);
+      setJobApplications((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      setJobApplicationsError(friendlyMemberErrorMessage(err));
+    } finally {
+      setDeletingJobApplicationId(null);
+    }
+  };
+
+  const JOB_APPLICATION_STATUSES = ['Applied', 'Interview', 'Offer', 'Rejected', 'Withdrawn'];
+  // Only badge-success/warning/danger actually exist in index.css - Applied
+  // and Withdrawn fall back to the base .badge with no color modifier.
+  const JOB_APPLICATION_STATUS_BADGE = {
+    Applied: '',
+    Interview: 'badge-warning',
+    Offer: 'badge-success',
+    Rejected: 'badge-danger',
+    Withdrawn: '',
+  };
+
+  const handleQuickStatusChange = async (app, status) => {
+    setJobApplications((prev) => prev.map((a) => (a.id === app.id ? { ...a, status } : a)));
+    if (isMockSession) return;
+    try {
+      await updateJobApplication(app.id, { ...app, status });
+    } catch (err) {
+      setJobApplicationsError(friendlyMemberErrorMessage(err));
+    }
+  };
 
   const [payfastLoadingTier, setPayfastLoadingTier] = useState(null);
   const [payfastError, setPayfastError] = useState(null);
@@ -5401,6 +5517,71 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </button>
           </div>
 
+          <div className="glass-card" style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Briefcase size={20} color="var(--accent-cyan)" />
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Job Application Tracker</h3>
+              </div>
+              <button type="button" className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={openAddJobApplicationForm}>
+                <Briefcase size={15} /> Log Application
+              </button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Your own private log of roles you've applied for - only you can see this.
+            </p>
+
+            {jobApplicationsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>{jobApplicationsError}</p>}
+            {loadingJobApplications && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading your applications...</p>}
+
+            {!loadingJobApplications && jobApplications.length === 0 && (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No applications logged yet - click "Log Application" to track your first one.</p>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {jobApplications.map((app) => (
+                <div key={app.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', padding: '14px 16px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-secondary)' }}>
+                  <div style={{ minWidth: '220px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.92rem' }}>
+                      {app.jobTitle}
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>@ {app.company}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '4px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {app.location && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {app.location}</span>}
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> Applied {formatDate(new Date(app.applicationDate))}</span>
+                      {app.salaryRange && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Banknote size={12} /> {app.salaryRange}</span>}
+                      {app.cvUsed && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><FileText size={12} /> {app.cvUsed}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <select
+                      className="form-input"
+                      style={{ fontSize: '0.8rem', padding: '6px 10px', width: 'auto' }}
+                      value={app.status}
+                      onChange={(e) => handleQuickStatusChange(app, e.target.value)}
+                    >
+                      {JOB_APPLICATION_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <span className={`badge ${JOB_APPLICATION_STATUS_BADGE[app.status]}`}>{app.status}</span>
+                    <button type="button" className="btn btn-secondary" style={{ padding: '6px 8px' }} onClick={() => openEditJobApplicationForm(app)} title="Edit">
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 8px' }}
+                      onClick={() => handleDeleteJobApplication(app.id)}
+                      disabled={deletingJobApplicationId === app.id}
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
             {RESOURCE_CATEGORIES.map((cat) => (
               <button
@@ -5536,6 +5717,112 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                     <button type="button" className="btn btn-secondary" onClick={() => setShowAddResourceForm(false)}>Cancel</button>
                     <button type="submit" className="btn btn-primary" disabled={addingResource}>{addingResource ? 'Adding...' : 'Add Resource'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {showJobApplicationForm && (
+            <div
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setShowJobApplicationForm(false)}
+            >
+              <div
+                className="glass-card"
+                style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>
+                  {editingJobApplicationId ? 'Edit Application' : 'Log Application'}
+                </h2>
+                <form onSubmit={handleSaveJobApplication} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Job Title</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. SOC Analyst"
+                      value={jobApplicationForm.jobTitle}
+                      onChange={(e) => setJobApplicationForm({ ...jobApplicationForm, jobTitle: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Company</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Nedbank"
+                      value={jobApplicationForm.company}
+                      onChange={(e) => setJobApplicationForm({ ...jobApplicationForm, company: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Location (optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Johannesburg, Remote"
+                      value={jobApplicationForm.location}
+                      onChange={(e) => setJobApplicationForm({ ...jobApplicationForm, location: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Application Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={jobApplicationForm.applicationDate}
+                      onChange={(e) => setJobApplicationForm({ ...jobApplicationForm, applicationDate: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Salary Range (optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. R25k - R32k"
+                      value={jobApplicationForm.salaryRange}
+                      onChange={(e) => setJobApplicationForm({ ...jobApplicationForm, salaryRange: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>CV Used (optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Cybersecurity CV v2"
+                      value={jobApplicationForm.cvUsed}
+                      onChange={(e) => setJobApplicationForm({ ...jobApplicationForm, cvUsed: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Status</label>
+                    <select
+                      className="form-input"
+                      value={jobApplicationForm.status}
+                      onChange={(e) => setJobApplicationForm({ ...jobApplicationForm, status: e.target.value })}
+                    >
+                      {JOB_APPLICATION_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+
+                  {jobApplicationFormError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{jobApplicationFormError}</p>}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowJobApplicationForm(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={savingJobApplication}>
+                      {savingJobApplication ? 'Saving...' : editingJobApplicationId ? 'Save Changes' : 'Log Application'}
+                    </button>
                   </div>
                 </form>
               </div>
