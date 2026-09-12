@@ -33,6 +33,21 @@ export async function fetchOneOnOneLogsForMember(email) {
   return (data || []).map(mapRow);
 }
 
+/** Admin/mentor: every logged 1-on-1 across the whole roster (RLS's "staff
+ * manage 1on1 logs" FOR ALL policy already covers this unfiltered SELECT for
+ * admin/mentor - no separate RPC needed). Used to merge manually-logged
+ * sessions into the Members tab's Google-Calendar-based "last meeting" sync
+ * (handleSyncLastMeetings in AdminDashboard.jsx) - the two were built as
+ * fully separate systems and, without this merge, a manually logged session
+ * never showed up anywhere the calendar sync already displays. */
+export async function fetchAllOneOnOneLogs() {
+  const { data, error } = await supabase
+    .from('one_on_one_logs')
+    .select('id, member_email, mentor_name, session_date, topic, logged_by, created_at');
+  if (error) throw error;
+  return (data || []).map(mapRow);
+}
+
 /** Admin/mentor: log a session that just happened. */
 export async function logOneOnOne({ memberEmail, mentorName, sessionDate, topic, loggedBy }) {
   const { data, error } = await supabase

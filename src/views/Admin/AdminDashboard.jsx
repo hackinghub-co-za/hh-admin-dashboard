@@ -48,7 +48,7 @@ import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoad
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog, correctRoomLogReview } from '../../lib/roomLogData';
-import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog } from '../../lib/oneOnOneLogsData';
+import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog, fetchAllOneOnOneLogs } from '../../lib/oneOnOneLogsData';
 import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition } from '../../lib/competitionData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
 import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
@@ -1122,6 +1122,33 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [meetingDatesByEmail, setMeetingDatesByEmail] = useState({});
   const [loadingMeetingSync, setLoadingMeetingSync] = useState(false);
   const [meetingSyncError, setMeetingSyncError] = useState(null);
+
+  // Manually-logged 1-on-1s (one_on_one_logs, 071_overdue_1on1_digest.sql -
+  // see oneOnOneLogsData.js) merged into this same "last meeting" concept.
+  // This is a real, persisted, DB-backed source alongside the Calendar sync
+  // above - the two were originally built as fully separate systems (the
+  // Calendar sync is live and requires this admin's own current OAuth
+  // session; the manual log survives reloads and is what the overdue-1on1
+  // digest email actually reads). Merged by taking whichever date is more
+  // recent per member, everywhere "last meeting" is shown or computed, so a
+  // freshly logged session shows up immediately even without re-running a
+  // live Calendar sync.
+  const [loggedMeetingDatesByEmail, setLoggedMeetingDatesByEmail] = useState({});
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllOneOnOneLogs()
+      .then((logs) => {
+        if (cancelled) return;
+        const byEmail = {};
+        logs.forEach((l) => {
+          (byEmail[l.memberEmail] || (byEmail[l.memberEmail] = [])).push(l.sessionDate);
+        });
+        setLoggedMeetingDatesByEmail(byEmail);
+      })
+      .catch(() => {}); // non-critical - the Calendar sync above still works on its own
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
 
   const handleSyncLastMeetings = () => {
     setLoadingMeetingSync(true);
@@ -2360,7 +2387,18 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         monthsInHH: m.firstPaymentDate ? Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))) : 0,
         profile,
         status,
-        lastMeetingDate: lastMeetingByEmail[m.email.toLowerCase()] || null,
+        // Whichever is more recent of the live Calendar sync and a
+        // manually-logged session (see loggedMeetingDatesByEmail above) -
+        // never lets a real logged session sit unreflected just because
+        // nobody's re-run the Calendar sync since.
+        lastMeetingDate: (() => {
+          const synced = lastMeetingByEmail[m.email.toLowerCase()] || null;
+          const logged = loggedMeetingDatesByEmail[m.email.toLowerCase()];
+          const loggedLatest = logged?.length ? logged.reduce((a, b) => (new Date(b) > new Date(a) ? b : a)) : null;
+          if (!synced) return loggedLatest;
+          if (!loggedLatest) return synced;
+          return new Date(loggedLatest) > new Date(synced) ? loggedLatest : synced;
+        })(),
       };
     })
     .sort((a, b) => new Date(b.lastPaymentDate) - new Date(a.lastPaymentDate));
@@ -3134,9 +3172,9 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               Couldn't sync from Google Calendar: {meetingSyncError}
             </div>
           )}
-          {Object.keys(lastMeetingByEmail).length > 0 && !meetingSyncError && (
+          {(Object.keys(lastMeetingByEmail).length > 0 || Object.keys(loggedMeetingDatesByEmail).length > 0) && !meetingSyncError && (
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '20px', marginTop: '-16px' }}>
-              Last 1on1 dates matched by attendee email against your Google Calendar since Jan 2026 — a member booked under a different email won't be caught.
+              Last 1on1 dates come from two sources, whichever is more recent: attendee-email matching against your Google Calendar since Jan 2026 (via "Sync Last 1on1 Dates" above — a member booked under a different email won't be caught), and sessions logged by hand on the Roadmaps tab.
             </p>
           )}
 
@@ -5341,11 +5379,22 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       // not just when their last one was. Built from meetingDatesByEmail -
       // every synced meeting date per member, matched by attendee email the
       // same way lastMeetingByEmail already is (Members tab's "Sync Last
-      // 1on1 Dates"). One average gap per member first (so a member with
-      // many sessions doesn't outweigh one with few), then averaged across
-      // members - members with fewer than 2 synced meetings have no gap to
-      // measure and are excluded rather than counted as "never".
-      const memberMeetingGapAverages = Object.values(meetingDatesByEmail)
+      // 1on1 Dates") - merged with loggedMeetingDatesByEmail (manually
+      // logged sessions, one_on_one_logs) so a member whose sessions are
+      // only ever hand-logged (never picked up by a live Calendar sync)
+      // still gets a real cadence number instead of being silently excluded.
+      // One average gap per member first (so a member with many sessions
+      // doesn't outweigh one with few), then averaged across members -
+      // members with fewer than 2 combined dates have no gap to measure and
+      // are excluded rather than counted as "never".
+      const combinedMeetingDatesByEmail = {};
+      Object.entries(meetingDatesByEmail).forEach(([email, dates]) => {
+        combinedMeetingDatesByEmail[email] = [...dates];
+      });
+      Object.entries(loggedMeetingDatesByEmail).forEach(([email, dates]) => {
+        (combinedMeetingDatesByEmail[email] || (combinedMeetingDatesByEmail[email] = [])).push(...dates);
+      });
+      const memberMeetingGapAverages = Object.values(combinedMeetingDatesByEmail)
         .map((dates) => {
           const sorted = [...new Set(dates)].sort((a, b) => new Date(a) - new Date(b));
           if (sorted.length < 2) return null;
@@ -5359,7 +5408,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       const avgDaysBetweenMeetings = memberMeetingGapAverages.length
         ? Math.round(memberMeetingGapAverages.reduce((a, b) => a + b, 0) / memberMeetingGapAverages.length)
         : null;
-      const hasMeetingSyncData = Object.keys(meetingDatesByEmail).length > 0;
+      const hasMeetingSyncData = Object.keys(combinedMeetingDatesByEmail).length > 0;
 
       // Demographics - straight counts from member_profiles fields already
       // loaded, sorted largest bucket first.
