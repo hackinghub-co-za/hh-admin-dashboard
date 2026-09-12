@@ -650,6 +650,19 @@ CREATE POLICY "staff manage event images"
   USING (bucket_id = 'event-images' AND (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())))
   WITH CHECK (bucket_id = 'event-images' AND (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())));
 
+-- QA fix (2026-09-12): suggested_content (045_suggested_content.sql) never
+-- got this same widening, even though its own header describes it as "the
+-- same admin-authored/member-read-only shape as community_broadcasts/
+-- community_wins" - both of which already were widened above. All three
+-- tables are managed from the exact same admin page (AdminDashboard.jsx,
+-- case 'community-content') - a community_manager could already use the
+-- broadcast/wins forms there but hit a silent RLS-denied error submitting
+-- the Suggested Content form directly below them on the same page.
+DROP POLICY IF EXISTS "admins manage suggested content" ON public.suggested_content;
+CREATE POLICY "admins manage suggested content"
+  ON public.suggested_content FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
 -- Approval itself stays deliberately narrower than general community_events
 -- management (matching the original design intent - see 019_events.sql's
 -- own comment on why this is a dedicated RPC rather than a policy): now

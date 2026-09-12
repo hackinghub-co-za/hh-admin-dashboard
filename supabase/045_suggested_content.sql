@@ -31,6 +31,12 @@ CREATE POLICY "members read active suggested content"
   TO authenticated
   USING (active = true AND public.is_member_allowed(auth.jwt() ->> 'email'));
 
+-- Widened to also accept a community_manager in 067_permission_scopes.sql
+-- (is_community_manager() doesn't exist yet at this point on a fresh
+-- install - same reasoning as approve_community_event()'s identical note
+-- in 019_events.sql), matching this file's own claim of being "the same
+-- admin-authored/member-read-only shape as community_broadcasts/
+-- community_wins" - both of which already got that same widening.
 DROP POLICY IF EXISTS "admins manage suggested content" ON public.suggested_content;
 CREATE POLICY "admins manage suggested content"
   ON public.suggested_content FOR ALL
