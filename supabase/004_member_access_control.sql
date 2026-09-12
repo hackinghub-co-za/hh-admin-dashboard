@@ -64,6 +64,17 @@ GRANT EXECUTE ON FUNCTION public.is_member_allowed(TEXT) TO anon, authenticated;
 -- empty, so a self-chosen directory name (or an admin-corrected one) never
 -- gets overwritten by whatever name happened to be on a given PayFast
 -- checkout.
+--
+-- REVISION (2026-09-12): status used to be unconditionally reset to
+-- 'Active' on every conflict, including for a member already
+-- 'Active (Permanent)' - the entire point of that status is "doesn't owe
+-- recurring dues, stop flagging them as lapsed" (see MemberProfileModal's
+-- own copy), and a single subsequent payment (an upgrade, a manually
+-- recorded EFT correction) would silently undo it back to plain 'Active',
+-- re-exposing them to the lapsed warning the next time enough days passed
+-- without a payment - defeating the status's whole purpose. Reactivating
+-- 'Left'/'Leaving' back to 'Active' on a new payment is still correct and
+-- unchanged; only 'Active (Permanent)' is now left alone.
 CREATE OR REPLACE FUNCTION public.grant_member_portal_access(p_email TEXT, p_full_name TEXT)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -80,7 +91,7 @@ BEGIN
   INSERT INTO public.member_profiles (email, full_name, status)
   VALUES (lower(p_email), NULLIF(trim(p_full_name), ''), 'Active')
   ON CONFLICT (email) DO UPDATE SET
-    status = 'Active',
+    status = CASE WHEN member_profiles.status = 'Active (Permanent)' THEN member_profiles.status ELSE 'Active' END,
     full_name = COALESCE(NULLIF(trim(member_profiles.full_name), ''), EXCLUDED.full_name),
     updated_at = timezone('utc'::text, now());
 END;
