@@ -26,7 +26,7 @@ Started 2026-09-11.
 
 ### Admin/staff-facing
 - [x] Admin Overview (metrics, churn rate, revenue per member)
-- [ ] Members management (roster, status transitions, role assignment gating)
+- [x] Members management (roster, status transitions, role assignment gating)
 - [x] Roadmaps management (approvals, catalog assignment, Projects proof review)
 - [x] Room Logs review (approve/reject, standings updates)
 - [ ] Meetups & Events admin (approve/reject, image upload, capacity, add-event auto-approve)
@@ -75,6 +75,22 @@ Claimed: **Admin Overview** (metrics, churn rate, revenue per member) + **Financ
 - **Status**: Logged, needs a manual data check - not something to guess-fix by inserting a fabricated original-payment row for a real member's real financial history.
 
 **Next up**: **Members management** (roster, status transitions, role assignment gating) is the natural continuation - it shares the exact same `memberRosterMap`/`memberProfiles` data this pass just fixed, and hasn't been read yet. Also still unclaimed: **Meetups & Events admin**, **Job Board admin**, **Reviews (member + admin)**, **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions, Gemma AI edge functions, cron jobs, referral program).
+
+---
+
+### 2026-09-12 (third pass, same day)
+
+Claimed: **Members management** (roster, status transitions, role assignment gating) - the natural continuation flagged by the pass just above, since it shares the exact `memberRosterMap` this pass had just fixed. Read `004_member_access_control.sql` (`is_member_allowed`, `grant_member_portal_access`), `memberData.js`, `MemberProfileModal.jsx`'s status-transition logic (`updateStatus`, `isLapsed`), `memberOptions.js`'s `MEMBERSHIP_STATUSES`, and re-read `memberRosterMap`'s build in `AdminDashboard.jsx` after this morning's own fixes to it.
+
+#### [Members management] A member's real payment silently un-set "Active (Permanent)" back to plain "Active"
+- **Severity**: High
+- **Where**: `supabase/004_member_access_control.sql` - `grant_member_portal_access()` (pre-fix)
+- **What's wrong**: This function runs after *every* payment - PayFast (via `payfast-webhook`, service role) and every admin-recorded EFT (`handleRecordEftPayment` → `grantMemberPortalAccess()`) - and its `ON CONFLICT` clause unconditionally set `status = 'Active'`, with no check of what the member's status already was. `'Active (Permanent)'` exists specifically so a member who's paid in full and owes no more recurring dues stops being flagged as lapsed (`MemberProfileModal`'s own copy: "If they've paid in full or don't owe recurring dues (e.g. Permanent Access), set this to 'Active (Permanent)' so it stops flagging"). But the very next payment logged for that member - an upgrade, a correction, a manually-recorded EFT top-up like the ones recorded for real Permanent Access members earlier this same session - would silently reset them back to plain `'Active'`, undoing that admin's explicit choice with no warning anywhere. From then on, `isLapsed` (`form.status === 'Active' && daysSinceLastPayment > LAPSED_AFTER_DAYS`) would eventually start flagging them as lapsed again the moment enough days passed without another payment - exactly the false-positive the status exists to prevent, reintroduced by the one action (a payment) that should least cause it. Verified live via a disposable test row: seeded `'Active (Permanent)'`, called `grant_member_portal_access()` once, came back `'Active'`.
+- **Status**: Fixed (commit `94f6cb6`) - `status` is now only reset to `'Active'` when it isn't already `'Active (Permanent)'` (a `CASE` in the `ON CONFLICT` clause); `'Left'`/`'Leaving'` still correctly reactivate to `'Active'` on a new payment, unchanged. Applied live via `npx supabase db query --linked`; re-verified with the same disposable test row (seeded `'Active (Permanent)'` → call → stays `'Active (Permanent)'`; seeded `'Left'` → call → correctly becomes `'Active'`), then deleted the test row. No way to detect *retroactively* who this already silently downgraded before today, since there's no audit trail on `member_profiles.status` - this only stops it from happening going forward. 15 members currently carry `'Active (Permanent)'` live today.
+
+Everything else read in this pass held up: `is_member_allowed()`'s allow-list logic (`status != 'Left'` correctly lets `'Leaving'` still sign in for the farewell screen, matching its own documented one-more-sign-in behavior); the admin-only gating on `grant_member_portal_access()`/`permanentlyDeleteMember` (RLS-enforced via `is_admin()`, consistent with the client-side "only rendered for a member already marked 'Left'" delete-button gate); `updateStatus()`'s one-time `offboardingStartedAt` stamp (correctly doesn't reset itself on every keystroke while already `'Leaving'`).
+
+**Next up**: Still unclaimed - **Meetups & Events admin**, **Job Board admin**, **Reviews (member + admin)**, **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions, Gemma AI edge functions, cron jobs, referral program).
 
 ---
 
