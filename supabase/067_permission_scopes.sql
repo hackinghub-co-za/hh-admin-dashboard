@@ -101,10 +101,26 @@ REVOKE EXECUTE ON FUNCTION public.get_my_role() FROM PUBLIC, anon;
 
 -- Founder-only, deliberately - letting a community_manager or mentor grant
 -- roles (even to themselves) would be a privilege-escalation hole.
+--
+-- QA fix (2026-09-12): the Team & Roles admin tab's "Assign Role" form is a
+-- free-text email field, not a picker scoped to existing non-admin
+-- accounts - unlike the roster list's own "Revoke" button, which already
+-- hides itself for any row with role = 'admin' (AdminDashboard.jsx,
+-- {t.role !== 'admin' && (...)}). A mistyped/pasted email in that free-text
+-- form (e.g. the founder's own) with a lesser role selected would happily
+-- demote it, with no confirmation and, until now, no server-side guard -
+-- and with exactly one admin account existing live today, that would leave
+-- nobody able to call this very function to fix it back. Now blocks only
+-- the specific case that actually strands the system: demoting the LAST
+-- remaining admin. Demoting an admin while at least one other admin still
+-- exists (a real multi-admin future) is unaffected.
 CREATE OR REPLACE FUNCTION public.set_member_role(p_email TEXT, p_role TEXT)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
+DECLARE
+  v_current_role TEXT;
+  v_admin_count INTEGER;
 BEGIN
   IF NOT public.is_admin(auth.uid()) THEN
     RAISE EXCEPTION 'Only the founder can assign roles.';
@@ -113,10 +129,19 @@ BEGIN
     RAISE EXCEPTION 'Not a real role.';
   END IF;
 
-  UPDATE public.profiles SET role = p_role WHERE email = lower(p_email);
-  IF NOT FOUND THEN
+  SELECT role INTO v_current_role FROM public.profiles WHERE email = lower(p_email);
+  IF v_current_role IS NULL THEN
     RAISE EXCEPTION 'No account found for that email - they need to have signed in at least once first.';
   END IF;
+
+  IF v_current_role = 'admin' AND p_role <> 'admin' THEN
+    SELECT count(*) INTO v_admin_count FROM public.profiles WHERE role = 'admin';
+    IF v_admin_count <= 1 THEN
+      RAISE EXCEPTION 'Can''t remove the last remaining admin - assign another account as admin first.';
+    END IF;
+  END IF;
+
+  UPDATE public.profiles SET role = p_role WHERE email = lower(p_email);
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.set_member_role(TEXT, TEXT) TO authenticated;
