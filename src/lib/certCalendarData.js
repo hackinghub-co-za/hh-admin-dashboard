@@ -57,16 +57,18 @@ export async function addCertCalendarEntry({ member, cert, date, cohort, created
   };
 }
 
-/** Admin-only: updates the pass/fail result of a cert calendar entry. RLS
- * (admins manage cert calendar) rejects this for non-admins. */
+/** Admin/community_manager/mentor: updates the pass/fail result of a cert
+ * calendar entry. RLS ("admins manage cert calendar", widened in
+ * 067_permission_scopes.sql) rejects this for a plain member. */
 export async function updateCertCalendarResult(id, result) {
   const { error } = await supabase.from('cert_calendar').update({ result }).eq('id', id);
   if (error) throw error;
 }
 
-/** Admin-only: edits any field of an existing cert calendar entry (not just
- * the result). RLS (admins manage cert calendar) rejects this for non-admins
- * - a member can only ever add their own entry, never edit one. */
+/** Admin/community_manager/mentor: edits any field of an existing cert
+ * calendar entry (not just the result). RLS (widened in
+ * 067_permission_scopes.sql) rejects this for a plain member - they can only
+ * ever add their own entry, never edit one. */
 export async function updateCertCalendarEntry(id, { member, cert, date, cohort, result, memberEmail }) {
   const { error } = await supabase
     .from('cert_calendar')
@@ -82,14 +84,14 @@ export async function updateCertCalendarEntry(id, { member, cert, date, cohort, 
   if (error) throw error;
 }
 
-/** Admin-only: removes a cert calendar entry entirely. RLS rejects this for
- * non-admins. */
+/** Admin/community_manager/mentor: removes a cert calendar entry entirely.
+ * RLS rejects this for a plain member. */
 export async function deleteCertCalendarEntry(id) {
   const { error } = await supabase.from('cert_calendar').delete().eq('id', id);
   if (error) throw error;
 }
 
-/** Admin: sends the member a congratulations email for one specific cert
+/** Admin/community_manager/mentor: sends the member a congratulations email for one specific cert
  * calendar entry (supabase/functions/cert-pass-email) - a no-op server-side
  * (returns { skipped: true, reason }) if it isn't actually marked Passed,
  * has no member_email on file, or was already sent. Meant to be called

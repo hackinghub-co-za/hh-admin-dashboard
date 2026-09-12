@@ -7,11 +7,21 @@
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
 //
 // Unlike roadmap-reminder-email (triggered by pg_cron, no user JWT, gated by
-// CRON_SECRET), this is called directly by an admin session right after
-// run_matchmaker_round() succeeds (AdminDashboard.jsx) - a real caller JWT
-// exists, so this verifies the caller is an admin the same simple way
-// App.jsx does client-side (an @hackinghub.co.za email), rather than
-// needing --no-verify-jwt + a shared secret.
+// CRON_SECRET), this is called directly by an admin/community_manager
+// session right after run_matchmaker_round() succeeds (AdminDashboard.jsx) -
+// a real caller JWT exists, so this verifies the caller via get_my_role()
+// (profiles.role, 067_permission_scopes.sql), same as App.jsx does
+// client-side post-067. This used to check the caller's email for an
+// @hackinghub.co.za domain, which was correct back when that domain was the
+// only way to become an admin - but 067_permission_scopes.sql already
+// widened run_matchmaker_round() itself to community_manager, and role
+// assignment has been fully decoupled from email domain since that same
+// migration (any Google account can be promoted via Team & Roles). A
+// community_manager signed in with a personal Gmail address (a real, live
+// case - most of today's community_manager accounts use personal Gmail, not
+// @hackinghub.co.za) could run a matchmaker round through the app exactly as
+// intended, but this stale domain check then rejected their own follow-up
+// group-announcement email send with "Admins only" every time.
 //
 // Idempotent by design: scans matchmaker_groups for status='Active' AND
 // notified_at IS NULL, emails every member of every such group, then stamps
@@ -88,7 +98,14 @@ Deno.serve(async (req) => {
     });
     const { data: userData, error: authError } = await callerClient.auth.getUser();
     const callerEmail = (userData?.user?.email || '').toLowerCase();
-    if (authError || !callerEmail || !callerEmail.endsWith('@hackinghub.co.za')) {
+    if (authError || !callerEmail) {
+      return new Response(JSON.stringify({ error: 'Admins only.' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const { data: callerRole, error: roleError } = await callerClient.rpc('get_my_role');
+    if (roleError || !['admin', 'community_manager'].includes(callerRole)) {
       return new Response(JSON.stringify({ error: 'Admins only.' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },

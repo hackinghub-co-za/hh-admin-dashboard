@@ -5632,8 +5632,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
-                        <span className={`badge ${daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
-                          {daysLeft > 0 ? `${daysLeft} Day${daysLeft === 1 ? '' : 's'} Remaining` : daysLeft === 0 ? 'Exam Day!' : 'Exam Passed'}
+                        {/* c.result === 'Failed' gets its own explicit badge here,
+                            same as the admin Cert Calendar tab already does - this
+                            countdown badge is otherwise driven purely by daysLeft,
+                            and a Failed exam whose target date has already elapsed
+                            used to fall through to the daysLeft<0 case, which read
+                            "Exam Passed" - flatly contradicting the actual result,
+                            right next to a section below literally titled
+                            "Certifications Earned" using the same word to mean the
+                            opposite thing. A still-Pending entry whose date has
+                            elapsed now reads "Awaiting Result" instead, for the
+                            same reason - "Exam Passed" there was never describing
+                            the outcome, only that the date had gone by, but read
+                            exactly like it was. */}
+                        <span className={`badge ${c.result === 'Failed' ? 'badge-danger' : daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
+                          {c.result === 'Failed' ? 'Failed' : daysLeft > 0 ? `${daysLeft} Day${daysLeft === 1 ? '' : 's'} Remaining` : daysLeft === 0 ? 'Exam Day!' : 'Awaiting Result'}
                         </span>
                       </div>
                       <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>

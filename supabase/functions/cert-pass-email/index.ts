@@ -6,12 +6,23 @@
 //   supabase secrets set RESEND_API_KEY=<your Resend API key>
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
 //
-// Same shape as matchmaker-group-email: called directly by an admin session
-// (AdminDashboard.jsx's announceCertWin, right after a Cert Calendar entry
-// is marked Passed - same trigger that already auto-posts a Recent Win) - a
-// real caller JWT exists, so this verifies the caller is an admin the same
-// simple way App.jsx does client-side (an @hackinghub.co.za email), rather
-// than needing --no-verify-jwt + a shared secret.
+// Same shape as matchmaker-group-email: called directly by an admin/staff
+// session (AdminDashboard.jsx's announceCertWin, right after a Cert Calendar
+// entry is marked Passed - same trigger that already auto-posts a Recent
+// Win) - a real caller JWT exists, so this verifies the caller via
+// get_my_role() (profiles.role, 067_permission_scopes.sql), same as
+// App.jsx does client-side post-067. This used to check the caller's email
+// for an @hackinghub.co.za domain, which was correct back when that domain
+// was the only way to become an admin - but 067_permission_scopes.sql's
+// "admins manage cert calendar" RLS policy already allows any
+// community_manager or mentor to mark a cert Passed too, and role
+// assignment has been fully decoupled from email domain since that same
+// migration (any Google account can be promoted via Team & Roles). A
+// community_manager/mentor signed in with a personal Gmail address (a real,
+// live case - most of today's community_manager accounts use personal
+// Gmail, not @hackinghub.co.za) could mark a cert Passed through the app
+// exactly as intended, but this stale domain check then rejected their own
+// follow-up congratulations-email send with "Admins only" every time.
 //
 // Deliberately scoped to ONE specific cert_calendar row (certId), not a
 // scan-based "every Passed row not yet notified" query the way
@@ -77,7 +88,14 @@ Deno.serve(async (req) => {
     });
     const { data: userData, error: authError } = await callerClient.auth.getUser();
     const callerEmail = (userData?.user?.email || '').toLowerCase();
-    if (authError || !callerEmail || !callerEmail.endsWith('@hackinghub.co.za')) {
+    if (authError || !callerEmail) {
+      return new Response(JSON.stringify({ error: 'Admins only.' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const { data: callerRole, error: roleError } = await callerClient.rpc('get_my_role');
+    if (roleError || !['admin', 'community_manager', 'mentor'].includes(callerRole)) {
       return new Response(JSON.stringify({ error: 'Admins only.' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
