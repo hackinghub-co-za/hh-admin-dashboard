@@ -9,12 +9,12 @@ Started 2026-09-11.
 ### Member-facing
 - [x] Dashboard (Journey So Far, Getting Started checklist, login streak, survey banner, next 1-on-1, recommended room, community broadcasts, recent wins, suggested content)
 - [x] My Roadmap (Core Foundations / Specialization / Projects / Advanced phases, unlock gates, progress logging, LinkedIn weekly-post plan)
-- [ ] Matchmaker (opt-in, group formation, wheel reveal, presentation ratings/showcase)
+- [x] Matchmaker (opt-in, group formation, wheel reveal, presentation ratings/showcase)
 - [x] Members directory (search, grouped-by-domain view, profile modal, referrals, Security/passkeys panel)
-- [ ] 1-on-1 Meetings (booking, CV Review, Interview Prep, other Gemma tools)
+- [x] 1-on-1 Meetings (booking, CV Review, Interview Prep, other Gemma tools)
 - [x] Events (RSVP, capacity, images, self-submission flow, past-event filtering)
 - [x] Job Board (member view)
-- [ ] Resources (Cert Prep guides, LinkedIn Strategy, Podcasts)
+- [x] Resources (Cert Prep guides, LinkedIn Strategy, Podcasts)
 - [x] Breakdowns (archive list, markdown rendering, unsubscribe)
 - [x] Cert Calendar (booking, Exam Readiness tracker, practice quizzes)
 - [x] Competitions (daily room logs, standings + tie-splitting, Head-to-Head Duels, Room Races, Live Buzzer Trivia, rules guide)
@@ -36,9 +36,9 @@ Started 2026-09-11.
 - [x] Cert Calendar admin (result marking, cert-pass email trigger)
 - [x] Finances
 - [x] Reviews admin
-- [ ] Insights
+- [x] Insights
 - [x] Community Content (broadcasts, wins, suggested content, Weekly Breakdowns management)
-- [ ] Team & Roles (role assignment, permission-scope correctness per role)
+- [x] Team & Roles (role assignment, permission-scope correctness per role)
 
 ### Cross-cutting / backend
 - [ ] Email edge functions (roadmap-reminder, linkedin-post-reminder, cert-pass, matchmaker-group, weekly-breakdown-email/nudge/unsubscribe)
@@ -161,6 +161,22 @@ No findings this pass - everything read held up under a skeptical pass:
 - **Referral program**: self-service INSERT/SELECT correctly scoped to the caller's own `referrer_email`; `REFERRAL_REWARD_AMOUNT` is purely a display constant (column header, "Refer a Friend" badge) with no automated expense-recording tied to a `'Reward Paid'` status change - a manual bookkeeping step, which reads as the intended design rather than a gap.
 
 **Next up**: Still unclaimed - **Matchmaker**, **1-on-1 Meetings**, **Resources**, **Insights**, **Team & Roles**, and the whole **Cross-cutting/backend** section (email edge functions still-unread list: `breakdown-nudge`, `overdue-1on1-digest`, `linkedin-post-reminder-email`, `roadmap-reminder-email`, `push-1on1-reminder`, `weekly-breakdown-email`; push notification edge functions - note the dead `push-new-job` call site; Gemma AI edge functions; cron jobs).
+
+---
+
+### 2026-09-12 (eighth pass, same day)
+
+Claimed the remaining member/admin-facing areas in one sweep: **Matchmaker**, **1-on-1 Meetings**, **Resources**, **Insights**, **Team & Roles**. Read `030_matchmaker.sql` (cross-checked its Community Manager widening in `067`), `src/lib/matchmakerData.js`, `supabase/functions/gemma-review/index.ts` + `gemma-interview-prep`'s auth/rate-limit shape, the 1-on-1 Meetings tab (external mentor-calendar links, correctly using hardcoded non-DB URLs so no `isSafeUrl()` gap), `026_resources.sql`, the full Insights tab's tenure/cert/meeting-cadence math in `AdminDashboard.jsx`, and `067_permission_scopes.sql`'s `get_my_role()`/`set_member_role()`/`list_team_members()` plus the Team & Roles admin tab. All five checklist boxes checked off.
+
+#### [Team & Roles] set_member_role() could demote the last remaining admin, with no recovery path
+- **Severity**: Medium-High
+- **Where**: `supabase/067_permission_scopes.sql` - `set_member_role()` (pre-fix)
+- **What's wrong**: The Team & Roles "Assign Role" form (`AdminDashboard.jsx`) is a free-text email field with a role dropdown, submitted straight to `set_member_role()` - unlike the roster list just below it, whose own "Revoke" button already protects against this exact mistake by hiding itself for any row with `role = 'admin'`. A mistyped or pasted email in that free-text form (most plausibly the founder's own, out of habit) with a lesser role selected would silently demote it, with no confirmation dialog and, until now, no server-side guard either. Confirmed live: exactly one `admin` account exists today - if it were ever demoted this way, nobody would be left who could call `set_member_role()` (founder-only) to undo it, short of a direct database fix.
+- **Status**: Fixed (commit `e457aa0`) - the function now blocks only the specific case that actually strands the system: demoting the current last remaining admin (`SELECT count(*) ... WHERE role = 'admin'`, checked only when the target's current role is `'admin'` and the new role isn't). Demoting an admin while at least one other admin still exists is unaffected - this is a floor, not a lock on ever changing an admin's role. Applied live; verified via `pg_get_functiondef` that the live definition matches (a full auth-context E2E test wasn't attempted - would require impersonating the founder's real JWT, which this pass didn't do - but the guard logic itself is a simple, directly-inspectable count check).
+
+Everything else read in this pass held up: **Matchmaker**'s group-sizing algorithm (`mod(rn-1, ceil(total/4.0))`) was hand-checked against N=2 through 13 and always produces valid 2-4-sized groups, never a 4+4+1-style leftover; `run_matchmaker_round()`/`matchmaker_optins`/`matchmaker_groups`/`matchmaker_group_ratings` are all correctly widened to `community_manager` in `067` (only the original `030` file looks admin-only in isolation - matches the same false-alarm shape as `recommended_rooms` from the previous pass, so worth remembering this pattern before flagging a table as "never widened" without checking `067` too); `matchmaker_group_ratings` has zero direct member table grants by design (RPC-only, same as `portal_events`), so anonymity is server-enforced, not just UI-hidden. **1-on-1 Meetings**: mentor booking links are hardcoded module constants, not DB-sourced, so the missing `isSafeUrl()` wrap there is correctly not a gap. **Gemma AI edge functions** (partial - `gemma-review`/`gemma-interview-prep` only, `gemma-chat` not read this pass): both share the same hardening shape - real JWT auth check, `is_member_allowed()` check via service-role client, a weekly usage cap, an input-length cap, and a service-role-only insert with no client-facing write policy. **Insights**: the tenure/cert/meeting-cadence calculations correctly benefited from this session's earlier two-pass `memberRosterMap` fix (a refund can no longer corrupt `lastPaymentDate`, which several Insights stats read from) with no further changes needed here.
+
+**Next up**: Only the **Cross-cutting/backend** section remains unclaimed in full: **Email edge functions** (`breakdown-nudge`, `overdue-1on1-digest`, `linkedin-post-reminder-email`, `roadmap-reminder-email`, `push-1on1-reminder`, `weekly-breakdown-email` - none read yet), **Push notification edge functions** (note the dead `push-new-job` call site found two passes ago), **Gemma AI edge functions** (`gemma-chat` specifically, still unread), and **Cron jobs** (schedule correctness, `CRON_SECRET` checks, idempotency if a job fires twice). This is the last unchecked section on the whole coverage checklist.
 
 ---
 
