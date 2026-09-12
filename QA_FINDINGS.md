@@ -25,7 +25,7 @@ Started 2026-09-11.
 - [ ] Passkey sign-in + Security panel (member and staff sides, Login.jsx)
 
 ### Admin/staff-facing
-- [ ] Admin Overview (metrics, churn rate, revenue per member)
+- [x] Admin Overview (metrics, churn rate, revenue per member)
 - [ ] Members management (roster, status transitions, role assignment gating)
 - [x] Roadmaps management (approvals, catalog assignment, Projects proof review)
 - [x] Room Logs review (approve/reject, standings updates)
@@ -34,7 +34,7 @@ Started 2026-09-11.
 - [x] Merch Orders
 - [x] Payments & Subscriptions
 - [x] Cert Calendar admin (result marking, cert-pass email trigger)
-- [ ] Finances
+- [x] Finances
 - [ ] Reviews admin
 - [ ] Insights
 - [ ] Community Content (broadcasts, wins, suggested content, Weekly Breakdowns management)
@@ -51,6 +51,32 @@ Started 2026-09-11.
 ## Findings log
 
 _(newest first)_
+
+### 2026-09-12 (second pass, same day)
+
+Claimed: **Admin Overview** (metrics, churn rate, revenue per member) + **Finances** - both revenue-calculation-heavy areas flagged by prior passes as good "complex logic / money-handling" picks, and both render off the same `payments` array (live PayFast + EFT + historical), so read together naturally. Read `payfastPaymentsData.js`, `memberData.js`, the whole `payments`/`memberRosterMap`/metrics block in `AdminDashboard.jsx` (~line 2290-2420), the Admin Overview render (~line 2722-2830), and the Finances tab render (~line 6593-6930). Both checklist boxes checked off.
+
+#### [Finances / Members management] Refunded PayFast payments weren't reducing a member's Total Spent on HH
+- **Severity**: High
+- **Where**: `src/views/Admin/AdminDashboard.jsx` - `memberRosterMap`'s build filter (~line 2409, pre-fix)
+- **What's wrong**: The live `payfast_transactions` table marks a refund `payment_status = 'REFUNDED'`, and `payfastPaymentsData.js` maps that straight through as the row's `type` (`type: row.payment_status === 'COMPLETE' ? 'Funds Received' : row.payment_status`). But `memberRosterMap`'s filter only ever recognized `'Funds Received'` or `'Funds Received (Reversal)'` - the second string is the *historical CSV import's* own convention for the same concept (baked into `payfastTransactions.mock.json`), never what the live table actually produces. A real refund's negative `amount` matched neither string, so it was invisible to `entry.totalSpent += p.amount` entirely - a refunded member's Total Spent stayed at their pre-refund total forever, on every screen that reads it (Members tab card, Member Sheet, `MemberProfileModal`'s "Total Spent on HH"). Confirmed live via a read-only query: `sashamartinndau@gmail.com` paid R200 + R300 (both COMPLETE), then got the R300 refunded on 2026-03-31 (`REFUNDED`, `amount: -300`) - every "Total Spent" display for her showed R500, not the real R200, and would keep doing so indefinitely since nothing about this bug is time-limited.
+- **Status**: Fixed (commit `e6233c4`) - the filter now also matches `'REFUNDED'`, so a live refund correctly reduces `totalSpent` the same way the code's own pre-existing (but non-functional-in-practice) reversal-handling intent already implied. Verified: Sasha's totalSpent now correctly computes to R200.
+
+#### [Admin Overview / Finances] Total Gross Sales, Net Payout, Fees Paid, Total Transactions, and Monthly Recurring Revenue summed the *entire* `payments` array with no type filter, unlike every sibling metric on the same tabs
+- **Severity**: Medium-High
+- **Where**: `src/views/Admin/AdminDashboard.jsx` - `totalGrossRevenue`/`totalFeesPaid`/`totalNetRevenue`/`totalTransactions`/`monthlyRecurringRevenue` (~line 2321-2336, pre-fix), plus their exact duplicates `yearlyRevenue`/`monthlyRevenue`/`weeklyRevenue`/`planBreakdown` re-derived independently inside the `'finances'` case (~line 6598-6657, pre-fix)
+- **What's wrong**: Every other revenue-related figure on these two tabs (`emailsPaidBetween`, `allTimeMemberEmails`, `paymentCountsByEmail`, the `revenueTrend` chart, `upcomingPayments`) correctly filters to `p.type === 'Funds Received'` before summing. These nine values (five on Admin Overview/Payments, four duplicated again on Finances) didn't filter by `type` at all - they summed literally every row in `payments`, so a `REFUNDED` row's negative amount silently leaked into some numbers on the page and not others, a classic "same value computed two different ways, could drift" bug. Live impact today: both real `REFUNDED` rows (-R300, -R750) were already dragging down `totalGrossRevenue`/`yearlyRevenue`/etc. by the correct net amount, by accident, while `totalFeesPaid` was simultaneously *increased* by those two refunds' original fee amounts (R11.04 + R27.60) since a refund's `fee` column still has its original positive value and nothing distinguished "fee paid on a completed sale" from "fee that was on a since-refunded sale." Also a forward-looking risk: `payfastPaymentsData.js`'s own mapping can produce `type: 'PENDING'`/`'FAILED'`/`'CANCELLED'` for a real PayFast ITN that never actually completed - none exist in the live table today, but the moment one does, these nine figures would have silently counted money that never landed as real revenue.
+- **Status**: Fixed (commits `e6233c4`, `0183f19`) - introduced one shared `isRevenueRow`/`revenuePayments` filter (`type === 'Funds Received' || type === 'REFUNDED'`) and pointed all nine calculations at it, matching the already-correct sibling metrics exactly. Numerically identical to before for `totalGrossRevenue`/`totalFeesPaid`/`totalNetRevenue`/`totalTransactions`/`yearlyRevenue`/`monthlyRevenue`/`weeklyRevenue`/`planBreakdown` today (no PENDING/FAILED/CANCELLED rows exist yet), so this is both a consistency fix and a guard against a real live discrepancy the moment one does.
+
+#### [Finances] "Tegranyota2004" has a REFUNDED payment (-R750) with no matching original completed payment anywhere in `payfast_transactions` for that email
+- **Severity**: Low (data integrity, not a code bug)
+- **Where**: Live `payfast_transactions` data - `tegranyota2004@gmail.com`, `pf_payment_id 277495459`
+- **What's wrong**: Every other refund in this table has a clear prior COMPLETE payment it's reversing. This one doesn't - the only row on file for this email is the refund itself. This isn't something a code fix can resolve (there's no logic bug here to correct; either the original charge was recorded under a different email/never made it into this table during a historical migration, or this is a genuine one-off data gap). Consequence, post the fix above: this member now shows up in the roster for the first time (previously invisible, since they had no `'Funds Received'`-type row at all to seed a `memberRosterMap` entry) with a negative Total Spent (-R750) - technically more correct than being silently absent, but a negative currency figure on a member card reads oddly and is worth a human glance.
+- **Status**: Logged, needs a manual data check - not something to guess-fix by inserting a fabricated original-payment row for a real member's real financial history.
+
+**Next up**: **Members management** (roster, status transitions, role assignment gating) is the natural continuation - it shares the exact same `memberRosterMap`/`memberProfiles` data this pass just fixed, and hasn't been read yet. Also still unclaimed: **Meetups & Events admin**, **Job Board admin**, **Reviews (member + admin)**, **Community Content**, **Team & Roles**, **Dashboard (member home tab)**, **Members directory**, **1-on-1 Meetings**, **Resources**, **Breakdowns**, **Onboarding/Offboarding sequences**, **Passkey sign-in + Security panel**, and the whole **Cross-cutting/backend** section (push notification edge functions, Gemma AI edge functions, cron jobs, referral program).
+
+---
 
 ### 2026-09-12
 
