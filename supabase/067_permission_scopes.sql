@@ -30,8 +30,14 @@
 -- (money_owed, monthly_remuneration, phone, age - member_profiles has no
 -- column-level RLS, only row-level, so there's no safe way to grant "read
 -- the roster but not the money" without a dedicated whitelist function,
--- which doesn't exist yet), Finances, Payments & Subs, Merch Orders, Job
--- Board, Insights, and role assignment itself - all stay founder-only.
+-- which doesn't exist yet), Finances, Payments & Subs, Merch Orders,
+-- Insights, and role assignment itself - all stay founder-only. (Job Board
+-- was originally in this list too, but PART 4 below widened it to
+-- community_manager as a later, deliberate founder-approved follow-up -
+-- this paragraph just never got updated to say so at the time. Reviews
+-- isn't widened anywhere in this file either and was simply never called
+-- out here - it stays founder-only by default, same end state, just
+-- undocumented.)
 
 -- =========================================================================
 -- PART 1: ROLE INFRASTRUCTURE
