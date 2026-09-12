@@ -48,6 +48,7 @@ import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoad
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog, correctRoomLogReview } from '../../lib/roomLogData';
+import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog } from '../../lib/oneOnOneLogsData';
 import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition } from '../../lib/competitionData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
 import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
@@ -223,12 +224,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     setRoadmapMemberEmail(email);
     setShowAddRoadmapItemForm(false);
     setEditingRoadmapItemId(null);
+    setShowLogOneOnOneForm(false);
+    setOneOnOneLogsError(null);
     if (isMockSession) {
       // No fabricated roadmap for real member names in the mock roster (the
       // roster itself comes from real PayFast history even under Mock
       // Admin) - starts empty, same as a real member with nothing assigned
       // yet. Add/edit/delete below still work locally to try the UI out.
       setRoadmapItems(mockRoadmapItemsByEmail[email.toLowerCase()] || []);
+      setOneOnOneLogs([]);
       return;
     }
     setLoadingRoadmapItems(true);
@@ -237,6 +241,73 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .then(setRoadmapItems)
       .catch((err) => setRoadmapItemsError(friendlyErrorMessage(err)))
       .finally(() => setLoadingRoadmapItems(false));
+
+    setLoadingOneOnOneLogs(true);
+    fetchOneOnOneLogsForMember(email)
+      .then(setOneOnOneLogs)
+      .catch((err) => setOneOnOneLogsError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingOneOnOneLogs(false));
+  };
+
+  // 1-on-1 session log (071_overdue_1on1_digest.sql) - manually recorded
+  // right here on the same member a coach is already looking at, since
+  // real bookings happen entirely outside Supabase (a live Google Calendar
+  // link - see MemberPortal.jsx's "Book a 1on1 Strategy Session") and leave
+  // no trace of their own. This is the only record that a session actually
+  // happened until a real calendar integration replaces it.
+  const [oneOnOneLogs, setOneOnOneLogs] = useState([]);
+  const [loadingOneOnOneLogs, setLoadingOneOnOneLogs] = useState(false);
+  const [oneOnOneLogsError, setOneOnOneLogsError] = useState(null);
+  const [showLogOneOnOneForm, setShowLogOneOnOneForm] = useState(false);
+  const emptyOneOnOneLogForm = { mentorName: user?.user_metadata?.full_name || '', sessionDate: new Date().toISOString().slice(0, 10), topic: '' };
+  const [newOneOnOneLog, setNewOneOnOneLog] = useState(emptyOneOnOneLogForm);
+  const [loggingOneOnOne, setLoggingOneOnOne] = useState(false);
+  const [deletingOneOnOneLogId, setDeletingOneOnOneLogId] = useState(null);
+
+  const handleLogOneOnOne = async (e) => {
+    e.preventDefault();
+    if (!roadmapMemberEmail || !newOneOnOneLog.mentorName.trim() || !newOneOnOneLog.sessionDate) return;
+    if (isMockSession) {
+      // A simple decreasing counter, not Date.now() - a plain local id only
+      // ever needs to be unique within this mock-only array, and deriving
+      // it from existing state (rather than an impure call) keeps this
+      // handler pure.
+      const mockId = -(oneOnOneLogs.length + 1);
+      setOneOnOneLogs([{ id: mockId, memberEmail: roadmapMemberEmail, mentorName: newOneOnOneLog.mentorName, sessionDate: newOneOnOneLog.sessionDate, topic: newOneOnOneLog.topic, loggedBy: user?.email }, ...oneOnOneLogs]);
+      setNewOneOnOneLog(emptyOneOnOneLogForm);
+      setShowLogOneOnOneForm(false);
+      return;
+    }
+    setLoggingOneOnOne(true);
+    setOneOnOneLogsError(null);
+    try {
+      const created = await logOneOnOne({ memberEmail: roadmapMemberEmail, mentorName: newOneOnOneLog.mentorName.trim(), sessionDate: newOneOnOneLog.sessionDate, topic: newOneOnOneLog.topic.trim(), loggedBy: user?.email });
+      setOneOnOneLogs([created, ...oneOnOneLogs]);
+      setNewOneOnOneLog(emptyOneOnOneLogForm);
+      setShowLogOneOnOneForm(false);
+    } catch (err) {
+      setOneOnOneLogsError(friendlyErrorMessage(err));
+    } finally {
+      setLoggingOneOnOne(false);
+    }
+  };
+
+  const handleDeleteOneOnOneLog = async (log) => {
+    if (!window.confirm(`Remove this logged 1-on-1 from ${formatDate(log.sessionDate)}?`)) return;
+    setDeletingOneOnOneLogId(log.id);
+    if (isMockSession) {
+      setOneOnOneLogs(oneOnOneLogs.filter((l) => l.id !== log.id));
+      setDeletingOneOnOneLogId(null);
+      return;
+    }
+    try {
+      await deleteOneOnOneLog(log.id);
+      setOneOnOneLogs(oneOnOneLogs.filter((l) => l.id !== log.id));
+    } catch (err) {
+      setOneOnOneLogsError(friendlyErrorMessage(err));
+    } finally {
+      setDeletingOneOnOneLogId(null);
+    }
   };
 
   const handleAddRoadmapItem = async (e) => {
@@ -3658,6 +3729,57 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                         {ROADMAP_TRACKS.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
                     </div>
+                  </div>
+
+                  {/* 1-on-1 log - manually recorded here since real bookings
+                      (a live Google Calendar link) leave no trace in
+                      Supabase at all. See oneOnOneLogsData.js's header. */}
+                  <div className="glass-card" style={{ background: 'rgba(var(--overlay-rgb), 0.02)', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Users size={14} color="var(--accent-cyan)" /> 1-on-1 History
+                      </h4>
+                      {!isMockSession && !showLogOneOnOneForm && (
+                        <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 12px' }} onClick={() => { setNewOneOnOneLog(emptyOneOnOneLogForm); setShowLogOneOnOneForm(true); }}>
+                          <Plus size={13} /> Log a 1-on-1
+                        </button>
+                      )}
+                    </div>
+
+                    {oneOnOneLogsError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '10px' }}>{oneOnOneLogsError}</p>}
+
+                    {showLogOneOnOneForm && (
+                      <form onSubmit={handleLogOneOnOne} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px', padding: '12px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
+                          <input className="form-input" placeholder="Mentor name" value={newOneOnOneLog.mentorName} onChange={(e) => setNewOneOnOneLog({ ...newOneOnOneLog, mentorName: e.target.value })} required />
+                          <input type="date" className="form-input" value={newOneOnOneLog.sessionDate} onChange={(e) => setNewOneOnOneLog({ ...newOneOnOneLog, sessionDate: e.target.value })} required />
+                        </div>
+                        <input className="form-input" placeholder="Topic (optional)" value={newOneOnOneLog.topic} onChange={(e) => setNewOneOnOneLog({ ...newOneOnOneLog, topic: e.target.value })} />
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem' }} onClick={() => setShowLogOneOnOneForm(false)}>Cancel</button>
+                          <button type="submit" className="btn btn-primary" style={{ fontSize: '0.78rem' }} disabled={loggingOneOnOne}>
+                            {loggingOneOnOne ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {isMockSession ? null : loadingOneOnOneLogs ? (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading...</p>
+                    ) : oneOnOneLogs.length === 0 ? (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No 1-on-1s logged yet.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {oneOnOneLogs.map((log) => (
+                          <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}>
+                            <span>{formatDate(log.sessionDate)} with <strong>{log.mentorName}</strong>{log.topic ? ` — ${log.topic}` : ''}</span>
+                            <button onClick={() => handleDeleteOneOnOneLog(log)} disabled={deletingOneOnOneLogId === log.id} aria-label="Remove logged 1-on-1" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', flexShrink: 0 }}>
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {roadmapItemsError && (
