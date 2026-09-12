@@ -271,6 +271,39 @@ $$;
 GRANT EXECUTE ON FUNCTION public.correct_room_log_review(BIGINT, BOOLEAN, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.correct_room_log_review(BIGINT, BOOLEAN, TEXT) FROM PUBLIC, anon;
 
+-- QA fix (2026-09-12): competition_standings itself was never widened here
+-- alongside its sibling competition systems (Room Races, Live Trivia,
+-- daily_room_logs above) - harmless today since every real write already
+-- goes through the RPCs above (all correctly widened), never a direct
+-- table write, but worth closing for consistency with the stated role
+-- matrix rather than relying on "nothing happens to touch the gap" forever.
+DROP POLICY IF EXISTS "admins manage competition standings" ON public.competition_standings;
+CREATE POLICY "admins manage competition standings"
+  ON public.competition_standings FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
+-- QA fix (2026-09-12): Quiz Duel (062_quiz_duels.sql) never got the same
+-- Community Manager widening its sibling competition systems (Room Races,
+-- Live Trivia, both below/above) did - the three tables stayed admin-only.
+-- No admin UI touches any of these three tables today (duel_questions has
+-- no admin management screen at all yet - see its own header comment), so
+-- this has zero live effect, but it closes the same "should have been
+-- widened alongside its siblings, wasn't" gap while it's cheap to fix.
+DROP POLICY IF EXISTS "admins manage duel questions" ON public.duel_questions;
+CREATE POLICY "admins manage duel questions"
+  ON public.duel_questions FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
+DROP POLICY IF EXISTS "admins manage duels" ON public.quiz_duels;
+CREATE POLICY "admins manage duels"
+  ON public.quiz_duels FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
+DROP POLICY IF EXISTS "admins manage duel answers" ON public.quiz_duel_answers;
+CREATE POLICY "admins manage duel answers"
+  ON public.quiz_duel_answers FOR ALL
+  USING (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid()));
+
 DROP POLICY IF EXISTS "admins manage room races" ON public.room_races;
 CREATE POLICY "admins manage room races"
   ON public.room_races FOR ALL
