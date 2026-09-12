@@ -2317,11 +2317,26 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     return new Date(c.date).getFullYear() === today.getFullYear();
   }).length;
 
-  // PayFast Financial Metrics
-  const totalGrossRevenue = payments.reduce((acc, p) => acc + p.amount, 0);
-  const totalFeesPaid = payments.reduce((acc, p) => acc + (p.fee || 0), 0);
-  const totalNetRevenue = payments.reduce((acc, p) => acc + (p.net || (p.amount - (p.fee || 0))), 0);
-  const totalTransactions = payments.length;
+  // PayFast Financial Metrics - scoped to real revenue-affecting rows only
+  // ('Funds Received' from a completed PayFast payment or a recorded EFT,
+  // 'REFUNDED' since that's the live payfast_transactions table's actual
+  // payment_status string for a reversal - see payfastPaymentsData.js's
+  // `type` mapping. Every other status (PENDING/FAILED/CANCELLED) is a
+  // PayFast notification for money that never actually landed and must
+  // never count toward revenue - previously these five metrics summed the
+  // entire `payments` array with no type filter at all, unlike every
+  // sibling metric below (emailsPaidBetween, allTimeMemberEmails,
+  // paymentCountsByEmail, revenueTrend), so a REFUNDED row's negative
+  // amount silently only leaked into some of this page's numbers and not
+  // others. No live PENDING/FAILED/CANCELLED rows exist today, so this is
+  // both a live fix (see the memberRosterMap fix below for the symptom
+  // that was actually visible) and a guard against a future one.
+  const isRevenueRow = (p) => p.type === 'Funds Received' || p.type === 'REFUNDED';
+  const revenuePayments = payments.filter(isRevenueRow);
+  const totalGrossRevenue = revenuePayments.reduce((acc, p) => acc + p.amount, 0);
+  const totalFeesPaid = revenuePayments.reduce((acc, p) => acc + (p.fee || 0), 0);
+  const totalNetRevenue = revenuePayments.reduce((acc, p) => acc + (p.net || (p.amount - (p.fee || 0))), 0);
+  const totalTransactions = revenuePayments.length;
 
   const emailsPaidBetween = (start, end) => new Set(
     payments
@@ -2331,7 +2346,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
 
   // Recurring revenue run-rate: Basic Access + Monthly Operative payments in the trailing 30 days
   const last30DaysStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const monthlyRecurringRevenue = payments
+  const monthlyRecurringRevenue = revenuePayments
     .filter(p => (p.plan === 'Monthly Operative' || p.plan === 'Basic Access') && new Date(p.date) >= last30DaysStart)
     .reduce((acc, p) => acc + p.amount, 0);
 
@@ -2404,9 +2419,19 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // history (name, email, tenure, plan, and total spend). Demographic/profile fields
   // (age, location, specialty, etc.) come from `memberProfiles` if the admin has filled
   // them in, since they have no source in the PayFast data.
+  // 'Funds Received (Reversal)' is the historical CSV import's convention
+  // for a refund (payfastTransactions.mock.json, Mock Admin only); the live
+  // payfast_transactions table's actual payment_status string is
+  // 'REFUNDED' instead (payfastPaymentsData.js) - both are checked here so
+  // a real refund correctly reduces totalSpent below, matching this line's
+  // own original intent. Before this fix, a live REFUNDED row (negative
+  // amount) matched neither string, so a refunded member's Total Spent on
+  // HH stayed at their pre-refund total forever - caught live: Sasha Martin
+  // Ndau paid R200 + R300 then got the R300 refunded, but every "Total
+  // Spent" display for her still showed R500, not the real R200.
   const memberRosterMap = new Map();
   payments
-    .filter(p => (p.type === 'Funds Received' || p.type === 'Funds Received (Reversal)') && !deletedEmails.has(p.email.toLowerCase()))
+    .filter(p => (p.type === 'Funds Received' || p.type === 'Funds Received (Reversal)' || p.type === 'REFUNDED') && !deletedEmails.has(p.email.toLowerCase()))
     .forEach(p => {
       const key = p.email.toLowerCase();
       const entry = memberRosterMap.get(key) || {
