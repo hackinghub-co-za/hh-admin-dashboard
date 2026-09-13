@@ -375,12 +375,13 @@ function formatEventCountdown(days) {
   return `In ${days} days`;
 }
 
-// Small vendor/brand logo next to a Resources tab card's title, detected
-// from the (admin/member-typed, free-text) title rather than a stored field
-// - resources has no vendor column, and matching on title is enough to
-// cover the real catalog today without a schema change. Checked in order,
-// first match wins, so a more specific pattern (an exam code) should sit
-// above a broader one if they'd ever both match the same title.
+// Small vendor/brand logo next to a title, detected from a free-text title
+// rather than a stored field - used on the Resources tab's cards and on My
+// Roadmap's item rows, neither of which has an actual vendor column, and
+// matching on title is enough to cover the real catalog today without a
+// schema change. Checked in order, first match wins, so a more specific
+// pattern (an exam code) should sit above a broader one if they'd ever
+// both match the same title.
 //
 // Each icon renders in that brand's own real color (from simple-icons'
 // own published hex, cdn.jsdelivr.net), not a generic neutral chip - the
@@ -398,7 +399,7 @@ function formatEventCountdown(days) {
 // gets a small hand-built CSS mark instead, using their own real brand
 // colors, with no external image dependency at all: Microsoft's actual
 // four-color grid, and LinkedIn's actual blue box with a white "in".
-const RESOURCE_VENDOR_ICONS = [
+const VENDOR_LOGO_ICONS = [
   { test: /comptia/i, icon: 'comptia', bg: '#C8202F' },
   { test: /\bcisco\b/i, icon: 'cisco', bg: '#1BA0D7' },
   { test: /\bGH-\d{3}\b/i, icon: 'github', bg: '#181717' },
@@ -406,34 +407,35 @@ const RESOURCE_VENDOR_ICONS = [
   { test: /\btryhackme\b|\bTHM\b/i, icon: 'tryhackme', bg: '#212C42' },
   { test: /\bportswigger\b/i, icon: 'portswigger', bg: '#FF6633' },
   { test: /\bterraform\b/i, icon: 'terraform', bg: '#844FBA' },
+  { test: /\bburp\s*suite\b/i, icon: 'portswigger', bg: '#FF6633' },
 ];
-const RESOURCE_VENDOR_CUSTOM = [
+const VENDOR_LOGO_CUSTOM = [
   { test: /\b(?:SC|AZ|AI)-\d{3}\b|\bmicrosoft\b/i, mark: 'microsoft' },
   { test: /\blinkedin\b/i, mark: 'linkedin' },
 ];
 // Real brands with neither a simple-icons entry nor a simple enough mark
 // to hand-build faithfully - a plain colored initial chip rather than a
 // missing/broken image.
-const RESOURCE_VENDOR_INITIALS = [
+const VENDOR_LOGO_INITIALS = [
   { test: /\bkodekloud\b/i, initials: 'K', color: '#7C3AED' },
 ];
 
-function resourceVendorLogo(title) {
-  const iconMatch = RESOURCE_VENDOR_ICONS.find((v) => v.test.test(title));
+function vendorLogoFor(title) {
+  const iconMatch = VENDOR_LOGO_ICONS.find((v) => v.test.test(title));
   if (iconMatch) return { type: 'icon', icon: iconMatch.icon, bg: iconMatch.bg };
-  const customMatch = RESOURCE_VENDOR_CUSTOM.find((v) => v.test.test(title));
+  const customMatch = VENDOR_LOGO_CUSTOM.find((v) => v.test.test(title));
   if (customMatch) return { type: 'custom', mark: customMatch.mark };
-  const initialsMatch = RESOURCE_VENDOR_INITIALS.find((v) => v.test.test(title));
+  const initialsMatch = VENDOR_LOGO_INITIALS.find((v) => v.test.test(title));
   if (initialsMatch) return { type: 'initials', initials: initialsMatch.initials, color: initialsMatch.color };
   return null;
 }
 
-function ResourceVendorLogo({ title }) {
-  const logo = resourceVendorLogo(title);
+function VendorLogo({ title, size = 20 }) {
+  const logo = vendorLogoFor(title);
   if (!logo) return null;
   const chipStyle = {
-    width: '20px',
-    height: '20px',
+    width: `${size}px`,
+    height: `${size}px`,
     borderRadius: '5px',
     display: 'inline-flex',
     alignItems: 'center',
@@ -3850,7 +3852,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                   color: rowDone ? 'var(--text-secondary)' : 'var(--text-primary)',
                                   userSelect: 'none',
                                 }}>
-                                  <span>{item.title}</span>
+                                  <VendorLogo title={item.title} size={16} /> <span>{item.title}</span>
                                 </div>
                                 {/* Horizontal progress bar under the item's
                                     name - at-a-glance per-item progress,
@@ -5734,7 +5736,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     </span>
                   </div>
                   <h4 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ResourceVendorLogo title={res.title} /> {res.title}
+                    <VendorLogo title={res.title} /> {res.title}
                   </h4>
                   <ExpandableText text={res.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }} />
                   {IN_APP_ARTICLE_RESOURCES[res.title] ? (
