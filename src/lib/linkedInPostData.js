@@ -20,10 +20,10 @@ export async function fetchMyLinkedInPostStatus() {
   return !!data;
 }
 
-/** Admin: whether a given member has confirmed for the current week, and
- * when they last confirmed (regardless of week) - computed server-side
- * (get_member_linkedin_post_status) so "what week is it" is defined in
- * exactly one place, not re-derived here. */
+/** Admin/Community Manager/assigned mentor: whether a given member has
+ * confirmed for the current week, and when they last confirmed (regardless
+ * of week) - computed server-side (get_member_linkedin_post_status) so
+ * "what week is it" is defined in exactly one place, not re-derived here. */
 export async function fetchMemberLinkedInPostStatus(memberEmail) {
   const { data, error } = await supabase.rpc('get_member_linkedin_post_status', { p_email: memberEmail });
   if (error) throw error;
@@ -32,4 +32,22 @@ export async function fetchMemberLinkedInPostStatus(memberEmail) {
     confirmedThisWeek: !!row?.confirmed_this_week,
     lastConfirmedAt: row?.last_confirmed_at || null,
   };
+}
+
+/** Admin/Community Manager/mentor: every active member with a real roadmap
+ * track assigned, and whether each has confirmed this week's LinkedIn post -
+ * the Roadmaps tab's "LinkedIn Playbook Engagement" panel. Computed and
+ * authorized entirely server-side (get_linkedin_engagement_overview) - an
+ * admin/community_manager gets every row, a mentor only their own assigned
+ * mentees - so there's no roster/email list to build or pass up from here. */
+export async function fetchLinkedInEngagementOverview() {
+  const { data, error } = await supabase.rpc('get_linkedin_engagement_overview');
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    email: row.email,
+    fullName: row.full_name || '',
+    roadmapTrack: row.roadmap_track,
+    confirmedThisWeek: !!row.confirmed_this_week,
+    lastConfirmedAt: row.last_confirmed_at || null,
+  }));
 }

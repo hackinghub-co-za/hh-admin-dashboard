@@ -38,6 +38,8 @@ import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../l
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
 import { fetchRoadmapExclusions, addRoadmapExclusion, removeRoadmapExclusion } from '../../lib/roadmapExclusionsData';
 import { fetchMenteesForMentor, addMentee, removeMentee } from '../../lib/mentorMenteesData';
+import { fetchLinkedInEngagementOverview } from '../../lib/linkedInPostData';
+import { getCurrentWeekContent } from '../../lib/linkedInPlaybookData';
 import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
@@ -111,6 +113,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   ImagePlus,
+  IdCard,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -1159,20 +1162,51 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [loadingMentorMeetings, setLoadingMentorMeetings] = useState(true);
   const [mentorMeetingsError, setMentorMeetingsError] = useState(null);
 
+  // The mentee list itself is fetched independently of calendar sync below
+  // (not gated on providerToken/activeTab) - the Roadmaps tab's LinkedIn
+  // Playbook Engagement panel needs it too, and shouldn't have to wait on
+  // a mentor having Google Calendar sync enabled just to see who their
+  // mentees even are.
+  useEffect(() => {
+    if (isMockSession || role !== 'mentor') return;
+    fetchMenteesForMentor(user.email)
+      .then(setMentorMentees)
+      .catch((err) => setMentorMeetingsError(friendlyErrorMessage(err)));
+  }, [isMockSession, role, user?.email]);
+
   useEffect(() => {
     if (isMockSession || role !== 'mentor' || activeTab !== 'dashboard' || !providerToken) return;
-    Promise.all([
-      fetchMenteesForMentor(user.email),
-      fetchCalendarEvents(providerToken, { maxResults: 50 }),
-    ])
-      .then(([mentees, events]) => {
-        setMentorMentees(mentees);
+    fetchCalendarEvents(providerToken, { maxResults: 50 })
+      .then((events) => {
         setMentorUpcomingEvents(events);
         setMentorMeetingsError(null);
       })
       .catch((err) => setMentorMeetingsError(friendlyErrorMessage(err)))
       .finally(() => setLoadingMentorMeetings(false));
-  }, [isMockSession, role, activeTab, providerToken, user?.email]);
+  }, [isMockSession, role, activeTab, providerToken]);
+
+  // LinkedIn Playbook engagement, whole-cohort (admin Roadmaps tab) -
+  // every active member with a real roadmap track, and whether they've
+  // confirmed this week's post. Computed and authorized entirely
+  // server-side (get_linkedin_engagement_overview - an admin/community_manager
+  // gets every row, a mentor only their own mentees), so this depends on
+  // dataRefreshKey like every other bulk admin fetch in this file, never on
+  // memberRoster directly - memberRoster is rebuilt fresh on every render,
+  // so an effect keyed to it would refetch on virtually every render.
+  const [linkedInEngagement, setLinkedInEngagement] = useState([]);
+  const [loadingLinkedInEngagement, setLoadingLinkedInEngagement] = useState(true);
+  const [linkedInEngagementError, setLinkedInEngagementError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchLinkedInEngagementOverview()
+      .then((rows) => {
+        setLinkedInEngagement(rows);
+        setLinkedInEngagementError(null);
+      })
+      .catch((err) => setLinkedInEngagementError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingLinkedInEngagement(false));
+  }, [isMockSession, dataRefreshKey]);
 
   // Manually-logged 1-on-1s (one_on_one_logs, 071_overdue_1on1_digest.sql -
   // see oneOnOneLogsData.js) merged into this same "last meeting" concept.
@@ -4784,6 +4818,63 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               </div>
             )}
           </div>
+
+          {/* LinkedIn Playbook Engagement - closes a real gap: confirming
+              this week's post was entirely self-reported with no way to
+              see who's actually keeping up without opening each profile
+              one at a time (MemberProfileModal.jsx still has that
+              per-member view). Only ever lists members who haven't
+              confirmed yet - the actionable list, same "only show what
+              needs attention" shape as Roadmaps Awaiting Approval above. */}
+          {(() => {
+            const notConfirmed = linkedInEngagement.filter((r) => !r.confirmedThisWeek);
+            const confirmedCount = linkedInEngagement.length - notConfirmed.length;
+            return (
+              <div className="glass-card" style={{ marginTop: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                  <IdCard size={18} color="var(--accent-cyan)" />
+                  <h3 style={{ margin: 0 }}>LinkedIn Playbook Engagement</h3>
+                  {linkedInEngagement.length > 0 && (
+                    <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{confirmedCount}/{linkedInEngagement.length} confirmed this week</span>
+                  )}
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                  Every active member with a track assigned who hasn't confirmed this week's post yet.
+                </p>
+
+                {linkedInEngagementError ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Couldn't load this: {linkedInEngagementError}</p>
+                ) : loadingLinkedInEngagement ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+                ) : linkedInEngagement.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    {role === 'mentor' ? "None of your mentees have a track assigned yet." : 'No active, track-assigned members yet.'}
+                  </p>
+                ) : notConfirmed.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--success)' }}>Everyone's confirmed this week's post. 🎉</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {notConfirmed.map((r) => {
+                      const week = getCurrentWeekContent(r.roadmapTrack);
+                      return (
+                        <div key={r.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{r.fullName || r.email}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                              {r.roadmapTrack} · This week: {week.theme}
+                            </div>
+                          </div>
+                          <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
+                            {r.lastConfirmedAt ? `Last posted ${formatDate(r.lastConfirmedAt.slice(0, 10))}` : 'Never confirmed'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       );
     }

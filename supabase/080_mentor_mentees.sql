@@ -125,3 +125,81 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.review_project_submission(BIGINT, BOOLEAN, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.review_project_submission(BIGINT, BOOLEAN, TEXT) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- LinkedIn Playbook engagement visibility (admin Roadmaps tab) - closes a
+-- real gap: whether a member has confirmed this week's LinkedIn post
+-- (059_linkedin_weekly_post.sql) was previously admin-only to check, and
+-- only one member at a time (MemberProfileModal.jsx). Widened here (not in
+-- 059 itself - is_mentor_of doesn't exist yet at that point in migration
+-- order) so a mentor can see it for their own mentees, and added a bulk
+-- variant so the admin/mentor Roadmaps tab can show a whole "who's posted
+-- this week" list without one RPC round-trip per member.
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION public.get_member_linkedin_post_status(p_email TEXT)
+RETURNS TABLE (confirmed_this_week BOOLEAN, last_confirmed_at TIMESTAMP WITH TIME ZONE)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+BEGIN
+  IF auth.role() = 'authenticated' AND NOT public.is_mentor_of(p_email) AND NOT public.is_community_manager(auth.uid()) THEN
+    RAISE EXCEPTION 'Only an admin, Community Manager, or this member''s assigned mentor can view this.';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    EXISTS (
+      SELECT 1 FROM public.linkedin_weekly_posts
+      WHERE member_email = lower(p_email)
+        AND week_start = date_trunc('week', timezone('utc'::text, now()))::date
+    ),
+    (SELECT MAX(confirmed_at) FROM public.linkedin_weekly_posts WHERE member_email = lower(p_email));
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_member_linkedin_post_status(TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_member_linkedin_post_status(TEXT) FROM PUBLIC, anon;
+
+-- Whole-cohort version for the Roadmaps tab's "LinkedIn Playbook
+-- Engagement" panel - every active member with a real roadmap track
+-- assigned (no track means no weekly plan to have engaged with), computed
+-- entirely server-side rather than the client fetching the roster and
+-- passing a big email list up: an admin/community_manager gets every row,
+-- a mentor only rows for their own assigned mentees. Doing the roster
+-- join and the authorization check in one query here also sidesteps a
+-- real footgun on the client side - AdminDashboard.jsx's own memberRoster
+-- is rebuilt fresh (a new array/object) on every render, so an effect
+-- that depended on it directly would refetch on virtually every render.
+CREATE OR REPLACE FUNCTION public.get_linkedin_engagement_overview()
+RETURNS TABLE (
+  email TEXT,
+  full_name TEXT,
+  roadmap_track TEXT,
+  confirmed_this_week BOOLEAN,
+  last_confirmed_at TIMESTAMP WITH TIME ZONE
+)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    mp.email,
+    mp.full_name,
+    mp.roadmap_track,
+    EXISTS (
+      SELECT 1 FROM public.linkedin_weekly_posts lwp
+      WHERE lwp.member_email = mp.email
+        AND lwp.week_start = date_trunc('week', timezone('utc'::text, now()))::date
+    ),
+    (SELECT MAX(confirmed_at) FROM public.linkedin_weekly_posts WHERE member_email = mp.email)
+  FROM public.member_profiles mp
+  WHERE mp.status IN ('Active', 'Active (Permanent)')
+    AND mp.roadmap_track IS NOT NULL AND mp.roadmap_track != 'Not Assigned'
+    AND (
+      public.is_admin(auth.uid())
+      OR public.is_community_manager(auth.uid())
+      OR public.is_mentor_of(mp.email)
+    );
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_linkedin_engagement_overview() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_linkedin_engagement_overview() FROM PUBLIC, anon;
