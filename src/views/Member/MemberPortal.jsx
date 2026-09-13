@@ -508,7 +508,7 @@ function ExpandableText({ text, style }) {
       {isLong && (
         <button
           type="button"
-          onClick={() => setExpanded((e) => !e)}
+          onClick={(e) => { e.stopPropagation(); setExpanded((x) => !x); }}
           style={{ background: 'none', border: 'none', padding: 0, marginLeft: '6px', color: 'var(--accent-cyan)', fontWeight: 600, fontSize: 'inherit', cursor: 'pointer' }}
         >
           {expanded ? 'Show less' : 'Read more'}
@@ -3157,7 +3157,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       const renderDirectoryCard = (m) => (
         <div
           className="glass-card hover-glow"
-          style={{ display: 'flex', flexDirection: 'column', gap: '10px', cursor: 'pointer' }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '10px', cursor: 'pointer', height: '100%' }}
           onClick={() => setSelectedDirectoryMember(m)}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
@@ -3213,9 +3213,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.jobReadiness}</span>
           </div>
 
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: m.about ? 'normal' : 'italic', flexGrow: 1 }}>
-            {m.about || 'No bio yet.'}
-          </p>
+          <ExpandableText
+            text={m.about || 'No bio yet.'}
+            style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: m.about ? 'normal' : 'italic', flexGrow: 1 }}
+          />
 
           <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
             {m.location && (
