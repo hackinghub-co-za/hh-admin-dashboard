@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { ROADMAP_TRACKS, TEAM_MEMBERS, TRACK_COLORS, TRACK_DESCRIPTIONS, OTHER_GROUP_COLOR, TEAM_GROUP_COLOR, groupMembersByDomain } from '../lib/memberOptions';
+import { ROADMAP_TRACKS, TEAM_MEMBERS, TRACK_COLORS, TRACK_DESCRIPTIONS, TRACK_INFO, OTHER_GROUP_COLOR, TEAM_GROUP_COLOR, groupMembersByDomain } from '../lib/memberOptions';
+import DomainInfoModal from './DomainInfoModal';
 
 function initialsFor(name) {
   return (name || '?')
@@ -54,6 +55,7 @@ function Avatar({ name, imageUrl, size, color }) {
  */
 export default function GroupedMemberDirectory({ members, getEmail, getName, getTrack, getAvatarImage, onSelectMember, renderCard }) {
   const [openGroups, setOpenGroups] = useState({});
+  const [infoTrack, setInfoTrack] = useState(null);
   const { team, tracks, other } = groupMembersByDomain(members, getEmail, getTrack);
 
   const toggleGroup = (key) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -135,8 +137,14 @@ export default function GroupedMemberDirectory({ members, getEmail, getName, get
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
                 <span
-                  style={{ fontWeight: 700, fontSize: '1rem', borderBottom: TRACK_DESCRIPTIONS[g.name] ? '1px dotted var(--text-muted)' : 'none' }}
-                  title={TRACK_DESCRIPTIONS[g.name]}
+                  onClick={TRACK_INFO[g.name] ? (e) => { e.stopPropagation(); setInfoTrack(g.name); } : undefined}
+                  style={{
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                    borderBottom: TRACK_DESCRIPTIONS[g.name] ? '1px dotted var(--text-muted)' : 'none',
+                    cursor: TRACK_INFO[g.name] ? 'pointer' : 'default',
+                  }}
+                  title={TRACK_INFO[g.name] ? 'Click to see what this domain actually is' : TRACK_DESCRIPTIONS[g.name]}
                 >
                   {g.name}
                 </span>
@@ -199,6 +207,8 @@ export default function GroupedMemberDirectory({ members, getEmail, getName, get
           );
         })}
       </div>
+
+      {infoTrack && <DomainInfoModal track={infoTrack} onClose={() => setInfoTrack(null)} />}
     </div>
   );
 }

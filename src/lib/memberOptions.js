@@ -108,6 +108,7 @@ export const ROADMAP_ITEM_LINKS = {
   // rendering opens that instead whenever a title has no entry here.
   'THM SOC Level 1': 'https://tryhackme.com/path/outline/soclevel1',
   'Blue Team Level 1': 'https://www.centri.org/certifications/blue-team-level-1',
+  'CISCO Cybersecurity Defense Analyst': 'https://www.netacad.com/career-paths/splunk-cybersecurity-defense-analyst?courseLang=en-US',
   // Offensive Security specialization (SPECIALIZATION_CATALOGS['Offensive Security'] below)
   'eJPT': 'https://ine.com/security/certifications/ejpt-certification',
   'THM Junior Pentester': 'https://tryhackme.com/path/outline/jrpenetrationtester',
@@ -175,6 +176,7 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   'SC-200': 'Microsoft Sentinel & Threat Hunting',
   'THM SOC Level 1': 'Guided, Hands-On SOC Analyst Path',
   'Blue Team Level 1': 'Practical Defensive Security Certification',
+  'CISCO Cybersecurity Defense Analyst': 'Splunk-Powered SOC Detection & Response Career Path',
   // Specialization - Offensive Security
   'eJPT': 'Entry-Level, Practical Pentesting Cert',
   'THM Junior Pentester': 'Guided Path to Your First Pentest Skills',
@@ -537,6 +539,7 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'SC-200', defaultDetail: '' },
       { title: 'THM SOC Level 1', defaultDetail: '' },
       { title: 'Blue Team Level 1', defaultDetail: '' },
+      { title: 'CISCO Cybersecurity Defense Analyst', defaultDetail: '' },
     ],
   },
   'Offensive Security': {
@@ -840,6 +843,52 @@ export const TRACK_DESCRIPTIONS = {
   'IAM': 'Who gets access to what, and proving it - identity, authentication, and access governance.',
   'AI Security': 'Securing AI systems, and using AI as a security tool - prompt injection, model risk, and the newest attack surface.',
   'GRC': 'Governance, Risk & Compliance - policy, audits, and translating security into language the business understands.',
+};
+
+// Fuller "what is this domain, really" copy for the modal opened by
+// clicking a domain's name in the Members directory's By Domain view
+// (GroupedMemberDirectory.jsx / DomainInfoModal.jsx) - same idea as
+// ROADMAP_ITEM_INFO for a single roadmap item, one level up at the whole
+// specialty. Salary figures are indicative South African market ranges
+// (broad entry-to-senior spans, real compensation varies a lot by
+// employer/experience/certs) - a "roughly what to expect" anchor for
+// someone choosing a track, not a quoted, sourced statistic.
+export const TRACK_INFO = {
+  'Offensive Security': {
+    whatItIs: "Finding the holes attackers would find first - legally, and with permission. You think like an adversary so the business can fix what you find before someone with worse intentions does.",
+    roles: ['Junior Penetration Tester', 'Red Team Operator', 'Vulnerability Researcher', 'Exploit Developer'],
+    salaryRange: 'R20,000 – R45,000/month entry-to-mid, R60,000 – R120,000+/month senior (OSCP/OSCE-level and up)',
+  },
+  'SOC': {
+    whatItIs: "The team that never stops watching - triaging alerts, spotting the real attack inside the noise, and responding before it spreads. The most common real entry point into the industry.",
+    roles: ['SOC Analyst (Tier 1-3)', 'Incident Responder', 'Threat Hunter', 'Detection Engineer'],
+    salaryRange: 'R15,000 – R28,000/month entry, R30,000 – R55,000/month mid, R60,000+/month senior/lead',
+  },
+  'Cloud Security': {
+    whatItIs: "Securing environments that never sit still - AWS and Azure workloads, identity, network posture, and misconfigurations, in infrastructure that changes daily instead of once a year.",
+    roles: ['Cloud Security Engineer', 'Cloud Security Analyst', 'Cloud Security Architect'],
+    salaryRange: 'R30,000 – R55,000/month mid-level, R60,000 – R90,000+/month senior/architect',
+  },
+  'DevSecOps': {
+    whatItIs: "Building security into the pipeline itself, not bolting it on at the end - CI/CD, infrastructure as code, and container security, working alongside engineering rather than gatekeeping it.",
+    roles: ['DevSecOps Engineer', 'Application Security Engineer', 'Security Automation Engineer', 'Platform Security Engineer'],
+    salaryRange: 'R35,000 – R60,000/month mid-level, R65,000 – R100,000+/month senior',
+  },
+  'IAM': {
+    whatItIs: "Deciding, enforcing, and proving who gets access to what - identity, authentication, and access governance, the control that sits underneath almost every other security domain.",
+    roles: ['IAM Analyst', 'IAM Engineer', 'Access Governance Specialist', 'IAM Architect'],
+    salaryRange: 'R28,000 – R50,000/month mid-level, R55,000 – R85,000+/month senior/architect',
+  },
+  'AI Security': {
+    whatItIs: "The newest attack surface, on both sides - securing AI systems against prompt injection and model risk, and using AI as a security tool yourself. Small talent pool today, growing fast.",
+    roles: ['AI/ML Security Engineer', 'AI Red Teamer', 'AI Governance Specialist', 'Applied AI Security Researcher'],
+    salaryRange: 'R35,000 – R70,000/month, often paid at a premium given how few people specialize here yet',
+  },
+  'GRC': {
+    whatItIs: "Governance, Risk & Compliance - policy, audits, frameworks, and translating security into language a board or regulator actually understands. Less hands-on-keyboard, more structured and strategic.",
+    roles: ['GRC Analyst', 'Compliance Officer', 'Risk Analyst', 'IT Auditor', 'GRC Manager'],
+    salaryRange: 'R22,000 – R40,000/month entry-to-mid, R45,000 – R75,000+/month senior/manager',
+  },
 };
 
 /**
