@@ -779,7 +779,7 @@ export const CERT_CATALOG_BY_VENDOR = [
     ],
   },
   {
-    vendor: 'Microsoft',
+    vendor: 'Microsoft/Azure',
     // Every current Microsoft Azure/security certification, fundamentals
     // through expert - not just the ones this portal's own roadmap
     // catalogs reference.

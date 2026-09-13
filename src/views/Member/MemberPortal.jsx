@@ -396,13 +396,14 @@ function formatEventCountdown(days) {
 // this app runs; the tiny sliver of very old browsers without it just see
 // an empty colored chip instead of the glyph, which is a fine fallback.
 //
-// Microsoft and LinkedIn are deliberately NOT sourced from simple-icons -
-// both companies had their generic marks pulled from that project after a
-// trademark request, so relying on the CDN slug (even though it still
-// happens to resolve today) risks it silently disappearing later. Each
-// gets a small hand-built CSS mark instead, using their own real brand
-// colors, with no external image dependency at all: Microsoft's actual
-// four-color grid, and LinkedIn's actual blue box with a white "in".
+// Microsoft, LinkedIn, and AWS are deliberately NOT sourced from
+// simple-icons - all three companies had their generic marks pulled from
+// that project after a trademark request, so relying on the CDN slug
+// (even though it still happens to resolve today) risks it silently
+// disappearing later. Each gets a small hand-built CSS mark instead, using
+// their own real brand colors, with no external image dependency at all:
+// Microsoft's actual four-color grid, LinkedIn's actual blue box with a
+// white "in", and AWS's Squid Ink navy chip with Smile Orange lettering.
 const VENDOR_LOGO_ICONS = [
   { test: /comptia/i, icon: 'comptia', bg: '#C8202F' },
   { test: /\bcisco\b/i, icon: 'cisco', bg: '#1BA0D7' },
@@ -412,16 +413,40 @@ const VENDOR_LOGO_ICONS = [
   { test: /\bportswigger\b/i, icon: 'portswigger', bg: '#FF6633' },
   { test: /\bterraform\b/i, icon: 'terraform', bg: '#844FBA' },
   { test: /\bburp\s*suite\b/i, icon: 'portswigger', bg: '#FF6633' },
+  // Cert Calendar's vendor-grouped picker (memberOptions.js's
+  // CERT_CATALOG_BY_VENDOR) - confirmed present in the current simple-icons
+  // published dataset, same verification each of the icons above already had.
+  { test: /\bokta\b/i, icon: 'okta', bg: '#007DC1' },
+  { test: /\bowasp\b/i, icon: 'owasp', bg: '#000000' },
+  { test: /\bisc2\b/i, icon: 'isc2', bg: '#468145' },
+  { test: /\bhashicorp\b/i, icon: 'hashicorp', bg: '#000000' },
+  { test: /cncf|linux foundation/i, icon: 'linuxfoundation', bg: '#003778' },
 ];
 const VENDOR_LOGO_CUSTOM = [
   { test: /\b(?:SC|AZ|AI)-\d{3}\b|\bmicrosoft\b/i, mark: 'microsoft' },
   { test: /\blinkedin\b/i, mark: 'linkedin' },
+  // AWS's real "Amazon Web Services" mark has been pulled from the current
+  // simple-icons dataset (same removed-trademark situation as Microsoft/
+  // LinkedIn above, confirmed the same way) even though the old CDN slug
+  // still happens to resolve today - hand-built instead, in AWS's real
+  // brand colors (Squid Ink navy + Smile Orange), no external dependency.
+  { test: /\baws\b/i, mark: 'aws' },
 ];
 // Real brands with neither a simple-icons entry nor a simple enough mark
 // to hand-build faithfully - a plain colored initial chip rather than a
 // missing/broken image.
 const VENDOR_LOGO_INITIALS = [
   { test: /\bkodekloud\b/i, initials: 'K', color: '#7C3AED' },
+  { test: /\bisaca\b/i, initials: 'ISACA', color: '#0056A3' },
+  { test: /\boffensive security\b|\boffsec\b/i, initials: 'OS', color: '#111111' },
+  { test: /\bINE\b/, initials: 'INE', color: '#0097A7' },
+  { test: /\bLPI\b/, initials: 'LPI', color: '#2E7D32' },
+  { test: /\bcentri\b/i, initials: 'CE', color: '#374151' },
+  { test: /\bcyberark\b/i, initials: 'CA', color: '#F36F21' },
+  { test: /\bsailpoint\b/i, initials: 'SP', color: '#00263E' },
+  { test: /\bISO\b/, initials: 'ISO', color: '#004C97' },
+  { test: /\bNIST\b/, initials: 'NIST', color: '#162E51' },
+  { test: /\bpeoplecert\b/i, initials: 'PC', color: '#00A19A' },
 ];
 
 function vendorLogoFor(title) {
@@ -488,8 +513,19 @@ function VendorLogo({ title, size = 20 }) {
       </span>
     );
   }
+  if (logo.type === 'custom' && logo.mark === 'aws') {
+    return (
+      <span style={{ ...chipStyle, width: 'auto', minWidth: `${size}px`, padding: '0 5px', background: '#232F3E', color: '#FF9900', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+        aws
+      </span>
+    );
+  }
+  // A multi-letter abbreviation (ISACA, NIST...) rather than a single
+  // monogram like KodeKloud's "K" - width: auto + horizontal padding
+  // instead of a fixed square, or anything past 2 characters gets clipped
+  // by chipStyle's square dimensions and overflow: hidden.
   return (
-    <span style={{ ...chipStyle, background: logo.color, color: '#fff', fontSize: '0.62rem', fontWeight: 700 }}>
+    <span style={{ ...chipStyle, width: 'auto', minWidth: `${size}px`, padding: '0 5px', background: logo.color, color: '#fff', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '-0.02em' }}>
       {logo.initials}
     </span>
   );
@@ -2368,7 +2404,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showAddCertForm, setShowAddCertForm] = useState(false);
   const [addingCert, setAddingCert] = useState(false);
   const [addCertError, setAddCertError] = useState(null);
-  const [newCertForm, setNewCertForm] = useState({ member: '', cert: '', date: '' });
+  // "Your Name" starts pre-filled with the signed-in member's first name
+  // (same firstName already computed above from user_metadata.full_name)
+  // rather than blank - still freely editable, just a head start instead
+  // of retyping your own name every time you book a cert.
+  const [newCertForm, setNewCertForm] = useState({ member: firstName, cert: '', date: '' });
   // Drives the two-step "Certification" picker on the Add to Cert Calendar
   // form - certVendor picks the group first (a real vendor from
   // CERT_CATALOG_BY_VENDOR, or '__other__' for a free-text fallback);
@@ -2480,7 +2520,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         });
         setCertCalendar(await fetchCertCalendar());
       }
-      setNewCertForm({ member: '', cert: '', date: '' });
+      setNewCertForm({ member: firstName, cert: '', date: '' });
       setCertVendor('');
       setShowAddCertForm(false);
     } catch (err) {
@@ -6398,21 +6438,39 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification Vendor</label>
-                    <select
-                      className="form-input"
-                      value={certVendor}
-                      onChange={(e) => {
-                        setCertVendor(e.target.value);
-                        setNewCertForm({ ...newCertForm, cert: '' });
-                      }}
-                      required
-                    >
-                      <option value="" disabled>Select a vendor...</option>
+                    {/* A plain <select> can't render a logo inside an <option>,
+                        so this is a custom grid of buttons instead - same
+                        VendorLogo component Resources/My Roadmap already use. */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px', maxHeight: '220px', overflowY: 'auto', padding: '2px' }}>
                       {CERT_CATALOG_BY_VENDOR.map((group) => (
-                        <option key={group.vendor} value={group.vendor}>{group.vendor}</option>
+                        <button
+                          key={group.vendor}
+                          type="button"
+                          onClick={() => { setCertVendor(group.vendor); setNewCertForm({ ...newCertForm, cert: '' }); }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)',
+                            border: certVendor === group.vendor ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                            background: certVendor === group.vendor ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
+                            cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-primary)',
+                          }}
+                        >
+                          <VendorLogo title={group.vendor} size={20} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.vendor}</span>
+                        </button>
                       ))}
-                      <option value="__other__">Other (not listed)</option>
-                    </select>
+                      <button
+                        type="button"
+                        onClick={() => { setCertVendor('__other__'); setNewCertForm({ ...newCertForm, cert: '' }); }}
+                        style={{
+                          display: 'flex', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)',
+                          border: certVendor === '__other__' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                          background: certVendor === '__other__' ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
+                          cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-primary)',
+                        }}
+                      >
+                        Other (not listed)
+                      </button>
+                    </div>
                   </div>
 
                   {certVendor && certVendor !== '__other__' && (
