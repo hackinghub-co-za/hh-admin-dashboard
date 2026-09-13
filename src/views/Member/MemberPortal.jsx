@@ -7301,7 +7301,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </button>
                     ) : tier.isApplyOnly ? (
                       <a
-                        href="https://calendar.app.google/VAt3wTxF53hmYw73A"
+                        href="https://forms.gle/WmUSwvWbvWL8fdCH7"
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-primary"
