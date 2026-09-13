@@ -14,7 +14,7 @@ import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 // payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
 // the real file has been removed and purged from git history entirely.
 import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
+import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, SPECIALTIES, JOB_READINESS_STAGES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -1062,6 +1062,21 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // Clicking the same column again flips direction; clicking a different
   // one starts that column fresh at ascending.
   const [memberSheetSort, setMemberSheetSort] = useState({ key: null, dir: 'asc' });
+  // Per-column Member Sheet filters, independent of the card grid's own
+  // search/status filter above - 'All' (or '') means that column doesn't
+  // narrow the sheet at all. Kept as one object so resetting is a single
+  // setState rather than N separate ones.
+  const emptyMemberSheetFilters = {
+    name: '',
+    specialty: 'All',
+    tier: 'All',
+    jobReadiness: 'All',
+    meeting: 'All',
+    owed: 'All',
+    startFrom: '',
+    startTo: '',
+  };
+  const [memberSheetFilters, setMemberSheetFilters] = useState(emptyMemberSheetFilters);
   // 'grid' (the original flat card grid) or 'domain' (grouped by
   // Specialization track - see GroupedMemberDirectory).
   const [memberViewMode, setMemberViewMode] = useState('grid');
@@ -3390,8 +3405,37 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
             // Active (Permanent)", nothing else.
             const activeMemberRoster = memberRoster.filter((m) => m.status === 'Active');
 
+            // Same overdue math as the per-row render below, hoisted so the
+            // Last 1on1 Meeting filter can use the identical definition of
+            // "overdue" rather than a second copy that could drift.
+            const meetingStatusFor = (m) => {
+              if (!m.lastMeetingDate) return 'Never met';
+              const daysSince = Math.floor((today - new Date(m.lastMeetingDate)) / (1000 * 60 * 60 * 24));
+              return daysSince > MEETING_OVERDUE_AFTER_DAYS ? 'Overdue' : 'Up to date';
+            };
+
+            const sheetDistinctTiers = [...new Set(activeMemberRoster.map((m) => m.lastPlan).filter(Boolean))];
+
+            const filteredMemberSheetRows = activeMemberRoster.filter((m) => {
+              const f = memberSheetFilters;
+              if (f.name.trim() && !m.member.toLowerCase().includes(f.name.trim().toLowerCase())) return false;
+              if (f.specialty !== 'All' && (m.profile?.specialty || 'Not Set') !== f.specialty) return false;
+              if (f.tier !== 'All' && m.lastPlan !== f.tier) return false;
+              if (f.jobReadiness !== 'All' && (m.profile?.jobReadiness || 'Not Started') !== f.jobReadiness) return false;
+              if (f.meeting !== 'All' && meetingStatusFor(m) !== f.meeting) return false;
+              if (f.owed === 'Owes money' && !(m.profile?.moneyOwed > 0)) return false;
+              if (f.owed === 'Nothing owed' && m.profile?.moneyOwed > 0) return false;
+              if (f.startFrom || f.startTo) {
+                const d = startDateFor(m);
+                if (!d) return false;
+                if (f.startFrom && d < new Date(f.startFrom)) return false;
+                if (f.startTo && d > new Date(`${f.startTo}T23:59:59`)) return false;
+              }
+              return true;
+            });
+
             const { key: sortKey, dir: sortDir } = memberSheetSort;
-            const sortedRows = [...activeMemberRoster].sort((a, b) => {
+            const sortedRows = [...filteredMemberSheetRows].sort((a, b) => {
               if (!sortKey) return a.member.localeCompare(b.member);
               const va = sheetSortValue(a, sortKey);
               const vb = sheetSortValue(b, sortKey);
@@ -3430,19 +3474,112 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
               );
             };
 
+            const hasActiveFilters = JSON.stringify(memberSheetFilters) !== JSON.stringify(emptyMemberSheetFilters);
+            const filterSelectStyle = { fontSize: '0.78rem', padding: '6px 8px' };
+
             return (
               <div className="glass-card" style={{ marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                   <ListChecks size={18} color="var(--accent-cyan)" />
                   <h3 style={{ margin: 0 }}>Member Sheet</h3>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>({activeMemberRoster.length} active)</span>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    ({sortedRows.length === activeMemberRoster.length ? `${activeMemberRoster.length} active` : `${sortedRows.length} of ${activeMemberRoster.length} active`})
+                  </span>
                 </div>
+
+                {/* Per-column filters - independent of the card grid's own
+                    search/status filter elsewhere on this tab. */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
+                  <input
+                    className="form-input"
+                    style={{ ...filterSelectStyle, width: '160px' }}
+                    placeholder="Filter by name..."
+                    value={memberSheetFilters.name}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, name: e.target.value }))}
+                  />
+                  <select
+                    className="form-input"
+                    style={filterSelectStyle}
+                    value={memberSheetFilters.specialty}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, specialty: e.target.value }))}
+                  >
+                    <option value="All">All Specialties</option>
+                    {SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select
+                    className="form-input"
+                    style={filterSelectStyle}
+                    value={memberSheetFilters.tier}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, tier: e.target.value }))}
+                  >
+                    <option value="All">All Tiers</option>
+                    {sheetDistinctTiers.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <select
+                    className="form-input"
+                    style={filterSelectStyle}
+                    value={memberSheetFilters.jobReadiness}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, jobReadiness: e.target.value }))}
+                  >
+                    <option value="All">All Job Readiness</option>
+                    {JOB_READINESS_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select
+                    className="form-input"
+                    style={filterSelectStyle}
+                    value={memberSheetFilters.meeting}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, meeting: e.target.value }))}
+                  >
+                    <option value="All">All 1on1 Status</option>
+                    <option value="Overdue">Overdue</option>
+                    <option value="Up to date">Up to date</option>
+                    <option value="Never met">Never met</option>
+                  </select>
+                  <select
+                    className="form-input"
+                    style={filterSelectStyle}
+                    value={memberSheetFilters.owed}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, owed: e.target.value }))}
+                  >
+                    <option value="All">Owed: All</option>
+                    <option value="Owes money">Owes money</option>
+                    <option value="Nothing owed">Nothing owed</option>
+                  </select>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Start date:</span>
+                  <input
+                    type="date"
+                    className="form-input"
+                    style={filterSelectStyle}
+                    value={memberSheetFilters.startFrom}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, startFrom: e.target.value }))}
+                  />
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>to</span>
+                  <input
+                    type="date"
+                    className="form-input"
+                    style={filterSelectStyle}
+                    value={memberSheetFilters.startTo}
+                    onChange={(e) => setMemberSheetFilters((prev) => ({ ...prev, startTo: e.target.value }))}
+                  />
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                      onClick={() => setMemberSheetFilters(emptyMemberSheetFilters)}
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
                 <div style={{ maxHeight: '440px', overflowY: 'auto', overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                         <th style={{ padding: '10px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-secondary)' }}>Name</th>
                         <th style={{ padding: '10px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-secondary)' }}>Specialty</th>
+                        <th style={{ padding: '10px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-secondary)' }}>Tier</th>
                         {sortableHeader('Last 1on1 Meeting', 'lastMeeting')}
                         <th style={{ padding: '10px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-secondary)' }}>Job Readiness</th>
                         {sortableHeader('Money Spent', 'moneySpent')}
@@ -3465,6 +3602,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                           >
                             <td style={{ padding: '10px 8px', fontWeight: 600 }}>{m.member}</td>
                             <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{m.profile?.specialty || 'Not Set'}</td>
+                            <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{m.lastPlan || '—'}</td>
                             <td style={{ padding: '10px 8px', color: meetingOverdue ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: meetingOverdue ? 600 : 400 }}>
                               {m.lastMeetingDate ? `${formatDate(m.lastMeetingDate)}${meetingOverdue ? ` (${daysSinceMeeting}d ago)` : ''}` : '—'}
                             </td>
