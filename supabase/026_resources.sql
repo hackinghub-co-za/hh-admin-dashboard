@@ -298,3 +298,27 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'YES x Microsoft AI Skills Initiative'
 );
+
+-- REVISION (2026-09-13): the 2026.09.13 release notes/CHANGELOG both
+-- promised "CISCO Cybersecurity Defense Analyst course added to Resources
+-- and to the SOC Specialization track" - it landed in the SOC
+-- Specialization catalog (SPECIALIZATION_CATALOGS.SOC in memberOptions.js)
+-- the same day, but was never actually added *here*, in a migration file -
+-- it only exists live because it was added by hand through the admin Add
+-- Resource form (id 17, title 'Cisco Cybersecurity Defense Analyst' -
+-- title-case, matching this file's own existing 'Cisco Junior
+-- Cybersecurity Analyst Career Path' row rather than the all-caps 'CISCO'
+-- used in memberOptions.js's roadmap catalog). Guarded on that exact
+-- existing title so this is a no-op against the live database and only
+-- ever fires on a fresh install rebuilt from these migrations alone.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'Cisco Cybersecurity Defense Analyst',
+  'Course',
+  'Splunk-powered SOC detection & response career path from Cisco Networking Academy - the same course now on the SOC Specialization roadmap track.',
+  'https://www.netacad.com/career-paths/splunk-cybersecurity-defense-analyst?courseLang=en-US',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'Cisco Cybersecurity Defense Analyst'
+);

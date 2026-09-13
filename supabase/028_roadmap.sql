@@ -623,3 +623,41 @@ CREATE TRIGGER trg_enforce_linkedin_post_item_phase
 UPDATE public.roadmap_items
 SET phase = 'Specialization'
 WHERE title = 'Post once a week' AND phase != 'Specialization';
+
+-- REVISION (2026-09-13): CISCO Cybersecurity Defense Analyst was added to
+-- SPECIALIZATION_CATALOGS.SOC (memberOptions.js) the same day the 2026.09.13
+-- CHANGELOG/release notes explicitly promised it would land "including a
+-- backfill onto every existing SOC-track member's roadmap" - adding an
+-- entry to that catalog alone only quick-fills a member's roadmap_items when
+-- an admin manually clicks "Add Standard Specialization" for them one at a
+-- time, so that manual backfill is in fact what happened live (confirmed:
+-- every already-assigned SOC member already has this exact title in their
+-- roadmap_items today) - but nothing in this migration file captured it, so
+-- a fresh install rebuilt from these migrations alone would silently miss
+-- it. This is that backfill, written down so it survives a rebuild: every
+-- member on the SOC track who already has at least one SOC Specialization
+-- item (i.e. already had the catalog assigned) and doesn't already have
+-- this exact title gets it added, one sort_order after their current
+-- highest, same shape as the admin quick-fill button uses. Guarded by
+-- NOT EXISTS, so this is a no-op against the live database today. A
+-- brand-new SOC member with no Specialization items yet still only gets
+-- the catalog via the normal "Add Standard Specialization" flow, unaffected
+-- by this one-time backfill.
+INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, sort_order)
+SELECT
+  mp.email,
+  'Specialization',
+  'SOC',
+  'CISCO Cybersecurity Defense Analyst',
+  '',
+  COALESCE((SELECT MAX(ri.sort_order) FROM public.roadmap_items ri WHERE ri.member_email = mp.email), 0) + 10
+FROM public.member_profiles mp
+WHERE mp.roadmap_track = 'SOC'
+  AND EXISTS (
+    SELECT 1 FROM public.roadmap_items ri2
+    WHERE ri2.member_email = mp.email AND ri2.phase = 'Specialization' AND ri2.category = 'SOC'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.roadmap_items ri3
+    WHERE ri3.member_email = mp.email AND ri3.title = 'CISCO Cybersecurity Defense Analyst'
+  );
