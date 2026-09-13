@@ -56,7 +56,7 @@ function certPassEmailHtml(firstName: string, certName: string): string {
     <p>Hi ${firstName},</p>
     <p>Huge congratulations - you passed <strong>${certName}</strong>! 🎉</p>
     <p>It's already up on the Dashboard as a Recent Win for the whole community to see.</p>
-    <p>Worth a LinkedIn post too, while it's fresh - a real cert pass is exactly the kind of proof-of-work that gets you noticed (see the LinkedIn Playbook in Resources for ideas on what to write).</p>
+    <p>Post about it on LinkedIn while it's fresh - a real cert pass is exactly the kind of proof-of-work that gets you noticed (see the LinkedIn Playbook in Resources for ideas on what to write). <strong>Tag Hacking Hub in the post</strong> so we can like it, comment, and share it with the wider community too.</p>
     <p>— Gemma</p>
     <p style="margin:22px 0;">
       <a href="${PORTAL_URL}" style="display:inline-block;background:#17954f;color:#ffffff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:600;">See It On Your Dashboard</a>
