@@ -757,6 +757,109 @@ export function matchExamReadinessCert(certName) {
   return null;
 }
 
+// Every real cert name that shows up anywhere across CORE_FOUNDATIONS_CATALOG/
+// SPECIALIZATION_CATALOGS/PROJECT_CATALOGS/ADVANCED_CATALOGS above, regrouped
+// by the certifying vendor - feeds the Cert Calendar "Add to Calendar" form's
+// dropdown so a member picks a real, correctly-spelled cert name instead of
+// typing free text (which is what cert_calendar.cert_name still stores under
+// the hood - this is just a better way to fill it in, and matchExamReadinessCert
+// above still does its own loose matching against whatever ends up there).
+// Deliberately excludes non-cert Projects/Advanced items (e.g. "Write & Tune
+// 3 Detection Rules") - those aren't something you'd book an exam date for.
+export const CERT_CATALOG_BY_VENDOR = [
+  {
+    vendor: 'CompTIA',
+    certs: ['CompTIA Security+', 'CompTIA CySA+', 'CompTIA SecurityX', 'CompTIA SecAI+'],
+  },
+  {
+    vendor: 'Microsoft',
+    certs: ['AZ-900', 'AI-901', 'SC-900', 'SC-300', 'SC-200', 'SC-500', 'SC-100', 'AZ-104', 'AZ-305', 'AZ-400', 'AI-103'],
+  },
+  {
+    vendor: 'GitHub',
+    certs: ['GH-900', 'GH-500'],
+  },
+  {
+    vendor: 'Cisco',
+    certs: ['CISCO Junior Cyber Pathway', 'CISCO Cybersecurity Defense Analyst'],
+  },
+  {
+    vendor: 'AWS',
+    certs: ['AWS Certified Security – Specialty'],
+  },
+  {
+    vendor: 'ISC2',
+    certs: ['ISC2 CGRC'],
+  },
+  {
+    vendor: 'ISACA',
+    certs: ['ISACA CRISC', 'ISACA IT Risk Fundamentals'],
+  },
+  {
+    vendor: 'Offensive Security (OffSec)',
+    certs: ['OSCP'],
+  },
+  {
+    vendor: 'INE',
+    certs: ['eJPT'],
+  },
+  {
+    vendor: 'PortSwigger',
+    certs: ['Burp Suite Certified Practitioner'],
+  },
+  {
+    vendor: 'CNCF / Linux Foundation',
+    certs: ['KCNA', 'KCSA'],
+  },
+  {
+    vendor: 'LPI',
+    certs: ['Linux Essentials'],
+  },
+  {
+    vendor: 'HashiCorp',
+    certs: ['Terraform Associate'],
+  },
+  {
+    vendor: 'TryHackMe',
+    certs: [
+      'TryHackMe Pre-Security', 'TryHackMe Cyber 101', 'THM SOC Level 1', 'THM SOC Level 2',
+      'THM Junior Pentester', 'THM Offensive Pentesting', 'THM Active Directory Basics', 'THM AI Security',
+    ],
+  },
+  {
+    vendor: 'Centri',
+    certs: ['Blue Team Level 1'],
+  },
+  {
+    vendor: 'Okta',
+    certs: ['Okta Certified Professional'],
+  },
+  {
+    vendor: 'CyberArk',
+    certs: ['CyberArk Defender'],
+  },
+  {
+    vendor: 'SailPoint',
+    certs: ['SailPoint Certified Identity Security Administrator'],
+  },
+  {
+    vendor: 'ISO',
+    certs: ['ISO/IEC 27001 Foundation'],
+  },
+  {
+    vendor: 'NIST',
+    certs: ['NIST Cybersecurity Framework (CSF)'],
+  },
+  {
+    vendor: 'PeopleCert',
+    certs: ['ITIL 4 Foundation'],
+  },
+  {
+    vendor: 'OWASP',
+    certs: ['OWASP Top 10 for LLM Applications'],
+  },
+];
+
 // A member is flagged "Lapsed" if they haven't paid in this many days and haven't
 // been explicitly marked Active or Left by an admin - a nudge to go check on them,
 // not a verdict.

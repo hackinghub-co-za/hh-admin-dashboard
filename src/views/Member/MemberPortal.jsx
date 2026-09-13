@@ -57,7 +57,7 @@ import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete 
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
 import { renderMarkdown } from '../../lib/renderMarkdown';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -2369,6 +2369,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [addingCert, setAddingCert] = useState(false);
   const [addCertError, setAddCertError] = useState(null);
   const [newCertForm, setNewCertForm] = useState({ member: '', cert: '', date: '' });
+  // Drives the "Certification" dropdown on the Add to Cert Calendar form -
+  // '' is the unselected placeholder, '__other__' reveals a free-text
+  // fallback below it for a cert not in CERT_CATALOG_BY_VENDOR, and
+  // anything else is a real cert name that's written straight into
+  // newCertForm.cert (still the one field the actual submission uses).
+  const [certDropdownValue, setCertDropdownValue] = useState('');
 
   useEffect(() => {
     if (isMockSession) return;
@@ -2474,6 +2480,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         setCertCalendar(await fetchCertCalendar());
       }
       setNewCertForm({ member: '', cert: '', date: '' });
+      setCertDropdownValue('');
       setShowAddCertForm(false);
     } catch (err) {
       setAddCertError(friendlyMemberErrorMessage(err));
@@ -6390,14 +6397,37 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification</label>
-                    <input
-                      type="text"
+                    <select
                       className="form-input"
-                      placeholder="e.g. CompTIA Security+"
-                      value={newCertForm.cert}
-                      onChange={(e) => setNewCertForm({ ...newCertForm, cert: e.target.value })}
+                      value={certDropdownValue}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCertDropdownValue(value);
+                        setNewCertForm({ ...newCertForm, cert: value === '__other__' ? '' : value });
+                      }}
                       required
-                    />
+                    >
+                      <option value="" disabled>Select a certification...</option>
+                      {CERT_CATALOG_BY_VENDOR.map((group) => (
+                        <optgroup key={group.vendor} label={group.vendor}>
+                          {group.certs.map((certName) => (
+                            <option key={certName} value={certName}>{certName}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      <option value="__other__">Other (not listed)</option>
+                    </select>
+                    {certDropdownValue === '__other__' && (
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. CISSP"
+                        value={newCertForm.cert}
+                        onChange={(e) => setNewCertForm({ ...newCertForm, cert: e.target.value })}
+                        style={{ marginTop: '8px' }}
+                        required
+                      />
+                    )}
                   </div>
 
                   <div>
