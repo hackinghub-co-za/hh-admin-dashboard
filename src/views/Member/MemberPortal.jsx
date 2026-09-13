@@ -9,6 +9,7 @@ import ThemeToggle from '../../components/ThemeToggle';
 import LinkedInPlaybookModal from '../../components/LinkedInPlaybookModal';
 import { confirmMyLinkedInPost, fetchMyLinkedInPostStatus } from '../../lib/linkedInPostData';
 import { getCurrentWeekContent } from '../../lib/linkedInPlaybookData';
+import { fetchLinkedInPlaybookPosts } from '../../lib/linkedInPlaybookPostsData';
 import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
 import CySAPlusGuideModal from '../../components/CySAPlusGuideModal';
 import TerraformAssociateGuideModal from '../../components/TerraformAssociateGuideModal';
@@ -1751,6 +1752,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // comes back next login if the roadmap is still stale, rather than being
   // silence-able forever with one click.
   const [roadmapNudgeDismissed, setRoadmapNudgeDismissed] = useState(false);
+
+  // LinkedIn Playbook's actual 84 example posts (linkedin_playbook_posts,
+  // 059_linkedin_weekly_post.sql) - fetched once here and passed down to
+  // both the inline "This Week" widget below and the full
+  // LinkedInPlaybookModal, rather than each fetching (or hardcoding) its
+  // own copy. Mock session gets a tiny inline placeholder instead of a
+  // real fetch, same as every other Supabase-backed piece of state here.
+  const [linkedInPosts, setLinkedInPosts] = useState(
+    isMockSession ? { SOC: Array(12).fill('Demo mode - real example posts load once you sign in for real.') } : {}
+  );
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchLinkedInPlaybookPosts().then(setLinkedInPosts).catch((err) => console.error('Could not load LinkedIn Playbook posts:', err));
+  }, [isMockSession]);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -4283,7 +4298,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                             confirmation, so the roadmap surfaces the real
                                             content directly instead of only linking to it. */}
                                         {(() => {
-                                          const week = getCurrentWeekContent(roadmapTrack);
+                                          const week = getCurrentWeekContent(linkedInPosts, roadmapTrack);
                                           return (
                                             <div style={{ width: '100%', marginTop: '8px', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)' }}>
                                               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
@@ -6220,7 +6235,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           )}
 
-          {showLinkedInPlaybook && <LinkedInPlaybookModal onClose={() => setShowLinkedInPlaybook(false)} roadmapTrack={roadmapTrack} />}
+          {showLinkedInPlaybook && <LinkedInPlaybookModal onClose={() => setShowLinkedInPlaybook(false)} roadmapTrack={roadmapTrack} posts={linkedInPosts} />}
           {showSecurityPlusGuide && <SecurityPlusGuideModal onClose={() => setShowSecurityPlusGuide(false)} />}
           {showCySAPlusGuide && <CySAPlusGuideModal onClose={() => setShowCySAPlusGuide(false)} />}
           {showTerraformGuide && <TerraformAssociateGuideModal onClose={() => setShowTerraformGuide(false)} />}

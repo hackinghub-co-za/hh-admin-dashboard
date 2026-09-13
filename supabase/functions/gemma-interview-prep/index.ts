@@ -30,7 +30,7 @@ const WEEKLY_SESSION_CAP = 3; // own budget, separate from gemma-review's cv_rev
 const GEMINI_MODEL = 'gemini-3.6-flash'; // same pin as gemma-chat/gemma-review
 
 // Same 7 domains as ROADMAP_TRACKS (memberOptions.js, minus 'Not
-// Assigned') and DOMAIN_CONTENT (linkedInPlaybookData.js) - whitelisted
+// Assigned') and DOMAIN_HASHTAGS (linkedInPlaybookData.js) - whitelisted
 // here since `domain` comes straight from the client and gets embedded
 // into the system prompt below; never trust free-form client text into a
 // prompt without validating it against a known set first.

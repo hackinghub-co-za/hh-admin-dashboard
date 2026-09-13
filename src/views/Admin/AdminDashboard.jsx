@@ -39,7 +39,7 @@ import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFi
 import { fetchRoadmapExclusions, addRoadmapExclusion, removeRoadmapExclusion } from '../../lib/roadmapExclusionsData';
 import { fetchMenteesForMentor, addMentee, removeMentee } from '../../lib/mentorMenteesData';
 import { fetchLinkedInEngagementOverview } from '../../lib/linkedInPostData';
-import { getCurrentWeekContent } from '../../lib/linkedInPlaybookData';
+import { getCurrentWeekTheme } from '../../lib/linkedInPlaybookData';
 import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
@@ -4855,7 +4855,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {notConfirmed.map((r) => {
-                      const week = getCurrentWeekContent(r.roadmapTrack);
+                      const week = getCurrentWeekTheme();
                       return (
                         <div key={r.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                           <div>

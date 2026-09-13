@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, IdCard, Clock, Hash, ChevronDown, ChevronUp, Users, Pencil } from 'lucide-react';
-import { WEEKLY_THEMES, THEME_DESCRIPTIONS, DOMAIN_CONTENT, DOMAINS, getCurrentWeekIndex, resolveDomain } from '../lib/linkedInPlaybookData';
+import { WEEKLY_THEMES, THEME_DESCRIPTIONS, DOMAIN_HASHTAGS, DOMAINS, getCurrentWeekIndex, resolveDomain } from '../lib/linkedInPlaybookData';
 
 // The Hacking Hub LinkedIn Playbook - our own written guide, hardcoded here
 // rather than a Google Doc link (unlike the HH Interview Playbook resource)
@@ -21,19 +21,22 @@ const SECTIONS = [
 ];
 
 // Weeks grouped into 3 "months" of 4 for the accordion (indices into
-// WEEKLY_THEMES/DOMAIN_CONTENT[*].posts, 0-based).
+// WEEKLY_THEMES / the fetched posts prop, 0-based).
 const MONTHS = [
   { label: 'Month 1', weekIndices: [0, 1, 2, 3] },
   { label: 'Month 2', weekIndices: [4, 5, 6, 7] },
   { label: 'Month 3', weekIndices: [8, 9, 10, 11] },
 ];
 
-export default function LinkedInPlaybookModal({ onClose, roadmapTrack }) {
+// posts is the fetched linkedin_playbook_posts content (MemberPortal.jsx's
+// linkedInPosts state, from linkedInPlaybookPostsData.js) - the actual
+// post text lives there now, not hardcoded in this component.
+export default function LinkedInPlaybookModal({ onClose, roadmapTrack, posts }) {
   const [selectedDomain, setSelectedDomain] = useState(resolveDomain(roadmapTrack));
   // Which month's accordion is open - starts on whichever month contains
   // the real current week, so a member never has to go hunting for it.
   const [expandedMonth, setExpandedMonth] = useState(() => Math.floor(getCurrentWeekIndex() / 4));
-  const domain = DOMAIN_CONTENT[selectedDomain];
+  const domain = { hashtags: DOMAIN_HASHTAGS[selectedDomain], posts: posts?.[selectedDomain] || [] };
   const currentWeekIdx = getCurrentWeekIndex();
 
   return (
