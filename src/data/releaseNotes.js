@@ -27,6 +27,12 @@ export const RELEASE_NOTES = [
             body: "A new Splunk-powered SOC detection & response course landed in Resources and on the SOC Specialization track.",
             where: 'Resources → Cert Prep, or My Roadmap',
           },
+          {
+            icon: '✏️',
+            title: 'Edit the dates on your journey',
+            body: "Click any date in your expanded My Journey So Far storyline to set your own - handy if a cert's shown date doesn't match when you actually finished it. Reset it back to the original any time.",
+            where: 'My Roadmap → View Full Story',
+          },
         ],
       },
       {

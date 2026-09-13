@@ -21,6 +21,23 @@ saved in their browser's `localStorage`.
 ## 2026.09.13
 
 ### Added
+- **My Journey date overrides** — a member can now click any date in
+  their expanded "My Journey So Far" storyline and set their own date,
+  with a reset back to the original. Purely cosmetic
+  (`journey_timeline_overrides`) — the real source records (roadmap
+  completion, room logs, event RSVPs, start date) are never touched, so
+  nothing that depends on them elsewhere (tenure, eligibility, etc.) is
+  affected. (`077_journey_timeline_overrides.sql`)
+- **Focus 5 daily update prompt** — whoever is currently on the Focus 5
+  list (`038_focus_five.sql`) now gets a blocking "What did you do
+  today?" prompt on login, once per day, before they can use the rest of
+  the portal. Submitting emails siya@hackinghub.co.za directly with the
+  member's name/email and their update text
+  (`focus-five-update-email`), and also shows in-app under each name on
+  the admin Focus 5 card as a fallback. The `submit_focus_five_daily_
+  update()` RPC verifies server-side that the caller is actually on the
+  list, and "today" is always the server's UTC date, never
+  client-supplied. (`078_focus_five_daily_updates.sql`)
 - **Member Sheet filters + Tier column** — the admin Member Sheet can now
   be filtered by name, specialty, tier, job readiness, last 1-on-1 meeting
   status, money owed, and start-date range, all at once, with a live
