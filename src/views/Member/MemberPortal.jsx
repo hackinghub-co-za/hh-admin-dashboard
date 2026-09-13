@@ -381,33 +381,48 @@ function formatEventCountdown(days) {
 // cover the real catalog today without a schema change. Checked in order,
 // first match wins, so a more specific pattern (an exam code) should sit
 // above a broader one if they'd ever both match the same title.
-// simple-icons (cdn.jsdelivr.net) covers most of these with a real,
-// recognizable brand mark - its SVGs have no fill of their own (default to
-// solid black), so every icon renders inside a small white chip for
-// contrast against both themes, exactly like the initials fallback below
-// it does for the handful of brands simple-icons doesn't carry (checked
-// each slug actually resolves before relying on it).
+//
+// Each icon renders in that brand's own real color (from simple-icons'
+// own published hex, cdn.jsdelivr.net), not a generic neutral chip - the
+// SVGs themselves have no fill of their own (default to solid black), so
+// the glyph is applied as a CSS mask (white shape) over a chip colored
+// with the real brand hex, e.g. CompTIA's actual red with white lettering,
+// same as the real logo. -webkit-mask/mask is well-supported everywhere
+// this app runs; the tiny sliver of very old browsers without it just see
+// an empty colored chip instead of the glyph, which is a fine fallback.
+//
+// Microsoft and LinkedIn are deliberately NOT sourced from simple-icons -
+// both companies had their generic marks pulled from that project after a
+// trademark request, so relying on the CDN slug (even though it still
+// happens to resolve today) risks it silently disappearing later. Each
+// gets a small hand-built CSS mark instead, using their own real brand
+// colors, with no external image dependency at all: Microsoft's actual
+// four-color grid, and LinkedIn's actual blue box with a white "in".
 const RESOURCE_VENDOR_ICONS = [
-  { test: /comptia/i, icon: 'comptia' },
-  { test: /\b(?:SC|AZ|AI)-\d{3}\b/i, icon: 'microsoft' },
-  { test: /\bmicrosoft\b/i, icon: 'microsoft' },
-  { test: /\bcisco\b/i, icon: 'cisco' },
-  { test: /\bGH-\d{3}\b/i, icon: 'github' },
-  { test: /\bgithub\b/i, icon: 'github' },
-  { test: /\btryhackme\b|\bTHM\b/i, icon: 'tryhackme' },
-  { test: /\bportswigger\b/i, icon: 'portswigger' },
-  { test: /\bterraform\b/i, icon: 'hashicorp' },
-  { test: /\blinkedin\b/i, icon: 'linkedin' },
+  { test: /comptia/i, icon: 'comptia', bg: '#C8202F' },
+  { test: /\bcisco\b/i, icon: 'cisco', bg: '#1BA0D7' },
+  { test: /\bGH-\d{3}\b/i, icon: 'github', bg: '#181717' },
+  { test: /\bgithub\b/i, icon: 'github', bg: '#181717' },
+  { test: /\btryhackme\b|\bTHM\b/i, icon: 'tryhackme', bg: '#212C42' },
+  { test: /\bportswigger\b/i, icon: 'portswigger', bg: '#FF6633' },
+  { test: /\bterraform\b/i, icon: 'terraform', bg: '#844FBA' },
 ];
-// Real brands with no simple-icons entry (checked at build time) - a
-// plain colored initial chip rather than a missing/broken image.
+const RESOURCE_VENDOR_CUSTOM = [
+  { test: /\b(?:SC|AZ|AI)-\d{3}\b|\bmicrosoft\b/i, mark: 'microsoft' },
+  { test: /\blinkedin\b/i, mark: 'linkedin' },
+];
+// Real brands with neither a simple-icons entry nor a simple enough mark
+// to hand-build faithfully - a plain colored initial chip rather than a
+// missing/broken image.
 const RESOURCE_VENDOR_INITIALS = [
   { test: /\bkodekloud\b/i, initials: 'K', color: '#7C3AED' },
 ];
 
 function resourceVendorLogo(title) {
   const iconMatch = RESOURCE_VENDOR_ICONS.find((v) => v.test.test(title));
-  if (iconMatch) return { type: 'icon', icon: iconMatch.icon };
+  if (iconMatch) return { type: 'icon', icon: iconMatch.icon, bg: iconMatch.bg };
+  const customMatch = RESOURCE_VENDOR_CUSTOM.find((v) => v.test.test(title));
+  if (customMatch) return { type: 'custom', mark: customMatch.mark };
   const initialsMatch = RESOURCE_VENDOR_INITIALS.find((v) => v.test.test(title));
   if (initialsMatch) return { type: 'initials', initials: initialsMatch.initials, color: initialsMatch.color };
   return null;
@@ -424,15 +439,43 @@ function ResourceVendorLogo({ title }) {
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    overflow: 'hidden',
   };
   if (logo.type === 'icon') {
+    const maskUrl = `https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${logo.icon}.svg`;
     return (
-      <span style={{ ...chipStyle, background: '#fff', padding: '3px' }}>
-        <img
-          src={`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${logo.icon}.svg`}
-          alt=""
-          style={{ width: '100%', height: '100%' }}
+      <span style={{ ...chipStyle, background: logo.bg, padding: '4px' }}>
+        <span
+          style={{
+            width: '100%',
+            height: '100%',
+            background: '#fff',
+            WebkitMaskImage: `url(${maskUrl})`,
+            maskImage: `url(${maskUrl})`,
+            WebkitMaskSize: 'contain',
+            maskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskPosition: 'center',
+          }}
         />
+      </span>
+    );
+  }
+  if (logo.type === 'custom' && logo.mark === 'microsoft') {
+    // The real four-color grid, no image needed.
+    const squares = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
+    return (
+      <span style={{ ...chipStyle, display: 'inline-grid', gridTemplateColumns: '1fr 1fr', gap: '2px', background: 'transparent' }}>
+        {squares.map((c) => <span key={c} style={{ background: c }} />)}
+      </span>
+    );
+  }
+  if (logo.type === 'custom' && logo.mark === 'linkedin') {
+    return (
+      <span style={{ ...chipStyle, background: '#0A66C2', color: '#fff', fontSize: '0.62rem', fontWeight: 700, fontStyle: 'italic' }}>
+        in
       </span>
     );
   }
