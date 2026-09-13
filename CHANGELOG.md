@@ -21,6 +21,14 @@ saved in their browser's `localStorage`.
 ## 2026.09.13
 
 ### Added
+- **Cert Calendar vendor-grouped cert dropdown** — the "Certification"
+  field on "Add to Cert Calendar" is now a `<select>` grouped by
+  certifying vendor (CompTIA, Microsoft, Cisco, AWS, ISC2, ISACA,
+  TryHackMe, and more), built from every real cert name already used
+  across the roadmap catalogs, instead of free text that drifted in
+  spelling member to member. Falls back to a free-text "Other (not
+  listed)" option for anything not covered. (`CERT_CATALOG_BY_VENDOR` in
+  `memberOptions.js`)
 - **My Journey date overrides** — a member can now click any date in
   their expanded "My Journey So Far" storyline and set their own date,
   with a reset back to the original. Purely cosmetic

@@ -33,6 +33,12 @@ export const RELEASE_NOTES = [
             body: "Click any date in your expanded My Journey So Far storyline to set your own - handy if a cert's shown date doesn't match when you actually finished it. Reset it back to the original any time.",
             where: 'My Roadmap → View Full Story',
           },
+          {
+            icon: '🎓',
+            title: 'Pick your cert from a real dropdown',
+            body: "Adding to your Cert Calendar now shows a proper list of certs grouped by vendor (CompTIA, Microsoft, Cisco, AWS, ISC2, ISACA, TryHackMe, and more) instead of typing it in yourself - pick \"Other\" if yours isn't listed yet.",
+            where: 'Cert Calendar → Add to Calendar',
+          },
         ],
       },
       {
