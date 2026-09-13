@@ -322,3 +322,35 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'Cisco Cybersecurity Defense Analyst'
 );
+
+-- BreachLab - a free, persistent SSH server of real vulnerable Linux boxes
+-- to root, no multiple-choice quizzes and no cert fee (an account is
+-- optional, only for scoring/certificates) - same "Labs" format as
+-- PortSwigger Web Security Academy above, for the same reason: hands-on
+-- practice, not a course to work through.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'BreachLab',
+  'Labs',
+  'Free, no-paywall SSH server of real vulnerable Linux boxes to root - no multiple-choice quizzes, no walkthroughs, no certification fee. 13 tracks, scored, with an "operatives" community rather than a customer base.',
+  'https://breachlab.org/manifesto',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'BreachLab'
+);
+
+-- Blue Team Labs Online (BTLO) - a gamified, hands-on cyber range for
+-- defenders specifically (SOC/blue team scenario challenges), the blue-
+-- team counterpart to offense-focused practice platforms.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'Blue Team Labs Online',
+  'Labs',
+  'A gamified cyber range for defenders - hands-on SOC/blue team scenario challenges (log analysis, digital forensics, malware analysis) to test and showcase real defensive skills.',
+  'https://blueteamlabs.online/home/challenges',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'Blue Team Labs Online'
+);
