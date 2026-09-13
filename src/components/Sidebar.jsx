@@ -360,6 +360,13 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
   const isStaff = role !== 'member';
   const viewRole = isStaff && staffViewActive ? role : 'member';
   const [hoveredId, setHoveredId] = useState(null);
+  // Collapses the whole bottom Profile Section (What's New, notifications,
+  // theme toggle, staff-view toggle, replay intro, security, sign out)
+  // down to just the profile avatar at rest - hovering the avatar/section
+  // expands it back out. Previously every one of those icons sat stacked
+  // and visible permanently, which is a lot of icon-rail real estate spent
+  // on things used far less often than the actual nav items above.
+  const [profileSectionOpen, setProfileSectionOpen] = useState(false);
   // Auto-opens the latest What's New on sign-in for members (not admins -
   // they still get the badge/click flow) instead of relying on someone
   // noticing the badge dot. A lazy initializer (not a useEffect) so this is
@@ -550,8 +557,11 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         ))}
       </nav>
 
-      {/* Profile Section */}
+      {/* Profile Section - collapsed to just the avatar at rest, expands
+          on hover to reveal What's New/notifications/theme/etc below it. */}
       <div
+        onMouseEnter={() => setProfileSectionOpen(true)}
+        onMouseLeave={() => setProfileSectionOpen(false)}
         style={{
           padding: '20px 16px',
           borderTop: 'var(--glass-border)',
@@ -621,6 +631,19 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           </span>
         </div>
 
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '14px',
+            width: '100%',
+            maxHeight: profileSectionOpen ? '400px' : '0px',
+            opacity: profileSectionOpen ? 1 : 0,
+            overflow: 'hidden',
+            transition: 'max-height 0.25s ease, opacity 0.2s ease',
+          }}
+        >
         <TooltipButton
           id="whats-new"
           icon={Megaphone}
@@ -706,6 +729,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           onLeave={() => setHoveredId(null)}
           onClick={onLogout}
         />
+        </div>
       </div>
     </aside>
     {showReleaseNotes && <ReleaseNotesModal onClose={() => setShowReleaseNotes(false)} />}
