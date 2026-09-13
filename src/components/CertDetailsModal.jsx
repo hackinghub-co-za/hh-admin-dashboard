@@ -1,7 +1,14 @@
 import React from 'react';
 import { X, Award, DollarSign, BookOpen, ShieldCheck, Clock, FileText, ExternalLink } from 'lucide-react';
 import { formatDate } from '../lib/dateFormat';
+import { CERT_DETAILS_BY_NAME, CERT_CATALOG_BY_VENDOR } from '../lib/memberOptions';
 
+// Legacy fuzzy-match fallback for cert_calendar rows typed as free text
+// before the Add to Cert Calendar form became a vendor-grouped dropdown
+// (see MemberPortal.jsx) - CERT_DETAILS_BY_NAME below is checked first
+// with an exact match and covers every cert that dropdown can actually
+// produce; this only ever fires for an older, already-existing entry that
+// doesn't exactly match one of those names.
 const CERT_KNOWLEDGE_BASE = {
   oscp: {
     title: 'OSCP — Offensive Security Certified Professional',
@@ -89,6 +96,15 @@ const CERT_KNOWLEDGE_BASE = {
   },
 };
 
+// Which vendor group (CERT_CATALOG_BY_VENDOR) a cert name belongs to -
+// used to fill in a CERT_DETAILS_BY_NAME entry's "provider" badge when the
+// entry itself doesn't bother repeating a vendor name that's already
+// implied by which list it's in.
+function vendorForCertName(certName) {
+  const group = CERT_CATALOG_BY_VENDOR.find((g) => g.certs.includes(certName));
+  return group?.vendor || null;
+}
+
 export default function CertDetailsModal({ certName, memberName, cohort, date, onClose }) {
   if (!certName) return null;
 
@@ -96,7 +112,14 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
   const cleanName = certName.toLowerCase();
   let certData = null;
 
-  if (cleanName.includes('oscp')) {
+  const exactMatch = CERT_DETAILS_BY_NAME[certName];
+  if (exactMatch) {
+    certData = {
+      title: certName,
+      provider: vendorForCertName(certName) || 'Certification Authority',
+      ...exactMatch,
+    };
+  } else if (cleanName.includes('oscp')) {
     certData = CERT_KNOWLEDGE_BASE.oscp;
   } else if (cleanName.includes('security') || cleanName.includes('sec+')) {
     certData = CERT_KNOWLEDGE_BASE.securityplus;
@@ -107,7 +130,9 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
   } else if (cleanName.includes('network') || cleanName.includes('net+')) {
     certData = CERT_KNOWLEDGE_BASE.networkplus;
   } else {
-    // Custom Fallback
+    // Custom Fallback - a cert not in our real catalog at all (typed
+    // through the "Other (not listed)" option), so there's genuinely no
+    // real breakdown to show.
     certData = {
       title: certName,
       provider: 'Recognized Security Issuer',

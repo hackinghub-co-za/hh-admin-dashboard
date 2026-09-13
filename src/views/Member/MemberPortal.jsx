@@ -421,9 +421,13 @@ const VENDOR_LOGO_ICONS = [
   { test: /\bisc2\b/i, icon: 'isc2', bg: '#468145' },
   { test: /\bhashicorp\b/i, icon: 'hashicorp', bg: '#000000' },
   { test: /cncf|linux foundation/i, icon: 'linuxfoundation', bg: '#003778' },
+  // The actual real cert names (KCNA/KCSA) don't contain "CNCF" or "Linux
+  // Foundation" themselves - Kubernetes' own real mark is a closer, more
+  // recognizable fit for these two specific certs than the issuing org's.
+  { test: /\bKCNA\b|\bKCSA\b/, icon: 'kubernetes', bg: '#326CE5' },
 ];
 const VENDOR_LOGO_CUSTOM = [
-  { test: /\b(?:SC|AZ|AI)-\d{3}\b|\bmicrosoft\b/i, mark: 'microsoft' },
+  { test: /\b(?:SC|AZ|AI|DP)-\d{3}\b|\bmicrosoft\b/i, mark: 'microsoft' },
   { test: /\blinkedin\b/i, mark: 'linkedin' },
   // AWS's real "Amazon Web Services" mark has been pulled from the current
   // simple-icons dataset (same removed-trademark situation as Microsoft/
@@ -438,15 +442,19 @@ const VENDOR_LOGO_CUSTOM = [
 const VENDOR_LOGO_INITIALS = [
   { test: /\bkodekloud\b/i, initials: 'K', color: '#7C3AED' },
   { test: /\bisaca\b/i, initials: 'ISACA', color: '#0056A3' },
-  { test: /\boffensive security\b|\boffsec\b/i, initials: 'OS', color: '#111111' },
-  { test: /\bINE\b/, initials: 'INE', color: '#0097A7' },
-  { test: /\bLPI\b/, initials: 'LPI', color: '#2E7D32' },
-  { test: /\bcentri\b/i, initials: 'CE', color: '#374151' },
+  // OSCP/eJPT don't contain "Offensive Security"/"OffSec"/"INE" in the
+  // real exam name itself, so the vendor name's own match rule above
+  // wouldn't catch these certs when this component is instead given the
+  // cert name (e.g. the Cert Calendar list, one row per booked exam).
+  { test: /\boffensive security\b|\boffsec\b|\boscp\b/i, initials: 'OS', color: '#111111' },
+  { test: /\bINE\b|\bejpt\b/i, initials: 'INE', color: '#0097A7' },
+  { test: /\bLPI\b|\blinux essentials\b/i, initials: 'LPI', color: '#2E7D32' },
+  { test: /\bcentri\b|\bblue team level 1\b/i, initials: 'CE', color: '#374151' },
   { test: /\bcyberark\b/i, initials: 'CA', color: '#F36F21' },
   { test: /\bsailpoint\b/i, initials: 'SP', color: '#00263E' },
   { test: /\bISO\b/, initials: 'ISO', color: '#004C97' },
   { test: /\bNIST\b/, initials: 'NIST', color: '#162E51' },
-  { test: /\bpeoplecert\b/i, initials: 'PC', color: '#00A19A' },
+  { test: /\bpeoplecert\b|\bITIL\b/i, initials: 'PC', color: '#00A19A' },
 ];
 
 function vendorLogoFor(title) {
@@ -6283,7 +6291,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </div>
                       <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
                       <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {c.cert} <Info size={14} color="var(--accent-cyan)" />
+                        <VendorLogo title={c.cert} size={18} /> {c.cert} <Info size={14} color="var(--accent-cyan)" />
                       </div>
                     </div>
 
@@ -6359,7 +6367,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </div>
                       <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
                       <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {c.cert} <Info size={14} color="var(--accent-cyan)" />
+                        <VendorLogo title={c.cert} size={18} /> {c.cert} <Info size={14} color="var(--accent-cyan)" />
                       </div>
                     </div>
                     <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
