@@ -433,6 +433,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
+        { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
         { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
       ]
     : [

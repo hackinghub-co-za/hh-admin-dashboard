@@ -37,6 +37,7 @@ import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, upda
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
 import { fetchRoadmapExclusions, addRoadmapExclusion, removeRoadmapExclusion } from '../../lib/roadmapExclusionsData';
+import { fetchMenteesForMentor, addMentee, removeMentee } from '../../lib/mentorMenteesData';
 import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
@@ -2773,6 +2774,58 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       setTeamMembers((prev) => prev.filter((t) => t.email !== member.email));
     } catch (err) {
       setTeamError(friendlyErrorMessage(err));
+    }
+  };
+
+  // Mentor Mentees (080_mentor_mentees.sql) - which members a mentor can
+  // actually see/manage. The real access boundary is RLS
+  // (is_mentor_of(member_email) on roadmap_items/cert_calendar); this is
+  // just the assignment UI, expandable per mentor row in Current Team
+  // below. Keyed by mentor email since more than one mentor can exist.
+  const [expandedMentorEmail, setExpandedMentorEmail] = useState(null);
+  const [menteesByMentor, setMenteesByMentor] = useState({});
+  const [loadingMentees, setLoadingMentees] = useState(false);
+  const [menteesError, setMenteesError] = useState(null);
+  const [menteeSearch, setMenteeSearch] = useState('');
+
+  const toggleMentorExpanded = (mentorEmail) => {
+    if (expandedMentorEmail === mentorEmail) {
+      setExpandedMentorEmail(null);
+      return;
+    }
+    setExpandedMentorEmail(mentorEmail);
+    setMenteeSearch('');
+    if (isMockSession || menteesByMentor[mentorEmail]) return;
+    setLoadingMentees(true);
+    fetchMenteesForMentor(mentorEmail)
+      .then((data) => setMenteesByMentor((prev) => ({ ...prev, [mentorEmail]: data })))
+      .catch((err) => setMenteesError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingMentees(false));
+  };
+
+  const handleAddMentee = async (mentorEmail, menteeEmail) => {
+    const current = menteesByMentor[mentorEmail] || [];
+    if (current.some((m) => m.menteeEmail.toLowerCase() === menteeEmail.toLowerCase())) return;
+    const optimistic = { id: menteeEmail, menteeEmail: menteeEmail.toLowerCase(), addedAt: new Date().toISOString() };
+    setMenteesByMentor((prev) => ({ ...prev, [mentorEmail]: [...current, optimistic] }));
+    if (isMockSession) return;
+    try {
+      await addMentee(mentorEmail, menteeEmail, user?.email);
+    } catch (err) {
+      setMenteesError(friendlyErrorMessage(err));
+      setMenteesByMentor((prev) => ({ ...prev, [mentorEmail]: current }));
+    }
+  };
+
+  const handleRemoveMentee = async (mentorEmail, menteeEmail) => {
+    const previous = menteesByMentor[mentorEmail] || [];
+    setMenteesByMentor((prev) => ({ ...prev, [mentorEmail]: previous.filter((m) => m.menteeEmail.toLowerCase() !== menteeEmail.toLowerCase()) }));
+    if (isMockSession) return;
+    try {
+      await removeMentee(mentorEmail, menteeEmail);
+    } catch (err) {
+      setMenteesError(friendlyErrorMessage(err));
+      setMenteesByMentor((prev) => ({ ...prev, [mentorEmail]: previous }));
     }
   };
 
@@ -7439,27 +7492,104 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Nobody has a role beyond Member yet.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {teamMembers.map((t) => (
-                <div key={t.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    <strong>{t.fullName || t.email}</strong>
-                    {t.fullName && <span style={{ color: 'var(--text-muted)', marginLeft: '8px' }}>{t.email}</span>}
+              {teamMembers.map((t) => {
+                const isMentorRow = t.role === 'mentor';
+                const isExpanded = expandedMentorEmail === t.email;
+                const mentees = menteesByMentor[t.email] || [];
+                return (
+                <div key={t.email} style={{ borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px' }}>
+                    <div style={{ fontSize: '0.85rem' }}>
+                      <strong>{t.fullName || t.email}</strong>
+                      {t.fullName && <span style={{ color: 'var(--text-muted)', marginLeft: '8px' }}>{t.email}</span>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                      <span className={`badge ${ROLE_BADGE[t.role] || 'badge-warning'}`} style={{ fontSize: '0.68rem' }}>{ROLE_LABELS[t.role] || t.role}</span>
+                      {isMentorRow && (
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '0.72rem' }}
+                          onClick={() => toggleMentorExpanded(t.email)}
+                        >
+                          {mentees.length > 0 ? `${mentees.length} Mentee${mentees.length === 1 ? '' : 's'}` : 'Assign Mentees'}
+                        </button>
+                      )}
+                      {t.role !== 'admin' && (
+                        <button
+                          onClick={() => handleRevokeRole(t)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }}
+                          aria-label="Revoke role"
+                          title="Set back to plain member"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                    <span className={`badge ${ROLE_BADGE[t.role] || 'badge-warning'}`} style={{ fontSize: '0.68rem' }}>{ROLE_LABELS[t.role] || t.role}</span>
-                    {t.role !== 'admin' && (
-                      <button
-                        onClick={() => handleRevokeRole(t)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }}
-                        aria-label="Revoke role"
-                        title="Set back to plain member"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
+
+                  {isMentorRow && isExpanded && (
+                    <div style={{ padding: '14px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <p style={{ fontSize: '0.78rem', margin: 0, color: 'var(--text-secondary)' }}>
+                        Only these members' Roadmap and Cert Calendar entries are visible to {t.fullName || t.email} - everyone else's stay hidden.
+                      </p>
+                      {menteesError && <p style={{ fontSize: '0.78rem', color: 'var(--danger)', margin: 0 }}>{menteesError}</p>}
+                      {loadingMentees && !menteesByMentor[t.email] ? (
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Loading...</p>
+                      ) : (
+                        <>
+                          {mentees.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {mentees.map((m) => {
+                                const match = memberRoster.find((mr) => mr.email.toLowerCase() === m.menteeEmail.toLowerCase());
+                                return (
+                                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 10px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)' }}>
+                                    <span style={{ fontSize: '0.82rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{match?.member || m.menteeEmail}</span>
+                                    <button onClick={() => handleRemoveMentee(t.email, m.menteeEmail)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '8px 10px' }}>
+                            <Search size={14} color="var(--text-muted)" />
+                            <input
+                              type="text"
+                              placeholder="Search members to assign..."
+                              value={menteeSearch}
+                              onChange={(e) => setMenteeSearch(e.target.value)}
+                              style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.82rem', width: '100%' }}
+                            />
+                          </div>
+                          {menteeSearch.trim() && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto' }}>
+                              {memberRoster
+                                .filter((m) =>
+                                  !mentees.some((existing) => existing.menteeEmail.toLowerCase() === m.email.toLowerCase()) &&
+                                  (m.member.toLowerCase().includes(menteeSearch.toLowerCase()) || m.email.toLowerCase().includes(menteeSearch.toLowerCase()))
+                                )
+                                .slice(0, 8)
+                                .map((m) => (
+                                  <button
+                                    key={m.email}
+                                    className="hover-glow"
+                                    onClick={() => { handleAddMentee(t.email, m.email); setMenteeSearch(''); }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem', textAlign: 'left' }}
+                                  >
+                                    <UserPlus size={13} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{m.member} <span style={{ color: 'var(--text-muted)' }}>· {m.email}</span></span>
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
