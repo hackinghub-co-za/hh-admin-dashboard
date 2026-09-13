@@ -464,11 +464,14 @@ function ResourceVendorLogo({ title }) {
     );
   }
   if (logo.type === 'custom' && logo.mark === 'microsoft') {
-    // The real four-color grid, no image needed.
+    // The real four-color grid, no image needed. Explicit grid-template-rows
+    // (not just columns) - without it, these empty, content-less <span>s
+    // have no intrinsic height for "auto" rows to size against and the
+    // whole grid collapses to nothing visible.
     const squares = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
     return (
-      <span style={{ ...chipStyle, display: 'inline-grid', gridTemplateColumns: '1fr 1fr', gap: '2px', background: 'transparent' }}>
-        {squares.map((c) => <span key={c} style={{ background: c }} />)}
+      <span style={{ ...chipStyle, display: 'inline-grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '2px', background: 'transparent' }}>
+        {squares.map((c) => <span key={c} style={{ background: c, width: '100%', height: '100%' }} />)}
       </span>
     );
   }
