@@ -6,6 +6,74 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.13',
+    date: '2026-09-13',
+    headline: 'Real brand logos, a clearer domain breakdown, and a new SOC course.',
+    intro: "Vendor logos next to your Resources and Roadmap items, a click-to-learn breakdown of any domain in Members, a new CISCO course on the SOC track, and a few fixes — including your Elite Operative application link and evenly-sized member cards.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🏷️',
+            title: 'Real brand logos on Resources and Roadmap items',
+            body: "CompTIA, Cisco, Microsoft, GitHub, TryHackMe, PortSwigger, Terraform, LinkedIn, and KodeKloud items now show their real logo right next to the title, so it's easier to spot at a glance what you're looking at.",
+            where: 'Resources, or My Roadmap',
+          },
+          {
+            icon: '📡',
+            title: 'CISCO Cybersecurity Defense Analyst course added to SOC',
+            body: "A new Splunk-powered SOC detection & response course landed in Resources and on the SOC Specialization track.",
+            where: 'Resources → Cert Prep, or My Roadmap',
+          },
+        ],
+      },
+      {
+        label: 'Community',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '🔍',
+            title: 'Click a domain to see what it actually is',
+            body: "Clicking a domain name in the Members directory (SOC, Cloud Security, and so on) now opens a real breakdown — what the work actually involves, typical roles, and typical South African salary range.",
+            where: 'Members → By Domain',
+          },
+          {
+            icon: '📇',
+            title: 'Evenly-sized member cards, with Read More',
+            body: "Member cards in the directory are now all the same height, even with a long bio — it truncates with a \"Read more\" toggle instead of stretching the whole card.",
+            where: 'Members',
+          },
+        ],
+      },
+      {
+        label: 'Fixed',
+        color: '#94a3b8',
+        items: [
+          {
+            icon: '🔗',
+            title: '"Apply for Placement" now goes to the right form',
+            body: "The Elite Operative tier's Apply for Placement button was pointing at the wrong link — fixed.",
+            where: 'My Subscription',
+          },
+          {
+            icon: '📧',
+            title: 'Matchmaker group emails now actually arrive',
+            body: "A bug meant the email letting you know who's in your Matchmaker group could silently fail to send. Fixed — if you were affected, you'll get it the next time groups are announced.",
+            where: 'your inbox, once groups are announced',
+          },
+          {
+            icon: '📉',
+            title: 'TryHackMe daily submission limit lowered to 3 on weekdays',
+            body: "The daily room log limit is now 3 rooms per weekday (was 5); Saturday and Sunday stay at 2.",
+            where: "Competitions → Log Today's Rooms",
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.10',
     date: '2026-09-10',
     headline: 'Free Microsoft cert vouchers, passkey sign-in, and a weekly incident breakdown.',

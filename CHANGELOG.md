@@ -18,6 +18,57 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.13
+
+### Added
+- **Member Sheet filters + Tier column** — the admin Member Sheet can now
+  be filtered by name, specialty, tier, job readiness, last 1-on-1 meeting
+  status, money owed, and start-date range, all at once, with a live
+  "N of M active" count and a one-click Clear Filters. Also added a Tier
+  column (Basic / Monthly / Permanent / Elite) sourced from each member's
+  actual current plan.
+- **Roadmap completion % in the Member Sheet** — the Specialty column now
+  shows each member's live roadmap completion percentage (e.g. "SOC
+  (65%)"), computed from their real `roadmap_items` rather than a second
+  manual field.
+- **CISCO Cybersecurity Defense Analyst course** — added to Resources and
+  to the SOC Specialization track, including a backfill onto every
+  existing SOC-track member's roadmap.
+- **Vendor logos on Resources and My Roadmap items** — CompTIA, Cisco,
+  Microsoft, GitHub, TryHackMe, PortSwigger, Terraform, LinkedIn, and
+  KodeKloud each show their real brand mark next to the resource/roadmap
+  item title.
+- **Domain info modal in the Members directory** — clicking a domain name
+  in "By Domain" (e.g. SOC, Cloud Security) opens a modal explaining what
+  the domain actually is, typical roles, and typical South African salary
+  range, mirroring the existing Core Foundations item explainer.
+
+### Changed
+- **TryHackMe daily room submission limit** — lowered from 5 to 3 rooms
+  per weekday; the weekend cap stays at 2. (`031_daily_room_logs.sql`)
+- **My Roadmap progress display** — Core Foundations items now show a
+  horizontal progress bar with a trailing percentage instead of a small
+  pie marker.
+- **Member Directory cards** — cards in the flat member grid are now
+  equal height regardless of bio length; a long bio truncates with a
+  "Read more" toggle instead of stretching the card.
+
+### Fixed
+- **Elite Operative "Apply for Placement" link** — pointed at the wrong
+  URL; now correctly links to the real application form.
+- **Matchmaker group notification emails never actually sent** —
+  `matchmaker-group-email` had no CORS handling at all, so every
+  browser-triggered call from the admin dashboard was blocked before it
+  reached the function, surfacing as a generic "Failed to send a request
+  to the Edge Function" error. This is idempotent by design (it only ever
+  emails groups with `notified_at IS NULL`), so fixing it also clears the
+  backlog of previously-stuck groups on the next run, not just new ones.
+- **`community_wins` id sequence drift** — same bug class as an earlier
+  `community_events` fix: a hardcoded `setval(..., 2, true)` reset the
+  sequence backward every time the idempotent seed migration re-ran,
+  once real wins had accumulated past id 2, causing the next real insert
+  to collide with an existing row. (`044_community_content.sql`)
+
 ## 2026.09.06
 
 ### Added
