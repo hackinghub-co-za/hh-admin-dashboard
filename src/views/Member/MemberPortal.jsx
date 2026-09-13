@@ -3863,19 +3863,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 {g.phase === 'Core Foundations' && (() => {
                                   const pct = roadmapItemProgressPercent(item);
                                   return (
-                                    <div
-                                      title={`${pct}% complete`}
-                                      style={{ width: '100%', maxWidth: '160px', height: '5px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden', marginTop: '6px' }}
-                                    >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
                                       <div
-                                        style={{
-                                          width: `${pct}%`,
-                                          height: '100%',
-                                          background: pct >= 100 ? 'var(--success)' : 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))',
-                                          borderRadius: '3px',
-                                          transition: 'width 0.4s ease',
-                                        }}
-                                      />
+                                        title={`${pct}% complete`}
+                                        style={{ width: '100%', maxWidth: '160px', height: '5px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden' }}
+                                      >
+                                        <div
+                                          style={{
+                                            width: `${pct}%`,
+                                            height: '100%',
+                                            background: pct >= 100 ? 'var(--success)' : 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))',
+                                            borderRadius: '3px',
+                                            transition: 'width 0.4s ease',
+                                          }}
+                                        />
+                                      </div>
+                                      <span style={{ flexShrink: 0, fontSize: '0.72rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
                                     </div>
                                   );
                                 })()}
