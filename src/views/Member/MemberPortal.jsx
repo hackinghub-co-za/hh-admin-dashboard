@@ -3851,31 +3851,34 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                   userSelect: 'none',
                                 }}>
                                   <span>{item.title}</span>
-                                  {/* Small inline pie marker - at-a-glance
-                                      per-item progress right next to the
-                                      name, reading whatever fraction the
-                                      member's self-reported into detail
-                                      (roadmapItemProgressPercent above),
-                                      100% once actually ticked done. */}
-                                  {g.phase === 'Core Foundations' && (() => {
-                                    const pct = roadmapItemProgressPercent(item);
-                                    return (
-                                      <span
-                                        title={`${pct}% complete`}
+                                </div>
+                                {/* Horizontal progress bar under the item's
+                                    name - at-a-glance per-item progress,
+                                    reading whatever fraction the member's
+                                    self-reported into detail
+                                    (roadmapItemProgressPercent above), full
+                                    and success-colored once actually ticked
+                                    done. Replaces the small inline pie
+                                    marker this used to be. */}
+                                {g.phase === 'Core Foundations' && (() => {
+                                  const pct = roadmapItemProgressPercent(item);
+                                  return (
+                                    <div
+                                      title={`${pct}% complete`}
+                                      style={{ width: '100%', maxWidth: '160px', height: '5px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden', marginTop: '6px' }}
+                                    >
+                                      <div
                                         style={{
-                                          flexShrink: 0,
-                                          width: '15px',
-                                          height: '15px',
-                                          borderRadius: '50%',
-                                          border: '1px solid var(--border-color)',
-                                          background: pct >= 100
-                                            ? 'var(--success)'
-                                            : `conic-gradient(var(--accent-cyan) 0% ${pct}%, var(--bg-tertiary) ${pct}% 100%)`,
+                                          width: `${pct}%`,
+                                          height: '100%',
+                                          background: pct >= 100 ? 'var(--success)' : 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))',
+                                          borderRadius: '3px',
+                                          transition: 'width 0.4s ease',
                                         }}
                                       />
-                                    );
-                                  })()}
-                                </div>
+                                    </div>
+                                  );
+                                })()}
                                 {ROADMAP_ITEM_DESCRIPTIONS[item.title] && (
                                   <button
                                     type="button"
