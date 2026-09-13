@@ -747,7 +747,7 @@ const SIYA_EMAIL = 'siya@hackinghub.co.za';
 // uses) instead of a second hardcoded list here.
 const MENTOR_EMAILS = TEAM_MEMBERS.map((t) => t.email);
 
-export default function MemberPortal({ activeTab, setActiveTab, user, providerToken, isMockSession, autoOpenProfileEdit, gettingStartedGateActive, onGettingStartedComplete }) {
+export default function MemberPortal({ activeTab, setActiveTab, user, providerToken, isMockSession, autoOpenProfileEdit, gettingStartedGateActive, roadmapExcluded, onGettingStartedComplete }) {
   const [selectedCert, setSelectedCert] = useState(null);
   const firstName = (user?.user_metadata?.full_name || user?.email || 'there').trim().split(' ')[0];
 
@@ -977,6 +977,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setActiveTab?.('dashboard');
     }
   }, [gettingStartedGateActive, activeTab, setActiveTab]);
+
+  // Same defensive guard for Roadmap Exclusions (079_roadmap_exclusions.sql) -
+  // Sidebar already hides the My Roadmap nav item for an excluded member,
+  // but if activeTab is somehow still 'roadmap' (a stale deep link, or the
+  // exclusion check landing after the tab was already open), snap back to
+  // Dashboard rather than rendering a roadmap for someone who opted out of it.
+  useEffect(() => {
+    if (roadmapExcluded && activeTab === 'roadmap') {
+      setActiveTab?.('dashboard');
+    }
+  }, [roadmapExcluded, activeTab, setActiveTab]);
 
   // Getting Started checklist - the real content lives here once, reused by
   // both its normal spot (case 'dashboard', a dismissible card) and the
@@ -1749,7 +1760,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const triedCoreFoundationsAssignRef = useRef(false);
 
   useEffect(() => {
-    if (isMockSession || loadingRoadmap || !onboardingComplete) return;
+    if (isMockSession || loadingRoadmap || !onboardingComplete || roadmapExcluded) return;
     if (triedCoreFoundationsAssignRef.current) return;
     triedCoreFoundationsAssignRef.current = true;
 
@@ -1761,7 +1772,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         }
       })
       .catch(() => {});
-  }, [isMockSession, loadingRoadmap, onboardingComplete]);
+  }, [isMockSession, loadingRoadmap, onboardingComplete, roadmapExcluded]);
 
   // Fires once, the moment this toggle pushes the Core Foundations count
   // from below the Specialization threshold to at/above it - not on every
@@ -4648,7 +4659,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       const daysSinceRoadmapTouch = roadmapLastTouchedAt
         ? Math.floor((new Date() - new Date(roadmapLastTouchedAt)) / (1000 * 60 * 60 * 24))
         : null;
-      const roadmapIsStale = roadmapItems.length > 0 && daysSinceRoadmapTouch !== null && daysSinceRoadmapTouch >= ROADMAP_STALE_AFTER_DAYS;
+      const roadmapIsStale = !roadmapExcluded && roadmapItems.length > 0 && daysSinceRoadmapTouch !== null && daysSinceRoadmapTouch >= ROADMAP_STALE_AFTER_DAYS;
 
       return (
         <div>
@@ -4994,8 +5005,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-            {/* My Roadmap */}
+          <div style={{ display: 'grid', gridTemplateColumns: roadmapExcluded ? '1fr' : '2fr 1fr', gap: '24px' }}>
+            {/* My Roadmap - hidden entirely for a member on the Roadmap
+                Exclusions list (079_roadmap_exclusions.sql); the grid
+                collapses to a single column so Side Widgets doesn't leave
+                a lopsided empty gap where this used to be. */}
+            {!roadmapExcluded && (
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '8px' }}>
                 <h3>My Roadmap</h3>
@@ -5064,6 +5079,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 </>
               )}
             </div>
+            )}
 
             {/* Side Widgets (1on1 + Payment) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

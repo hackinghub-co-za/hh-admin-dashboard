@@ -36,6 +36,7 @@ import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
+import { fetchRoadmapExclusions, addRoadmapExclusion, removeRoadmapExclusion } from '../../lib/roadmapExclusionsData';
 import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
@@ -1673,6 +1674,52 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
   };
 
+  // Roadmap Exclusions - see supabase/079_roadmap_exclusions.sql /
+  // src/lib/roadmapExclusionsData.js. Same shape as Focus 5 above: a
+  // member on this list has My Roadmap hidden entirely on their side, and
+  // is skipped by the roadmap-reminder email and the Stale Roadmaps queue
+  // below.
+  const [roadmapExclusions, setRoadmapExclusions] = useState(isMockSession ? [] : []);
+  const [loadingRoadmapExclusions, setLoadingRoadmapExclusions] = useState(!isMockSession);
+  const [roadmapExclusionsError, setRoadmapExclusionsError] = useState(null);
+  const [editingRoadmapExclusions, setEditingRoadmapExclusions] = useState(false);
+  const [roadmapExclusionSearch, setRoadmapExclusionSearch] = useState('');
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchRoadmapExclusions()
+      .then((data) => !cancelled && setRoadmapExclusions(data))
+      .catch((err) => !cancelled && setRoadmapExclusionsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingRoadmapExclusions(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleAddRoadmapExclusion = async (email) => {
+    if (roadmapExclusions.some((f) => f.memberEmail.toLowerCase() === email.toLowerCase())) return;
+    const optimistic = { id: email, memberEmail: email.toLowerCase(), addedAt: new Date().toISOString() };
+    setRoadmapExclusions([...roadmapExclusions, optimistic]);
+    if (isMockSession) return;
+    try {
+      await addRoadmapExclusion(email, user?.email);
+    } catch (err) {
+      setRoadmapExclusionsError(friendlyErrorMessage(err));
+      setRoadmapExclusions((prev) => prev.filter((f) => f.memberEmail.toLowerCase() !== email.toLowerCase()));
+    }
+  };
+
+  const handleRemoveRoadmapExclusion = async (email) => {
+    const previous = roadmapExclusions;
+    setRoadmapExclusions(roadmapExclusions.filter((f) => f.memberEmail.toLowerCase() !== email.toLowerCase()));
+    if (isMockSession) return;
+    try {
+      await removeRoadmapExclusion(email);
+    } catch (err) {
+      setRoadmapExclusionsError(friendlyErrorMessage(err));
+      setRoadmapExclusions(previous);
+    }
+  };
+
   // Jumps straight to a member's roadmap from anywhere in this component
   // (Focus 5's own card) - mirrors exactly what clicking a row in the
   // Roadmaps tab's own member picker does.
@@ -2633,10 +2680,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     return acc;
   }, {});
 
+  const roadmapExcludedEmails = new Set(roadmapExclusions.map((f) => f.memberEmail.toLowerCase()));
+
   // Excludes members with no roadmap items at all - that's "nothing
-  // assigned yet," a different problem from "assigned but gone quiet."
+  // assigned yet," a different problem from "assigned but gone quiet" -
+  // and anyone on the Roadmap Exclusions list, who opted out of this
+  // track entirely and shouldn't be nudged about it.
   const staleRoadmaps = memberRoster
-    .filter((m) => m.status === 'Active')
+    .filter((m) => m.status === 'Active' && !roadmapExcludedEmails.has(m.email.toLowerCase()))
     .map((m) => {
       const lastTouchedAt = roadmapLastTouchedByEmail[m.email.toLowerCase()] || null;
       const daysSinceTouch = lastTouchedAt ? Math.floor((today - new Date(lastTouchedAt)) / (1000 * 60 * 60 * 24)) : null;
@@ -3203,6 +3254,100 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                         </div>
                       )}
                     </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Roadmap Exclusions - editable (supabase/079_roadmap_exclusions.sql).
+                A member on this list has My Roadmap hidden entirely on
+                their own side, and is skipped by the roadmap-reminder
+                email and the Stale Roadmaps queue above. No cap on size,
+                unlike Focus 5 - this is an opt-out list, not a curated
+                top-N. */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Milestone size={18} color="var(--text-muted)" />
+                  <h3 style={{ margin: 0 }}>Roadmap Exclusions</h3>
+                </div>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                  onClick={() => { setEditingRoadmapExclusions((v) => !v); setRoadmapExclusionSearch(''); }}
+                >
+                  <Pencil size={12} /> {editingRoadmapExclusions ? 'Done' : 'Edit'}
+                </button>
+              </div>
+              <p style={{ fontSize: '0.8rem', margin: 0 }}>Members who've opted out of the Roadmap track entirely - no roadmap, no nudges, no reminder emails.</p>
+              {roadmapExclusionsError && <p style={{ fontSize: '0.78rem', color: 'var(--danger)', margin: 0 }}>{roadmapExclusionsError}</p>}
+
+              {!editingRoadmapExclusions ? (
+                loadingRoadmapExclusions ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Loading...</p>
+                ) : roadmapExclusions.length === 0 ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Nobody's excluded - click Edit to add someone who isn't interested in the roadmap.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {roadmapExclusions.map((f) => {
+                      const match = memberRoster.find((m) => m.email.toLowerCase() === f.memberEmail.toLowerCase());
+                      return (
+                        <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <span style={{ fontSize: '0.85rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{match?.member || f.memberEmail}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0 }}>{formatDate(f.addedAt)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {roadmapExclusions.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {roadmapExclusions.map((f) => {
+                        const match = memberRoster.find((m) => m.email.toLowerCase() === f.memberEmail.toLowerCase());
+                        return (
+                          <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 10px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)' }}>
+                            <span style={{ fontSize: '0.82rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{match?.member || f.memberEmail}</span>
+                            <button onClick={() => handleRemoveRoadmapExclusion(f.memberEmail)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
+                              <X size={14} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', padding: '8px 10px' }}>
+                    <Search size={14} color="var(--text-muted)" />
+                    <input
+                      type="text"
+                      placeholder="Search members to exclude..."
+                      value={roadmapExclusionSearch}
+                      onChange={(e) => setRoadmapExclusionSearch(e.target.value)}
+                      style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.82rem', width: '100%' }}
+                    />
+                  </div>
+                  {roadmapExclusionSearch.trim() && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto' }}>
+                      {memberRoster
+                        .filter((m) =>
+                          !roadmapExclusions.some((f) => f.memberEmail.toLowerCase() === m.email.toLowerCase()) &&
+                          (m.member.toLowerCase().includes(roadmapExclusionSearch.toLowerCase()) || m.email.toLowerCase().includes(roadmapExclusionSearch.toLowerCase()))
+                        )
+                        .slice(0, 8)
+                        .map((m) => (
+                          <button
+                            key={m.email}
+                            className="hover-glow"
+                            onClick={() => { handleAddRoadmapExclusion(m.email); setRoadmapExclusionSearch(''); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem', textAlign: 'left' }}
+                          >
+                            <UserPlus size={13} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{m.member} <span style={{ color: 'var(--text-muted)' }}>· {m.email}</span></span>
+                          </button>
+                        ))}
+                    </div>
                   )}
                 </div>
               )}

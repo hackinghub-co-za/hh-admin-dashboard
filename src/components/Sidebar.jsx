@@ -348,7 +348,7 @@ const ROLE_LABELS = {
   member: 'Member',
 };
 
-export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, isMockSession, staffViewActive, onToggleStaffView }) {
+export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, roadmapExcluded, isMockSession, staffViewActive, onToggleStaffView }) {
   const role = user?.role || 'member';
   const isAdmin = role === 'admin';
   // isStaff/isAdmin stay the account's real, permanent role - used for the
@@ -455,9 +455,16 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
   // checklist itself), 1on1 Meetings, and Members - the two tabs actually
   // needed to finish book_1on1/setup_profile - once App.jsx's
   // gettingStartedGateActive fires. Never applies to admins.
+  // Roadmap Exclusions (079_roadmap_exclusions.sql) - an admin-managed
+  // opt-out for members who aren't interested in the Roadmap track at all.
+  // Only ever relevant to the member menu (the 'roadmap' id doesn't exist
+  // in the admin/community_manager/mentor menus above), so filtering it
+  // out here is a no-op for staff regardless.
+  const withoutRoadmapTab = roadmapExcluded ? menuItems.filter((item) => item.id !== 'roadmap') : menuItems;
+
   const visibleMenuItems = restrictToOnboarding
-    ? menuItems.filter((item) => ['dashboard', 'meetings', 'members'].includes(item.id))
-    : menuItems;
+    ? withoutRoadmapTab.filter((item) => ['dashboard', 'meetings', 'members'].includes(item.id))
+    : withoutRoadmapTab;
 
   return (
     <>

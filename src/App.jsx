@@ -10,6 +10,7 @@ import OffboardingSequence from './components/OffboardingSequence';
 import GemmaWidget from './components/GemmaWidget';
 import { checkOnboardingStatus, markOnboardingComplete, getMyGettingStartedGraceStartedAt, fetchMyOnboardingSteps, ONBOARDING_STEPS } from './lib/onboardingData';
 import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
+import { amIRoadmapExcluded } from './lib/roadmapExclusionsData';
 import { logMobileBlock } from './lib/portalEventsData';
 import { getMyRole } from './lib/teamData';
 import { Compass, Monitor } from 'lucide-react';
@@ -75,6 +76,14 @@ export default function App() {
   // whole layout pre-render - two of the six steps need the real Meetings
   // and Members tabs to actually complete.
   const [gettingStartedGateActive, setGettingStartedGateActive] = useState(false);
+  // Whether this member has opted out of the Roadmap track entirely
+  // (079_roadmap_exclusions.sql, admin-managed) - Sidebar hides the My
+  // Roadmap tab and MemberPortal hides its Dashboard preview tile when
+  // true. Never true for admins/staff or mock sessions. Fails open to
+  // false on a check error, same philosophy as every other gate here -
+  // a transient error should never hide a real tab from someone who's
+  // entitled to see it.
+  const [roadmapExcluded, setRoadmapExcluded] = useState(false);
   // One-shot signal: set when a member picks "Set Up My Profile" at the end of
   // onboarding, so the Members tab opens with the edit form already up instead
   // of just landing on the tab. MemberPortal clears it once handled.
@@ -176,7 +185,15 @@ export default function App() {
         setNeedsOnboarding(false);
         setNeedsOffboarding(false);
         setGettingStartedGateActive(false);
+        setRoadmapExcluded(false);
       } else {
+        try {
+          setRoadmapExcluded(await amIRoadmapExcluded());
+        } catch (err) {
+          console.error('Roadmap exclusion check failed - not hiding the tab over a transient error:', err.message);
+          setRoadmapExcluded(false);
+        }
+
         let offboarding = false;
         try {
           offboarding = await checkOffboardingPending(email);
@@ -460,6 +477,7 @@ export default function App() {
         onLogout={handleLogout}
         onReplayIntro={!showStaffDashboard ? handleReplayIntro : undefined}
         restrictToOnboarding={!showStaffDashboard && gettingStartedGateActive}
+        roadmapExcluded={!showStaffDashboard && roadmapExcluded}
         isMockSession={isMockSession}
         staffViewActive={staffViewActive}
         onToggleStaffView={isStaff ? handleToggleStaffView : undefined}
@@ -479,6 +497,7 @@ export default function App() {
             isMockSession={isMockSession}
             autoOpenProfileEdit={autoOpenProfileEdit}
             gettingStartedGateActive={gettingStartedGateActive}
+            roadmapExcluded={roadmapExcluded}
             onGettingStartedComplete={handleGettingStartedComplete}
           />
         )}
