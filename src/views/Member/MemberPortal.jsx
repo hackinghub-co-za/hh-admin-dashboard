@@ -406,7 +406,7 @@ function formatEventCountdown(days) {
 // white "in", and AWS's Squid Ink navy chip with Smile Orange lettering.
 const VENDOR_LOGO_ICONS = [
   { test: /comptia/i, icon: 'comptia', bg: '#C8202F' },
-  { test: /\bcisco\b/i, icon: 'cisco', bg: '#1BA0D7' },
+  { test: /\bcisco\b|\bccna\b/i, icon: 'cisco', bg: '#1BA0D7' },
   { test: /\bGH-\d{3}\b/i, icon: 'github', bg: '#181717' },
   { test: /\bgithub\b/i, icon: 'github', bg: '#181717' },
   { test: /\btryhackme\b|\bTHM\b/i, icon: 'tryhackme', bg: '#212C42' },
@@ -418,7 +418,7 @@ const VENDOR_LOGO_ICONS = [
   // published dataset, same verification each of the icons above already had.
   { test: /\bokta\b/i, icon: 'okta', bg: '#007DC1' },
   { test: /\bowasp\b/i, icon: 'owasp', bg: '#000000' },
-  { test: /\bisc2\b/i, icon: 'isc2', bg: '#468145' },
+  { test: /\bisc2\b|\bcissp\b|\bcgrc\b/i, icon: 'isc2', bg: '#468145' },
   { test: /\bhashicorp\b/i, icon: 'hashicorp', bg: '#000000' },
   { test: /cncf|linux foundation/i, icon: 'linuxfoundation', bg: '#003778' },
   // The actual real cert names (KCNA/KCSA) don't contain "CNCF" or "Linux

@@ -105,6 +105,34 @@ function vendorForCertName(certName) {
   return group?.vendor || null;
 }
 
+// Strips everything but letters/digits and lowercases - real cert_calendar
+// rows typed as free text before the Add to Cert Calendar form became a
+// dropdown (see MemberPortal.jsx) vary wildly in punctuation for the exact
+// same cert: "AZ900", "AZ-900", and "az 900" should all resolve the same
+// way, which a plain string comparison won't do.
+function normalizeCertName(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Real, live examples this has to handle: "Microsoft Security Operations
+// Analyst (SC-500)" and "Microsoft SC-500" both need to resolve to the
+// catalog's own "SC-500"; "AI_901" (underscore) needs to resolve to
+// "AI-901"; "Comptia N+" needs to resolve to "CompTIA Network+". An exact
+// normalized match is checked first and wins outright - a pure containment
+// check alone would (and once did) let "CompTIA Security+" get swallowed
+// by the longer "CompTIA SecurityX" key, since the normalized short form
+// is a prefix of the longer one.
+function findCertDetailsByFuzzyName(certName) {
+  const normalized = normalizeCertName(certName);
+  const keys = Object.keys(CERT_DETAILS_BY_NAME).map((k) => ({ key: k, normalizedKey: normalizeCertName(k) }));
+  const exact = keys.find(({ normalizedKey }) => normalizedKey === normalized);
+  if (exact) return { key: exact.key, details: CERT_DETAILS_BY_NAME[exact.key] };
+  const contained = keys
+    .filter(({ normalizedKey }) => normalized.includes(normalizedKey) || normalizedKey.includes(normalized))
+    .sort((a, b) => b.normalizedKey.length - a.normalizedKey.length)[0];
+  return contained ? { key: contained.key, details: CERT_DETAILS_BY_NAME[contained.key] } : null;
+}
+
 export default function CertDetailsModal({ certName, memberName, cohort, date, onClose }) {
   if (!certName) return null;
 
@@ -112,12 +140,12 @@ export default function CertDetailsModal({ certName, memberName, cohort, date, o
   const cleanName = certName.toLowerCase();
   let certData = null;
 
-  const exactMatch = CERT_DETAILS_BY_NAME[certName];
-  if (exactMatch) {
+  const fuzzyMatch = findCertDetailsByFuzzyName(certName);
+  if (fuzzyMatch) {
     certData = {
       title: certName,
-      provider: vendorForCertName(certName) || 'Certification Authority',
-      ...exactMatch,
+      provider: vendorForCertName(fuzzyMatch.key) || 'Certification Authority',
+      ...fuzzyMatch.details,
     };
   } else if (cleanName.includes('oscp')) {
     certData = CERT_KNOWLEDGE_BASE.oscp;

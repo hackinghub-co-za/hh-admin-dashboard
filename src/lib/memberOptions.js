@@ -796,7 +796,7 @@ export const CERT_CATALOG_BY_VENDOR = [
   },
   {
     vendor: 'Cisco',
-    certs: ['CISCO Junior Cyber Pathway', 'CISCO Cybersecurity Defense Analyst'],
+    certs: ['CISCO Junior Cyber Pathway', 'CISCO Cybersecurity Defense Analyst', 'CCNA'],
   },
   {
     vendor: 'AWS',
@@ -815,7 +815,7 @@ export const CERT_CATALOG_BY_VENDOR = [
   },
   {
     vendor: 'ISC2',
-    certs: ['ISC2 CGRC'],
+    certs: ['CISSP', 'ISC2 CGRC'],
   },
   {
     vendor: 'ISACA',
@@ -1248,6 +1248,15 @@ export const CERT_DETAILS_BY_NAME = {
     domains: ['SIEM Fundamentals with Splunk', 'Log Analysis & Correlation', 'Threat Detection Techniques', 'Incident Response Workflows'],
     prerequisites: 'Basic networking and security fundamentals recommended.',
   },
+  CCNA: {
+    title: 'Cisco Certified Network Associate (CCNA)',
+    price: '$300 USD (~R 5,550 ZAR)',
+    format: '90-110 Questions (120 Minutes)',
+    difficulty: 'Intermediate Networking',
+    description: "Cisco's flagship associate-level networking certification - a broad, practical baseline covering everything a network associate needs day to day, from switching to automation.",
+    domains: ['Network Fundamentals', 'Network Access', 'IP Connectivity', 'IP Services', 'Security Fundamentals', 'Automation & Programmability'],
+    prerequisites: '1-2 years of hands-on networking experience recommended, though not formally required.',
+  },
 
   // ---- AWS ----
   'AWS Certified Cloud Practitioner': {
@@ -1348,6 +1357,15 @@ export const CERT_DETAILS_BY_NAME = {
   },
 
   // ---- ISC2 ----
+  CISSP: {
+    title: 'ISC2 Certified Information Systems Security Professional (CISSP)',
+    price: '$749 USD (~R 13,850 ZAR)',
+    format: '100-150 Adaptive Questions (3-4 Hours, CAT format)',
+    difficulty: 'Advanced, Senior-Level Security Management',
+    description: 'The most widely recognized senior/management-level security certification in the industry - broad, deep coverage of security and risk management across an entire organization, not a single technical specialty.',
+    domains: ['Security & Risk Management', 'Asset Security', 'Security Architecture & Engineering', 'Communication & Network Security', 'Identity & Access Management', 'Security Assessment & Testing', 'Security Operations', 'Software Development Security'],
+    prerequisites: '5 years of cumulative, paid work experience in 2+ of the 8 domains (a 4-year degree waives 1 year).',
+  },
   'ISC2 CGRC': {
     title: 'ISC2 Certified in Governance, Risk and Compliance (CGRC)',
     price: '$599 USD (~R 11,100 ZAR)',
