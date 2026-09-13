@@ -21,6 +21,32 @@ saved in their browser's `localStorage`.
 ## 2026.09.13
 
 ### Added
+- **Roadmap Exclusions** — an admin-managed opt-out list for members who
+  aren't interested in the Roadmap track at all. A member on it gets My
+  Roadmap hidden entirely (sidebar + Dashboard preview tile), no "gone
+  quiet" nudge, no automatic Core Foundations auto-assignment, and is
+  skipped by both the roadmap-reminder-email cron and the admin Stale
+  Roadmaps queue. Managed from a new panel next to Focus 5 on the admin
+  Dashboard. (`079_roadmap_exclusions.sql`)
+- **Scoped mentor role** — the `mentor` role (present since
+  `067_permission_scopes.sql` but never actually restricted, and never
+  held by a real account until now) is properly scoped: a mentor can only
+  see/manage their own assigned mentees' Roadmap and Cert Calendar
+  entries, not the whole roster. Mentees are assigned from a new
+  "Assign Mentees" picker on each mentor's row in Team & Roles. Also
+  added Meetups & Events to the mentor sidebar/Dashboard, which they
+  previously had no access to at all. (`080_mentor_mentees.sql`)
+- **Upcoming Mentee Meetings** — mentors now see their next scheduled
+  1-on-1 with each assigned mentee right on their Dashboard, matched
+  against their own connected Google Calendar.
+- **A warmer mentor Dashboard** — greets mentors by first name, shows a
+  role badge, and thanks them for the time they put into mentoring HH
+  members.
+- **LinkedIn Playbook Engagement panel** — on the admin Roadmaps tab:
+  every active, track-assigned member (or, for a mentor, just their
+  mentees) who hasn't confirmed this week's LinkedIn post yet, plus a
+  confirmed/total count. Previously this was only checkable one member at
+  a time by opening their profile.
 - **Cert Calendar vendor-grouped cert dropdown** — the "Certification"
   field on "Add to Cert Calendar" is now a `<select>` grouped by
   certifying vendor (CompTIA, Microsoft, Cisco, AWS, ISC2, ISACA,
@@ -67,6 +93,34 @@ saved in their browser's `localStorage`.
   in "By Domain" (e.g. SOC, Cloud Security) opens a modal explaining what
   the domain actually is, typical roles, and typical South African salary
   range, mirroring the existing Core Foundations item explainer.
+- **Full CompTIA/Microsoft/AWS cert catalogs** — the Cert Calendar
+  dropdown previously only listed the certs this portal's own roadmap
+  catalogs referenced for these 3 vendors; now lists every current cert
+  each vendor actually offers (fundamentals through
+  expert/professional/specialty).
+- **Vendor logos + a two-step picker on the Cert Calendar dropdown** —
+  the vendor step is a grid of clickable logo buttons (a plain `<select>`
+  can't render an image inside an `<option>`); choosing a vendor reveals
+  a second dropdown scoped to just that vendor's certs. Renamed the
+  "Microsoft" vendor group to "Microsoft/Azure" for clarity, and the
+  "Your Name" field on the Add form now pre-fills with your first name.
+- **Real cert breakdowns for all ~78 certs** — CertDetailsModal previously
+  only recognized 5 certs via fuzzy keyword matching; every cert the
+  dropdown can now produce (plus CISSP and CCNA, both real, common certs
+  that were missing entirely) has its own real breakdown (price, format,
+  difficulty, description, domains, prerequisites), matched by exact
+  name. Also added the same vendor logos to the Cert Calendar's
+  upcoming/passed exam cards.
+- **PocketPrep's real favicon** as its Resources logo (no simple-icons
+  entry exists for it, so this hotlinks the vendor's own favicon
+  directly rather than hand-building a mark).
+- **New "Cyber Platforms" Resources category** — gathers TryHackMe,
+  HackTheBox, LetsDefend, and Immersive Labs (which already had its own
+  tile) in one place, plus two new additions: BreachLab (a free,
+  no-paywall SSH server of real vulnerable boxes to root) and Blue Team
+  Labs Online (a gamified SOC/blue-team scenario cyber range).
+- **Roadmap Exclusions, scoped mentor role, Upcoming Mentee Meetings, and
+  the LinkedIn Playbook Engagement panel** — see above.
 
 ### Changed
 - **TryHackMe daily room submission limit** — lowered from 5 to 3 rooms
@@ -77,6 +131,16 @@ saved in their browser's `localStorage`.
 - **Member Directory cards** — cards in the flat member grid are now
   equal height regardless of bio length; a long bio truncates with a
   "Read more" toggle instead of stretching the card.
+- **Sidebar profile section** — What's New, notifications, theme toggle,
+  staff-view toggle, replay intro, security, and sign out now collapse
+  down to just the profile avatar at rest, expanding on hover, instead of
+  sitting permanently stacked and visible.
+- **Domain track colors** — Offensive Security is now red (was green),
+  GRC is now green (was orange), SOC stays blue; the domain name's
+  underline in Members → By Domain now matches its tile's border color
+  instead of a generic dotted grey line.
+- **Cert-pass congratulations email** — now explicitly asks the member to
+  tag Hacking Hub in their LinkedIn post, not just "post about it."
 
 ### Fixed
 - **Elite Operative "Apply for Placement" link** — pointed at the wrong
@@ -93,6 +157,32 @@ saved in their browser's `localStorage`.
   sequence backward every time the idempotent seed migration re-ran,
   once real wins had accumulated past id 2, causing the next real insert
   to collide with an existing row. (`044_community_content.sql`)
+- **Cert breakdown matching was punctuation-sensitive** — real
+  `cert_calendar` rows typed before the dropdown existed ("AZ900",
+  "AI_901", "Comptia N+") didn't exactly match a catalog key, so most
+  legacy entries showed generic filler instead of a real breakdown.
+  Replaced with a normalize-then-match strategy (strip punctuation,
+  lowercase, exact match first, then longest containment) and cleaned up
+  the 14 real live rows that needed it.
+- **Community Managers lost room log approval** —
+  `067_permission_scopes.sql` had widened `review_daily_room_log()` to
+  allow `community_manager` (plus a double-approval guard), but
+  `031_daily_room_logs.sql` - the file that originally defined this
+  function - still had the old admin-only, unguarded body. Re-running
+  031 in isolation at some point after 067 shipped silently reverted the
+  live function back to 031's stale body, with no error anywhere.
+  Brought both files' definitions back in sync so re-running either one
+  converges on the same correct result.
+- **The 84 LinkedIn Playbook posts were hand-duplicated** across
+  `src/lib/linkedInPlaybookData.js` and the `linkedin-post-reminder-email`
+  edge function (which can't import from `src/`) - editing one and
+  forgetting the other could leave the reminder email quoting a stale
+  post. Moved into a real `linkedin_playbook_posts` table both sides now
+  read. (`059_linkedin_weekly_post.sql`) In fixing this, also caught and
+  corrected a live incident where re-running that migration file had
+  briefly reset the weekly reminder cron's real secret back to a literal
+  placeholder - the cron-scheduling block now only runs if the job
+  doesn't already exist, so this can't happen again.
 
 ## 2026.09.06
 

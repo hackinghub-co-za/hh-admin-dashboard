@@ -8,8 +8,8 @@ export const RELEASE_NOTES = [
   {
     version: '2026.09.13',
     date: '2026-09-13',
-    headline: 'Real brand logos, a clearer domain breakdown, and a new SOC course.',
-    intro: "Vendor logos next to your Resources and Roadmap items, a click-to-learn breakdown of any domain in Members, a new CISCO course on the SOC track, and a few fixes — including your Elite Operative application link and evenly-sized member cards.",
+    headline: 'New practice platforms, real cert breakdowns, and logos everywhere.',
+    intro: "Vendor logos across Resources, My Roadmap, and Cert Calendar, a real breakdown for every cert you can book, new hands-on practice platforms in Resources, a click-to-learn breakdown of any domain in Members, a new CISCO course on the SOC track, and a handful of fixes — including your Elite Operative application link, Matchmaker emails, and a decluttered sidebar.",
     groups: [
       {
         label: 'Growth',
@@ -17,9 +17,9 @@ export const RELEASE_NOTES = [
         items: [
           {
             icon: '🏷️',
-            title: 'Real brand logos on Resources and Roadmap items',
-            body: "CompTIA, Cisco, Microsoft, GitHub, TryHackMe, PortSwigger, Terraform, LinkedIn, and KodeKloud items now show their real logo right next to the title, so it's easier to spot at a glance what you're looking at.",
-            where: 'Resources, or My Roadmap',
+            title: 'Real brand logos on Resources, My Roadmap, and Cert Calendar',
+            body: "CompTIA, Cisco, Microsoft, GitHub, TryHackMe, PortSwigger, Terraform, LinkedIn, KodeKloud, PocketPrep, and more now show their real logo right next to the title, so it's easier to spot at a glance what you're looking at.",
+            where: 'Resources, My Roadmap, or Cert Calendar',
           },
           {
             icon: '📡',
@@ -36,8 +36,20 @@ export const RELEASE_NOTES = [
           {
             icon: '🎓',
             title: 'Pick your cert from a real dropdown',
-            body: "Adding to your Cert Calendar now shows a proper list of certs grouped by vendor (CompTIA, Microsoft, Cisco, AWS, ISC2, ISACA, TryHackMe, and more) instead of typing it in yourself - pick \"Other\" if yours isn't listed yet.",
+            body: "Adding to your Cert Calendar now shows a proper list of certs grouped by vendor - pick the vendor first (CompTIA, Microsoft/Azure, Cisco, AWS, ISC2, ISACA, TryHackMe, and more), then the exact cert, complete with the vendor's real logo. CompTIA, Microsoft, and AWS now list every current cert they offer, not just a handful - pick \"Other\" if yours still isn't listed. Your name field also starts pre-filled for you.",
             where: 'Cert Calendar → Add to Calendar',
+          },
+          {
+            icon: '📖',
+            title: 'Every cert now has a real breakdown',
+            body: "Click any cert on your calendar and see an actual breakdown - price, format, difficulty, exam domains, and prerequisites - for every cert the dropdown covers, not just a handful. Each also shows its vendor's logo right on the card.",
+            where: 'Cert Calendar',
+          },
+          {
+            icon: '🧩',
+            title: 'New hands-on practice platforms in Resources',
+            body: "A new \"Cyber Platforms\" group gathers TryHackMe, HackTheBox, LetsDefend, and Immersive Labs in one place, plus two new additions: BreachLab (a free, no-frills SSH server of real boxes to root) and Blue Team Labs Online (gamified SOC/blue team scenarios).",
+            where: 'Resources → Cyber Platforms',
           },
         ],
       },
@@ -48,7 +60,7 @@ export const RELEASE_NOTES = [
           {
             icon: '🔍',
             title: 'Click a domain to see what it actually is',
-            body: "Clicking a domain name in the Members directory (SOC, Cloud Security, and so on) now opens a real breakdown — what the work actually involves, typical roles, and typical South African salary range.",
+            body: "Clicking a domain name in the Members directory (SOC, Cloud Security, and so on) now opens a real breakdown — what the work actually involves, typical roles, and typical South African salary range. Domain colors also got a refresh - Offensive Security is red, GRC is green, SOC stays blue - matching the underline under each name.",
             where: 'Members → By Domain',
           },
           {
@@ -56,6 +68,18 @@ export const RELEASE_NOTES = [
             title: 'Evenly-sized member cards, with Read More',
             body: "Member cards in the directory are now all the same height, even with a long bio — it truncates with a \"Read more\" toggle instead of stretching the whole card.",
             where: 'Members',
+          },
+        ],
+      },
+      {
+        label: 'Recognition',
+        color: '#22d3ee',
+        items: [
+          {
+            icon: '🎉',
+            title: 'Your cert-pass email now asks you to tag us',
+            body: "The congratulations email you get the moment your coach marks an exam Passed now explicitly asks you to tag Hacking Hub in your LinkedIn post, so we can like, comment, and share it with the rest of the community.",
+            where: 'your inbox, automatically',
           },
         ],
       },
@@ -80,6 +104,18 @@ export const RELEASE_NOTES = [
             title: 'TryHackMe daily submission limit lowered to 3 on weekdays',
             body: "The daily room log limit is now 3 rooms per weekday (was 5); Saturday and Sunday stay at 2.",
             where: "Competitions → Log Today's Rooms",
+          },
+          {
+            icon: '✅',
+            title: "Daily room log approvals running smoothly again",
+            body: "A bug could leave a submitted room log stuck on \"Pending\" longer than it should when a Community Manager tried to approve it - fixed.",
+            where: "Competitions → Log Today's Rooms",
+          },
+          {
+            icon: '🗂️',
+            title: 'A tidier sidebar',
+            body: "What's New, notifications, dark mode, and sign out now tuck away behind your profile picture at the bottom of the sidebar, instead of sitting permanently on show - hover over it to bring them back.",
+            where: 'sidebar',
           },
         ],
       },
