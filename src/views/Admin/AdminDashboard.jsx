@@ -2885,7 +2885,8 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
           },
           mentor: {
             greeting: 'Mentor',
-            blurb: "You've got your mentees' Roadmaps and Cert Calendar - reviewing progress, approving Projects submissions, and marking exam results - plus Meetups & Events.",
+            blurb: "You're the one-on-one guidance behind your mentees' progress - reviewing their Roadmap, approving Projects submissions, marking exam results, and keeping an eye on Meetups & Events.",
+            thanks: "Thank you for giving your time and expertise to mentor Hacking Hub members - the coaching you put in is what turns a roadmap on a screen into someone's real, working career.",
             links: [
               { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
               { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
@@ -2893,12 +2894,35 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
             ],
           },
         }[role] || { greeting: 'there', blurb: '', links: [] };
+        const adminFirstName = (user?.user_metadata?.full_name || '').trim().split(' ')[0] || null;
 
         return (
           <div>
             <div style={{ marginBottom: '32px' }}>
-              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome, {ROLE_LANDING.greeting}</h1>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>
+                {adminFirstName ? `Welcome back, ${adminFirstName}!` : `Welcome, ${ROLE_LANDING.greeting}`}
+              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                <span className="badge badge-success" style={{ fontSize: '0.72rem' }}>{ROLE_LANDING.greeting}</span>
+              </div>
               <p style={{ color: 'var(--text-secondary)' }}>{ROLE_LANDING.blurb}</p>
+              {ROLE_LANDING.thanks && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    marginTop: '18px',
+                    padding: '14px 16px',
+                    borderRadius: 'var(--border-radius-md)',
+                    background: 'rgba(var(--accent-rgb), 0.06)',
+                    border: '1px solid rgba(var(--accent-rgb), 0.18)',
+                  }}
+                >
+                  <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>🙏</span>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>{ROLE_LANDING.thanks}</p>
+                </div>
+              )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
               {ROLE_LANDING.links.map(({ id, label, icon: Icon }) => (
