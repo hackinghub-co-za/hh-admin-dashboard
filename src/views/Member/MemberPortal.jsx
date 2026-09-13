@@ -39,6 +39,7 @@ import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShow
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
+import { fetchMyJourneyOverrides, setJourneyOverride, clearJourneyOverride } from '../../lib/journeyOverridesData';
 import { fetchMyInterviewsHad } from '../../lib/interviewsHadData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
@@ -126,6 +127,8 @@ import {
   Swords,
   Flag,
   Trash2,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -1864,6 +1867,47 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     fetchMyInterviewsHad().then(setMyInterviewsHad).catch((err) => console.error('Could not load interviews had:', err));
   }, [isMockSession]);
 
+  // Per-entry date overrides for "My Journey So Far" (077_journey_timeline_overrides.sql) -
+  // cosmetic-only corrections to how a member's own story reads (e.g. a
+  // cert's real timeline date is just roadmap_items.updated_at, an
+  // approximation of when they actually finished it). Keyed by entry_key,
+  // never touches the real source record. editingJourneyKey/journeyDraftDate
+  // track the one inline date-edit row open at a time.
+  const [journeyOverrides, setJourneyOverridesState] = useState({});
+  const [editingJourneyKey, setEditingJourneyKey] = useState(null);
+  const [journeyDraftDate, setJourneyDraftDate] = useState('');
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchMyJourneyOverrides().then(setJourneyOverridesState).catch((err) => console.error('Could not load journey overrides:', err));
+  }, [isMockSession]);
+
+  const saveJourneyOverride = async (entryKey) => {
+    if (!journeyDraftDate) return;
+    setJourneyOverridesState((prev) => ({ ...prev, [entryKey]: journeyDraftDate }));
+    setEditingJourneyKey(null);
+    if (isMockSession) return;
+    try {
+      await setJourneyOverride(entryKey, journeyDraftDate, user.email);
+    } catch (err) {
+      alert(friendlyMemberErrorMessage(err));
+    }
+  };
+
+  const resetJourneyOverride = async (entryKey) => {
+    setJourneyOverridesState((prev) => {
+      const next = { ...prev };
+      delete next[entryKey];
+      return next;
+    });
+    setEditingJourneyKey(null);
+    if (isMockSession) return;
+    try {
+      await clearJourneyOverride(entryKey);
+    } catch (err) {
+      alert(friendlyMemberErrorMessage(err));
+    }
+  };
+
   // Whether the expanded "My Journey So Far" storyline is open on My
   // Roadmap - clicking the compact Dashboard tile jumps to My Roadmap and
   // flips this true so the story is immediately visible, no extra click.
@@ -3114,12 +3158,25 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     // identical lines, and events use the event's own date. Interviews Had
     // and Job Placed have no real date to anchor to, so they're surfaced as
     // undated milestones below the timeline instead of a made-up date.
+    // Every entry carries a stable entryKey and its real originalDate -
+    // journeyOverrides[entryKey], if set, is what's actually displayed and
+    // sorted on (a member correcting an approximate date), while
+    // originalDate is kept so the edit UI can show what it's overriding
+    // and a "reset" can revert to it.
+    const withOverride = (entryKey, originalDate) => ({
+      entryKey,
+      originalDate,
+      date: journeyOverrides[entryKey] || originalDate,
+      isOverridden: !!journeyOverrides[entryKey],
+    });
+
     const timeline = [];
     if (myStartDate) {
-      timeline.push({ date: myStartDate, kind: 'joined', title: 'Joined Hacking Hub' });
+      timeline.push({ ...withOverride('joined', myStartDate), kind: 'joined', title: 'Joined Hacking Hub' });
     }
     certsCompleted.forEach((item) => {
-      timeline.push({ date: (item.updatedAt ? item.updatedAt.slice(0, 10) : myStartDate) || null, kind: 'cert', title: `Completed ${item.title}` });
+      const entryKey = `cert:${item.id}`;
+      timeline.push({ ...withOverride(entryKey, (item.updatedAt ? item.updatedAt.slice(0, 10) : myStartDate) || null), kind: 'cert', title: `Completed ${item.title}` });
     });
     const roomsByMonth = {};
     approvedRoomLogs.forEach((log) => {
@@ -3129,11 +3186,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       roomsByMonth[month].count += log.roomCount;
       if (log.logDate > roomsByMonth[month].lastDate) roomsByMonth[month].lastDate = log.logDate;
     });
-    Object.values(roomsByMonth).forEach(({ count, lastDate }) => {
-      timeline.push({ date: lastDate, kind: 'rooms', title: `Completed ${count} room${count === 1 ? '' : 's'} that month` });
+    Object.entries(roomsByMonth).forEach(([month, { count, lastDate }]) => {
+      const entryKey = `rooms:${month}`;
+      timeline.push({ ...withOverride(entryKey, lastDate), kind: 'rooms', title: `Completed ${count} room${count === 1 ? '' : 's'} that month` });
     });
     joinedEvents.forEach((event) => {
-      timeline.push({ date: event.date, kind: 'event', title: `Joined: ${event.title}` });
+      const entryKey = `event:${event.id}`;
+      timeline.push({ ...withOverride(entryKey, event.date), kind: 'event', title: `Joined: ${event.title}` });
     });
     timeline.sort((a, b) => (a.date || '') < (b.date || '') ? -1 : (a.date || '') > (b.date || '') ? 1 : 0);
 
@@ -3740,9 +3799,39 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 {!isLast && <div style={{ width: '2px', flex: 1, background: 'var(--border-color)', margin: '4px 0' }} />}
                               </div>
                               <div style={{ paddingBottom: '20px', minWidth: 0 }}>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
-                                  {entry.date ? formatDate(entry.date) : ''}
-                                </div>
+                                {editingJourneyKey === entry.entryKey ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                    <input
+                                      type="date"
+                                      value={journeyDraftDate}
+                                      onChange={(e) => setJourneyDraftDate(e.target.value)}
+                                      style={{ fontSize: '0.78rem', padding: '4px 6px' }}
+                                    />
+                                    <button type="button" onClick={() => saveJourneyOverride(entry.entryKey)} title="Save" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--success)', display: 'flex' }}>
+                                      <Check size={15} />
+                                    </button>
+                                    {entry.isOverridden && (
+                                      <button type="button" onClick={() => resetJourneyOverride(entry.entryKey)} title="Reset to original date" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+                                        <RotateCcw size={14} />
+                                      </button>
+                                    )}
+                                    <button type="button" onClick={() => setEditingJourneyKey(null)} title="Cancel" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+                                      <X size={15} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', cursor: 'pointer' }}
+                                    onClick={() => { setEditingJourneyKey(entry.entryKey); setJourneyDraftDate(entry.date || ''); }}
+                                    title="Edit this date"
+                                  >
+                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                      {entry.date ? formatDate(entry.date) : ''}
+                                      {entry.isOverridden && ' (edited)'}
+                                    </span>
+                                    <Pencil size={11} color="var(--text-muted)" />
+                                  </div>
+                                )}
                                 <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{entry.title}</div>
                               </div>
                             </div>
