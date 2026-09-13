@@ -769,11 +769,26 @@ export function matchExamReadinessCert(certName) {
 export const CERT_CATALOG_BY_VENDOR = [
   {
     vendor: 'CompTIA',
-    certs: ['CompTIA Security+', 'CompTIA CySA+', 'CompTIA SecurityX', 'CompTIA SecAI+'],
+    // Every CompTIA cert currently on offer, not just the ones this
+    // portal's own roadmap catalogs reference - a member booking through
+    // Cert Calendar isn't limited to only their track's catalog certs.
+    certs: [
+      'CompTIA Tech+', 'CompTIA A+', 'CompTIA Network+', 'CompTIA Security+', 'CompTIA Linux+', 'CompTIA Server+',
+      'CompTIA Cloud Essentials+', 'CompTIA Cloud+', 'CompTIA Data+', 'CompTIA DataSys+', 'CompTIA Project+',
+      'CompTIA CySA+', 'CompTIA PenTest+', 'CompTIA SecurityX', 'CompTIA SecAI+',
+    ],
   },
   {
     vendor: 'Microsoft',
-    certs: ['AZ-900', 'AI-901', 'SC-900', 'SC-300', 'SC-200', 'SC-500', 'SC-100', 'AZ-104', 'AZ-305', 'AZ-400', 'AI-103'],
+    // Every current Microsoft Azure/security certification, fundamentals
+    // through expert - not just the ones this portal's own roadmap
+    // catalogs reference.
+    certs: [
+      'AZ-900', 'AI-901', 'DP-900', 'SC-900',
+      'AZ-104', 'AZ-204', 'AZ-700', 'AZ-800', 'AZ-801', 'DP-100', 'DP-203', 'AI-102', 'SC-300', 'SC-200', 'SC-500',
+      'AZ-305', 'AZ-400', 'SC-100',
+      'AI-103',
+    ],
   },
   {
     vendor: 'GitHub',
@@ -785,7 +800,18 @@ export const CERT_CATALOG_BY_VENDOR = [
   },
   {
     vendor: 'AWS',
-    certs: ['AWS Certified Security – Specialty'],
+    // The full current AWS certification lineup, foundational through
+    // specialty - not just the one this portal's own roadmap catalogs
+    // reference (AWS Certified Security – Specialty).
+    certs: [
+      'AWS Certified Cloud Practitioner', 'AWS Certified AI Practitioner',
+      'AWS Certified Solutions Architect – Associate', 'AWS Certified Developer – Associate',
+      'AWS Certified SysOps Administrator – Associate', 'AWS Certified Data Engineer – Associate',
+      'AWS Certified Machine Learning Engineer – Associate',
+      'AWS Certified Solutions Architect – Professional', 'AWS Certified DevOps Engineer – Professional',
+      'AWS Certified Security – Specialty', 'AWS Certified Advanced Networking – Specialty',
+      'AWS Certified SAP on AWS – Specialty',
+    ],
   },
   {
     vendor: 'ISC2',
