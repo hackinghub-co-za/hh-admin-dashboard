@@ -141,7 +141,7 @@ export default function GroupedMemberDirectory({ members, getEmail, getName, get
                   style={{
                     fontWeight: 700,
                     fontSize: '1rem',
-                    borderBottom: TRACK_DESCRIPTIONS[g.name] ? '1px dotted var(--text-muted)' : 'none',
+                    borderBottom: TRACK_DESCRIPTIONS[g.name] ? `2px solid ${g.color}` : 'none',
                     cursor: TRACK_INFO[g.name] ? 'pointer' : 'default',
                   }}
                   title={TRACK_INFO[g.name] ? 'Click to see what this domain actually is' : TRACK_DESCRIPTIONS[g.name]}

@@ -1681,13 +1681,13 @@ export const TEAM_MEMBERS = [
 // hues already used elsewhere in this app (release-note group colors) so
 // nothing here is a freshly invented palette.
 export const TRACK_COLORS = {
-  'Offensive Security': '#5ee37a',
+  'Offensive Security': '#ef4444',
   'SOC': '#3b82f6',
   'Cloud Security': '#22d3ee',
   'DevSecOps': '#a78bfa',
   'IAM': '#f5b942',
   'AI Security': '#f472b6',
-  'GRC': '#fb923c',
+  'GRC': '#22c55e',
 };
 export const OTHER_GROUP_COLOR = '#94a3b8';
 export const TEAM_GROUP_COLOR = '#f5b942';
