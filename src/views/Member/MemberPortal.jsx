@@ -1941,11 +1941,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   }, [isMockSession]);
 
   const todaysRoomLog = roomLogs.find((l) => l.logDate === todayISODate());
-  // Weekend cap (031_daily_room_logs.sql) - Sat/Sun's max drops from 5 to 2,
-  // enforced server-side either way; this just keeps the dropdown/label
-  // from offering a count the submission would be rejected for.
+  // Weekday/weekend cap (031_daily_room_logs.sql) - 3 on weekdays, 2 on
+  // Sat/Sun, enforced server-side either way; this just keeps the
+  // dropdown/label from offering a count the submission would be rejected for.
   const isWeekendToday = [0, 6].includes(new Date().getDay());
-  const maxRoomsToday = isWeekendToday ? 2 : 5;
+  const maxRoomsToday = isWeekendToday ? 2 : 3;
 
   const handleSubmitRoomLog = async (e) => {
     e.preventDefault();

@@ -3,7 +3,8 @@
 -- Safe to re-run: every statement is idempotent.
 --
 -- Lets a member self-report how many TryHackMe rooms they completed today
--- (max 5), with a required confirmation that they've posted a once-view
+-- (max 3, 2 on weekends - see the two REVISION notes below), with a
+-- required confirmation that they've posted a once-view
 -- photo of each room in the WhatsApp group chat as proof. Nothing here can
 -- verify that photo actually exists - the real anti-cheating control is that
 -- every submission sits as 'Pending' until an admin reviews it. Once
@@ -18,19 +19,24 @@
 -- day. A Rejected log can be corrected and resubmitted (e.g. the proof
 -- wasn't actually posted) - only Approved is final.
 --
--- REVISION (2026-09-12): weekend cap. Saturday/Sunday's max drops from 5 to
--- 2 - log_date's day-of-week decides which cap applies, so a log dated on a
--- weekend is capped at 2 regardless of which day it's actually submitted
--- on. Enforced twice, same "don't trust the client alone" reasoning as
--- everything else in this file: the CHECK constraint below is the real
--- backstop, submit_daily_room_log()'s own check just gives a clearer error
--- message than a raw constraint violation would.
+-- REVISION (2026-09-12): weekend cap. Saturday/Sunday's max drops below the
+-- weekday max - log_date's day-of-week decides which cap applies, so a log
+-- dated on a weekend is capped regardless of which day it's actually
+-- submitted on. Enforced twice, same "don't trust the client alone"
+-- reasoning as everything else in this file: the CHECK constraint below is
+-- the real backstop, submit_daily_room_log()'s own check just gives a
+-- clearer error message than a raw constraint violation would.
+--
+-- REVISION (2026-09-13): weekday max lowered from 5 to 3 (weekend max stays
+-- 2, unchanged). Same NOT VALID reasoning as the revision above applies
+-- again here - real rows already approved under the old 1-5 weekday rule
+-- stay exactly as they are.
 
 CREATE TABLE IF NOT EXISTS public.daily_room_logs (
   id BIGSERIAL PRIMARY KEY,
   member_email TEXT NOT NULL,
   log_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  room_count INTEGER NOT NULL CHECK (room_count BETWEEN 1 AND 5),
+  room_count INTEGER NOT NULL CHECK (room_count BETWEEN 1 AND 3),
   proof_confirmed BOOLEAN NOT NULL,
   status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Approved', 'Rejected')),
   reviewed_by TEXT,
@@ -51,7 +57,7 @@ CREATE TABLE IF NOT EXISTS public.daily_room_logs (
 -- insert/update is ever checked against it.
 ALTER TABLE public.daily_room_logs DROP CONSTRAINT IF EXISTS daily_room_logs_room_count_check;
 ALTER TABLE public.daily_room_logs ADD CONSTRAINT daily_room_logs_room_count_check
-  CHECK (room_count BETWEEN 1 AND (CASE WHEN EXTRACT(DOW FROM log_date) IN (0, 6) THEN 2 ELSE 5 END)) NOT VALID;
+  CHECK (room_count BETWEEN 1 AND (CASE WHEN EXTRACT(DOW FROM log_date) IN (0, 6) THEN 2 ELSE 3 END)) NOT VALID;
 
 ALTER TABLE public.daily_room_logs ENABLE ROW LEVEL SECURITY;
 
@@ -65,7 +71,7 @@ CREATE POLICY "members read own room logs"
   );
 
 -- No member INSERT/UPDATE policy - submissions go through
--- submit_daily_room_log() below, which enforces the 1-5 cap, the proof
+-- submit_daily_room_log() below, which enforces the daily cap, the proof
 -- confirmation, and the "locked once Approved" rule server-side rather than
 -- trusting the client.
 DROP POLICY IF EXISTS "admins manage room logs" ON public.daily_room_logs;
@@ -81,13 +87,13 @@ DECLARE
   v_email TEXT := lower(auth.jwt() ->> 'email');
   v_existing_status TEXT;
   v_is_weekend BOOLEAN := EXTRACT(DOW FROM CURRENT_DATE) IN (0, 6);
-  v_max_rooms INTEGER := CASE WHEN v_is_weekend THEN 2 ELSE 5 END;
+  v_max_rooms INTEGER := CASE WHEN v_is_weekend THEN 2 ELSE 3 END;
 BEGIN
   IF p_room_count IS NULL OR p_room_count < 1 OR p_room_count > v_max_rooms THEN
     IF v_is_weekend THEN
       RAISE EXCEPTION 'Weekend submissions are capped at 2 rooms per day.';
     ELSE
-      RAISE EXCEPTION 'You can log between 1 and 5 rooms per day.';
+      RAISE EXCEPTION 'You can log between 1 and 3 rooms per day.';
     END IF;
   END IF;
   IF NOT p_proof_confirmed THEN
