@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPastCalendarEvents } from '../../lib/googleCalendar';
+import { fetchPastCalendarEvents, fetchCalendarEvents } from '../../lib/googleCalendar';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
@@ -1142,6 +1142,37 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [meetingDatesByEmail, setMeetingDatesByEmail] = useState({});
   const [loadingMeetingSync, setLoadingMeetingSync] = useState(false);
   const [meetingSyncError, setMeetingSyncError] = useState(null);
+
+  // Mentor's own upcoming 1on1s with their mentees (080_mentor_mentees.sql) -
+  // shown on the mentor role-landing Dashboard below. Auto-loads (unlike
+  // the founder's manual "Sync Last 1on1 Dates" button above) since a
+  // mentor only has a handful of mentees, not the whole roster, so one
+  // calendar read on page load is cheap - matched against the mentor's own
+  // Google Calendar the same way a member's own "Next 1on1 Session" tile
+  // matches against a mentor's, just in the opposite direction (mentee
+  // email as an attendee, not the organizer).
+  const [mentorMentees, setMentorMentees] = useState([]);
+  const [mentorUpcomingEvents, setMentorUpcomingEvents] = useState([]);
+  // Starts true rather than being set synchronously inside the effect below
+  // (same reasoning as loadingTeam/loadTeamMembers above - only ever flips
+  // back to false once the fetch settles).
+  const [loadingMentorMeetings, setLoadingMentorMeetings] = useState(true);
+  const [mentorMeetingsError, setMentorMeetingsError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession || role !== 'mentor' || activeTab !== 'dashboard' || !providerToken) return;
+    Promise.all([
+      fetchMenteesForMentor(user.email),
+      fetchCalendarEvents(providerToken, { maxResults: 50 }),
+    ])
+      .then(([mentees, events]) => {
+        setMentorMentees(mentees);
+        setMentorUpcomingEvents(events);
+        setMentorMeetingsError(null);
+      })
+      .catch((err) => setMentorMeetingsError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingMentorMeetings(false));
+  }, [isMockSession, role, activeTab, providerToken, user?.email]);
 
   // Manually-logged 1-on-1s (one_on_one_logs, 071_overdue_1on1_digest.sql -
   // see oneOnOneLogsData.js) merged into this same "last meeting" concept.
@@ -2854,9 +2885,10 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
           },
           mentor: {
             greeting: 'Mentor',
-            blurb: "You've got Roadmaps and Cert Calendar - reviewing progress, approving Projects submissions, and marking exam results.",
+            blurb: "You've got your mentees' Roadmaps and Cert Calendar - reviewing progress, approving Projects submissions, and marking exam results - plus Meetups & Events.",
             links: [
               { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
+              { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
               { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
             ],
           },
@@ -2882,6 +2914,51 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                 </button>
               ))}
             </div>
+
+            {/* Upcoming Mentee Meetings - mentor-only. Matches the mentor's
+                own connected Google Calendar (fetchCalendarEvents, already
+                filtered to future events) against each assigned mentee's
+                email as an attendee, same idea as a member's own "Next
+                1on1 Session" tile but run for several mentees at once. */}
+            {role === 'mentor' && (
+              <div className="glass-card" style={{ marginTop: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+                  <Clock size={18} color="var(--accent-cyan)" />
+                  <h3 style={{ margin: 0 }}>Upcoming Mentee Meetings</h3>
+                </div>
+
+                {!providerToken ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Sign in with Google again to sync this from your calendar.</p>
+                ) : mentorMeetingsError ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Couldn't read your calendar: {mentorMeetingsError}</p>
+                ) : loadingMentorMeetings ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Checking your calendar...</p>
+                ) : mentorMentees.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>You don't have any mentees assigned yet - ask the founder to add you in Team &amp; Roles.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {mentorMentees.map((m) => {
+                      const match = memberRoster.find((mr) => mr.email.toLowerCase() === m.menteeEmail.toLowerCase());
+                      const nextEvent = mentorUpcomingEvents.find((evt) =>
+                        evt.status !== 'cancelled' && evt.attendees.some((a) => a.email.toLowerCase() === m.menteeEmail.toLowerCase())
+                      );
+                      return (
+                        <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{match?.member || m.menteeEmail}</span>
+                          {nextEvent ? (
+                            <a href={nextEvent.htmlLink} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600, textDecoration: 'none' }}>
+                              {nextEvent.startFormatted}
+                            </a>
+                          ) : (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nothing booked</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       }
