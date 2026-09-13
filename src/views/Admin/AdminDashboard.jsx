@@ -3416,6 +3416,26 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
 
             const sheetDistinctTiers = [...new Set(activeMemberRoster.map((m) => m.lastPlan).filter(Boolean))];
 
+            // % of this member's own roadmap_items marked completed, across
+            // every phase (Core Foundations + whatever Specialization/
+            // Projects/Advanced they've unlocked) - not just Specialization,
+            // since a member who's still working through Core Foundations
+            // shouldn't read as "0%" here. allRoadmapItems is already loaded
+            // for the whole roster (feeds Stale Roadmaps above), so this is
+            // a free client-side derive, no extra fetch.
+            const roadmapPercentByEmail = allRoadmapItems.reduce((acc, item) => {
+              const key = item.memberEmail.toLowerCase();
+              if (!acc[key]) acc[key] = { total: 0, done: 0 };
+              acc[key].total += 1;
+              if (item.completed) acc[key].done += 1;
+              return acc;
+            }, {});
+            const roadmapPercentFor = (m) => {
+              const stats = roadmapPercentByEmail[m.email.toLowerCase()];
+              if (!stats || stats.total === 0) return null;
+              return Math.round((stats.done / stats.total) * 100);
+            };
+
             const filteredMemberSheetRows = activeMemberRoster.filter((m) => {
               const f = memberSheetFilters;
               if (f.name.trim() && !m.member.toLowerCase().includes(f.name.trim().toLowerCase())) return false;
@@ -3601,7 +3621,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                             style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)', cursor: 'pointer' }}
                           >
                             <td style={{ padding: '10px 8px', fontWeight: 600 }}>{m.member}</td>
-                            <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{m.profile?.specialty || 'Not Set'}</td>
+                            <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>
+                              {m.profile?.specialty || 'Not Set'}
+                              {roadmapPercentFor(m) !== null && (
+                                <span style={{ marginLeft: '6px', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--accent-cyan)' }}>
+                                  ({roadmapPercentFor(m)}%)
+                                </span>
+                              )}
+                            </td>
                             <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{m.lastPlan || '—'}</td>
                             <td style={{ padding: '10px 8px', color: meetingOverdue ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: meetingOverdue ? 600 : 400 }}>
                               {m.lastMeetingDate ? `${formatDate(m.lastMeetingDate)}${meetingOverdue ? ` (${daysSinceMeeting}d ago)` : ''}` : '—'}
