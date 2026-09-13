@@ -138,6 +138,20 @@ REVOKE EXECUTE ON FUNCTION public.submit_daily_room_log(INTEGER, BOOLEAN) FROM P
 -- rooms_completed goes up by the submitted count and days_logged by exactly
 -- 1, since the UNIQUE(member_email, log_date) constraint above guarantees
 -- every approved log is a genuinely distinct day.
+--
+-- Widened to also allow community_manager, and hardened with the
+-- Pending-only UPDATE guard below, by 067_permission_scopes.sql PART 2 -
+-- kept in sync here too (not just left as a later CREATE OR REPLACE in
+-- that other file) after a real live incident where this exact function
+-- was found reverted back to the admin-only, unguarded body below: this
+-- file had been re-run in isolation sometime after 067 shipped, and
+-- since this CREATE OR REPLACE is idempotent-by-design (safe to re-run),
+-- it silently clobbered 067's fix back to what's now written here - a
+-- real Community Manager lost the ability to approve room logs with no
+-- error anywhere pointing at why. Both
+-- files now define the identical final body, so re-running either one,
+-- in any order, converges on the same correct result instead of one
+-- undoing the other's fix.
 CREATE OR REPLACE FUNCTION public.review_daily_room_log(p_log_id BIGINT, p_approved BOOLEAN, p_admin_note TEXT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -146,7 +160,7 @@ DECLARE
   v_member_email TEXT;
   v_room_count INTEGER;
 BEGIN
-  IF NOT public.is_admin(auth.uid()) THEN
+  IF NOT (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())) THEN
     RAISE EXCEPTION 'Only admins can review room logs.';
   END IF;
 
@@ -157,13 +171,24 @@ BEGIN
     RAISE EXCEPTION 'Room log not found.';
   END IF;
 
+  -- Reviewing is meant to happen exactly once per log - the admin UI pulls
+  -- Approve/Reject the moment a log leaves Pending. But both admins and
+  -- Community Managers can review, so two reviewers can have the same
+  -- Pending log open at once; without this guard, both clicking Approve
+  -- would each run the credit below, double-counting the member's
+  -- rooms_completed/days_logged. Scoping the UPDATE to status = 'Pending'
+  -- and checking FOUND makes this atomic under real concurrency.
   UPDATE public.daily_room_logs
   SET status = CASE WHEN p_approved THEN 'Approved' ELSE 'Rejected' END,
       reviewed_by = lower(auth.jwt() ->> 'email'),
       reviewed_at = timezone('utc'::text, now()),
       admin_note = p_admin_note,
       updated_at = timezone('utc'::text, now())
-  WHERE id = p_log_id;
+  WHERE id = p_log_id AND status = 'Pending';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This log has already been reviewed - refresh the page.';
+  END IF;
 
   IF p_approved THEN
     UPDATE public.competition_standings
