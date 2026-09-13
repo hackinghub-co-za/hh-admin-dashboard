@@ -103,7 +103,13 @@ INSERT INTO public.community_wins (id, member_name, achievement, achieved_date, 
   (2, 'Kiolin', 'landed a Software Developer internship', '2026-08-15', 'https://www.linkedin.com/in/kiolinharisanker/')
 ON CONFLICT (id) DO NOTHING;
 
-SELECT setval(pg_get_serial_sequence('public.community_wins', 'id'), 2, true);
+-- GREATEST against the table's real current max(id), not a bare literal -
+-- a bare 2 is only correct the very first time this runs; re-running this
+-- idempotent script after real wins have accumulated past id 2 rewinds the
+-- sequence backward, and the next insert collides with an existing row
+-- ("duplicate key value violates unique constraint community_wins_pkey").
+-- Same bug, same fix, as community_events' id sequence (019_events.sql).
+SELECT setval(pg_get_serial_sequence('public.community_wins', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM public.community_wins), 2), true);
 
 -- Added after the fact, same guarded-by-content pattern as
 -- 026_resources.sql's post-seed additions (no explicit id, since a real
