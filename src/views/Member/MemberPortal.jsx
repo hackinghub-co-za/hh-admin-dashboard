@@ -436,6 +436,14 @@ const VENDOR_LOGO_CUSTOM = [
   // brand colors (Squid Ink navy + Smile Orange), no external dependency.
   { test: /\baws\b/i, mark: 'aws' },
 ];
+// Vendors with no simple-icons entry at all, where the real favicon from
+// their own site is the actual logo (not a wordmark simple-icons would
+// ever carry) - hotlinked straight from the vendor's own domain, same
+// "no local copy to keep in sync" reasoning as every simple-icons CDN
+// mask above.
+const VENDOR_LOGO_IMAGES = [
+  { test: /\bpocketprep\b/i, url: 'https://www.pocketprep.com/wp-content/themes/pocketprep/library/images/favicons/favicon-96.png' },
+];
 // Real brands with neither a simple-icons entry nor a simple enough mark
 // to hand-build faithfully - a plain colored initial chip rather than a
 // missing/broken image.
@@ -462,6 +470,8 @@ function vendorLogoFor(title) {
   if (iconMatch) return { type: 'icon', icon: iconMatch.icon, bg: iconMatch.bg };
   const customMatch = VENDOR_LOGO_CUSTOM.find((v) => v.test.test(title));
   if (customMatch) return { type: 'custom', mark: customMatch.mark };
+  const imageMatch = VENDOR_LOGO_IMAGES.find((v) => v.test.test(title));
+  if (imageMatch) return { type: 'image', url: imageMatch.url };
   const initialsMatch = VENDOR_LOGO_INITIALS.find((v) => v.test.test(title));
   if (initialsMatch) return { type: 'initials', initials: initialsMatch.initials, color: initialsMatch.color };
   return null;
@@ -525,6 +535,18 @@ function VendorLogo({ title, size = 20 }) {
     return (
       <span style={{ ...chipStyle, width: 'auto', minWidth: `${size}px`, padding: '0 5px', background: '#232F3E', color: '#FF9900', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
         aws
+      </span>
+    );
+  }
+  if (logo.type === 'image') {
+    // The vendor's own real favicon, not a mask - it already has its own
+    // colors and a transparent/white background baked in, so no chip
+    // background is applied here (unlike the simple-icons mask chips
+    // above, which need a background since the SVG itself is a flat
+    // black silhouette with no color of its own).
+    return (
+      <span style={{ ...chipStyle, background: 'transparent' }}>
+        <img src={logo.url} alt="" width={size} height={size} style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '4px' }} />
       </span>
     );
   }
