@@ -35,7 +35,7 @@ import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
-import { fetchFocusFive, addToFocusFive, removeFromFocusFive } from '../../lib/focusFiveData';
+import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
 import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
@@ -1632,6 +1632,10 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [focusFiveError, setFocusFiveError] = useState(null);
   const [editingFocusFive, setEditingFocusFive] = useState(false);
   const [focusFiveSearch, setFocusFiveSearch] = useState('');
+  // Today's daily-update text (078_focus_five_daily_updates.sql), keyed by
+  // lowercased email - the same update also emails siya@hackinghub.co.za
+  // directly, this is just a fallback in-app view.
+  const [todaysFocusFiveUpdates, setTodaysFocusFiveUpdates] = useState({});
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1640,6 +1644,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .then((data) => !cancelled && setFocusFive(data))
       .catch((err) => !cancelled && setFocusFiveError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingFocusFive(false));
+    fetchTodaysFocusFiveUpdates().then((data) => !cancelled && setTodaysFocusFiveUpdates(data)).catch((err) => console.error('Could not load today\'s Focus 5 updates:', err));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
@@ -3127,6 +3132,13 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '5px' }}>
                                   Last 1on1: {match.lastMeetingDate ? formatDate(match.lastMeetingDate) : '—'}
                                 </div>
+                                {todaysFocusFiveUpdates[f.memberEmail.toLowerCase()] ? (
+                                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '6px', padding: '6px 8px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)' }}>
+                                    "{todaysFocusFiveUpdates[f.memberEmail.toLowerCase()]}"
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--warning)', marginTop: '5px' }}>No update submitted today yet</div>
+                                )}
                               </>
                             ) : (
                               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '5px' }}>No longer in the roster</div>

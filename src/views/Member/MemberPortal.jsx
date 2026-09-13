@@ -40,6 +40,7 @@ import { recordDailyLogin } from '../../lib/loginStreakData';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchMyJourneyOverrides, setJourneyOverride, clearJourneyOverride } from '../../lib/journeyOverridesData';
+import { amIFocusFive, fetchMyTodaysFocusFiveUpdate, submitFocusFiveDailyUpdate, sendFocusFiveUpdateEmail } from '../../lib/focusFiveData';
 import { fetchMyInterviewsHad } from '../../lib/interviewsHadData';
 import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communityContentData';
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
@@ -1867,6 +1868,45 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     fetchMyInterviewsHad().then(setMyInterviewsHad).catch((err) => console.error('Could not load interviews had:', err));
   }, [isMockSession]);
 
+  // Focus 5 daily update gate (078_focus_five_daily_updates.sql) - whoever
+  // is currently on the Focus 5 list gets a blocking prompt on login (once
+  // a day) asking what they did today, straight to the founder's inbox.
+  // Never relevant for a mock session (no real Focus 5 list to be on).
+  const [focusFiveUpdateGateActive, setFocusFiveUpdateGateActive] = useState(false);
+  const [focusFiveUpdateDraft, setFocusFiveUpdateDraft] = useState('');
+  const [focusFiveUpdateError, setFocusFiveUpdateError] = useState(null);
+  const [submittingFocusFiveUpdate, setSubmittingFocusFiveUpdate] = useState(false);
+  useEffect(() => {
+    if (isMockSession) return;
+    amIFocusFive()
+      .then((isFocusFive) => {
+        if (!isFocusFive) return;
+        return fetchMyTodaysFocusFiveUpdate().then((todaysUpdate) => {
+          if (!todaysUpdate) setFocusFiveUpdateGateActive(true);
+        });
+      })
+      .catch((err) => console.error('Could not check Focus 5 status:', err));
+  }, [isMockSession]);
+
+  const handleSubmitFocusFiveUpdate = async () => {
+    if (!focusFiveUpdateDraft.trim()) return;
+    setSubmittingFocusFiveUpdate(true);
+    setFocusFiveUpdateError(null);
+    try {
+      await submitFocusFiveDailyUpdate(focusFiveUpdateDraft.trim());
+      // Best-effort - the update itself is already saved either way, and a
+      // member shouldn't be stuck behind the gate over a transient email
+      // send failure (Siya can still see it was submitted, just not via
+      // email this once).
+      sendFocusFiveUpdateEmail().catch((err) => console.error('Could not send Focus 5 update email:', err));
+      setFocusFiveUpdateGateActive(false);
+    } catch (err) {
+      setFocusFiveUpdateError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSubmittingFocusFiveUpdate(false);
+    }
+  };
+
   // Per-entry date overrides for "My Journey So Far" (077_journey_timeline_overrides.sql) -
   // cosmetic-only corrections to how a member's own story reads (e.g. a
   // cert's real timeline date is just roadmap_items.updated_at, an
@@ -3206,6 +3246,44 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       timeline,
     };
   };
+
+  // Focus 5 daily update gate - blocks the whole portal (not just one tab,
+  // unlike the Getting Started gate) until today's update is submitted, on
+  // whichever 5 emails currently happen to be on the list. No close/skip -
+  // "must update" as asked, not "should."
+  if (focusFiveUpdateGateActive) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
+        <div className="glass-card" style={{ width: '100%', maxWidth: '480px', padding: '36px 32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <Star size={20} color="var(--warning)" />
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>What did you do today?</h2>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: '18px' }}>
+            You're one of this month's Focus 5 - a quick daily update on what you got done goes straight to your coach before you continue.
+          </p>
+          <textarea
+            value={focusFiveUpdateDraft}
+            onChange={(e) => setFocusFiveUpdateDraft(e.target.value)}
+            placeholder="e.g. Finished 2 TryHackMe rooms, applied to 3 jobs, reviewed my LinkedIn plan for this week..."
+            rows={5}
+            style={{ width: '100%', resize: 'vertical', marginBottom: '12px' }}
+            autoFocus
+          />
+          {focusFiveUpdateError && <p style={{ color: 'var(--danger)', fontSize: '0.82rem', marginBottom: '12px' }}>{focusFiveUpdateError}</p>}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSubmitFocusFiveUpdate}
+            disabled={submittingFocusFiveUpdate || !focusFiveUpdateDraft.trim()}
+            style={{ width: '100%' }}
+          >
+            {submittingFocusFiveUpdate ? 'Submitting...' : 'Submit & Continue'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Router for Member Dashboard
   switch (activeTab) {
