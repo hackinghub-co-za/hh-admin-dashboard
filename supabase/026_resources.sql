@@ -37,7 +37,7 @@
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id BIGSERIAL PRIMARY KEY,
-  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy')),
+  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms')),
   title TEXT NOT NULL,
   format TEXT,
   description TEXT,
@@ -47,11 +47,12 @@ CREATE TABLE IF NOT EXISTS public.resources (
 );
 
 -- Widens the category CHECK for a database where this table already existed
--- before 'LinkedIn Strategy' was added - the inline CHECK above only takes
--- effect on a fresh CREATE TABLE, not an existing one.
+-- before 'LinkedIn Strategy'/'Cyber Platforms' were added - the inline
+-- CHECK above only takes effect on a fresh CREATE TABLE, not an existing
+-- one.
 ALTER TABLE public.resources DROP CONSTRAINT IF EXISTS resources_category_check;
 ALTER TABLE public.resources ADD CONSTRAINT resources_category_check
-  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy'));
+  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms'));
 
 ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 
@@ -353,4 +354,50 @@ SELECT
   NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'Blue Team Labs Online'
+);
+
+-- New "Cyber Platforms" group - the well-known, general-purpose hands-on
+-- practice platforms every track eventually points to, gathered under
+-- their own category instead of scattered across 'Cert Prep'. Immersive
+-- Labs already had its own tile (id 2, seeded above under 'Cert Prep') -
+-- moved here rather than re-inserted, so this doesn't create a duplicate.
+-- TryHackMe, HackTheBox, and LetsDefend never had a Resources tile of
+-- their own before (only referenced inside roadmap items/links), so
+-- those are new inserts.
+UPDATE public.resources SET category = 'Cyber Platforms' WHERE title = 'Immersive Labs — Cyber Million';
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cyber Platforms',
+  'TryHackMe',
+  'Labs',
+  'Guided, browser-based hands-on cybersecurity labs - structured learning paths from networking fundamentals through advanced offensive and defensive security, no local setup required.',
+  'https://tryhackme.com/',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'TryHackMe'
+);
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cyber Platforms',
+  'HackTheBox',
+  'Labs',
+  'Hands-on penetration testing platform - realistic vulnerable machines and challenges spanning beginner to advanced, for practicing real-world offensive security skills.',
+  'https://www.hackthebox.com/',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'HackTheBox'
+);
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cyber Platforms',
+  'LetsDefend',
+  'Labs',
+  'Blue-team-focused SOC training platform - real SIEM alerts, phishing analysis, and incident response simulations for practicing actual defensive analyst work.',
+  'https://letsdefend.io/',
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'LetsDefend'
 );

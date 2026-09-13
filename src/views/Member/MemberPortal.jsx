@@ -2865,9 +2865,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Recommended Podcasts': () => setShowPodcastsGuide(true),
     'KodeKloud': () => setShowKodeKloudGuide(true),
   };
-  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy'];
+  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Cyber Platforms', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy'];
   const RESOURCE_ICON = {
     'Cert Prep': FileText,
+    'Cyber Platforms': Target,
     'Role Roadmaps': Map,
     'Podcasts': Headphones,
     'Books': BookOpen,
