@@ -33,6 +33,27 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
 const PORTAL_URL = 'https://portal.hackinghub.co.za';
 
+// This function is called directly from the admin's own browser session
+// (supabase.functions.invoke(), never a server-to-server/cron call like
+// roadmap-reminder-email), which means a real cross-origin CORS preflight
+// (OPTIONS) request precedes every real POST - the browser sends
+// Authorization/Content-Type headers to a different origin
+// (*.supabase.co). Without an Access-Control-Allow-Origin response (on
+// every response, error paths included) and an explicit OPTIONS handler,
+// the browser blocks the request before it ever reaches this function's
+// code at all - supabase-js surfaces that as the generic, unhelpful
+// "Failed to send a request to the Edge Function", indistinguishable from
+// a real network outage. This function had neither, so it had never once
+// actually succeeded when called the only way it's ever called - matching
+// matchmaker_groups rows going back to 2026-08-24 that are still sitting
+// with notified_at NULL. Same corsHeaders pattern already used by every
+// other browser-invoked function in this project (gemma-review,
+// store-google-refresh-token, etc.).
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 function formatDueDate(dueDate: string | null): string {
   if (!dueDate) return 'a date your coach will confirm soon';
   const d = new Date(`${dueDate}T00:00:00`);
@@ -75,8 +96,11 @@ function groupEmailHtml(firstName: string, activityType: string, teammateNames: 
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
   }
 
   try {
@@ -89,7 +113,7 @@ Deno.serve(async (req) => {
     if (!resendKey) {
       return new Response(JSON.stringify({ error: 'Not configured - missing RESEND_API_KEY secret.' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -101,14 +125,14 @@ Deno.serve(async (req) => {
     if (authError || !callerEmail) {
       return new Response(JSON.stringify({ error: 'Admins only.' }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     const { data: callerRole, error: roleError } = await callerClient.rpc('get_my_role');
     if (roleError || !['admin', 'community_manager'].includes(callerRole)) {
       return new Response(JSON.stringify({ error: 'Admins only.' }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -124,7 +148,7 @@ Deno.serve(async (req) => {
       console.error('matchmaker-group-email: fetching groups failed', groupsError.message);
       return new Response(JSON.stringify({ error: 'Could not load groups.' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -132,7 +156,7 @@ Deno.serve(async (req) => {
     if (targets.length === 0) {
       return new Response(JSON.stringify({ groupsNotified: 0, emailsSent: 0 }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -192,13 +216,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ groupsNotified, emailsSent, failed: failures }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
     console.error('matchmaker-group-email error:', err);
     return new Response(JSON.stringify({ error: 'Something went wrong.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
