@@ -2369,12 +2369,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [addingCert, setAddingCert] = useState(false);
   const [addCertError, setAddCertError] = useState(null);
   const [newCertForm, setNewCertForm] = useState({ member: '', cert: '', date: '' });
-  // Drives the "Certification" dropdown on the Add to Cert Calendar form -
-  // '' is the unselected placeholder, '__other__' reveals a free-text
-  // fallback below it for a cert not in CERT_CATALOG_BY_VENDOR, and
-  // anything else is a real cert name that's written straight into
-  // newCertForm.cert (still the one field the actual submission uses).
-  const [certDropdownValue, setCertDropdownValue] = useState('');
+  // Drives the two-step "Certification" picker on the Add to Cert Calendar
+  // form - certVendor picks the group first (a real vendor from
+  // CERT_CATALOG_BY_VENDOR, or '__other__' for a free-text fallback);
+  // only once that's chosen does the second dropdown show that vendor's
+  // certs, which is what actually writes into newCertForm.cert (still the
+  // one field the real submission uses).
+  const [certVendor, setCertVendor] = useState('');
 
   useEffect(() => {
     if (isMockSession) return;
@@ -2480,7 +2481,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         setCertCalendar(await fetchCertCalendar());
       }
       setNewCertForm({ member: '', cert: '', date: '' });
-      setCertDropdownValue('');
+      setCertVendor('');
       setShowAddCertForm(false);
     } catch (err) {
       setAddCertError(friendlyMemberErrorMessage(err));
@@ -6396,39 +6397,54 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification</label>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification Vendor</label>
                     <select
                       className="form-input"
-                      value={certDropdownValue}
+                      value={certVendor}
                       onChange={(e) => {
-                        const value = e.target.value;
-                        setCertDropdownValue(value);
-                        setNewCertForm({ ...newCertForm, cert: value === '__other__' ? '' : value });
+                        setCertVendor(e.target.value);
+                        setNewCertForm({ ...newCertForm, cert: '' });
                       }}
                       required
                     >
-                      <option value="" disabled>Select a certification...</option>
+                      <option value="" disabled>Select a vendor...</option>
                       {CERT_CATALOG_BY_VENDOR.map((group) => (
-                        <optgroup key={group.vendor} label={group.vendor}>
-                          {group.certs.map((certName) => (
-                            <option key={certName} value={certName}>{certName}</option>
-                          ))}
-                        </optgroup>
+                        <option key={group.vendor} value={group.vendor}>{group.vendor}</option>
                       ))}
                       <option value="__other__">Other (not listed)</option>
                     </select>
-                    {certDropdownValue === '__other__' && (
+                  </div>
+
+                  {certVendor && certVendor !== '__other__' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification</label>
+                      <select
+                        className="form-input"
+                        value={newCertForm.cert}
+                        onChange={(e) => setNewCertForm({ ...newCertForm, cert: e.target.value })}
+                        required
+                      >
+                        <option value="" disabled>Select a certification...</option>
+                        {CERT_CATALOG_BY_VENDOR.find((g) => g.vendor === certVendor)?.certs.map((certName) => (
+                          <option key={certName} value={certName}>{certName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {certVendor === '__other__' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Certification</label>
                       <input
                         type="text"
                         className="form-input"
                         placeholder="e.g. CISSP"
                         value={newCertForm.cert}
                         onChange={(e) => setNewCertForm({ ...newCertForm, cert: e.target.value })}
-                        style={{ marginTop: '8px' }}
                         required
                       />
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Target Exam Date</label>
