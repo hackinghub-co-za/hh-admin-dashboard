@@ -375,6 +375,74 @@ function formatEventCountdown(days) {
   return `In ${days} days`;
 }
 
+// Small vendor/brand logo next to a Resources tab card's title, detected
+// from the (admin/member-typed, free-text) title rather than a stored field
+// - resources has no vendor column, and matching on title is enough to
+// cover the real catalog today without a schema change. Checked in order,
+// first match wins, so a more specific pattern (an exam code) should sit
+// above a broader one if they'd ever both match the same title.
+// simple-icons (cdn.jsdelivr.net) covers most of these with a real,
+// recognizable brand mark - its SVGs have no fill of their own (default to
+// solid black), so every icon renders inside a small white chip for
+// contrast against both themes, exactly like the initials fallback below
+// it does for the handful of brands simple-icons doesn't carry (checked
+// each slug actually resolves before relying on it).
+const RESOURCE_VENDOR_ICONS = [
+  { test: /comptia/i, icon: 'comptia' },
+  { test: /\b(?:SC|AZ|AI)-\d{3}\b/i, icon: 'microsoft' },
+  { test: /\bmicrosoft\b/i, icon: 'microsoft' },
+  { test: /\bcisco\b/i, icon: 'cisco' },
+  { test: /\bGH-\d{3}\b/i, icon: 'github' },
+  { test: /\bgithub\b/i, icon: 'github' },
+  { test: /\btryhackme\b|\bTHM\b/i, icon: 'tryhackme' },
+  { test: /\bportswigger\b/i, icon: 'portswigger' },
+  { test: /\bterraform\b/i, icon: 'hashicorp' },
+  { test: /\blinkedin\b/i, icon: 'linkedin' },
+];
+// Real brands with no simple-icons entry (checked at build time) - a
+// plain colored initial chip rather than a missing/broken image.
+const RESOURCE_VENDOR_INITIALS = [
+  { test: /\bkodekloud\b/i, initials: 'K', color: '#7C3AED' },
+];
+
+function resourceVendorLogo(title) {
+  const iconMatch = RESOURCE_VENDOR_ICONS.find((v) => v.test.test(title));
+  if (iconMatch) return { type: 'icon', icon: iconMatch.icon };
+  const initialsMatch = RESOURCE_VENDOR_INITIALS.find((v) => v.test.test(title));
+  if (initialsMatch) return { type: 'initials', initials: initialsMatch.initials, color: initialsMatch.color };
+  return null;
+}
+
+function ResourceVendorLogo({ title }) {
+  const logo = resourceVendorLogo(title);
+  if (!logo) return null;
+  const chipStyle = {
+    width: '20px',
+    height: '20px',
+    borderRadius: '5px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  };
+  if (logo.type === 'icon') {
+    return (
+      <span style={{ ...chipStyle, background: '#fff', padding: '3px' }}>
+        <img
+          src={`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${logo.icon}.svg`}
+          alt=""
+          style={{ width: '100%', height: '100%' }}
+        />
+      </span>
+    );
+  }
+  return (
+    <span style={{ ...chipStyle, background: logo.color, color: '#fff', fontSize: '0.62rem', fontWeight: 700 }}>
+      {logo.initials}
+    </span>
+  );
+}
+
 // A description that collapses behind a "Read more" toggle once it's past
 // CARD_DESCRIPTION_COLLAPSED_LENGTH - a long one was making event/resource
 // tiles quite tall. Self-contained expand state (not lifted to the parent)
@@ -5613,7 +5681,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <Icon size={13} /> {res.format}
                     </span>
                   </div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{res.title}</h4>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ResourceVendorLogo title={res.title} /> {res.title}
+                  </h4>
                   <ExpandableText text={res.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }} />
                   {IN_APP_ARTICLE_RESOURCES[res.title] ? (
                     <button
