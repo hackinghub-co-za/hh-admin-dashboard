@@ -6,6 +6,62 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.14',
+    date: '2026-09-14',
+    headline: 'Fix your own Cert Calendar mistakes, get emailed about jobs on your track, and a fairer path to competition prizes.',
+    intro: "Edit a Cert Calendar entry yourself instead of asking an admin, get emailed when a Job Board post actually matches your track, two more study guides in Resources, and a recoverable pace checkpoint for staying eligible for TryHackMe competition prizes.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '✏️',
+            title: 'Edit your own Cert Calendar entries',
+            body: "Picked the wrong cert or got the date wrong? Click the pencil on any of your own upcoming entries to fix the cert, date, or cohort yourself - no need to ask an admin.",
+            where: 'Cert Calendar',
+          },
+          {
+            icon: '📖',
+            title: 'Two more study guides in Resources',
+            body: "CompTIA Security+ and CySA+ join Terraform Associate and SC-200 with a real in-app breakdown - what it costs, how long to study, and the official cert overview.",
+            where: 'Resources → Cert Prep',
+          },
+        ],
+      },
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '🎯',
+            title: 'Jobs now tagged to your track, with a real match badge',
+            body: "Job Board posts are now tagged to a track (SOC, Offensive Security, Cloud Security, and more), and anything matching your own coach-assigned track gets a \"Matches your track\" badge and sorts to the top.",
+            where: 'Job Board',
+          },
+          {
+            icon: '📧',
+            title: 'Get emailed when a matching job goes up',
+            body: "If you're marked Interview Ready, a new job matching your track now emails you directly instead of relying on you spotting it in the Job Board tab. Not interested? Every email has a one-click unsubscribe.",
+            where: 'your inbox, when a matching job is posted',
+          },
+        ],
+      },
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🏁',
+            title: 'A fairer path to staying prize-eligible',
+            body: "The TryHackMe competition can now carry pace checkpoints (e.g. a minimum room count by a certain week) that decide PRIZE eligibility only - it never removes you from the leaderboard or stops you logging rooms, and it's fully recoverable: fall behind, then catch up later, and you're prize-eligible again.",
+            where: 'Competitions',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.13',
     date: '2026-09-13',
     headline: 'New practice platforms, real cert breakdowns, and logos everywhere.',
