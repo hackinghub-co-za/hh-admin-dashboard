@@ -8,8 +8,8 @@ export const RELEASE_NOTES = [
   {
     version: '2026.09.14',
     date: '2026-09-14',
-    headline: 'Fix your own Cert Calendar mistakes, get emailed about jobs on your track, and a fairer path to competition prizes.',
-    intro: "Edit a Cert Calendar entry yourself instead of asking an admin, get emailed when a Job Board post actually matches your track, two more study guides in Resources, and a recoverable pace checkpoint for staying eligible for TryHackMe competition prizes.",
+    headline: 'A new Study Hours leaderboard, fix your own Cert Calendar mistakes, and get emailed about jobs on your track.',
+    intro: "A Pomodoro timer with its own streaks and leaderboard, edit a Cert Calendar entry yourself instead of asking an admin, get emailed when a Job Board post actually matches your track, two more study guides in Resources, and a recoverable pace checkpoint for staying eligible for TryHackMe competition prizes.",
     groups: [
       {
         label: 'Growth',
@@ -56,6 +56,12 @@ export const RELEASE_NOTES = [
             title: 'A fairer path to staying prize-eligible',
             body: "The TryHackMe competition can now carry pace checkpoints (e.g. a minimum room count by a certain week) that decide PRIZE eligibility only - it never removes you from the leaderboard or stops you logging rooms, and it's fully recoverable: fall behind, then catch up later, and you're prize-eligible again.",
             where: 'Competitions',
+          },
+          {
+            icon: '⏱️',
+            title: 'Study Hours: a Pomodoro timer with its own leaderboard',
+            body: "Opt in, pick a 25/45/60-minute session, and run it to completion - it logs itself automatically, no admin approval needed. Tracks total time, session count, and a daily streak against every other opted-in member.",
+            where: 'Competitions, right under the TryHackMe leaderboard',
           },
         ],
       },
