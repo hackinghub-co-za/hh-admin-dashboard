@@ -2723,6 +2723,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       { place: '2nd', reward: 'Any certification voucher, up to R3,000', amount: 3000 },
       { place: '3rd', reward: 'Any certification voucher, up to R1,000', amount: 1000 },
     ],
+    eligibilityCheckpoints: [],
   };
   const currentCompetition = dbCompetition || FALLBACK_CURRENT_COMPETITION;
 
@@ -2742,9 +2743,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Members with 0 rooms are never counted as "tied for a prize" just for
   // having RSVP'd and done nothing yet. Returns a lookup keyed by
   // email||member so the table can render each row's real prize, if any.
+  // row.eligible is only ever explicitly false when a real fetch confirmed
+  // it (competitionData.js fails open to true on any error) - undefined
+  // (mock/demo rows, which never carry the field) is treated as eligible
+  // too, same "never wrongly disqualify" bias.
   const computeCompetitionPrizes = (sortedByRooms) => {
     const prizeByKey = {};
-    const contenders = sortedByRooms.filter((row) => row.rooms > 0);
+    const contenders = sortedByRooms.filter((row) => row.rooms > 0 && row.eligible !== false);
     let slot = 0;
     let i = 0;
     while (i < contenders.length && slot < COMPETITION_PRIZE_AMOUNTS.length) {
@@ -6726,6 +6731,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   ))}
                 </div>
               </div>
+              {currentCompetition.eligibilityCheckpoints?.length > 0 && (
+                <div style={{ padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Stay Prize Eligible</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {currentCompetition.eligibilityCheckpoints.map((cp) => (
+                      <div key={cp.week} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '0.82rem' }}>
+                        <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>By week {cp.week}</span>
+                        <span style={{ fontWeight: 600, textAlign: 'right' }}>{cp.min_rooms}+ rooms</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '8px', marginBottom: 0 }}>
+                    Fall behind and catch up later? You're back in - this is checked against your current total, not a one-time cutoff.
+                  </p>
+                </div>
+              )}
             </div>
 
             <style>{`
@@ -6958,7 +6979,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             )}
                           </div>
                         </td>
-                        <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.rooms}</td>
+                        <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>
+                          {row.rooms}
+                          {row.eligible === false && (
+                            <span
+                              title="Behind the current pace checkpoint - catch up to become prize-eligible again."
+                              style={{ marginLeft: '8px', fontSize: '0.68rem', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', background: 'rgba(var(--warning-rgb), 0.15)', border: '1px solid var(--warning)', color: 'var(--warning)' }}
+                            >
+                              Not prize eligible
+                            </span>
+                          )}
+                        </td>
                         <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-cyan)' }}>{row.daysLogged}</td>
                         <td style={{ padding: '14px 12px' }}>
                           {prize ? (

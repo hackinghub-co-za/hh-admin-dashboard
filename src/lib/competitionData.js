@@ -15,11 +15,26 @@ export async function fetchCompetitionStandings() {
     .eq('opted_out', false)
     .order('rooms_completed', { ascending: false });
   if (error) throw error;
+
+  // Prize eligibility (070_competition_seasons.sql) - recoverable pace gate,
+  // computed live server-side. Fails open (everyone stays eligible) rather
+  // than silently disqualifying real prize contenders if this lookup
+  // itself errors - the leaderboard/RSVP flow shouldn't break over it.
+  let eligibleByEmail = {};
+  try {
+    const { data: eligibility, error: eligibilityError } = await supabase.rpc('get_competition_prize_eligibility');
+    if (eligibilityError) throw eligibilityError;
+    eligibleByEmail = Object.fromEntries((eligibility || []).map((r) => [r.email, r.eligible]));
+  } catch {
+    eligibleByEmail = {};
+  }
+
   return (data || []).map((row) => ({
     email: row.email,
     member: row.member_name,
     rooms: row.rooms_completed,
     daysLogged: row.days_logged,
+    eligible: eligibleByEmail[row.email] ?? true,
   }));
 }
 
@@ -51,6 +66,7 @@ function mapCompetition(row) {
     startDate: row.start_date,
     endDate: row.end_date,
     prizes: row.prizes || [],
+    eligibilityCheckpoints: row.eligibility_checkpoints || [],
     isCurrent: row.is_current,
     standingsSnapshot: row.standings_snapshot || null,
     archivedAt: row.archived_at || null,
@@ -64,7 +80,7 @@ function mapCompetition(row) {
 export async function fetchCurrentCompetition() {
   const { data, error } = await supabase
     .from('competitions')
-    .select('id, title, platform, description, start_date, end_date, prizes, is_current')
+    .select('id, title, platform, description, start_date, end_date, prizes, eligibility_checkpoints, is_current')
     .eq('is_current', true)
     .maybeSingle();
   if (error) throw error;
@@ -78,7 +94,7 @@ export async function fetchCurrentCompetition() {
 export async function fetchPastCompetitions() {
   const { data, error } = await supabase
     .from('competitions')
-    .select('id, title, platform, description, start_date, end_date, prizes, is_current, standings_snapshot, archived_at')
+    .select('id, title, platform, description, start_date, end_date, prizes, eligibility_checkpoints, is_current, standings_snapshot, archived_at')
     .eq('is_current', false)
     .order('end_date', { ascending: false });
   if (error) throw error;
@@ -88,7 +104,7 @@ export async function fetchPastCompetitions() {
 /** Admin/CM: archives the current competition (with a full standings
  * snapshot) and starts a new one - competition_standings is cleared for a
  * fresh quarter as part of the same call; daily_room_logs is untouched. */
-export async function startNewCompetition({ title, platform, description, startDate, endDate, prizes }) {
+export async function startNewCompetition({ title, platform, description, startDate, endDate, prizes, eligibilityCheckpoints }) {
   const { data, error } = await supabase.rpc('start_new_competition', {
     p_title: title,
     p_platform: platform || null,
@@ -96,6 +112,7 @@ export async function startNewCompetition({ title, platform, description, startD
     p_start_date: startDate,
     p_end_date: endDate,
     p_prizes: prizes || [],
+    p_eligibility_checkpoints: eligibilityCheckpoints || [],
   });
   if (error) throw error;
   return data;

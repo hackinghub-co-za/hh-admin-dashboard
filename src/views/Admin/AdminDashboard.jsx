@@ -734,6 +734,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const emptyNewCompetitionForm = {
     title: '', platform: 'TryHackMe', description: '', startDate: '', endDate: '',
     firstReward: '', firstAmount: '', secondReward: '', secondAmount: '', thirdReward: '', thirdAmount: '',
+    checkpoint1Week: '', checkpoint1MinRooms: '', checkpoint2Week: '', checkpoint2MinRooms: '', checkpoint3Week: '', checkpoint3MinRooms: '',
   };
   const [newCompetitionForm, setNewCompetitionForm] = useState(emptyNewCompetitionForm);
   const [startingCompetition, setStartingCompetition] = useState(false);
@@ -785,6 +786,9 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       firstReward: c.prizes?.[0]?.reward || '', firstAmount: c.prizes?.[0]?.amount ?? '',
       secondReward: c.prizes?.[1]?.reward || '', secondAmount: c.prizes?.[1]?.amount ?? '',
       thirdReward: c.prizes?.[2]?.reward || '', thirdAmount: c.prizes?.[2]?.amount ?? '',
+      checkpoint1Week: c.eligibilityCheckpoints?.[0]?.week ?? '', checkpoint1MinRooms: c.eligibilityCheckpoints?.[0]?.min_rooms ?? '',
+      checkpoint2Week: c.eligibilityCheckpoints?.[1]?.week ?? '', checkpoint2MinRooms: c.eligibilityCheckpoints?.[1]?.min_rooms ?? '',
+      checkpoint3Week: c.eligibilityCheckpoints?.[2]?.week ?? '', checkpoint3MinRooms: c.eligibilityCheckpoints?.[2]?.min_rooms ?? '',
     } : emptyNewCompetitionForm);
     setShowNewCompetitionForm(true);
   };
@@ -804,6 +808,11 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         f.secondReward.trim() && { place: '2nd', reward: f.secondReward.trim(), amount: Number(f.secondAmount) || 0 },
         f.thirdReward.trim() && { place: '3rd', reward: f.thirdReward.trim(), amount: Number(f.thirdAmount) || 0 },
       ].filter(Boolean);
+      const eligibilityCheckpoints = [
+        f.checkpoint1Week !== '' && f.checkpoint1MinRooms !== '' && { week: Number(f.checkpoint1Week), min_rooms: Number(f.checkpoint1MinRooms) },
+        f.checkpoint2Week !== '' && f.checkpoint2MinRooms !== '' && { week: Number(f.checkpoint2Week), min_rooms: Number(f.checkpoint2MinRooms) },
+        f.checkpoint3Week !== '' && f.checkpoint3MinRooms !== '' && { week: Number(f.checkpoint3Week), min_rooms: Number(f.checkpoint3MinRooms) },
+      ].filter(Boolean);
       await startNewCompetition({
         title: f.title.trim(),
         platform: f.platform.trim(),
@@ -811,6 +820,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         startDate: f.startDate,
         endDate: f.endDate,
         prizes,
+        eligibilityCheckpoints,
       });
       await loadCompetitions();
       setShowNewCompetitionForm(false);
@@ -5080,6 +5090,13 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                           ))}
                         </div>
                       )}
+                      {currentCompetitionRow.eligibilityCheckpoints?.length > 0 && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                          {currentCompetitionRow.eligibilityCheckpoints.map((cp) => (
+                            <span key={cp.week} className="badge badge-success" style={{ fontSize: '0.68rem' }}>Week {cp.week}: {cp.min_rooms}+ rooms to stay eligible</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 )}
@@ -5124,6 +5141,24 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                           type="number" min="0" className="form-input" placeholder="Rand value"
                           value={newCompetitionForm[`${key}Amount`]}
                           onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, [`${key}Amount`]: e.target.value })}
+                        />
+                      </div>
+                    ))}
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      Prize eligibility checkpoints (optional - leave a row blank to skip it). Recoverable: a member behind at one checkpoint who catches up by a later one becomes prize-eligible again, they're never permanently cut.
+                    </label>
+                    {[1, 2, 3].map((n) => (
+                      <div key={n} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>By week</span>
+                        <input
+                          type="number" min="1" className="form-input" placeholder="e.g. 2"
+                          value={newCompetitionForm[`checkpoint${n}Week`]}
+                          onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, [`checkpoint${n}Week`]: e.target.value })}
+                        />
+                        <input
+                          type="number" min="0" className="form-input" placeholder="Min rooms, e.g. 10"
+                          value={newCompetitionForm[`checkpoint${n}MinRooms`]}
+                          onChange={(e) => setNewCompetitionForm({ ...newCompetitionForm, [`checkpoint${n}MinRooms`]: e.target.value })}
                         />
                       </div>
                     ))}

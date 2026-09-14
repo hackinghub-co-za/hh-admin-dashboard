@@ -42,6 +42,18 @@ CREATE TABLE IF NOT EXISTS public.competitions (
   -- only part the tie-splitting math (computeCompetitionPrizes in
   -- MemberPortal.jsx) actually reads; `reward` is display text only.
   prizes JSONB NOT NULL DEFAULT '[]'::jsonb,
+  -- [{ "week": 2, "min_rooms": 10 }, ...] - optional pace checkpoints for
+  -- PRIZE eligibility only (never removes anyone from the leaderboard or
+  -- blocks them from continuing to log rooms). "week" is measured from
+  -- start_date (week 2 = start_date + 14 days). Recoverable by design: see
+  -- get_competition_prize_eligibility() below - a member behind at week 2
+  -- who catches up by week 4 is prize-eligible again, since eligibility is
+  -- always computed against CURRENT total rooms vs. the toughest checkpoint
+  -- reached so far, never a frozen point-in-time snapshot. Empty array
+  -- (the default) means no pace requirement at all - every past competition
+  -- and any new one an admin doesn't configure this for behaves exactly as
+  -- before.
+  eligibility_checkpoints JSONB NOT NULL DEFAULT '[]'::jsonb,
   is_current BOOLEAN NOT NULL DEFAULT false,
   -- Filled in only once this row is archived (see start_new_competition
   -- below) - a snapshot of every competition_standings row exactly as it
@@ -51,6 +63,12 @@ CREATE TABLE IF NOT EXISTS public.competitions (
   archived_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- CREATE TABLE IF NOT EXISTS above is a no-op on a database where this file
+-- already ran before eligibility_checkpoints existed, so it needs its own
+-- explicit ALTER to actually land on an existing table.
+ALTER TABLE public.competitions
+  ADD COLUMN IF NOT EXISTS eligibility_checkpoints JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- At most one competition is ever "current" at a time.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_competitions_one_current
@@ -100,13 +118,18 @@ WHERE NOT EXISTS (SELECT 1 FROM public.competitions WHERE is_current = true);
 -- through never leaves the app with zero "current" competitions or a
 -- lost snapshot. Same admin/community_manager pairing every other
 -- Competitions-area action in this project uses.
+-- Signature grew a 7th param (p_eligibility_checkpoints) - dropped first
+-- since CREATE OR REPLACE with a different parameter list creates a second
+-- overloaded function instead of replacing the original.
+DROP FUNCTION IF EXISTS public.start_new_competition(TEXT, TEXT, TEXT, DATE, DATE, JSONB);
 CREATE OR REPLACE FUNCTION public.start_new_competition(
   p_title TEXT,
   p_platform TEXT,
   p_description TEXT,
   p_start_date DATE,
   p_end_date DATE,
-  p_prizes JSONB
+  p_prizes JSONB,
+  p_eligibility_checkpoints JSONB DEFAULT '[]'::jsonb
 )
 RETURNS BIGINT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -147,12 +170,64 @@ BEGIN
   -- deliberately untouched - see this file's header comment.
   DELETE FROM public.competition_standings;
 
-  INSERT INTO public.competitions (title, platform, description, start_date, end_date, prizes, is_current)
-  VALUES (trim(p_title), p_platform, p_description, p_start_date, p_end_date, coalesce(p_prizes, '[]'::jsonb), true)
+  INSERT INTO public.competitions (title, platform, description, start_date, end_date, prizes, eligibility_checkpoints, is_current)
+  VALUES (trim(p_title), p_platform, p_description, p_start_date, p_end_date, coalesce(p_prizes, '[]'::jsonb), coalesce(p_eligibility_checkpoints, '[]'::jsonb), true)
   RETURNING id INTO v_new_id;
 
   RETURN v_new_id;
 END;
 $$;
-GRANT EXECUTE ON FUNCTION public.start_new_competition(TEXT, TEXT, TEXT, DATE, DATE, JSONB) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.start_new_competition(TEXT, TEXT, TEXT, DATE, DATE, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_new_competition(TEXT, TEXT, TEXT, DATE, DATE, JSONB, JSONB) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_new_competition(TEXT, TEXT, TEXT, DATE, DATE, JSONB, JSONB) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- PRIZE ELIGIBILITY (recoverable pace gate)
+-- =========================================================================
+-- Computed live, never stored - a member's eligible flag is always
+-- CURRENT total approved rooms (since the competition's start_date) vs. the
+-- toughest checkpoint whose date has already arrived. That makes it
+-- naturally recoverable: fall behind at week 2, catch up by week 4, and
+-- you're prize-eligible again the moment your running total clears week
+-- 4's (higher) bar - there's no frozen "you already failed week 2" state
+-- to carry forward. If no checkpoint's date has arrived yet (or
+-- eligibility_checkpoints is empty), everyone is eligible.
+--
+-- Every approved member can call this - same non-sensitive shape
+-- (email + a boolean) as competition_standings' own read policy, and the
+-- leaderboard already shows everyone's real room count publicly anyway.
+CREATE OR REPLACE FUNCTION public.get_competition_prize_eligibility()
+RETURNS TABLE (email TEXT, eligible BOOLEAN)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_start DATE;
+  v_required INTEGER;
+BEGIN
+  SELECT start_date INTO v_start FROM public.competitions WHERE is_current = true;
+  IF v_start IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(MAX((cp->>'min_rooms')::INTEGER), 0)
+  INTO v_required
+  FROM public.competitions c, jsonb_array_elements(c.eligibility_checkpoints) cp
+  WHERE c.is_current = true
+    AND v_start + ((cp->>'week')::INTEGER * 7) <= (timezone('utc'::text, now()))::date;
+
+  RETURN QUERY
+  SELECT
+    cs.email,
+    (COALESCE((
+      SELECT SUM(drl.room_count)
+      FROM public.daily_room_logs drl
+      WHERE drl.member_email = cs.email
+        AND drl.status = 'Approved'
+        AND drl.log_date >= v_start
+    ), 0) >= v_required) AS eligible
+  FROM public.competition_standings cs;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_competition_prize_eligibility() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_competition_prize_eligibility() FROM PUBLIC, anon;
