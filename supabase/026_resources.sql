@@ -331,7 +331,7 @@ WHERE NOT EXISTS (
 -- practice, not a course to work through.
 INSERT INTO public.resources (category, title, format, description, link, created_by)
 SELECT
-  'Cert Prep',
+  'Cyber Platforms',
   'BreachLab',
   'Labs',
   'Free, no-paywall SSH server of real vulnerable Linux boxes to root - no multiple-choice quizzes, no walkthroughs, no certification fee. 13 tracks, scored, with an "operatives" community rather than a customer base.',
@@ -346,7 +346,7 @@ WHERE NOT EXISTS (
 -- team counterpart to offense-focused practice platforms.
 INSERT INTO public.resources (category, title, format, description, link, created_by)
 SELECT
-  'Cert Prep',
+  'Cyber Platforms',
   'Blue Team Labs Online',
   'Labs',
   'A gamified cyber range for defenders - hands-on SOC/blue team scenario challenges (log analysis, digital forensics, malware analysis) to test and showcase real defensive skills.',
