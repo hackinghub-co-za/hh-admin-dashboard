@@ -15,6 +15,15 @@
 // logPortalEvent('job_posted')), it emails every member whose roadmap_track
 // matches the new listing's track.
 //
+// Default recipient population is deliberately narrower than the in-app
+// badge: track match AND job_readiness = 'Interview Ready' (JOB_READINESS_STAGES,
+// memberOptions.js) - a founder-specified default, since a job push is only
+// actually useful to someone the coach has already assessed as ready to
+// interview, not everyone merely assigned to that track. The in-app badge
+// on the Job Board tab is unaffected by this and still shows for anyone on
+// the matching track regardless of readiness stage - this only narrows who
+// gets proactively emailed.
+//
 // Any signed-in, allowed member can trigger this - job_board is a
 // self-service "member owns their own submission" table, not admin-only, so
 // this checks is_member_allowed() the same way push-new-job (hh-app's own
@@ -146,6 +155,7 @@ Deno.serve(async (req) => {
       .from('member_profiles')
       .select('email, full_name')
       .eq('roadmap_track', job.track)
+      .eq('job_readiness', 'Interview Ready')
       .eq('job_recommendation_opted_out', false)
       .neq('status', 'Left');
     if (recipientsError) {
