@@ -72,6 +72,41 @@ CREATE POLICY "admins manage job board"
   ON public.job_board FOR ALL
   USING (public.is_admin(auth.uid()));
 
+-- =========================================================================
+-- JOB RECOMMENDATION EMAIL OPT-OUT
+-- =========================================================================
+-- A track-matched job now gets a "Matches your track" badge and sorts to
+-- the top on the member's own Job Board tab (rule-based, job_board.track =
+-- member_profiles.roadmap_track), but that's silent - a member has no way
+-- to know a new match exists unless they happen to reopen the tab. The
+-- job-recommendation-email Edge Function closes that gap: fired
+-- fire-and-forget right after a job is posted (same trigger point as
+-- logPortalEvent('job_posted') in MemberPortal.jsx/AdminDashboard.jsx),
+-- it emails every member whose roadmap_track matches the new listing's
+-- track.
+--
+-- Same "one opt-out per email type" convention as roadmap_reminder_opted_out
+-- (028_roadmap.sql), linkedin_reminder_opted_out (059_linkedin_weekly_post.sql),
+-- and breakdown_email_opted_out (068_weekly_breakdowns.sql) - a member who
+-- doesn't want job-match emails can still want every other email type, so
+-- this is its own column, not a shared "opted out of everything" flag.
+ALTER TABLE public.member_profiles
+  ADD COLUMN IF NOT EXISTS job_recommendation_opted_out BOOLEAN NOT NULL DEFAULT false;
+
+-- Same anonymous, no-token unsubscribe as unsubscribe_from_linkedin_reminders
+-- (059) and unsubscribe_from_breakdown_emails (068) - a cold click from an
+-- email client with no Supabase session, so this can't require auth.jwt().
+CREATE OR REPLACE FUNCTION public.unsubscribe_from_job_recommendations(p_email TEXT)
+RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  UPDATE public.member_profiles
+  SET job_recommendation_opted_out = true
+  WHERE email = lower(p_email);
+$$;
+GRANT EXECUTE ON FUNCTION public.unsubscribe_from_job_recommendations(TEXT) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.unsubscribe_from_job_recommendations(TEXT) FROM PUBLIC;
+
 -- Seed with the 5 roles that were previously hardcoded.
 INSERT INTO public.job_board (id, title, company, location, type, salary, description, tags, track, posted_date) VALUES
   (1, 'SOC Analyst (Junior)', 'Nclose', 'Johannesburg (Hybrid)', 'Full-Time', 'R18,000 – R25,000 / month', 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who''ve completed Security+.', 'Blue Team,Security+,Entry Level', 'SOC', '2026-08-01'),

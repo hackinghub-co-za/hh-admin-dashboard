@@ -47,7 +47,7 @@ import {
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown, unapproveBreakdown, deleteBreakdown } from '../../lib/breakdownsData';
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, uploadEventImage } from '../../lib/eventsData';
-import { fetchJobBoard, addJobListing, deleteJobListing } from '../../lib/jobBoardData';
+import { fetchJobBoard, addJobListing, deleteJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
@@ -1620,6 +1620,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       try {
         const added = await addJobListing({ ...newJob, createdBy: user?.email });
         setJobListings([added, ...jobListings]);
+        notifyJobRecommendationMatches(added.id).catch(() => {});
       } catch (err) {
         setJobListingsError(friendlyErrorMessage(err));
         return;

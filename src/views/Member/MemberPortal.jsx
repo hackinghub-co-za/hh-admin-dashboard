@@ -31,7 +31,7 @@ import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCertCalendar, addCertCalendarEntry, updateMyCertCalendarEntry } from '../../lib/certCalendarData';
 import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScore, computeReadinessPercent } from '../../lib/examReadinessData';
-import { fetchJobBoard, addJobListing } from '../../lib/jobBoardData';
+import { fetchJobBoard, addJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchMyJobApplications, addJobApplication, updateJobApplication, deleteJobApplication } from '../../lib/jobApplicationsData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
@@ -2822,7 +2822,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         };
         setJobListings((prev) => [mockJob, ...prev]);
       } else {
-        await addJobListing({
+        const added = await addJobListing({
           title: newJobForm.title.trim(),
           company: newJobForm.company.trim(),
           location: newJobForm.location.trim(),
@@ -2836,6 +2836,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         });
         setJobListings(await fetchJobBoard());
         logPortalEvent('job_posted').catch(() => {});
+        notifyJobRecommendationMatches(added.id).catch(() => {});
       }
       setNewJobForm({ title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', track: '', link: '' });
       setShowAddJobForm(false);

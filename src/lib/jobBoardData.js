@@ -72,3 +72,15 @@ export async function deleteJobListing(jobId) {
   const { error } = await supabase.from('job_board').delete().eq('id', jobId);
   if (error) throw error;
 }
+
+/** Notifies every member whose roadmap track matches this listing's track
+ * (job-recommendation-email Edge Function) - fire-and-forget, called right
+ * after a job is successfully posted. A listing with no track is a no-op
+ * server-side, so this is safe to call unconditionally. Callers should
+ * .catch() this the same way logPortalEvent already is - a failed
+ * notification email should never block or surface an error on the post
+ * itself. */
+export async function notifyJobRecommendationMatches(jobId) {
+  const { error } = await supabase.functions.invoke('job-recommendation-email', { body: { job_id: jobId } });
+  if (error) throw error;
+}
