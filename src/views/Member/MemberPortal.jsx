@@ -18,6 +18,7 @@ import PodcastsGuideModal from '../../components/PodcastsGuideModal';
 import KodeKloudGuideModal from '../../components/KodeKloudGuideModal';
 import MatchmakerWheelModal from '../../components/MatchmakerWheelModal';
 import CompetitionRulesModal from '../../components/CompetitionRulesModal';
+import StudyHoursRulesModal from '../../components/StudyHoursRulesModal';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SecurityPanel from '../../components/SecurityPanel';
@@ -35,6 +36,7 @@ import { fetchJobBoard, addJobListing, notifyJobRecommendationMatches } from '..
 import { fetchResources, addResource } from '../../lib/resourcesData';
 import { fetchMyJobApplications, addJobApplication, updateJobApplication, deleteJobApplication } from '../../lib/jobApplicationsData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
+import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
@@ -131,6 +133,8 @@ import {
   Trash2,
   Check,
   RotateCcw,
+  Pause,
+  Timer,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -2637,6 +2641,121 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showRsvpConfetti, setShowRsvpConfetti] = useState(false);
   const [justRsvpedEmail, setJustRsvpedEmail] = useState(null);
   const [showCompetitionRules, setShowCompetitionRules] = useState(false);
+
+  // Study Hours (081_study_sessions.sql) - Phase 1 of the Competitive Study
+  // Mode plan: a Pomodoro timer + self-verifying session log + leaderboard,
+  // shown right under the TryHackMe leaderboard. Opt-in, mirroring the
+  // competition RSVP pattern exactly (join/opt-out, soft - stats persist
+  // across an opt-out/rejoin).
+  const MOCK_STUDY_LEADERBOARD = [
+    { email: 'teammate@example.com', member: 'Test Teammate', minutes: 175, sessions: 5, streak: 3 },
+  ];
+  const [studyLeaderboard, setStudyLeaderboard] = useState(isMockSession ? MOCK_STUDY_LEADERBOARD : []);
+  const [loadingStudyLeaderboard, setLoadingStudyLeaderboard] = useState(!isMockSession);
+  const [studyError, setStudyError] = useState(null);
+  const [joiningStudyHours, setJoiningStudyHours] = useState(false);
+  const [showStudyHoursRules, setShowStudyHoursRules] = useState(false);
+  const [studyDurationMinutes, setStudyDurationMinutes] = useState(25);
+  const [studyTrack, setStudyTrack] = useState('');
+  const [studySecondsLeft, setStudySecondsLeft] = useState(25 * 60);
+  const [studyRunning, setStudyRunning] = useState(false);
+  const [justCompletedStudySession, setJustCompletedStudySession] = useState(false);
+  const studyIntervalRef = useRef(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchStudyLeaderboard()
+      .then((data) => !cancelled && setStudyLeaderboard(data))
+      .catch((err) => !cancelled && setStudyError(friendlyMemberErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingStudyLeaderboard(false));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  const hasJoinedStudyHours = studyLeaderboard.some((row) => row.email === user?.email);
+
+  const handleStudyHoursJoinToggle = async () => {
+    const displayName = user?.user_metadata?.full_name || user?.email || 'You';
+    const alreadyJoined = hasJoinedStudyHours;
+    if (isMockSession) {
+      setStudyLeaderboard((prev) =>
+        alreadyJoined
+          ? prev.filter((row) => row.email !== user?.email)
+          : prev.some((row) => row.email === user?.email)
+            ? prev
+            : [...prev, { email: user?.email, member: displayName, minutes: 0, sessions: 0, streak: 0 }]
+      );
+      return;
+    }
+    setJoiningStudyHours(true);
+    setStudyError(null);
+    try {
+      if (alreadyJoined) {
+        await optOutOfStudyHours();
+      } else {
+        await joinStudyHours(displayName);
+      }
+      setStudyLeaderboard(await fetchStudyLeaderboard());
+    } catch (err) {
+      setStudyError(friendlyMemberErrorMessage(err));
+    } finally {
+      setJoiningStudyHours(false);
+    }
+  };
+
+  // Picking a duration updates the idle timer's face directly (the
+  // duration buttons are disabled while running, so this never touches a
+  // session already in progress) - a plain user action, not something to
+  // route through an effect.
+  const handleSelectStudyDuration = (mins) => {
+    setStudyDurationMinutes(mins);
+    setStudySecondsLeft(mins * 60);
+  };
+
+  // Fires when the countdown actually reaches 0 - the countdown itself is
+  // the proof a session happened, same trust upgrade Quiz Duel made over a
+  // plain honor system (log_study_session re-validates planned_minutes
+  // server-side too, so this can't be spoofed into logging more than the
+  // timer actually offered).
+  const handleCompleteStudySession = useCallback(async () => {
+    setStudyRunning(false);
+    setJustCompletedStudySession(true);
+    setTimeout(() => setJustCompletedStudySession(false), 3000);
+    if (isMockSession) {
+      setStudyLeaderboard((prev) => prev.map((row) => row.email === user?.email
+        ? { ...row, minutes: row.minutes + studyDurationMinutes, sessions: row.sessions + 1, streak: row.streak + 1 }
+        : row
+      ));
+      return;
+    }
+    try {
+      await logStudySession(studyTrack || null, studyDurationMinutes);
+      setStudyLeaderboard(await fetchStudyLeaderboard());
+    } catch (err) {
+      setStudyError(friendlyMemberErrorMessage(err));
+    }
+  }, [isMockSession, studyDurationMinutes, studyTrack, user?.email]);
+
+  useEffect(() => {
+    if (!studyRunning) return undefined;
+    studyIntervalRef.current = setInterval(() => {
+      setStudySecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(studyIntervalRef.current);
+          handleCompleteStudySession();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(studyIntervalRef.current);
+  }, [studyRunning, handleCompleteStudySession]);
+
+  const handleStudyTimerReset = () => {
+    setStudyRunning(false);
+    setStudySecondsLeft(studyDurationMinutes * 60);
+  };
+  const studyTimerDisplay = `${String(Math.floor(studySecondsLeft / 60)).padStart(2, '0')}:${String(studySecondsLeft % 60).padStart(2, '0')}`;
 
   useEffect(() => {
     if (isMockSession) return;
@@ -7008,6 +7127,135 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </table>
             )}
           </div>
+
+          {/* Study Hours (081_study_sessions.sql) - Phase 1 of the
+              Competitive Study Mode plan, shown right under the TryHackMe
+              leaderboard per that request. Opt-in: the timer and
+              leaderboard both stay hidden behind a join step, same "Yes
+              I'm In" pattern the competition above uses. */}
+          <div className="glass-card" style={{ marginTop: '32px', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Timer size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Study Hours</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              A Pomodoro focus timer with its own leaderboard and streaks - pick a length, run it to completion, and it logs itself. No admin approval needed, the timer is the proof.
+            </p>
+
+            {!hasJoinedStudyHours ? (
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleStudyHoursJoinToggle}
+                  disabled={joiningStudyHours}
+                  style={{ justifyContent: 'center' }}
+                >
+                  {joiningStudyHours ? 'Joining...' : 'Track My Study Hours'}
+                </button>
+                <button type="button" className="btn btn-secondary" style={{ justifyContent: 'center' }} onClick={() => setShowStudyHoursRules(true)}>
+                  <BookOpen size={14} /> Learn More
+                </button>
+                {studyError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{studyError}</span>}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 220px) 1fr', gap: '24px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                    <div className="mono" style={{ fontFamily: 'var(--font-mono)', fontSize: '2.4rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{studyTimerDisplay}</div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => setStudyRunning((r) => !r)}
+                        style={{ justifyContent: 'center' }}
+                      >
+                        {studyRunning ? <><Pause size={14} /> Pause</> : <><PlayCircle size={14} /> Start</>}
+                      </button>
+                      <button className="btn btn-secondary" onClick={handleStudyTimerReset} title="Reset" style={{ justifyContent: 'center' }}>
+                        <RotateCcw size={14} />
+                      </button>
+                    </div>
+                    {justCompletedStudySession && (
+                      <span style={{ fontSize: '0.78rem', color: 'var(--accent-green, var(--accent-cyan))', fontWeight: 600 }}>Session logged!</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Session length</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {[25, 45, 60].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            disabled={studyRunning}
+                            onClick={() => handleSelectStudyDuration(mins)}
+                            className={`btn ${studyDurationMinutes === mins ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ fontSize: '0.8rem', padding: '8px 14px', opacity: studyRunning ? 0.6 : 1 }}
+                          >
+                            {mins} min
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Track (optional)</label>
+                      <select className="form-input" value={studyTrack} disabled={studyRunning} onChange={(e) => setStudyTrack(e.target.value)} style={{ maxWidth: '260px' }}>
+                        <option value="">General / not track-specific</option>
+                        {ROADMAP_TRACKS.filter((t) => t !== 'Not Assigned').map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem' }} onClick={() => setShowStudyHoursRules(true)}>
+                        <BookOpen size={14} /> Learn More
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStudyHoursJoinToggle}
+                        disabled={joiningStudyHours || studyRunning}
+                        title={studyRunning ? "Finish or reset your current session first" : "Opt out of Study Hours"}
+                        style={{ background: 'none', border: 'none', cursor: studyRunning ? 'not-allowed' : 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem', textDecoration: 'underline' }}
+                      >
+                        {joiningStudyHours ? 'Opting out...' : 'Opt out of Study Hours'}
+                      </button>
+                    </div>
+                    {studyError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{studyError}</span>}
+                  </div>
+                </div>
+
+                {loadingStudyLeaderboard && <p style={{ color: 'var(--text-muted)' }}>Loading standings...</p>}
+                {!loadingStudyLeaderboard && studyLeaderboard.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Clock size={13} /> Total Time</span>
+                        </th>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Sessions</th>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> Streak</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...studyLeaderboard].sort((a, b) => b.minutes - a.minutes).map((row) => (
+                        <tr key={row.email || row.member} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
+                          <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}{row.email === user?.email ? ' (you)' : ''}</td>
+                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{Math.floor(row.minutes / 60)}h {row.minutes % 60}m</td>
+                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.sessions}</td>
+                          <td style={{ padding: '14px 12px', fontWeight: 700, color: row.streak > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
+                            {row.streak > 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> {row.streak}</span> : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
+          </div>
+
+          {showStudyHoursRules && <StudyHoursRulesModal onClose={() => setShowStudyHoursRules(false)} />}
 
           {/* Shared across Duels, Room Races, and Trivia below - every
               action across all three (challenge, accept/decline, submit
