@@ -9,7 +9,7 @@ import { supabase } from './supabase';
 export async function fetchJobBoard() {
   const { data, error } = await supabase
     .from('job_board')
-    .select('id, title, company, location, type, salary, description, tags, link, posted_date, created_by')
+    .select('id, title, company, location, type, salary, description, tags, track, link, posted_date, created_by')
     .order('posted_date', { ascending: false });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -21,6 +21,7 @@ export async function fetchJobBoard() {
     salary: row.salary || '',
     description: row.description || '',
     tags: row.tags ? row.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+    track: row.track || null,
     link: row.link || '',
     posted: row.posted_date,
     createdBy: row.created_by || '',
@@ -29,7 +30,7 @@ export async function fetchJobBoard() {
 
 /** Adds a new job listing, self-attributed to the current member (RLS
  * enforces created_by can only ever be the caller's own email). */
-export async function addJobListing({ title, company, location, type, salary, description, tags, link, createdBy }) {
+export async function addJobListing({ title, company, location, type, salary, description, tags, track, link, createdBy }) {
   const { data, error } = await supabase
     .from('job_board')
     .insert({
@@ -40,6 +41,7 @@ export async function addJobListing({ title, company, location, type, salary, de
       salary: salary || null,
       description: description || null,
       tags: Array.isArray(tags) ? tags.join(',') : (tags || null),
+      track: track || null,
       link: link || null,
       created_by: createdBy.toLowerCase(),
     })
@@ -55,6 +57,7 @@ export async function addJobListing({ title, company, location, type, salary, de
     salary: data.salary || '',
     description: data.description || '',
     tags: data.tags ? data.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+    track: data.track || null,
     link: data.link || '',
     posted: data.posted_date,
     createdBy: data.created_by || '',

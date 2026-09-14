@@ -58,7 +58,7 @@ import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete 
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
 import { renderMarkdown } from '../../lib/renderMarkdown';
-import { LOCATIONS, SPECIALTIES, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -624,11 +624,11 @@ const MOCK_EXAM_READINESS = [
 ];
 
 const MOCK_JOB_BOARD = [
-  { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', posted: '2026-08-01', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who\'ve completed Security+.', tags: ['Blue Team', 'Security+', 'Entry Level'], link: '' },
-  { id: 2, title: 'Junior Penetration Tester', company: 'Telspace Systems', location: 'Cape Town (Onsite)', type: 'Full-Time', posted: '2026-07-28', salary: 'R22,000 – R30,000 / month', description: 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.', tags: ['Red Team', 'OSCP', 'Junior'], link: '' },
-  { id: 3, title: 'GRC Analyst Intern', company: 'Standard Bank', location: 'Johannesburg (Onsite)', type: 'Internship', posted: '2026-08-05', salary: 'R8,000 / month stipend', description: '6-month internship supporting risk assessments and compliance documentation within the group security office.', tags: ['GRC', 'Internship'], link: '' },
-  { id: 4, title: 'Cloud Security Engineer', company: 'Entelect', location: 'Remote (SA)', type: 'Full-Time', posted: '2026-07-20', salary: 'R45,000 – R60,000 / month', description: 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.', tags: ['Cloud Security', 'AZ-500', 'Mid-Level'], link: '' },
-  { id: 5, title: 'Vulnerability Assessment Contractor', company: 'Private Client (via HH Network)', location: 'Remote', type: 'Contract', posted: '2026-08-06', salary: 'Project-based', description: 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.', tags: ['Red Team', 'Contract'], link: '' },
+  { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', posted: '2026-08-01', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who\'ve completed Security+.', tags: ['Blue Team', 'Security+', 'Entry Level'], track: 'SOC', link: '' },
+  { id: 2, title: 'Junior Penetration Tester', company: 'Telspace Systems', location: 'Cape Town (Onsite)', type: 'Full-Time', posted: '2026-07-28', salary: 'R22,000 – R30,000 / month', description: 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.', tags: ['Red Team', 'OSCP', 'Junior'], track: 'Offensive Security', link: '' },
+  { id: 3, title: 'GRC Analyst Intern', company: 'Standard Bank', location: 'Johannesburg (Onsite)', type: 'Internship', posted: '2026-08-05', salary: 'R8,000 / month stipend', description: '6-month internship supporting risk assessments and compliance documentation within the group security office.', tags: ['GRC', 'Internship'], track: 'GRC', link: '' },
+  { id: 4, title: 'Cloud Security Engineer', company: 'Entelect', location: 'Remote (SA)', type: 'Full-Time', posted: '2026-07-20', salary: 'R45,000 – R60,000 / month', description: 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.', tags: ['Cloud Security', 'AZ-500', 'Mid-Level'], track: 'Cloud Security', link: '' },
+  { id: 5, title: 'Vulnerability Assessment Contractor', company: 'Private Client (via HH Network)', location: 'Remote', type: 'Contract', posted: '2026-08-06', salary: 'Project-based', description: 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.', tags: ['Red Team', 'Contract'], track: 'Offensive Security', link: '' },
 ];
 
 const MOCK_RESOURCES = [
@@ -2786,7 +2786,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [addingJob, setAddingJob] = useState(false);
   const [addJobError, setAddJobError] = useState(null);
   const [newJobForm, setNewJobForm] = useState({
-    title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', link: '',
+    title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', track: '', link: '',
   });
 
   useEffect(() => {
@@ -2816,6 +2816,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           salary: newJobForm.salary.trim(),
           description: newJobForm.description.trim(),
           tags: tagList,
+          track: newJobForm.track || null,
           link: newJobForm.link.trim(),
           posted: new Date().toISOString().slice(0, 10),
         };
@@ -2829,13 +2830,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           salary: newJobForm.salary.trim(),
           description: newJobForm.description.trim(),
           tags: tagList,
+          track: newJobForm.track || null,
           link: newJobForm.link.trim(),
           createdBy: user?.email,
         });
         setJobListings(await fetchJobBoard());
         logPortalEvent('job_posted').catch(() => {});
       }
-      setNewJobForm({ title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', link: '' });
+      setNewJobForm({ title: '', company: '', location: '', type: 'Full-Time', salary: '', description: '', tags: '', track: '', link: '' });
       setShowAddJobForm(false);
     } catch (err) {
       setAddJobError(friendlyMemberErrorMessage(err));
@@ -2850,9 +2852,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Internship': 'badge-danger',
   };
 
-  const filteredJobs = jobTypeFilter === 'All'
+  // Rule-based recommendation: a job whose track matches the member's own
+  // coach-assigned roadmapTrack is a real signal worth surfacing - no LLM
+  // call needed, just a direct equality match against job_board.track
+  // (025_job_board.sql). Array.prototype.sort is stable, so within each
+  // group (match / no match) the existing posted-date-desc order from
+  // fetchJobBoard is preserved.
+  const filteredJobs = (jobTypeFilter === 'All'
     ? jobListings
-    : jobListings.filter(j => j.type === jobTypeFilter);
+    : jobListings.filter(j => j.type === jobTypeFilter)
+  ).slice().sort((a, b) => {
+    const aMatch = roadmapTrack && a.track === roadmapTrack ? 1 : 0;
+    const bMatch = roadmapTrack && b.track === roadmapTrack ? 1 : 0;
+    return bMatch - aMatch;
+  });
 
   // Resources — cert prep, role roadmaps, podcasts, books, interview prep, CV templates
   const [resourceCategoryFilter, setResourceCategoryFilter] = useState('All');
@@ -5769,6 +5782,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                       <span className={`badge ${JOB_TYPE_BADGE[job.type] || 'badge-success'}`}>{job.type}</span>
+                      {roadmapTrack && job.track === roadmapTrack && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, padding: '3px 10px', borderRadius: '9999px', background: 'rgba(53, 208, 224, 0.12)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)' }}>
+                          <Sparkles size={11} /> Matches your track
+                        </span>
+                      )}
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Posted {formatDate(job.posted)}</span>
                     </div>
                     <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{job.title}</h4>
@@ -5893,6 +5911,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       value={newJobForm.tags}
                       onChange={(e) => setNewJobForm({ ...newJobForm, tags: e.target.value })}
                     />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Track (optional)</label>
+                    <select className="form-input" value={newJobForm.track} onChange={(e) => setNewJobForm({ ...newJobForm, track: e.target.value })}>
+                      <option value="">General / not track-specific</option>
+                      {ROADMAP_TRACKS.filter((t) => t !== 'Not Assigned').map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
                   </div>
 
                   <div>

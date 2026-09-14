@@ -1591,12 +1591,12 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // the member side ever needed to delete a listing before.
   const JOB_TYPES = ['Full-Time', 'Contract', 'Internship'];
   const [jobListings, setJobListings] = useState(isMockSession ? [
-    { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts and triaging incidents.', tags: ['Blue Team', 'Entry Level'], link: '', posted: '2026-08-01' },
+    { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts and triaging incidents.', tags: ['Blue Team', 'Entry Level'], track: 'SOC', link: '', posted: '2026-08-01' },
   ] : []);
   const [loadingJobListings, setLoadingJobListings] = useState(!isMockSession);
   const [jobListingsError, setJobListingsError] = useState(null);
   const [showAddJobForm, setShowAddJobForm] = useState(false);
-  const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: JOB_TYPES[0], salary: '', description: '', tags: '', link: '' });
+  const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: JOB_TYPES[0], salary: '', description: '', tags: '', track: '', link: '' });
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1625,7 +1625,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         return;
       }
     }
-    setNewJob({ title: '', company: '', location: '', type: JOB_TYPES[0], salary: '', description: '', tags: '', link: '' });
+    setNewJob({ title: '', company: '', location: '', type: JOB_TYPES[0], salary: '', description: '', tags: '', track: '', link: '' });
     setShowAddJobForm(false);
   };
 
@@ -5889,6 +5889,10 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                 <input className="form-input" placeholder="Tags, comma-separated (optional)" value={newJob.tags} onChange={(e) => setNewJob({ ...newJob, tags: e.target.value })} />
                 <input className="form-input" placeholder="Apply link (optional)" value={newJob.link} onChange={(e) => setNewJob({ ...newJob, link: e.target.value })} />
               </div>
+              <select className="form-input" value={newJob.track} onChange={(e) => setNewJob({ ...newJob, track: e.target.value })}>
+                <option value="">Track: General / not track-specific</option>
+                {ROADMAP_TRACKS.filter((t) => t !== 'Not Assigned').map((t) => <option key={t} value={t}>Track: {t}</option>)}
+              </select>
               <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-end' }}>Add Job</button>
             </form>
           )}
@@ -5918,6 +5922,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{job.type}</span>
+                        {job.track && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{job.track}</span>}
                         <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{job.title}</h4>
                       </div>
                       <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>

@@ -31,6 +31,20 @@ CREATE TABLE IF NOT EXISTS public.job_board (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- track: which roadmap track this role is actually a fit for, so it can be
+-- matched against a member's own coach-assigned roadmapTrack (029_member_roadmaps.sql)
+-- for a simple rule-based "recommended for you" on the Job Board tab - no
+-- LLM call needed, just a direct equality match. Same vocabulary as
+-- ROADMAP_TRACKS/SPECIALTIES (memberOptions.js) minus the 'Not Assigned'
+-- placeholder, since a listing is either a fit for one specific track or
+-- it's cross-track/general (left NULL - e.g. a broad IT role) - never
+-- "not assigned" the way a member's own track can be.
+ALTER TABLE public.job_board ADD COLUMN IF NOT EXISTS track TEXT;
+
+ALTER TABLE public.job_board DROP CONSTRAINT IF EXISTS job_board_track_check;
+ALTER TABLE public.job_board ADD CONSTRAINT job_board_track_check
+  CHECK (track IS NULL OR track IN ('SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'));
+
 ALTER TABLE public.job_board ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "members read job board" ON public.job_board;
@@ -59,13 +73,21 @@ CREATE POLICY "admins manage job board"
   USING (public.is_admin(auth.uid()));
 
 -- Seed with the 5 roles that were previously hardcoded.
-INSERT INTO public.job_board (id, title, company, location, type, salary, description, tags, posted_date) VALUES
-  (1, 'SOC Analyst (Junior)', 'Nclose', 'Johannesburg (Hybrid)', 'Full-Time', 'R18,000 – R25,000 / month', 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who''ve completed Security+.', 'Blue Team,Security+,Entry Level', '2026-08-01'),
-  (2, 'Junior Penetration Tester', 'Telspace Systems', 'Cape Town (Onsite)', 'Full-Time', 'R22,000 – R30,000 / month', 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.', 'Red Team,OSCP,Junior', '2026-07-28'),
-  (3, 'GRC Analyst Intern', 'Standard Bank', 'Johannesburg (Onsite)', 'Internship', 'R8,000 / month stipend', '6-month internship supporting risk assessments and compliance documentation within the group security office.', 'GRC,Internship', '2026-08-05'),
-  (4, 'Cloud Security Engineer', 'Entelect', 'Remote (SA)', 'Full-Time', 'R45,000 – R60,000 / month', 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.', 'Cloud Security,AZ-500,Mid-Level', '2026-07-20'),
-  (5, 'Vulnerability Assessment Contractor', 'Private Client (via HH Network)', 'Remote', 'Contract', 'Project-based', 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.', 'Red Team,Contract', '2026-08-06')
+INSERT INTO public.job_board (id, title, company, location, type, salary, description, tags, track, posted_date) VALUES
+  (1, 'SOC Analyst (Junior)', 'Nclose', 'Johannesburg (Hybrid)', 'Full-Time', 'R18,000 – R25,000 / month', 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who''ve completed Security+.', 'Blue Team,Security+,Entry Level', 'SOC', '2026-08-01'),
+  (2, 'Junior Penetration Tester', 'Telspace Systems', 'Cape Town (Onsite)', 'Full-Time', 'R22,000 – R30,000 / month', 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.', 'Red Team,OSCP,Junior', 'Offensive Security', '2026-07-28'),
+  (3, 'GRC Analyst Intern', 'Standard Bank', 'Johannesburg (Onsite)', 'Internship', 'R8,000 / month stipend', '6-month internship supporting risk assessments and compliance documentation within the group security office.', 'GRC,Internship', 'GRC', '2026-08-05'),
+  (4, 'Cloud Security Engineer', 'Entelect', 'Remote (SA)', 'Full-Time', 'R45,000 – R60,000 / month', 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.', 'Cloud Security,AZ-500,Mid-Level', 'Cloud Security', '2026-07-20'),
+  (5, 'Vulnerability Assessment Contractor', 'Private Client (via HH Network)', 'Remote', 'Contract', 'Project-based', 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.', 'Red Team,Contract', 'Offensive Security', '2026-08-06')
 ON CONFLICT (id) DO NOTHING;
+
+-- Backfill track for the 5 seed rows above on a database where this file
+-- already ran before the track column existed.
+UPDATE public.job_board SET track = 'SOC' WHERE id = 1 AND track IS NULL;
+UPDATE public.job_board SET track = 'Offensive Security' WHERE id = 2 AND track IS NULL;
+UPDATE public.job_board SET track = 'GRC' WHERE id = 3 AND track IS NULL;
+UPDATE public.job_board SET track = 'Cloud Security' WHERE id = 4 AND track IS NULL;
+UPDATE public.job_board SET track = 'Offensive Security' WHERE id = 5 AND track IS NULL;
 
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
 -- the first member-added listing gets id 6, not a collision with 1-5.
