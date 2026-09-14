@@ -2656,7 +2656,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [joiningStudyHours, setJoiningStudyHours] = useState(false);
   const [showStudyHoursRules, setShowStudyHoursRules] = useState(false);
   const [studyDurationMinutes, setStudyDurationMinutes] = useState(25);
-  const [studyTrack, setStudyTrack] = useState('');
+  // Same two-step vendor-then-cert picker Cert Calendar uses
+  // (CERT_CATALOG_BY_VENDOR, memberOptions.js) - studyCertVendor picks the
+  // group first (a real vendor, or '__other__' for free text), studyCert is
+  // what actually gets logged.
+  const [studyCertVendor, setStudyCertVendor] = useState('');
+  const [studyCert, setStudyCert] = useState('');
   const [studySecondsLeft, setStudySecondsLeft] = useState(25 * 60);
   const [studyRunning, setStudyRunning] = useState(false);
   const [justCompletedStudySession, setJustCompletedStudySession] = useState(false);
@@ -2729,12 +2734,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       return;
     }
     try {
-      await logStudySession(studyTrack || null, studyDurationMinutes);
+      await logStudySession(studyCert || null, studyDurationMinutes);
       setStudyLeaderboard(await fetchStudyLeaderboard());
     } catch (err) {
       setStudyError(friendlyMemberErrorMessage(err));
     }
-  }, [isMockSession, studyDurationMinutes, studyTrack, user?.email]);
+  }, [isMockSession, studyDurationMinutes, studyCert, user?.email]);
 
   useEffect(() => {
     if (!studyRunning) return undefined;
@@ -7198,11 +7203,67 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </div>
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Track (optional)</label>
-                      <select className="form-input" value={studyTrack} disabled={studyRunning} onChange={(e) => setStudyTrack(e.target.value)} style={{ maxWidth: '260px' }}>
-                        <option value="">General / not track-specific</option>
-                        {ROADMAP_TRACKS.filter((t) => t !== 'Not Assigned').map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Studying for (optional)</label>
+                      {/* Same two-step vendor-then-cert picker as Cert
+                          Calendar's Add form - a plain <select> can't
+                          render a logo inside an <option>. */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px', maxHeight: '160px', overflowY: 'auto', padding: '2px', opacity: studyRunning ? 0.6 : 1, pointerEvents: studyRunning ? 'none' : 'auto' }}>
+                        {CERT_CATALOG_BY_VENDOR.map((group) => (
+                          <button
+                            key={group.vendor}
+                            type="button"
+                            onClick={() => { setStudyCertVendor(group.vendor); setStudyCert(''); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 9px', borderRadius: 'var(--border-radius-sm)',
+                              border: studyCertVendor === group.vendor ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                              background: studyCertVendor === group.vendor ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
+                              cursor: 'pointer', textAlign: 'left', fontSize: '0.76rem', color: 'var(--text-primary)',
+                            }}
+                          >
+                            <VendorLogo title={group.vendor} size={16} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.vendor}</span>
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => { setStudyCertVendor('__other__'); setStudyCert(''); }}
+                          style={{
+                            display: 'flex', alignItems: 'center', padding: '7px 9px', borderRadius: 'var(--border-radius-sm)',
+                            border: studyCertVendor === '__other__' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                            background: studyCertVendor === '__other__' ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
+                            cursor: 'pointer', textAlign: 'left', fontSize: '0.76rem', color: 'var(--text-primary)',
+                          }}
+                        >
+                          Other / not sure yet
+                        </button>
+                      </div>
+
+                      {studyCertVendor && studyCertVendor !== '__other__' && (
+                        <select
+                          className="form-input"
+                          value={studyCert}
+                          disabled={studyRunning}
+                          onChange={(e) => setStudyCert(e.target.value)}
+                          style={{ marginTop: '8px', maxWidth: '260px' }}
+                        >
+                          <option value="" disabled>Select a certification...</option>
+                          {CERT_CATALOG_BY_VENDOR.find((g) => g.vendor === studyCertVendor)?.certs.map((certName) => (
+                            <option key={certName} value={certName}>{certName}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {studyCertVendor === '__other__' && (
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. CISSP"
+                          value={studyCert}
+                          disabled={studyRunning}
+                          onChange={(e) => setStudyCert(e.target.value)}
+                          style={{ marginTop: '8px', maxWidth: '260px' }}
+                        />
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem' }} onClick={() => setShowStudyHoursRules(true)}>

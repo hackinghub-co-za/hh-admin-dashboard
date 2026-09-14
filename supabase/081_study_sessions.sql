@@ -56,10 +56,15 @@ CREATE POLICY "admins manage study leaderboard"
 CREATE TABLE IF NOT EXISTS public.study_sessions (
   id BIGSERIAL PRIMARY KEY,
   member_email TEXT NOT NULL,
-  -- ROADMAP_TRACKS vocabulary (memberOptions.js), nullable - a session
-  -- doesn't have to be tagged to a track. Same list job_board.track
-  -- (025_job_board.sql) already validates against.
-  track TEXT CHECK (track IS NULL OR track IN ('SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC')),
+  -- What cert this session was actually studying toward - same
+  -- CERT_CATALOG_BY_VENDOR vendor-then-cert picker Cert Calendar already
+  -- uses (memberOptions.js), including its "Other" free-text escape hatch.
+  -- Free text, not a CHECK enum: the real catalog is dozens of certs across
+  -- a dozen vendors plus "Other", too large and too likely to grow for a
+  -- SQL IN() list to track - same reasoning cert_calendar.cert_name
+  -- (024_cert_calendar.sql) already free-texts. Nullable - a session
+  -- doesn't have to be tagged to a cert.
+  cert TEXT,
   -- The only three lengths the in-app timer actually offers - checked here
   -- too, not just client-side, since this RPC is reachable directly by any
   -- authenticated member and a fake huge value would inflate the
@@ -67,6 +72,22 @@ CREATE TABLE IF NOT EXISTS public.study_sessions (
   planned_minutes INTEGER NOT NULL CHECK (planned_minutes IN (25, 45, 60)),
   logged_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Renames a column from an earlier run of this file, before study sessions
+-- were tagged to a specific cert instead of a broad roadmap track - guarded
+-- on the old column actually existing, since a fresh apply's CREATE TABLE
+-- above already creates `cert` directly (a plain RENAME COLUMN would error
+-- with "column track does not exist" in that case).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'study_sessions' AND column_name = 'track'
+  ) THEN
+    ALTER TABLE public.study_sessions RENAME COLUMN track TO cert;
+  END IF;
+END $$;
+ALTER TABLE public.study_sessions DROP CONSTRAINT IF EXISTS study_sessions_track_check;
 
 ALTER TABLE public.study_sessions ENABLE ROW LEVEL SECURITY;
 
@@ -131,7 +152,10 @@ REVOKE EXECUTE ON FUNCTION public.opt_out_of_study_hours() FROM PUBLIC, anon;
 -- doesn't add 3 to the streak) - if the last counted day was yesterday the
 -- streak extends by one, if it was already today the streak is untouched,
 -- any bigger gap resets it to 1.
-CREATE OR REPLACE FUNCTION public.log_study_session(p_track TEXT, p_planned_minutes INTEGER)
+-- Parameter renamed from p_track to p_cert - dropped first since CREATE OR
+-- REPLACE can't rename an existing parameter in place.
+DROP FUNCTION IF EXISTS public.log_study_session(TEXT, INTEGER);
+CREATE OR REPLACE FUNCTION public.log_study_session(p_cert TEXT, p_planned_minutes INTEGER)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -153,8 +177,8 @@ BEGIN
     RAISE EXCEPTION 'Join Study Hours before logging a session.';
   END IF;
 
-  INSERT INTO public.study_sessions (member_email, track, planned_minutes)
-  VALUES (v_email, p_track, p_planned_minutes);
+  INSERT INTO public.study_sessions (member_email, cert, planned_minutes)
+  VALUES (v_email, p_cert, p_planned_minutes);
 
   UPDATE public.study_leaderboard
   SET total_minutes = total_minutes + p_planned_minutes,
