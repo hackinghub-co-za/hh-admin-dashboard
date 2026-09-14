@@ -169,6 +169,40 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'CompTIA CySA+ Study Guide'
 );
 
+-- CompTIA Security+ study guide - real content (official cert overview,
+-- price, recommended study duration) hardcoded as an in-app article in
+-- MemberPortal.jsx (SecurityPlusGuideModal.jsx). This row just catalogs
+-- it in Resources with a short teaser; the "Read Guide" button opens the
+-- real content in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'CompTIA Security+ Study Guide',
+  'Guide',
+  'A vendor-neutral entry point into cybersecurity - what it costs, how long to study, and the official CompTIA overview.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'CompTIA Security+ Study Guide'
+);
+
+-- CompTIA CySA+ study guide - real content (official cert overview,
+-- price, recommended study duration) hardcoded as an in-app article in
+-- MemberPortal.jsx (CySAPlusGuideModal.jsx). This row just catalogs it
+-- in Resources with a short teaser; the "Read Guide" button opens the
+-- real content in-app.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'CompTIA CySA+ Study Guide',
+  'Guide',
+  'The intermediate step up from Security+ into proactive defensive operations - threat intelligence, log analysis, incident response. What it costs and how long to study.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'CompTIA CySA+ Study Guide'
+);
+
 -- Same move again for Terraform Associate - real content (official cert
 -- page, KodeKloud's paid course, HashiCorp's own free tutorials) hardcoded
 -- as an in-app article in MemberPortal.jsx
