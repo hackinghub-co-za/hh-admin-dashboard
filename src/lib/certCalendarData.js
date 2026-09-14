@@ -67,8 +67,9 @@ export async function updateCertCalendarResult(id, result) {
 
 /** Admin/community_manager/mentor: edits any field of an existing cert
  * calendar entry (not just the result). RLS (widened in
- * 067_permission_scopes.sql) rejects this for a plain member - they can only
- * ever add their own entry, never edit one. */
+ * 067_permission_scopes.sql) rejects this for a plain member - see
+ * updateMyCertCalendarEntry() below for a member's own, narrower edit
+ * path. */
 export async function updateCertCalendarEntry(id, { member, cert, date, cohort, result, memberEmail }) {
   const { error } = await supabase
     .from('cert_calendar')
@@ -81,6 +82,22 @@ export async function updateCertCalendarEntry(id, { member, cert, date, cohort, 
       member_email: memberEmail ? memberEmail.toLowerCase() : null,
     })
     .eq('id', id);
+  if (error) throw error;
+}
+
+/** A member editing their OWN entry - only cert/date/cohort, never
+ * member/member_email/created_by (identity of the entry) or result
+ * (self-marking your own exam Passed/Failed would defeat the point of
+ * that field being admin-verified). The RPC itself re-checks ownership
+ * server-side, so there's nothing to trust the client on here.
+ * (update_my_cert_calendar_entry, 024_cert_calendar.sql) */
+export async function updateMyCertCalendarEntry(id, { cert, date, cohort }) {
+  const { error } = await supabase.rpc('update_my_cert_calendar_entry', {
+    p_id: id,
+    p_cert: cert,
+    p_date: date,
+    p_cohort: cohort || null,
+  });
   if (error) throw error;
 }
 

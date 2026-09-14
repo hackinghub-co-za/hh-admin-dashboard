@@ -86,6 +86,46 @@ CREATE POLICY "admins manage cert calendar"
   ON public.cert_calendar FOR ALL
   USING (public.is_admin(auth.uid()));
 
+-- Members had a way to ADD an entry but never to edit one afterward - no
+-- member UPDATE policy existed at all, so a member who picked the wrong
+-- cert or fat-fingered a date had no way to fix it themselves and had to
+-- ask an admin. A plain RLS UPDATE policy can't cleanly express "these
+-- columns yes, that one no" (RLS has no OLD/NEW the way a trigger does),
+-- so this is a narrow RPC instead: only the caller's own row, and only
+-- cert_name/date/cohort - never member/member_email/created_by (identity
+-- of the entry) or result (self-marking your own exam Passed/Failed would
+-- defeat the whole point of that field being admin-verified).
+CREATE OR REPLACE FUNCTION public.update_my_cert_calendar_entry(p_id BIGINT, p_cert TEXT, p_date DATE, p_cohort TEXT DEFAULT NULL)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_owner_email TEXT;
+BEGIN
+  SELECT member_email INTO v_owner_email FROM public.cert_calendar WHERE id = p_id;
+
+  IF v_owner_email IS NULL THEN
+    RAISE EXCEPTION 'Cert entry not found.';
+  END IF;
+  IF v_owner_email != v_email THEN
+    RAISE EXCEPTION 'You can only edit your own cert calendar entries.';
+  END IF;
+  IF p_cert IS NULL OR trim(p_cert) = '' THEN
+    RAISE EXCEPTION 'Certification name is required.';
+  END IF;
+  IF p_date IS NULL THEN
+    RAISE EXCEPTION 'Target exam date is required.';
+  END IF;
+
+  UPDATE public.cert_calendar
+  SET cert_name = trim(p_cert), date = p_date, cohort = p_cohort
+  WHERE id = p_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.update_my_cert_calendar_entry(BIGINT, TEXT, DATE, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.update_my_cert_calendar_entry(BIGINT, TEXT, DATE, TEXT) FROM PUBLIC, anon;
+
 -- Seed with only the real target dates - ids 1-7 below were placeholder
 -- entries (reconciled from two hardcoded arrays that predated this table),
 -- never real member exam dates.
