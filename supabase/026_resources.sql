@@ -37,7 +37,7 @@
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id BIGSERIAL PRIMARY KEY,
-  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms')),
+  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills')),
   title TEXT NOT NULL,
   format TEXT,
   description TEXT,
@@ -47,12 +47,12 @@ CREATE TABLE IF NOT EXISTS public.resources (
 );
 
 -- Widens the category CHECK for a database where this table already existed
--- before 'LinkedIn Strategy'/'Cyber Platforms' were added - the inline
--- CHECK above only takes effect on a fresh CREATE TABLE, not an existing
--- one.
+-- before 'LinkedIn Strategy'/'Cyber Platforms'/'Soft Skills' were added -
+-- the inline CHECK above only takes effect on a fresh CREATE TABLE, not an
+-- existing one.
 ALTER TABLE public.resources DROP CONSTRAINT IF EXISTS resources_category_check;
 ALTER TABLE public.resources ADD CONSTRAINT resources_category_check
-  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms'));
+  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills'));
 
 ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 
@@ -434,4 +434,23 @@ SELECT
   NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'LetsDefend'
+);
+
+-- New 'Soft Skills' category - real content (curated TED talks and
+-- workplace-communication guides on communication, public speaking,
+-- presence, feedback, and email/workplace etiquette) hardcoded as an
+-- in-app article in MemberPortal.jsx (SoftSkillsGuideModal.jsx). This row
+-- just catalogs it in Resources with a short teaser; the "Read Guide"
+-- button opens the real content, with real clickable links, in-app - same
+-- move already made for the Podcasts/LinkedIn Playbook/cert study guides.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Soft Skills',
+  'Soft Skills Playlist',
+  'Guide',
+  'Technical skill gets you the interview - communication, presence, and workplace etiquette are what get you hired and promoted. A curated playlist on conversation, public speaking, feedback, and email/workplace etiquette.',
+  NULL,
+  NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.resources WHERE title = 'Soft Skills Playlist'
 );
