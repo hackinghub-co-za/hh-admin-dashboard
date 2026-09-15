@@ -50,7 +50,14 @@ INSERT INTO public.community_broadcasts (id, emoji, title, body, sort_order) VAL
   (2, '🏆', 'TryHackMe Competition kicks off 31 August:', 'Complete as many rooms as you can this quarter — 1st place wins a R6,000 cert voucher, 2nd R3,000, 3rd R1,000. Get logging early once it opens.', 20)
 ON CONFLICT (id) DO NOTHING;
 
-SELECT setval(pg_get_serial_sequence('public.community_broadcasts', 'id'), 2, true);
+-- GREATEST against the real current max, not a bare 2 - a bare value here
+-- would silently rewind the sequence backward past real admin-added rows
+-- every time this file gets safely re-run for an unrelated later change,
+-- causing every subsequent insert to collide with an existing id (the same
+-- bug this fixed in cert_calendar/job_board - see those files' own
+-- comments). Matches community_wins' setval below, which already had this
+-- fix.
+SELECT setval(pg_get_serial_sequence('public.community_broadcasts', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM public.community_broadcasts), 2), true);
 
 -- Corrects the row above for anyone who already ran this migration before the
 -- competition's real start date and prize tiers were finalized (was "24

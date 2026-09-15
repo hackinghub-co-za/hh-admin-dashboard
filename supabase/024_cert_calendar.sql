@@ -154,4 +154,13 @@ DELETE FROM public.cert_calendar WHERE id IN (1, 2, 3, 4, 5, 6, 7);
 
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
 -- the first member-added entry gets id 10, not a collision with 1-9.
-SELECT setval(pg_get_serial_sequence('public.cert_calendar', 'id'), 9, true);
+-- GREATEST against the real current max, not a bare 9 - a bare value here
+-- silently rewinds the sequence backward past every real member-added row
+-- every time this file gets safely re-run for an unrelated later change
+-- (e.g. adding a new RPC to this same file), which then makes every
+-- subsequent member's "Add to Cert Calendar" fail with a primary-key
+-- collision until the sequence catches back up on its own through repeated
+-- failures. Real incident: this exact regression happened on 2026-09-15
+-- after 024 was re-run the same day it originally shipped, to add
+-- update_my_cert_calendar_entry() below.
+SELECT setval(pg_get_serial_sequence('public.cert_calendar', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM public.cert_calendar), 9), true);

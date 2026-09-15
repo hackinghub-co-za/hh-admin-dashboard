@@ -126,4 +126,11 @@ UPDATE public.job_board SET track = 'Offensive Security' WHERE id = 5 AND track 
 
 -- Keep the auto-increment sequence ahead of the manually-seeded ids above, so
 -- the first member-added listing gets id 6, not a collision with 1-5.
-SELECT setval(pg_get_serial_sequence('public.job_board', 'id'), 5, true);
+-- GREATEST against the real current max, not a bare 5 - a bare value here
+-- silently rewinds the sequence backward past every real member-posted job
+-- every time this file gets safely re-run for an unrelated later change
+-- (e.g. adding the track column above), which then makes every subsequent
+-- "Add Job" fail with a primary-key collision until the sequence catches
+-- back up on its own through repeated failures. Same real regression this
+-- fixed in cert_calendar (024_cert_calendar.sql) on 2026-09-15.
+SELECT setval(pg_get_serial_sequence('public.job_board', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM public.job_board), 5), true);
