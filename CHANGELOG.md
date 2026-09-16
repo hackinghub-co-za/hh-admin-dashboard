@@ -18,6 +18,70 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.16
+
+### Added
+- **Soft Skills Playlist** — a new "Soft Skills" Resources category with
+  one curated tile covering communication, public speaking, presence,
+  feedback, and workplace/email etiquette: four TED talks and two Indeed
+  Career Guide articles, real links checked live before shipping, same
+  in-app-guide pattern as Recommended Podcasts and the cert study guides.
+  (`026_resources.sql`, `SoftSkillsGuideModal.jsx`)
+
+## 2026.09.15
+
+### Fixed
+- **Members unable to add Cert Calendar entries** — `cert_calendar`'s id
+  sequence was silently reset backward to 9 when `024_cert_calendar.sql`
+  was safely re-run to add `update_my_cert_calendar_entry()`, because its
+  trailing `setval()` used a bare hardcoded value instead of `GREATEST`-ing
+  against the table's real current max id. Every "Add to Cert Calendar"
+  since then collided with an existing row and failed. A full scan of
+  every sequence in the database found the identical unguarded pattern had
+  also broken `job_board` and `community_broadcasts` the same way - all
+  three fixed live and root-caused in their migration files
+  (`024_cert_calendar.sql`, `025_job_board.sql`,
+  `044_community_content.sql`) so re-running any of them again can't
+  regress this. Same bug class as the `community_wins`/`community_events`
+  sequence fixes on 2026.09.13.
+
+## 2026.09.14
+
+### Added
+- **Cert Calendar member self-edit** — a member can now fix the cert,
+  date, or cohort on their own upcoming Cert Calendar entry (pencil icon
+  on the card) instead of asking an admin. A new `SECURITY DEFINER` RPC
+  (`update_my_cert_calendar_entry`) enforces ownership server-side and
+  only ever touches `cert_name`/`date`/`cohort` - never the identity
+  fields or the admin-verified `result`. (`024_cert_calendar.sql`)
+- **CompTIA Security+ and CySA+ study guides** — join Terraform Associate
+  and SC-200 with a real in-app breakdown in Resources. (`026_resources.sql`)
+- **Job Board track tags + match badge** — listings are now tagged to a
+  roadmap track (SOC, Offensive Security, Cloud Security, DevSecOps, IAM,
+  AI Security, GRC); anything matching a member's own coach-assigned track
+  gets a "Matches your track" badge and sorts to the top of the Job Board
+  tab. (`025_job_board.sql`)
+- **Job recommendation emails** — a member marked Interview Ready is now
+  emailed when a new job matching their track is posted, with a one-click
+  unsubscribe. New `job-recommendation-email` / `job-recommendation-unsubscribe`
+  Edge Functions, `member_profiles.job_recommendation_opted_out`.
+- **Recoverable competition prize-eligibility checkpoints** — the
+  TryHackMe competition can now carry pace checkpoints (e.g. a minimum
+  room count by a given week) that gate PRIZE eligibility only - never the
+  leaderboard spot or the ability to keep logging rooms. Computed live
+  against current total rooms vs. the toughest checkpoint reached so far,
+  so falling behind and catching up later restores eligibility
+  automatically - no admin action needed either way.
+  (`070_competition_seasons.sql`, `get_competition_prize_eligibility()`)
+- **Study Hours (Phase 1)** — a Pomodoro focus timer (25/45/60 minutes)
+  with its own streaks and leaderboard, shown under the TryHackMe
+  leaderboard on the Competitions tab. Opt-in, same RSVP pattern as the
+  competition above; a completed session logs itself automatically, no
+  admin approval queue - the countdown reaching zero is the proof.
+  Sessions tag a specific cert (the same vendor-then-cert picker Cert
+  Calendar uses), not a broad track. (`081_study_sessions.sql`,
+  `StudyHoursRulesModal.jsx`)
+
 ## 2026.09.13
 
 ### Added

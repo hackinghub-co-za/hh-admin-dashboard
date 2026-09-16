@@ -6,6 +6,38 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.16',
+    date: '2026-09-16',
+    headline: 'A Soft Skills Playlist in Resources, and Cert Calendar adds are reliable again.',
+    intro: "A new Soft Skills Playlist in Resources - real talks and reads on communication, presence, and workplace etiquette - plus a fix for a bug that was blocking some members from adding to their Cert Calendar.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🤝',
+            title: 'Soft Skills Playlist',
+            body: "Technical skill gets you the interview - communication, presence, and workplace etiquette are what get you hired and promoted. Six curated watches/reads on conversation, public speaking, feedback, and email/workplace etiquette.",
+            where: 'Resources → Soft Skills',
+          },
+        ],
+      },
+      {
+        label: 'Fixed',
+        color: '#94a3b8',
+        items: [
+          {
+            icon: '🗓️',
+            title: 'Cert Calendar adds are reliable again',
+            body: "Some members were getting an error when trying to add a new Cert Calendar entry - fixed. If you hit this, it should work now.",
+            where: 'Cert Calendar',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.14',
     date: '2026-09-14',
     headline: 'A new Study Hours leaderboard, fix your own Cert Calendar mistakes, and get emailed about jobs on your track.',
