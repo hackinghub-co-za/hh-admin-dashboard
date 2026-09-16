@@ -177,3 +177,30 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_members_overdue_for_1on1(INTEGER) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_members_overdue_for_1on1(INTEGER) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- PART 4: MEMBER-FACING "have I actually had a 1-on-1 yet" CHECK - the
+-- Getting Started checklist's "Book your first 1-on-1" step
+-- (006_onboarding.sql) only ever got ticked off by a member manually
+-- clicking the checkbox after navigating to Meetings - a member who
+-- genuinely booked and attended a real session, then never came back to
+-- tick the box, stayed stuck "incomplete" and could get hard-gated to
+-- Dashboard/Meetings/Members (App.jsx's GETTING_STARTED_GRACE_DAYS) despite
+-- having actually done it. This lets MemberPortal.jsx auto-complete that
+-- step the moment either real source (a staff-logged session, or an
+-- admin's synced calendar) shows evidence - same two sources
+-- get_members_overdue_for_1on1 above already merges, just scoped to the
+-- caller's own email and returned as a boolean instead of a roster.
+CREATE OR REPLACE FUNCTION public.have_i_had_a_1on1()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT
+    EXISTS (SELECT 1 FROM public.one_on_one_logs WHERE member_email = lower(auth.jwt() ->> 'email'))
+    OR EXISTS (SELECT 1 FROM public.calendar_synced_meetings WHERE member_email = lower(auth.jwt() ->> 'email'));
+$$;
+GRANT EXECUTE ON FUNCTION public.have_i_had_a_1on1() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.have_i_had_a_1on1() FROM PUBLIC, anon;

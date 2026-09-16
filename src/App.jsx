@@ -76,6 +76,13 @@ export default function App() {
   // whole layout pre-render - two of the six steps need the real Meetings
   // and Members tabs to actually complete.
   const [gettingStartedGateActive, setGettingStartedGateActive] = useState(false);
+  // Whole days left before the hard gate above kicks in (null once the
+  // checklist is done, or before the one-time intro finishes) - lets
+  // MemberPortal show a "you're about to lose most of the portal" warning
+  // ahead of time instead of the gate just appearing with no notice, which
+  // is how a lot of members ended up locked to Dashboard/Meetings/Members
+  // without understanding why.
+  const [gettingStartedDaysRemaining, setGettingStartedDaysRemaining] = useState(null);
   // Whether this member has opted out of the Roadmap track entirely
   // (079_roadmap_exclusions.sql, admin-managed) - Sidebar hides the My
   // Roadmap tab and MemberPortal hides its Dashboard preview tile when
@@ -236,12 +243,15 @@ export default function App() {
                 ? (Date.now() - new Date(graceStartedAt).getTime()) / (1000 * 60 * 60 * 24)
                 : 0;
               setGettingStartedGateActive(!allStepsDone && daysSinceGraceStart > GETTING_STARTED_GRACE_DAYS);
+              setGettingStartedDaysRemaining(allStepsDone ? null : GETTING_STARTED_GRACE_DAYS - daysSinceGraceStart);
             } catch (err) {
               console.error('Getting Started gate check failed - not blocking over a transient error:', err.message);
               setGettingStartedGateActive(false);
+              setGettingStartedDaysRemaining(null);
             }
           } else {
             setGettingStartedGateActive(false);
+            setGettingStartedDaysRemaining(null);
           }
         }
       }
@@ -497,6 +507,7 @@ export default function App() {
             isMockSession={isMockSession}
             autoOpenProfileEdit={autoOpenProfileEdit}
             gettingStartedGateActive={gettingStartedGateActive}
+            gettingStartedDaysRemaining={gettingStartedDaysRemaining}
             roadmapExcluded={roadmapExcluded}
             onGettingStartedComplete={handleGettingStartedComplete}
           />

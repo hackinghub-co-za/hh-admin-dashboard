@@ -58,7 +58,7 @@ import {
   fetchCurrentTriviaQuestion, fetchTriviaLeaderboard, joinTriviaSession, buzzInTrivia,
 } from '../../lib/triviaData';
 import { fetchTodaysRecommendedRoom } from '../../lib/recommendedRoomData';
-import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete } from '../../lib/onboardingData';
+import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
 import { renderMarkdown } from '../../lib/renderMarkdown';
@@ -776,7 +776,7 @@ const SIYA_EMAIL = 'siya@hackinghub.co.za';
 // uses) instead of a second hardcoded list here.
 const MENTOR_EMAILS = TEAM_MEMBERS.map((t) => t.email);
 
-export default function MemberPortal({ activeTab, setActiveTab, user, providerToken, isMockSession, autoOpenProfileEdit, gettingStartedGateActive, roadmapExcluded, onGettingStartedComplete }) {
+export default function MemberPortal({ activeTab, setActiveTab, user, providerToken, isMockSession, autoOpenProfileEdit, gettingStartedGateActive, gettingStartedDaysRemaining, roadmapExcluded, onGettingStartedComplete }) {
   const [selectedCert, setSelectedCert] = useState(null);
   const firstName = (user?.user_metadata?.full_name || user?.email || 'there').trim().split(' ')[0];
 
@@ -969,7 +969,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
-  const handleCompleteOnboardingStep = async (stepKey) => {
+  const handleCompleteOnboardingStep = useCallback(async (stepKey) => {
     const alreadyDone = !!onboardingSteps[stepKey];
     setOnboardingSteps((prev) => ({ ...prev, [stepKey]: new Date().toISOString() }));
     if (isMockSession || alreadyDone) return;
@@ -983,7 +983,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         return next;
       });
     }
-  };
+  }, [onboardingSteps, isMockSession]);
+
+  // Auto-completes "Book your first 1-on-1" the moment real evidence exists
+  // (have_i_had_a_1on1, 073_admin_calendar_sync.sql PART 4) - a member who
+  // actually booked/attended a real session but never came back to
+  // manually tick the checklist box no longer stays stuck "incomplete"
+  // over it, which was silently pushing real members into the Getting
+  // Started hard gate (App.jsx) despite having done the actual work.
+  useEffect(() => {
+    if (isMockSession || onboardingSteps.book_1on1) return;
+    let cancelled = false;
+    haveIHadA1on1()
+      .then((had) => { if (had && !cancelled) handleCompleteOnboardingStep('book_1on1'); })
+      .catch(() => {}); // best-effort - a failed check just leaves the manual tick as the fallback
+    return () => { cancelled = true; };
+  }, [isMockSession, onboardingSteps.book_1on1, handleCompleteOnboardingStep]);
 
   const onboardingComplete = ONBOARDING_STEPS.every((s) => !!onboardingSteps[s.key]);
 
@@ -1048,6 +1063,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       {(forceExpanded || !onboardingChecklistCollapsed) && (
         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {onboardingStepError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{onboardingStepError}</p>}
+          {/* A lot of members were hitting the hard gate below having
+              genuinely done several of these steps already, just never
+              realizing an unticked circle still counted as "not done" -
+              "Book your first 1-on-1" and "Set up your profile" now
+              auto-tick themselves once there's real evidence (a logged
+              session, a saved profile), but the rest still need an
+              explicit tap. */}
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 4px' }}>
+            Already done one of these? Tap the circle to check it off - a couple auto-detect, but not all of them.
+          </p>
+          {!forceExpanded && gettingStartedDaysRemaining !== null && gettingStartedDaysRemaining <= 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--danger-rgb), 0.1)', border: '1px solid rgba(var(--danger-rgb), 0.25)', fontSize: '0.82rem', color: 'var(--danger)' }}>
+              <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+              {gettingStartedDaysRemaining <= 0
+                ? "Time's up - finish this checklist now or most of the portal locks down to just Dashboard, Meetings, and Members."
+                : "Less than a day left - finish this checklist or most of the portal locks down to just Dashboard, Meetings, and Members."}
+            </div>
+          )}
           {[
             {
               key: 'watch_video',
@@ -1728,6 +1761,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         const updated = await fetchMemberDirectory();
         setDirectory(updated);
       }
+      // Saving a profile IS "setting up your profile" - auto-completes the
+      // matching Getting Started step instead of requiring a separate,
+      // easy-to-forget manual tick after the fact.
+      handleCompleteOnboardingStep('setup_profile');
       setEditingProfile(false);
     } catch (err) {
       setDirectoryError(friendlyMemberErrorMessage(err));

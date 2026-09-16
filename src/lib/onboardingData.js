@@ -53,6 +53,17 @@ export async function markMyOnboardingStepComplete(stepKey) {
   if (error) throw error;
 }
 
+/** True if there's real evidence (a staff-logged session or a synced
+ * calendar entry) that this member has actually had a 1-on-1 - lets the
+ * "Book your first 1-on-1" checklist step auto-complete itself instead of
+ * relying on the member remembering to come back and tick the box after
+ * the fact (073_admin_calendar_sync.sql PART 4). */
+export async function haveIHadA1on1() {
+  const { data, error } = await supabase.rpc('have_i_had_a_1on1');
+  if (error) throw error;
+  return data === true;
+}
+
 /**
  * Admin-only: every member's checklist progress in one call, so the admin
  * dashboard can compute each member's completion without a per-member
