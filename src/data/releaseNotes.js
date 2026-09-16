@@ -8,13 +8,19 @@ export const RELEASE_NOTES = [
   {
     version: '2026.09.16',
     date: '2026-09-16',
-    headline: 'A Soft Skills Playlist in Resources, and Cert Calendar adds are reliable again.',
-    intro: "A new Soft Skills Playlist in Resources - real talks and reads on communication, presence, and workplace etiquette - plus a fix for a bug that was blocking some members from adding to their Cert Calendar.",
+    headline: 'Request a sponsored exam right from Cert Calendar, a Soft Skills Playlist, and a couple of reliability fixes.',
+    intro: "Request a discounted Security+ voucher, a free Azure exam, or (Elite Operative) anything at all, right from the top of Cert Calendar. Plus a new Soft Skills Playlist in Resources, and fixes for a Cert Calendar bug and a Community Manager permissions gap.",
     groups: [
       {
         label: 'Growth',
         color: '#5ee37a',
         items: [
+          {
+            icon: '🎓',
+            title: 'Request a Sponsored Exam',
+            body: "A new card at the top of Cert Calendar lets you request a discounted Security+ voucher (any tier), a free Azure exam (Permanent Access/Elite Operative), or - Elite Operative only - anything else you need sponsored. Sends straight to the team, no DM needed. Below your tier? The buttons still show, grayed out, so you know exactly what unlocks them.",
+            where: 'Cert Calendar',
+          },
           {
             icon: '🤝',
             title: 'Soft Skills Playlist',
@@ -32,6 +38,12 @@ export const RELEASE_NOTES = [
             title: 'Cert Calendar adds are reliable again',
             body: "Some members were getting an error when trying to add a new Cert Calendar entry - fixed. If you hit this, it should work now.",
             where: 'Cert Calendar',
+          },
+          {
+            icon: '🔑',
+            title: 'Community Managers can review room logs again',
+            body: "A permissions bug meant Community Managers couldn't see or approve any pending TryHackMe room submissions - fixed.",
+            where: "Competitions → Log Today's Rooms (staff)",
           },
         ],
       },
