@@ -74,6 +74,20 @@ CREATE POLICY "members read own room logs"
 -- submit_daily_room_log() below, which enforces the daily cap, the proof
 -- confirmation, and the "locked once Approved" rule server-side rather than
 -- trusting the client.
+-- WARNING - do not re-run this file alone against a database that has
+-- already run 067_permission_scopes.sql: that later file widens this same
+-- policy to also allow community_manager, and re-running just this file
+-- afterward silently reverts it back to admin-only (Postgres simply
+-- executes whichever CREATE POLICY ran most recently - there's no
+--"already widened, don't narrow" protection). This isn't fixed by
+-- widening the USING clause here directly: public.is_community_manager()
+-- isn't defined until 067, so a fresh database bootstrapped in order
+-- (002 -> 031 -> ... -> 067) would fail on this exact line if it were
+-- widened. A live incident on 2026-09-16 (a real Community Manager,
+-- Ofentse, unable to see or approve any pending room log) was exactly
+-- this regression - fixed by re-applying 067's version. If this file ever
+-- needs to be re-run in isolation again, re-run 067_permission_scopes.sql
+-- immediately after to restore the widened policy.
 DROP POLICY IF EXISTS "admins manage room logs" ON public.daily_room_logs;
 CREATE POLICY "admins manage room logs"
   ON public.daily_room_logs FOR ALL

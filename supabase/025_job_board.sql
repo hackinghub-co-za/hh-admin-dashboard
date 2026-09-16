@@ -67,6 +67,18 @@ CREATE POLICY "members add job listings"
 
 -- Admins manage everything directly (editing/removing any listing), same
 -- is_admin() pattern as every other table.
+--
+-- WARNING - do not re-run this file alone against a database that has
+-- already run 067_permission_scopes.sql: that later file widens this same
+-- policy to also allow community_manager, and re-running just this file
+-- afterward silently reverts it back to admin-only. Not fixed by widening
+-- here directly - is_community_manager() isn't defined until 067, so a
+-- fresh sequential bootstrap would fail on this exact line if it were
+-- widened this early. Real live incident, 2026-09-16 - see
+-- daily_room_logs' identical warning in 031_daily_room_logs.sql for the
+-- full story. If this file ever needs to be re-run in isolation again,
+-- re-run 067_permission_scopes.sql immediately after to restore the
+-- widened policy.
 DROP POLICY IF EXISTS "admins manage job board" ON public.job_board;
 CREATE POLICY "admins manage job board"
   ON public.job_board FOR ALL

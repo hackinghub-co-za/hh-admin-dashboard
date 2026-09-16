@@ -96,6 +96,17 @@ CREATE POLICY "members read active wins"
   TO authenticated
   USING (active = true AND public.is_member_allowed(auth.jwt() ->> 'email'));
 
+-- WARNING - do not re-run this file alone against a database that has
+-- already run 067_permission_scopes.sql: that later file widens this same
+-- policy to also allow community_manager, and re-running just this file
+-- afterward silently reverts it back to admin-only. Not fixed by widening
+-- here directly - is_community_manager() isn't defined until 067, so a
+-- fresh sequential bootstrap would fail on this exact line if it were
+-- widened this early. Real live incident, 2026-09-16 - see
+-- daily_room_logs' identical warning in 031_daily_room_logs.sql for the
+-- full story. If this file ever needs to be re-run in isolation again,
+-- re-run 067_permission_scopes.sql immediately after to restore the
+-- widened policy.
 DROP POLICY IF EXISTS "admins manage wins" ON public.community_wins;
 CREATE POLICY "admins manage wins"
   ON public.community_wins FOR ALL

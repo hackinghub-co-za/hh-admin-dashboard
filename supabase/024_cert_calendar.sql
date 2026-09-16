@@ -81,6 +81,20 @@ CREATE POLICY "members add cert calendar entries"
 
 -- Admins manage everything directly (editing/removing any entry, updating
 -- pass/fail results), same is_admin() pattern as every other table.
+--
+-- WARNING - do not re-run this file alone against a database that has
+-- already run 080_mentor_mentees.sql: that later file widens this same
+-- policy to also allow is_mentor_of(member_email)/is_community_manager,
+-- and re-running just this file afterward silently reverts it back to
+-- admin-only (Postgres just executes whichever CREATE POLICY ran most
+-- recently). Not fixed by widening here directly - those functions aren't
+-- defined until 067/080, so a fresh sequential bootstrap would fail on
+-- this exact line if it were widened this early. A real live incident
+-- (2026-09-16, discovered alongside the identical daily_room_logs
+-- regression - see that file's own warning) had this exact policy stuck
+-- admin-only in production. If this file ever needs to be re-run in
+-- isolation again, re-run 080_mentor_mentees.sql immediately after to
+-- restore the widened policy.
 DROP POLICY IF EXISTS "admins manage cert calendar" ON public.cert_calendar;
 CREATE POLICY "admins manage cert calendar"
   ON public.cert_calendar FOR ALL
