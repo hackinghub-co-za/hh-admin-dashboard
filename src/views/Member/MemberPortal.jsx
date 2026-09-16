@@ -32,6 +32,7 @@ import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMy
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCertCalendar, addCertCalendarEntry, updateMyCertCalendarEntry } from '../../lib/certCalendarData';
+import { requestCertPerk } from '../../lib/certPerkRequestData';
 import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScore, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchJobBoard, addJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchResources, addResource } from '../../lib/resourcesData';
@@ -2465,6 +2466,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showAddCertForm, setShowAddCertForm] = useState(false);
   const [addingCert, setAddingCert] = useState(false);
   const [addCertError, setAddCertError] = useState(null);
+  // "Request a Sponsored Exam" card (cert-perk-request-email) - just fires
+  // a notification email to the founder, no request queue/table. Real
+  // eligibility (Azure = Permanent/Elite only, "anything" = Elite only) is
+  // re-checked server-side inside the function; requestingPerk/perkMessage
+  // here are purely UI feedback state.
+  const [requestingPerk, setRequestingPerk] = useState(null);
+  const [perkMessage, setPerkMessage] = useState(null);
+  const [showEliteCustomInput, setShowEliteCustomInput] = useState(false);
+  const [eliteCustomText, setEliteCustomText] = useState('');
   // "Your Name" starts pre-filled with the signed-in member's first name
   // (same firstName already computed above from user_metadata.full_name)
   // rather than blank - still freely editable, just a head start instead
@@ -2625,6 +2635,30 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setAddCertError(friendlyMemberErrorMessage(err));
     } finally {
       setAddingCert(false);
+    }
+  };
+
+  const handleRequestPerk = async (perkType, details) => {
+    setRequestingPerk(perkType);
+    setPerkMessage(null);
+    if (isMockSession) {
+      setTimeout(() => {
+        setPerkMessage({ type: 'success', text: "Request sent - not really, Mock Member has no real session to email from." });
+        setRequestingPerk(null);
+      }, 400);
+      return;
+    }
+    try {
+      await requestCertPerk(perkType, details);
+      setPerkMessage({ type: 'success', text: 'Request sent - the team will follow up with you directly.' });
+      if (perkType === 'elite_custom') {
+        setShowEliteCustomInput(false);
+        setEliteCustomText('');
+      }
+    } catch (err) {
+      setPerkMessage({ type: 'error', text: friendlyMemberErrorMessage(err) });
+    } finally {
+      setRequestingPerk(null);
     }
   };
 
@@ -6459,6 +6493,72 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddCertForm(true)}>
               <GraduationCap size={16} /> Add to Cert Calendar
             </button>
+          </div>
+
+          {/* Request a Sponsored Exam - cert-perk-request-email. The
+              Security+ discount is open to every member (a deliberate
+              call, 2026-09-16 - not a gap); Azure is a real Permanent
+              Access/Elite Operative benefit already listed on My
+              Subscription; "request anything" is Elite Operative's
+              "everything sponsored" benefit. Eligibility is re-checked
+              server-side inside the function either way. */}
+          <div className="glass-card" style={{ marginBottom: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Gift size={20} color="var(--accent-cyan)" />
+              <h3 style={{ margin: 0 }}>Request a Sponsored Exam</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              Sends a request straight to the team - no need to DM or wait for your next 1-on-1.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                className="btn btn-secondary"
+                disabled={requestingPerk === 'security_plus_discount'}
+                onClick={() => handleRequestPerk('security_plus_discount')}
+              >
+                {requestingPerk === 'security_plus_discount' ? 'Sending...' : 'Discounted Security+ Voucher'}
+              </button>
+              {currentPlanRank >= 3 && (
+                <button
+                  className="btn btn-secondary"
+                  disabled={requestingPerk === 'azure_exam'}
+                  onClick={() => handleRequestPerk('azure_exam')}
+                >
+                  {requestingPerk === 'azure_exam' ? 'Sending...' : 'Free Azure Exam'}
+                </button>
+              )}
+              {currentPlanRank >= 4 && !showEliteCustomInput && (
+                <button className="btn btn-secondary" onClick={() => setShowEliteCustomInput(true)}>
+                  Request Something Else
+                </button>
+              )}
+            </div>
+            {currentPlanRank >= 4 && showEliteCustomInput && (
+              <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <textarea
+                  className="form-input"
+                  rows={2}
+                  placeholder="What certification, course, or resource do you need sponsored?"
+                  value={eliteCustomText}
+                  onChange={(e) => setEliteCustomText(e.target.value)}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="btn btn-primary"
+                    disabled={!eliteCustomText.trim() || requestingPerk === 'elite_custom'}
+                    onClick={() => handleRequestPerk('elite_custom', eliteCustomText.trim())}
+                  >
+                    {requestingPerk === 'elite_custom' ? 'Sending...' : 'Send Request'}
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => { setShowEliteCustomInput(false); setEliteCustomText(''); }}>Cancel</button>
+                </div>
+              </div>
+            )}
+            {perkMessage && (
+              <p style={{ marginTop: '12px', marginBottom: 0, fontSize: '0.85rem', color: perkMessage.type === 'error' ? 'var(--danger)' : 'var(--accent-cyan)' }}>
+                {perkMessage.text}
+              </p>
+            )}
           </div>
 
           {(() => {
