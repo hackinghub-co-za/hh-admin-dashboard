@@ -6518,17 +6518,23 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               >
                 {requestingPerk === 'security_plus_discount' ? 'Sending...' : 'Discounted Security+ Voucher'}
               </button>
-              {currentPlanRank >= 3 && (
+              <button
+                className="btn btn-secondary"
+                disabled={currentPlanRank < 3 || requestingPerk === 'azure_exam'}
+                onClick={() => handleRequestPerk('azure_exam')}
+                title={currentPlanRank < 3 ? 'Requires Permanent Access or Elite Operative' : undefined}
+                style={currentPlanRank < 3 ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+              >
+                {requestingPerk === 'azure_exam' ? 'Sending...' : 'Free Azure Exam'}
+              </button>
+              {!showEliteCustomInput && (
                 <button
                   className="btn btn-secondary"
-                  disabled={requestingPerk === 'azure_exam'}
-                  onClick={() => handleRequestPerk('azure_exam')}
+                  disabled={currentPlanRank < 4}
+                  onClick={() => setShowEliteCustomInput(true)}
+                  title={currentPlanRank < 4 ? 'Requires Elite Operative' : undefined}
+                  style={currentPlanRank < 4 ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
                 >
-                  {requestingPerk === 'azure_exam' ? 'Sending...' : 'Free Azure Exam'}
-                </button>
-              )}
-              {currentPlanRank >= 4 && !showEliteCustomInput && (
-                <button className="btn btn-secondary" onClick={() => setShowEliteCustomInput(true)}>
                   Request Something Else
                 </button>
               )}
