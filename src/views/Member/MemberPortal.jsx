@@ -8026,14 +8026,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              <style>{`
+                .merch-product-img-wrap { overflow: hidden; border-radius: var(--border-radius-sm); }
+                .merch-product-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; transition: transform 0.25s ease; }
+                .merch-product-img-wrap:hover .merch-product-img { transform: scale(1.15); }
+              `}</style>
               {MERCH_CATALOG.map((product) => (
                 <div key={product.id} style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {product.image && (
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)' }}
-                    />
+                    <div className="merch-product-img-wrap">
+                      <img src={product.image} alt={product.name} className="merch-product-img" />
+                    </div>
                   )}
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '1rem' }}>{product.name}</div>
