@@ -2975,6 +2975,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const competitionStatus = daysUntilCompetition > 0 ? 'Upcoming' : competitionNow <= competitionEndDate ? 'Active' : 'Ended';
   const competitionStatusBadgeClass = competitionStatus === 'Active' ? 'badge-success' : competitionStatus === 'Upcoming' ? 'badge-warning' : 'badge-danger';
 
+  // "Week X of Y" - same week numbering the eligibility checkpoints use
+  // (get_competition_prize_eligibility, 070_competition_seasons.sql: week N
+  // = start_date + N*7 days), so a checkpoint that says "by week 4" lines
+  // up with what's actually shown here. Only shown while Active - Upcoming
+  // already has its own "Kicks off in..." countdown, and Ended has no
+  // "current" week to report.
+  const competitionTotalWeeks = Math.max(1, Math.ceil((competitionEndDate - competitionStartDate) / (1000 * 60 * 60 * 24 * 7)));
+  const competitionCurrentWeek = competitionStatus === 'Active'
+    ? Math.min(competitionTotalWeeks, Math.floor((competitionNow - competitionStartDate) / (1000 * 60 * 60 * 24 * 7)) + 1)
+    : null;
+
   // Job Board — real Supabase data for a real session (RLS scopes reads to
   // signed-in, approved members), local-only demo listings under Mock Member
   // since there's no real session to fetch from. Members can add their own
@@ -6971,6 +6982,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </span>
                 )}
                 <span className={`badge ${competitionStatusBadgeClass}`}>{competitionStatus}</span>
+                {competitionCurrentWeek && (
+                  <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CalendarDays size={12} /> Week {competitionCurrentWeek} of {competitionTotalWeeks}
+                  </span>
+                )}
               </div>
             </div>
 
