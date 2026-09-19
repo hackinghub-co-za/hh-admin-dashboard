@@ -28,7 +28,12 @@
 -- there might be for a member. p_upcoming_only can be passed false by a
 -- future caller that wants the full approved history, but nothing calls it
 -- that way today.
-
+--
+-- Excludes 'Sunday Catchup' (2026-09-19) - member-only casual catchups
+-- carry a real Google Meet link in `link`, and this RPC had no type filter
+-- at all until now, so that link (meant for members only) was fully public
+-- to any logged-out visitor on hackinghub.co.za. HH Meetups, Industry
+-- Events, and Study Sessions stay public.
 DROP FUNCTION IF EXISTS public.get_public_community_events(BOOLEAN);
 CREATE FUNCTION public.get_public_community_events(p_upcoming_only BOOLEAN DEFAULT true)
 RETURNS TABLE (
@@ -62,6 +67,7 @@ AS $$
   FROM public.community_events ce
   LEFT JOIN public.event_rsvps er ON er.event_id = ce.id
   WHERE ce.status = 'Approved'
+    AND ce.type != 'Sunday Catchup'
     AND (NOT p_upcoming_only OR ce.date >= (timezone('utc'::text, now()))::date)
   GROUP BY ce.id
   ORDER BY ce.date ASC, ce."time" ASC NULLS LAST
