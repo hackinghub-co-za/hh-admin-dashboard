@@ -12,7 +12,7 @@ import { supabase } from './supabase';
 export async function fetchCommunityEvents() {
   const { data, error } = await supabase
     .from('community_events')
-    .select('id, type, title, description, date, time, location, link, image_url, created_by, status, capacity')
+    .select('id, type, title, description, date, time, location, link, image_url, created_by, status, capacity, recording_url, recording_added_at, summary_notes_url')
     .order('date', { ascending: true });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -28,6 +28,9 @@ export async function fetchCommunityEvents() {
     createdBy: row.created_by || '',
     status: row.status,
     capacity: row.capacity, // null = unlimited seats
+    recordingUrl: row.recording_url || '',
+    recordingAddedAt: row.recording_added_at || null,
+    summaryNotesUrl: row.summary_notes_url || '',
   }));
 }
 
@@ -110,6 +113,27 @@ export async function updateCommunityEvent(eventId, { type, title, description, 
       link: link || null,
       image_url: imageUrl || null,
       capacity: capacity === '' || capacity === null || capacity === undefined ? null : Number(capacity),
+    })
+    .eq('id', eventId);
+  if (error) throw error;
+}
+
+/** Admin/CM: sets or clears a Sunday Catchup's recording link and/or
+ * summary notes link, once both actually exist (a catchup happens live,
+ * then these get posted by hand afterward - there's no auto-upload
+ * integration). Deliberately separate from updateCommunityEvent() - that
+ * function does a full-field overwrite, so folding these in there would
+ * silently wipe the recording link every time an admin edited the event's
+ * title/date/location through the general edit form. The 14-day
+ * visibility window (recording_added_at) is stamped automatically by a DB
+ * trigger the moment recording_url first goes from unset to set
+ * (019_events.sql) - not something this function computes itself. */
+export async function updateEventRecording(eventId, { recordingUrl, summaryNotesUrl }) {
+  const { error } = await supabase
+    .from('community_events')
+    .update({
+      recording_url: recordingUrl || null,
+      summary_notes_url: summaryNotesUrl || null,
     })
     .eq('id', eventId);
   if (error) throw error;

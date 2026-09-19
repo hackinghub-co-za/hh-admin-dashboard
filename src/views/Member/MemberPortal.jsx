@@ -269,6 +269,15 @@ function daysUntilEvent(dateStr) {
   return Math.round((eventDate - now) / (1000 * 60 * 60 * 24));
 }
 
+// A Sunday Catchup recording is visible for 14 days from whenever it was
+// actually posted (recordingAddedAt), not 14 days from the event date
+// itself - a catchup that happened on the 7th with a recording only
+// posted on the 10th gives members 14 days from the 10th.
+function isRecordingStillVisible(recordingAddedAt) {
+  if (!recordingAddedAt) return false;
+  return (Date.now() - new Date(recordingAddedAt).getTime()) < 14 * 24 * 60 * 60 * 1000;
+}
+
 // A short synthesized "level up" chime for the Specialization-unlocked
 // celebration - two ascending notes via raw oscillators, same zero-dependency
 // technique OnboardingSequence's background loop uses, just a one-shot
@@ -5809,6 +5818,29 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                         style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}
                       >
                         <Link size={14} /> Event Link <ExternalLink size={12} />
+                      </a>
+                    )}
+                    {/* Sunday Catchup recording - only within 14 days of it
+                        actually being posted. Summary notes have no such
+                        window. */}
+                    {e.recordingUrl && isSafeUrl(e.recordingUrl) && isRecordingStillVisible(e.recordingAddedAt) && (
+                      <a
+                        href={e.recordingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}
+                      >
+                        <PlayCircle size={14} /> Watch Recording <ExternalLink size={12} />
+                      </a>
+                    )}
+                    {e.summaryNotesUrl && isSafeUrl(e.summaryNotesUrl) && (
+                      <a
+                        href={e.summaryNotesUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}
+                      >
+                        <FileText size={14} /> Summary Notes <ExternalLink size={12} />
                       </a>
                     )}
                   </div>

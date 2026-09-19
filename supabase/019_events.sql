@@ -308,3 +308,46 @@ $$;
 GRANT EXECUTE ON FUNCTION public.unrsvp_from_event(INTEGER) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.unrsvp_from_event(INTEGER) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.unrsvp_from_event(INTEGER) FROM anon;
+
+-- =========================================================================
+-- SUNDAY CATCHUP RECORDINGS + SUMMARY NOTES
+-- =========================================================================
+-- A Sunday Catchup happens live (Google Meet), and the recording/summary
+-- only exist afterward - the founder adds both links by hand once they're
+-- ready (no auto-upload integration exists). recording_url is time-boxed:
+-- members should only see it for 14 days after it's actually added, not 14
+-- days from the event date itself (a catchup that happened on the 7th with
+-- a recording only posted on the 10th should give members 14 days from the
+-- 10th, not the 7th). summary_notes_url has no such window - meeting notes
+-- don't go stale as fast as a full video recording, so once posted it just
+-- stays up.
+ALTER TABLE public.community_events ADD COLUMN IF NOT EXISTS recording_url TEXT;
+ALTER TABLE public.community_events ADD COLUMN IF NOT EXISTS recording_added_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.community_events ADD COLUMN IF NOT EXISTS summary_notes_url TEXT;
+
+-- Stamps recording_added_at the moment recording_url actually transitions
+-- from unset to set (whoever writes it - the admin UI's direct table
+-- update, same is_admin()/is_community_manager() RLS every other event
+-- edit already goes through), so the 14-day clock always reflects when the
+-- recording genuinely became available, not when the row happened to be
+-- touched for something else. Clearing the link (set back to NULL, e.g. a
+-- bad link posted by mistake) clears the timestamp too, so re-adding it
+-- later starts a fresh 14-day window rather than reusing a stale one.
+CREATE OR REPLACE FUNCTION public._stamp_event_recording_added_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.recording_url IS NOT NULL AND OLD.recording_url IS NULL THEN
+    NEW.recording_added_at := timezone('utc'::text, now());
+  ELSIF NEW.recording_url IS NULL THEN
+    NEW.recording_added_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_stamp_event_recording_added_at ON public.community_events;
+CREATE TRIGGER trg_stamp_event_recording_added_at
+  BEFORE UPDATE ON public.community_events
+  FOR EACH ROW EXECUTE FUNCTION public._stamp_event_recording_added_at();

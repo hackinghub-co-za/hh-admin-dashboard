@@ -46,7 +46,7 @@ import {
 } from '../../lib/communityContentData';
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown, unapproveBreakdown, deleteBreakdown } from '../../lib/breakdownsData';
-import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, uploadEventImage } from '../../lib/eventsData';
+import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, updateEventRecording, uploadEventImage } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
@@ -2381,6 +2381,34 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       setApproveEventError(friendlyErrorMessage(err));
     } finally {
       setAddingEvent(false);
+    }
+  };
+
+  // Sunday Catchup recording/summary notes links (updateEventRecording,
+  // 019_events.sql) - a small, separate inline editor per event row rather
+  // than folding these into the main Add/Edit Event form above, which does
+  // a full-field overwrite and would otherwise silently wipe the recording
+  // link every time someone just fixed the event's title or time.
+  const [editingRecordingEventId, setEditingRecordingEventId] = useState(null);
+  const [recordingForm, setRecordingForm] = useState({ recordingUrl: '', summaryNotesUrl: '' });
+  const [savingRecording, setSavingRecording] = useState(false);
+
+  const startEditRecording = (ev) => {
+    setEditingRecordingEventId(ev.id);
+    setRecordingForm({ recordingUrl: ev.recordingUrl || '', summaryNotesUrl: ev.summaryNotesUrl || '' });
+  };
+
+  const handleSaveRecording = async (eventId) => {
+    setSavingRecording(true);
+    setApproveEventError(null);
+    try {
+      await updateEventRecording(eventId, recordingForm);
+      setCommunityEvents(await fetchCommunityEvents());
+      setEditingRecordingEventId(null);
+    } catch (err) {
+      setApproveEventError(friendlyErrorMessage(err));
+    } finally {
+      setSavingRecording(false);
     }
   };
 
@@ -5695,7 +5723,61 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                       <button onClick={() => startEditEvent(ev)} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
                         <Pencil size={13} /> Edit
                       </button>
+                      {ev.type === 'Sunday Catchup' && (
+                        <button onClick={() => startEditRecording(ev)} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                          <PlayCircle size={13} /> Recording
+                        </button>
+                      )}
                     </div>
+                    {ev.type === 'Sunday Catchup' && editingRecordingEventId === ev.id && (
+                      <div style={{ width: '100%', marginTop: '8px', padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                            Recording link (members can see it for 14 days from whenever you save this)
+                          </label>
+                          <input
+                            type="url"
+                            className="form-input"
+                            placeholder="https://..."
+                            value={recordingForm.recordingUrl}
+                            onChange={(e) => setRecordingForm((prev) => ({ ...prev, recordingUrl: e.target.value }))}
+                            style={{ fontSize: '0.82rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                            Summary notes link (no expiry)
+                          </label>
+                          <input
+                            type="url"
+                            className="form-input"
+                            placeholder="https://..."
+                            value={recordingForm.summaryNotesUrl}
+                            onChange={(e) => setRecordingForm((prev) => ({ ...prev, summaryNotesUrl: e.target.value }))}
+                            style={{ fontSize: '0.82rem' }}
+                          />
+                        </div>
+                        {ev.recordingAddedAt && (
+                          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
+                            Current recording link added {formatDate(ev.recordingAddedAt)} - visible to members until {formatDate(new Date(new Date(ev.recordingAddedAt).getTime() + 14 * 24 * 60 * 60 * 1000))}.
+                          </p>
+                        )}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={savingRecording}
+                            onClick={() => handleSaveRecording(ev.id)}
+                            style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                          >
+                            {savingRecording ? 'Saving...' : 'Save'}
+                          </button>
+                          <button type="button" className="btn btn-secondary" onClick={() => setEditingRecordingEventId(null)} style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
