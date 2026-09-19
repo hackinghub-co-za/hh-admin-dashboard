@@ -165,3 +165,26 @@ CREATE TRIGGER trg_validate_merch_order_total
   BEFORE INSERT ON public.merch_orders
   FOR EACH ROW
   EXECUTE FUNCTION public.validate_merch_order_total();
+
+-- MERCH PRODUCT IMAGE STORAGE - a dedicated public bucket for real product
+-- photos shown on the Merch Store cards (MERCH_CATALOG, merchStoreData.js).
+-- Same pattern as event-images (019_events.sql): public read, admin-only
+-- write, since merch products are admin-curated, not member-owned content.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('merch-images', 'merch-images', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "public read merch images" ON storage.objects;
+CREATE POLICY "public read merch images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'merch-images');
+
+DROP POLICY IF EXISTS "staff manage merch images" ON storage.objects;
+CREATE POLICY "staff manage merch images"
+  ON storage.objects FOR ALL
+  TO authenticated
+  USING (bucket_id = 'merch-images' AND public.is_admin(auth.uid()))
+  WITH CHECK (bucket_id = 'merch-images' AND public.is_admin(auth.uid()));

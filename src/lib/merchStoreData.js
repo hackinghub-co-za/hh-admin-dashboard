@@ -8,10 +8,14 @@ import { supabase } from './supabase';
 // The 3 real products currently sold - hardcoded, not admin-editable, same
 // pattern as CORE_FOUNDATIONS_CATALOG (memberOptions.js) for a small fixed
 // catalog with no existing "admin edits pricing" pattern in this app to
-// extend. sizes: null means no size picker (Deskpad); otherwise the
-// selectable sizes shown in the cart UI.
+// extend. sizes: null means no size picker (Mousepads); otherwise the
+// selectable sizes shown in the cart UI. id stays 'deskpad' even though the
+// display name is now "Mousepads" - it's the real product key the
+// validate_merch_order_total() trigger (060_merch_orders.sql) checks
+// against server-side, and every past order's stored items JSON already
+// used it; renaming the id would silently orphan that history.
 export const MERCH_CATALOG = [
-  { id: 'deskpad', name: 'Deskpad', price: 200, sizes: null },
+  { id: 'deskpad', name: 'Mousepads', price: 200, sizes: null, image: 'https://kveiflphktpvsddhkspz.supabase.co/storage/v1/object/public/merch-images/mousepads.jpg' },
   { id: 'top', name: 'Top', price: 400, sizes: ['S', 'M', 'L', 'XL'] },
   { id: 'hoodie', name: 'Hoodie', price: 600, sizes: ['S', 'M', 'L', 'XL'] },
 ];

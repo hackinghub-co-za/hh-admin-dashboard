@@ -8028,6 +8028,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               {MERCH_CATALOG.map((product) => (
                 <div key={product.id} style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {product.image && (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)' }}
+                    />
+                  )}
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '1rem' }}>{product.name}</div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>R {product.price}</div>
