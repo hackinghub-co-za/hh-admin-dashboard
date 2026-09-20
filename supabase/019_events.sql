@@ -351,3 +351,61 @@ DROP TRIGGER IF EXISTS trg_stamp_event_recording_added_at ON public.community_ev
 CREATE TRIGGER trg_stamp_event_recording_added_at
   BEFORE UPDATE ON public.community_events
   FOR EACH ROW EXECUTE FUNCTION public._stamp_event_recording_added_at();
+
+-- =========================================================================
+-- SUNDAY CATCHUP AGENDA (staff-only)
+-- =========================================================================
+-- Free-form prep notes for a Sunday Catchup - announcements (new joiners,
+-- new jobs, cert passes, THM weekly challenge winner), plus the loose
+-- run-of-show items (spin the wheel, who's presenting, who to pick for next
+-- week). One big text field, not structured sub-fields - matches how the
+-- founder actually writes these (a real example, 2026-09-20, mixed bullets
+-- and action items under one "Announcements:" header), and a rigid schema
+-- would fight that instead of just holding it.
+--
+-- Genuinely staff-only, not just hidden in the UI: unlike recording_url/
+-- summary_notes_url above (member-facing, so a plain column + the app's own
+-- column-limited SELECT is enough), agenda_notes is exposed ONLY through
+-- two narrow RPCs, never a raw column selectable via the existing "members
+-- read community events" row-level policy - that policy filters ROWS
+-- (approved + allowed), not COLUMNS, so relying on it here would still let
+-- a member who called the table directly (bypassing the app's own
+-- column-whitelisted fetch) read it. Same reasoning already documented in
+-- 052_public_events.sql's own header for why a public RPC hand-picks
+-- columns instead of trusting a row-level policy alone.
+ALTER TABLE public.community_events ADD COLUMN IF NOT EXISTS agenda_notes TEXT;
+
+CREATE OR REPLACE FUNCTION public.get_event_agenda(p_event_id BIGINT)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_notes TEXT;
+BEGIN
+  IF NOT (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())) THEN
+    RAISE EXCEPTION 'Only the founder or a Community Manager can view the agenda.';
+  END IF;
+  SELECT agenda_notes INTO v_notes FROM public.community_events WHERE id = p_event_id;
+  RETURN v_notes;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_event_agenda(BIGINT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_event_agenda(BIGINT) FROM PUBLIC, anon;
+
+CREATE OR REPLACE FUNCTION public.set_event_agenda(p_event_id BIGINT, p_agenda_notes TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT (public.is_admin(auth.uid()) OR public.is_community_manager(auth.uid())) THEN
+    RAISE EXCEPTION 'Only the founder or a Community Manager can edit the agenda.';
+  END IF;
+  UPDATE public.community_events SET agenda_notes = p_agenda_notes WHERE id = p_event_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.set_event_agenda(BIGINT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_event_agenda(BIGINT, TEXT) FROM PUBLIC, anon;

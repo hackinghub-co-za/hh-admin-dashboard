@@ -46,7 +46,7 @@ import {
 } from '../../lib/communityContentData';
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown, unapproveBreakdown, deleteBreakdown } from '../../lib/breakdownsData';
-import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, updateEventRecording, uploadEventImage } from '../../lib/eventsData';
+import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, updateEventRecording, fetchEventAgenda, updateEventAgenda, uploadEventImage } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
@@ -114,6 +114,7 @@ import {
   ShieldAlert,
   ImagePlus,
   IdCard,
+  ClipboardList,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -2409,6 +2410,55 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       setSavingRecording(false);
     }
   };
+
+  // Sunday Catchup agenda (get_event_agenda/set_event_agenda,
+  // 019_events.sql) - staff-only prep notes (announcements, run-of-show),
+  // never part of the shared communityEvents fetch (unlike recording links,
+  // which are member-facing) so it's fetched fresh on demand the moment
+  // someone actually opens the editor, not preloaded for every event.
+  const [editingAgendaEventId, setEditingAgendaEventId] = useState(null);
+  const [agendaText, setAgendaText] = useState('');
+  const [loadingAgenda, setLoadingAgenda] = useState(false);
+  const [savingAgenda, setSavingAgenda] = useState(false);
+  const [agendaError, setAgendaError] = useState(null);
+
+  const startEditAgenda = async (ev) => {
+    setEditingAgendaEventId(ev.id);
+    setAgendaText('');
+    setAgendaError(null);
+    setLoadingAgenda(true);
+    try {
+      setAgendaText(await fetchEventAgenda(ev.id));
+    } catch (err) {
+      setAgendaError(friendlyErrorMessage(err));
+    } finally {
+      setLoadingAgenda(false);
+    }
+  };
+
+  const handleSaveAgenda = async (eventId) => {
+    setSavingAgenda(true);
+    setAgendaError(null);
+    try {
+      await updateEventAgenda(eventId, agendaText);
+      setEditingAgendaEventId(null);
+    } catch (err) {
+      setAgendaError(friendlyErrorMessage(err));
+    } finally {
+      setSavingAgenda(false);
+    }
+  };
+
+  const AGENDA_PLACEHOLDER = `Announcements:
+Remind people to buy Bsides JHB ticket
+Celebrate new job: Siya DevSecOps engineer
+Celebrate new certs: Jose Security+, Nkululeko Security+, Oratile AZ900, Mojalefa SC200
+Welcome new members: Osimele
+THM Weekly Challenge winner: Moloko (please create the image and send to the HH Chat)
+
+Spin the wheel
+Lesoko to present
+Pick new people to present next Sunday`;
 
   const [showEftModal, setShowEftModal] = useState(false);
 
@@ -5726,6 +5776,11 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                           <PlayCircle size={13} /> Recording
                         </button>
                       )}
+                      {ev.type === 'Sunday Catchup' && (
+                        <button onClick={() => startEditAgenda(ev)} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                          <ClipboardList size={13} /> Agenda
+                        </button>
+                      )}
                     </div>
                     {ev.type === 'Sunday Catchup' && editingRecordingEventId === ev.id && (
                       <div style={{ width: '100%', marginTop: '8px', padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -5771,6 +5826,40 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
                             {savingRecording ? 'Saving...' : 'Save'}
                           </button>
                           <button type="button" className="btn btn-secondary" onClick={() => setEditingRecordingEventId(null)} style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {ev.type === 'Sunday Catchup' && editingAgendaEventId === ev.id && (
+                      <div style={{ width: '100%', marginTop: '8px', padding: '12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                          Agenda - announcements, cert/job wins, who's presenting. Staff-only, never shown to members.
+                        </label>
+                        {agendaError && <p style={{ color: 'var(--danger)', fontSize: '0.78rem', margin: 0 }}>{agendaError}</p>}
+                        {loadingAgenda ? (
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Loading...</p>
+                        ) : (
+                          <textarea
+                            className="form-input"
+                            rows={10}
+                            placeholder={AGENDA_PLACEHOLDER}
+                            value={agendaText}
+                            onChange={(e) => setAgendaText(e.target.value)}
+                            style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', resize: 'vertical' }}
+                          />
+                        )}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={savingAgenda || loadingAgenda}
+                            onClick={() => handleSaveAgenda(ev.id)}
+                            style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                          >
+                            {savingAgenda ? 'Saving...' : 'Save'}
+                          </button>
+                          <button type="button" className="btn btn-secondary" onClick={() => setEditingAgendaEventId(null)} style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
                             Cancel
                           </button>
                         </div>

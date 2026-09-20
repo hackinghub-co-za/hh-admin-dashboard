@@ -139,6 +139,26 @@ export async function updateEventRecording(eventId, { recordingUrl, summaryNotes
   if (error) throw error;
 }
 
+/** Staff-only: the free-form prep agenda for a Sunday Catchup (announcements
+ * - new joiners, new jobs, cert passes, THM weekly winner - plus run-of-show
+ * items like who's presenting). Deliberately not part of fetchCommunityEvents()
+ * - unlike recording/summary-notes links, this is genuinely staff-only, so
+ * it's only ever read through this narrow RPC (get_event_agenda,
+ * 019_events.sql), which the RLS-scoped "members read community events" row
+ * policy alone couldn't enforce (that policy filters rows, not columns).
+ * Returns '' if nothing's been written yet. */
+export async function fetchEventAgenda(eventId) {
+  const { data, error } = await supabase.rpc('get_event_agenda', { p_event_id: eventId });
+  if (error) throw error;
+  return data || '';
+}
+
+/** Staff-only: saves the agenda text (set_event_agenda, 019_events.sql). */
+export async function updateEventAgenda(eventId, agendaNotes) {
+  const { error } = await supabase.rpc('set_event_agenda', { p_event_id: eventId, p_agenda_notes: agendaNotes || null });
+  if (error) throw error;
+}
+
 /** Approves a pending community event, making it visible to every member.
  * Server-side restricted to exactly siya@hackinghub.co.za regardless of who
  * calls this - not every admin account. */
