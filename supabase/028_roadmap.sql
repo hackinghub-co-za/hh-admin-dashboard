@@ -277,10 +277,18 @@ ALTER TABLE public.member_profiles
 
 -- Anonymous, no-token unsubscribe - has to work from a cold click in an
 -- email client with no Supabase session at all, unlike every other write in
--- this project. Skips the usual ownership-token dance deliberately: the
--- worst case of someone unsubscribing a member they don't own is that
--- member keeps getting nudged via the in-app banner instead of email - no
--- security or financial exposure, so the extra complexity isn't worth it.
+-- this project.
+--
+-- SECURITY: this used to skip the ownership-token dance on the reasoning
+-- that unsubscribing a member you don't own was low-stakes. That undersold
+-- it - profiles.email is publicly readable (schema.sql's "Allow public
+-- read-access to profile metadata"), so this was actually a no-auth way for
+-- anyone to mass-mute every member's roadmap accountability nudges at once,
+-- not a one-off annoyance. Ownership is now proven one layer up:
+-- roadmap-reminder-unsubscribe (the edge function) verifies an HMAC token
+-- over the email (unsubscribeToken.ts) before ever calling this RPC via the
+-- service role, so this function itself is service-role-only now, like
+-- every other internal-only function here.
 CREATE OR REPLACE FUNCTION public.unsubscribe_from_roadmap_reminders(p_email TEXT)
 RETURNS VOID
 LANGUAGE sql SECURITY DEFINER SET search_path = public
@@ -289,7 +297,7 @@ AS $$
   SET roadmap_reminder_opted_out = true
   WHERE email = lower(p_email);
 $$;
-GRANT EXECUTE ON FUNCTION public.unsubscribe_from_roadmap_reminders(TEXT) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.unsubscribe_from_roadmap_reminders(TEXT) FROM PUBLIC, anon, authenticated;
 
 -- Everything the reminder function needs to decide who to email, computed
 -- server-side rather than joined client-side in Deno - much cheaper than

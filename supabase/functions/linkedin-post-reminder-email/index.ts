@@ -32,6 +32,7 @@
 // roadmap-reminder-email.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { signUnsubscribeToken } from '../_shared/unsubscribeToken.ts';
 
 const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
 const PORTAL_URL = 'https://portal.hackinghub.co.za';
@@ -106,8 +107,9 @@ Deno.serve(async (req) => {
   const resendKey = Deno.env.get('RESEND_API_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const unsubscribeTokenSecret = Deno.env.get('UNSUBSCRIBE_TOKEN_SECRET');
 
-  if (!resendKey || !supabaseUrl || !serviceRoleKey) {
+  if (!resendKey || !supabaseUrl || !serviceRoleKey || !unsubscribeTokenSecret) {
     console.error('linkedin-post-reminder-email: missing required secrets');
     return new Response('Not configured', { status: 500 });
   }
@@ -148,7 +150,8 @@ Deno.serve(async (req) => {
     try {
       const post = postByTrack[member.roadmap_track] || postByTrack.SOC;
       const firstName = (member.full_name || '').trim().split(' ')[0] || 'there';
-      const unsubscribeUrl = `${supabaseUrl}/functions/v1/linkedin-reminder-unsubscribe?email=${encodeURIComponent(member.email)}`;
+      const unsubscribeToken = await signUnsubscribeToken(member.email, unsubscribeTokenSecret);
+      const unsubscribeUrl = `${supabaseUrl}/functions/v1/linkedin-reminder-unsubscribe?email=${encodeURIComponent(member.email)}&token=${unsubscribeToken}`;
 
       await sendEmail(
         resendKey,

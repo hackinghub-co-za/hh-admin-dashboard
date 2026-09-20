@@ -45,6 +45,7 @@
 // anyone who finds this URL from mass-triggering member emails on demand.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { signUnsubscribeToken } from '../_shared/unsubscribeToken.ts';
 
 // See the matching comment in gemma-chat/index.ts - pinned to this specific
 // version after live-testing on 2026-08-27 showed 'gemini-flash-latest'
@@ -187,8 +188,9 @@ Deno.serve(async (req) => {
   const resendKey = Deno.env.get('RESEND_API_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const unsubscribeTokenSecret = Deno.env.get('UNSUBSCRIBE_TOKEN_SECRET');
 
-  if (!geminiKey || !resendKey || !supabaseUrl || !serviceRoleKey) {
+  if (!geminiKey || !resendKey || !supabaseUrl || !serviceRoleKey || !unsubscribeTokenSecret) {
     console.error('roadmap-reminder-email: missing required secrets');
     return new Response('Not configured', { status: 500 });
   }
@@ -221,7 +223,8 @@ Deno.serve(async (req) => {
         : buildReminderPrompt(member.full_name, member.job_readiness, member.days_since_touch, member.is_newcomer);
       const body = await callGemini(geminiKey, prompt);
       const firstName = (member.full_name || '').trim().split(' ')[0] || 'there';
-      const unsubscribeUrl = `${supabaseUrl}/functions/v1/roadmap-reminder-unsubscribe?email=${encodeURIComponent(member.email)}`;
+      const unsubscribeToken = await signUnsubscribeToken(member.email, unsubscribeTokenSecret);
+      const unsubscribeUrl = `${supabaseUrl}/functions/v1/roadmap-reminder-unsubscribe?email=${encodeURIComponent(member.email)}&token=${unsubscribeToken}`;
       const subject = isTip ? 'A tip for your first month at Hacking Hub' : 'Your Hacking Hub roadmap - checking in';
       const ctaLabel = isTip ? 'Open the portal' : 'Open your roadmap';
 

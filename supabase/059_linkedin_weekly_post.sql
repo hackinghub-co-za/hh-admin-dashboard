@@ -126,9 +126,18 @@ REVOKE EXECUTE ON FUNCTION public.get_member_linkedin_post_status(TEXT) FROM PUB
 ALTER TABLE public.member_profiles
   ADD COLUMN IF NOT EXISTS linkedin_reminder_opted_out BOOLEAN NOT NULL DEFAULT false;
 
--- Same shape/grant as unsubscribe_from_roadmap_reminders (028_roadmap.sql)
--- - a plain email-client click with no Supabase session, so anon needs to
--- be able to call this directly.
+-- Same shape as unsubscribe_from_roadmap_reminders (028_roadmap.sql) - a
+-- plain email-client click with no Supabase session, so this can't require
+-- auth.jwt().
+--
+-- SECURITY: this used to be GRANTed to anon/authenticated directly, with
+-- p_email fully trusted and no proof of ownership - since profiles.email is
+-- publicly readable (schema.sql's "Allow public read-access to profile
+-- metadata"), that let anyone unsubscribe any member with no auth at all.
+-- Ownership is now proven one layer up: linkedin-reminder-unsubscribe (the
+-- edge function) verifies an HMAC token over the email (unsubscribeToken.ts)
+-- before ever calling this RPC via the service role, so this function itself
+-- is service-role-only now, like every other internal-only function here.
 CREATE OR REPLACE FUNCTION public.unsubscribe_from_linkedin_reminders(p_email TEXT)
 RETURNS VOID
 LANGUAGE sql SECURITY DEFINER SET search_path = public
@@ -137,7 +146,7 @@ AS $$
   SET linkedin_reminder_opted_out = true
   WHERE email = lower(p_email);
 $$;
-GRANT EXECUTE ON FUNCTION public.unsubscribe_from_linkedin_reminders(TEXT) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.unsubscribe_from_linkedin_reminders(TEXT) FROM PUBLIC, anon, authenticated;
 
 -- Everyone active, opted in, with Specialization actually unlocked, who
 -- hasn't confirmed for the current ISO week - a single aggregate query (an

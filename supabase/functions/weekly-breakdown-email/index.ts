@@ -24,6 +24,7 @@
 // a ~94-recipient all-hands send.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { signUnsubscribeToken } from '../_shared/unsubscribeToken.ts';
 
 const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
 const ADMIN_ALERT_EMAIL = 'siya@hackinghub.co.za';
@@ -112,7 +113,8 @@ Deno.serve(async (req) => {
   const resendKey = Deno.env.get('RESEND_API_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!resendKey || !supabaseUrl || !serviceRoleKey) {
+  const unsubscribeTokenSecret = Deno.env.get('UNSUBSCRIBE_TOKEN_SECRET');
+  if (!resendKey || !supabaseUrl || !serviceRoleKey || !unsubscribeTokenSecret) {
     console.error('weekly-breakdown-email: missing required secrets');
     return new Response('Not configured', { status: 500 });
   }
@@ -153,15 +155,16 @@ Deno.serve(async (req) => {
   const readUrl = (edition.full_url && /^https?:\/\//.test(edition.full_url)) ? edition.full_url : PORTAL_URL;
   const subject = `HH SOC Breakdown: ${edition.title}`;
 
-  const messages = (recipients || []).map((r: { email: string; full_name: string | null }) => {
+  const messages = await Promise.all((recipients || []).map(async (r: { email: string; full_name: string | null }) => {
     const firstName = (r.full_name || '').trim().split(' ')[0] || 'there';
-    const unsubscribeUrl = `${supabaseUrl}/functions/v1/breakdown-unsubscribe?email=${encodeURIComponent(r.email)}`;
+    const unsubscribeToken = await signUnsubscribeToken(r.email, unsubscribeTokenSecret);
+    const unsubscribeUrl = `${supabaseUrl}/functions/v1/breakdown-unsubscribe?email=${encodeURIComponent(r.email)}&token=${unsubscribeToken}`;
     return {
       to: r.email,
       subject,
       html: breakdownEmailHtml(firstName, edition.title, edition.source_label, edition.difficulty, edition.blurb, readUrl, unsubscribeUrl),
     };
-  });
+  }));
 
   let accepted = 0;
   try {

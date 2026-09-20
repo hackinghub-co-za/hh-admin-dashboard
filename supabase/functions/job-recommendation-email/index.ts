@@ -36,6 +36,7 @@
 // like cert-pass-email skips a cert not actually marked Passed.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { signUnsubscribeToken } from '../_shared/unsubscribeToken.ts';
 
 const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
 const PORTAL_URL = 'https://portal.hackinghub.co.za';
@@ -94,9 +95,10 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const resendKey = Deno.env.get('RESEND_API_KEY');
+    const unsubscribeTokenSecret = Deno.env.get('UNSUBSCRIBE_TOKEN_SECRET');
 
-    if (!resendKey) {
-      return new Response(JSON.stringify({ error: 'Not configured - missing RESEND_API_KEY secret.' }), {
+    if (!resendKey || !unsubscribeTokenSecret) {
+      return new Response(JSON.stringify({ error: 'Not configured - missing RESEND_API_KEY or UNSUBSCRIBE_TOKEN_SECRET secret.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -172,7 +174,8 @@ Deno.serve(async (req) => {
     let sent = 0;
     for (const r of toSend) {
       const firstName = (r.full_name || '').trim().split(' ')[0] || 'there';
-      const unsubscribeUrl = `${UNSUBSCRIBE_URL_BASE}?email=${encodeURIComponent(r.email)}`;
+      const unsubscribeToken = await signUnsubscribeToken(r.email, unsubscribeTokenSecret);
+      const unsubscribeUrl = `${UNSUBSCRIBE_URL_BASE}?email=${encodeURIComponent(r.email)}&token=${unsubscribeToken}`;
       try {
         await sendEmail(
           resendKey,
