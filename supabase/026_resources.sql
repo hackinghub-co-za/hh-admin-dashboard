@@ -115,13 +115,27 @@ INSERT INTO public.resources (category, title, format, description, link, create
 SELECT
   'Interview Playbooks',
   'HH Interview Playbook',
-  'Doc',
-  'Hacking Hub''s own interview prep playbook.',
-  'https://docs.google.com/document/d/1mqgfhSXH1U8NVwzBs4yVen9eBTHrFcflu9N9kWuvSJI/edit?tab=t.0',
+  'Guide',
+  'Real interview questions to write real answers to, two playlists to watch first, and questions to ask them back.',
+  NULL,
   NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM public.resources WHERE title = 'HH Interview Playbook'
 );
+
+-- Moved from an external Google Doc link to real content hardcoded in-app
+-- (InterviewPlaybookGuideModal.jsx, same move already made for the
+-- LinkedIn Playbook/cert study guides/Podcasts/Soft Skills) - members no
+-- longer need doc access shared with them individually, and the content
+-- can't drift out of sync with what the doc actually says. Corrects a row
+-- seeded by an earlier run of this file, before that move - the INSERT's
+-- WHERE NOT EXISTS above only ever fires once, so a live database that
+-- already has this row needs its own fix-up.
+UPDATE public.resources
+SET format = 'Guide',
+    description = 'Real interview questions to write real answers to, two playlists to watch first, and questions to ask them back.',
+    link = NULL
+WHERE title = 'HH Interview Playbook' AND format = 'Doc';
 
 -- The 3 separate Security+ cards below (official overview, Professor
 -- Messer's course, ExamCompass practice tests) were consolidated into one

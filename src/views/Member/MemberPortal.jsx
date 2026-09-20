@@ -16,6 +16,7 @@ import TerraformAssociateGuideModal from '../../components/TerraformAssociateGui
 import SC200GuideModal from '../../components/SC200GuideModal';
 import PodcastsGuideModal from '../../components/PodcastsGuideModal';
 import SoftSkillsGuideModal from '../../components/SoftSkillsGuideModal';
+import InterviewPlaybookGuideModal from '../../components/InterviewPlaybookGuideModal';
 import KodeKloudGuideModal from '../../components/KodeKloudGuideModal';
 import MatchmakerWheelModal from '../../components/MatchmakerWheelModal';
 import CompetitionRulesModal from '../../components/CompetitionRulesModal';
@@ -3273,6 +3274,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showPodcastsGuide, setShowPodcastsGuide] = useState(false);
   const [showKodeKloudGuide, setShowKodeKloudGuide] = useState(false);
   const [showSoftSkillsGuide, setShowSoftSkillsGuide] = useState(false);
+  const [showInterviewPlaybookGuide, setShowInterviewPlaybookGuide] = useState(false);
   // Resources with their real content hardcoded in-app (not a link) - the
   // card opens a dedicated modal instead of "Open Resource"/"Coming Soon".
   const IN_APP_ARTICLE_RESOURCES = {
@@ -3284,6 +3286,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Recommended Podcasts': () => setShowPodcastsGuide(true),
     'KodeKloud': () => setShowKodeKloudGuide(true),
     'Soft Skills Playlist': () => setShowSoftSkillsGuide(true),
+    'HH Interview Playbook': () => setShowInterviewPlaybookGuide(true),
   };
   const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Cyber Platforms', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Soft Skills'];
   const RESOURCE_ICON = {
@@ -6788,6 +6791,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           {showSC200Guide && <SC200GuideModal onClose={() => setShowSC200Guide(false)} />}
           {showPodcastsGuide && <PodcastsGuideModal onClose={() => setShowPodcastsGuide(false)} />}
           {showSoftSkillsGuide && <SoftSkillsGuideModal onClose={() => setShowSoftSkillsGuide(false)} />}
+          {showInterviewPlaybookGuide && (
+            <InterviewPlaybookGuideModal
+              onClose={() => setShowInterviewPlaybookGuide(false)}
+              onBookInterviewPrep={!isMockSession ? () => setShowInterviewPrep(true) : undefined}
+            />
+          )}
           {showKodeKloudGuide && <KodeKloudGuideModal onClose={() => setShowKodeKloudGuide(false)} />}
           {showCvReview && !isMockSession && (
             <CvReviewModal onClose={() => setShowCvReview(false)} />
