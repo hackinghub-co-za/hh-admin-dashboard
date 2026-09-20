@@ -6,6 +6,80 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.20',
+    date: '2026-09-20',
+    headline: 'A real Interview Playbook you can type in, a Calendar/List view for Events, and Sunday Catchup recordings.',
+    intro: "The Interview Playbook is now an actual in-app guide with two real prep playlists and space to type and save your own answer to the questions that come up in almost every interview. Events has a Calendar and List view alongside Grid, Sunday Catchup recordings show up right on the event card, and Getting Started is easier to pick back up if you'd already done some of it before you found the checklist.",
+    groups: [
+      {
+        label: 'Career Prep',
+        color: '#c084fc',
+        items: [
+          {
+            icon: '🎯',
+            title: 'HH Interview Playbook, for real this time',
+            body: "What used to be a doc link is now a proper in-app guide: two curated YouTube prep playlists, the interview questions that come up in almost every interview, and 3 questions worth asking them back. Type your own answer under each question and it saves as you go, so you walk into an interview with a prepared answer instead of winging it.",
+            where: 'Resources → HH Interview Playbook',
+          },
+        ],
+      },
+      {
+        label: 'Community',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '🗓️',
+            title: 'Calendar and List views for Events',
+            body: "Switch between Grid, Calendar, and List at the top of the Events tab — Calendar shows everything on a month grid, List gives you a sortable table with date, type, and location columns. Same events, pick whichever view fits what you're looking for.",
+            where: 'Events',
+          },
+          {
+            icon: '🎥',
+            title: 'Sunday Catchup recordings on the event card',
+            body: "When a Sunday Catchup recording goes up, it (and the summary notes) now shows right on that event's card for 14 days — no more digging through chat for the link.",
+            where: 'Events',
+          },
+        ],
+      },
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '✅',
+            title: 'Getting Started, easier to pick back up',
+            body: "Already done some of the Getting Started steps before you found the checklist? Tap the circle to tick them off directly — no need to redo anything. There's also a heads-up banner before your portal narrows to Dashboard/Meetings/Members only, so it's never a surprise.",
+            where: 'Dashboard → Getting Started',
+          },
+        ],
+      },
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '📅',
+            title: '"Week X of Y" on the TryHackMe competition',
+            body: "The Competitions tab now shows exactly which week of the current competition you're in, right next to the Active badge.",
+            where: 'Competitions',
+          },
+        ],
+      },
+      {
+        label: 'Merch Store',
+        color: '#f472b6',
+        items: [
+          {
+            icon: '🖱️',
+            title: 'Deskpads are now Mousepads, with a real photo',
+            body: "Renamed to match what it actually is, with a real product photo. Product photos across the store also zoom in slightly on hover now.",
+            where: 'sidebar → My Subscription → Merch Store',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.16',
     date: '2026-09-16',
     headline: 'Request a sponsored exam right from Cert Calendar, a Soft Skills Playlist, and a couple of reliability fixes.',

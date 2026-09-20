@@ -18,6 +18,66 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.20
+
+### Added
+- **HH Interview Playbook as a real in-app guide** — replaces the old doc
+  link with `InterviewPlaybookGuideModal.jsx`: two curated YouTube prep
+  playlists, the interview questions that come up in almost every
+  interview, and questions to ask them back. Members can type and save
+  their own answer under each question, autosaved on an 800ms debounce via
+  a new `save_my_interview_playbook_answer()` RPC
+  (`082_interview_playbook_answers.sql`, `interviewPlaybookAnswersData.js`).
+- **Calendar and List views for Events** — a Grid/Calendar/List switcher on
+  the Events tab; Calendar renders a month grid with per-day event chips,
+  List is a sortable table (date/type/location/RSVPs). Extracted the
+  shared event card into `renderEventCard()` in `MemberPortal.jsx`.
+- **Sunday Catchup recordings on the event card** — `recording_url`,
+  `recording_added_at`, `summary_notes_url` on `community_events`; a
+  14-day visibility window computed from `recording_added_at`
+  (`019_events.sql`). Staff set the link via a new "Recording" editor on
+  the Sunday Catchup row in `AdminDashboard.jsx`.
+- **Staff-only Sunday Catchup agenda** — `community_events.agenda_notes`
+  plus `get_event_agenda()` / `set_event_agenda()` RPCs, gated to admin or
+  Community Manager only (RLS on `community_events` is row-level, not
+  column-level, so this had to be RPC-only, same reasoning as every other
+  staff-narrow field in this project) (`019_events.sql`).
+- **"Week X of Y" on the TryHackMe competition** — a computed badge next to
+  the Active status badge on the Competitions tab (`MemberPortal.jsx`).
+- **Automated regression testing** — Vitest (`vitest.config.js`, `npm test`
+  / `npm run test:watch`), 45 tests across 6 new `*.test.js` files in
+  `src/lib/` covering exported, side-effect-free functions.
+
+### Changed
+- **Deskpad renamed to Mousepads**, with a real product photo
+  (`merchStoreData.js`; `id` deliberately kept as `deskpad` since it's the
+  key `validate_merch_order_total()` checks server-side and every past
+  order's stored `items` JSON already uses it). Merch Store product photos
+  now zoom in slightly on hover.
+- **Getting Started is easier to resume** — the checklist now lets a
+  member tick off a step they'd already done before finding it, and shows
+  a countdown warning banner before the grace period ends and the portal
+  narrows to Dashboard/Meetings/Members only.
+- **Sunday Catchups excluded from the public events feed** — they're a
+  members-only recurring meeting, not a public-facing event.
+- **Job Board mock data removed** — `MOCK_JOB_BOARD` and the one hardcoded
+  Mock Member seed listing in `AdminDashboard.jsx` deleted; Mock Member now
+  sees a real empty state instead of fake listings.
+
+### Fixed
+- **Unauthenticated unsubscribe links** — `unsubscribe_from_job_recommendations`,
+  `unsubscribe_from_roadmap_reminders`, `unsubscribe_from_linkedin_reminders`,
+  and `unsubscribe_from_breakdown_emails` were callable by anyone with just
+  an email address (no auth, no token), and `profiles.email` is publicly
+  readable — so any anonymous caller could mass-unsubscribe every member
+  from every reminder type. Each unsubscribe Edge Function now verifies an
+  HMAC-SHA256 token over the email (new `_shared/unsubscribeToken.ts`,
+  `UNSUBSCRIBE_TOKEN_SECRET`) before calling the RPC; the RPCs themselves
+  are now service-role-only, same as every other internal-only function in
+  this project. Found via a guidance-mode pass with Cloudflare's
+  `security-audit-skill`, focused on RLS/data-isolation "missing owner
+  enforcement" checks.
+
 ## 2026.09.16
 
 ### Added
