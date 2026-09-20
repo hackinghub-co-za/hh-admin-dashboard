@@ -137,6 +137,8 @@ import {
   RotateCcw,
   Pause,
   Timer,
+  LayoutGrid,
+  ListChecks,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -2330,6 +2332,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
   // All upcoming events members can attend, across every category
   const [eventTypeFilter, setEventTypeFilter] = useState('All');
+  // Grid (the original card board), Calendar (a month view, click a day to
+  // see what's on it), or List (a scannable table - date/title/type/
+  // location/RSVPs at a glance). Purely a display preference, not
+  // persisted - defaults back to Grid every visit.
+  const [eventsViewMode, setEventsViewMode] = useState('grid');
+  // Calendar view's currently-displayed month, and which day (if any) is
+  // selected to show its full event cards below the grid. Defaults to
+  // today's month; selecting a day outside filteredEvents' upcoming-only
+  // window just shows "Nothing on this day" rather than an error.
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
   // Event RSVPs - real Supabase data for a real session (RLS scopes reads to
   // signed-in, approved members), local-only demo state under Mock Member
   // since there's no real session to persist an RSVP against. Real attendance
@@ -2485,6 +2501,142 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     ? communityEvents
     : communityEvents.filter(e => e.type === eventTypeFilter)
   ).filter((e) => daysUntilEvent(e.date) >= 0);
+
+  // The full event card - real content lives here once, reused by Grid
+  // view's board and by Calendar view's "here's what's on the day you
+  // clicked" panel, instead of maintaining two copies of the same RSVP/
+  // capacity/recording logic.
+  const renderEventCard = (e) => {
+    const typeStyle = EVENT_TYPE_STYLES[e.type] || {};
+    const hasRsvped = hasRsvpedToEvent(e.id);
+    const rsvpCount = rsvpCountForEvent(e);
+    const rsvping = rsvpingEventId === e.id;
+    const isCapped = e.capacity != null;
+    const isFull = isCapped && rsvpCount !== null && rsvpCount >= e.capacity && !hasRsvped;
+    return (
+      <div key={e.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {e.imageUrl && (
+          <img
+            src={e.imageUrl}
+            alt=""
+            style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}
+          />
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span className={`badge ${typeStyle.className || ''}`} style={typeStyle.style}>{e.type}</span>
+            {e.status === 'Pending' && (
+              <span className="badge badge-warning" style={{ whiteSpace: 'nowrap' }} title="Only visible to you until an admin approves it">
+                Pending Review
+              </span>
+            )}
+          </div>
+          <span
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: isFull ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: isCapped ? 600 : 400, whiteSpace: 'nowrap' }}
+            title={isCapped ? `Capped at ${e.capacity} seats, first come first served` : undefined}
+          >
+            <Users size={13} /> {rsvpCount === null ? '…' : rsvpCount}{isCapped ? ` / ${e.capacity}` : ''} RSVPs
+          </span>
+        </div>
+        {isCapped && (
+          <div
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              padding: '6px 10px',
+              borderRadius: 'var(--border-radius-sm, 6px)',
+              background: isFull ? 'rgba(var(--danger-rgb), 0.1)' : 'rgba(var(--success-rgb), 0.1)',
+              color: isFull ? 'var(--danger)' : 'var(--success)',
+              border: `1px solid rgba(${isFull ? 'var(--danger-rgb)' : 'var(--success-rgb)'}, 0.25)`,
+            }}
+          >
+            {isFull ? `Full — all ${e.capacity} seats taken` : `Only ${e.capacity} seats — first come, first served`}
+          </div>
+        )}
+        <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{e.title}</h4>
+        <ExpandableText text={e.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }} />
+        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+            <CalendarDays size={14} /> {formatDate(e.date)} at {e.time} SAST
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
+            <MapPin size={14} /> {e.location}
+          </div>
+          {isSafeUrl(e.link) && (
+            <a
+              href={e.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}
+            >
+              <Link size={14} /> Event Link <ExternalLink size={12} />
+            </a>
+          )}
+          {/* Sunday Catchup recording - only within 14 days of it
+              actually being posted. Summary notes have no such
+              window. */}
+          {e.recordingUrl && isSafeUrl(e.recordingUrl) && isRecordingStillVisible(e.recordingAddedAt) && (
+            <a
+              href={e.recordingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}
+            >
+              <PlayCircle size={14} /> Watch Recording <ExternalLink size={12} />
+            </a>
+          )}
+          {e.summaryNotesUrl && isSafeUrl(e.summaryNotesUrl) && (
+            <a
+              href={e.summaryNotesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}
+            >
+              <FileText size={14} /> Summary Notes <ExternalLink size={12} />
+            </a>
+          )}
+        </div>
+        <div style={{ position: 'relative', marginTop: '4px' }}>
+          <button
+            onClick={() => handleEventRsvp(e.id)}
+            disabled={rsvping || isFull}
+            title={hasRsvped ? "Click to remove your RSVP" : isFull ? `All ${e.capacity} seats are taken` : undefined}
+            className={`btn ${hasRsvped ? 'btn-secondary' : 'btn-primary'}`}
+            style={{ justifyContent: 'center', width: '100%' }}
+          >
+            {rsvping
+              ? (hasRsvped ? 'Leaving...' : 'Joining...')
+              : isFull
+                ? 'Event Full'
+                : hasRsvped
+                  ? <><CheckCircle2 size={14} /> You're There</>
+                  : <><Sparkles size={14} /> Yes I'm There</>}
+          </button>
+          {burstingEventId === e.id && (
+            <div style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+              {CONFETTI_PARTICLES.map((p, i) => (
+                <span
+                  key={i}
+                  className="rsvp-confetti"
+                  style={{
+                    '--angle': `${p.angle}deg`,
+                    '--distance': `${p.distance}px`,
+                    '--delay': `${p.delay}s`,
+                    background: p.color,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        {hasRsvped && (
+          <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+            {formatEventCountdown(daysUntilEvent(e.date))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Dashboard "Upcoming Event" spotlight - the soonest real, approved event
   // that hasn't happened yet, not a hardcoded placeholder. undefined once
@@ -5747,139 +5899,227 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {loadingEvents && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading events...</p>}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-            {filteredEvents.map((e) => {
-              const typeStyle = EVENT_TYPE_STYLES[e.type] || {};
-              const hasRsvped = hasRsvpedToEvent(e.id);
-              const rsvpCount = rsvpCountForEvent(e);
-              const rsvping = rsvpingEventId === e.id;
-              const isCapped = e.capacity != null;
-              const isFull = isCapped && rsvpCount !== null && rsvpCount >= e.capacity && !hasRsvped;
-              return (
-                <div key={e.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {e.imageUrl && (
-                    <img
-                      src={e.imageUrl}
-                      alt=""
-                      style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}
-                    />
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      <span className={`badge ${typeStyle.className || ''}`} style={typeStyle.style}>{e.type}</span>
-                      {e.status === 'Pending' && (
-                        <span className="badge badge-warning" style={{ whiteSpace: 'nowrap' }} title="Only visible to you until an admin approves it">
-                          Pending Review
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: isFull ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: isCapped ? 600 : 400, whiteSpace: 'nowrap' }}
-                      title={isCapped ? `Capped at ${e.capacity} seats, first come first served` : undefined}
-                    >
-                      <Users size={13} /> {rsvpCount === null ? '…' : rsvpCount}{isCapped ? ` / ${e.capacity}` : ''} RSVPs
-                    </span>
-                  </div>
-                  {isCapped && (
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        padding: '6px 10px',
-                        borderRadius: 'var(--border-radius-sm, 6px)',
-                        background: isFull ? 'rgba(var(--danger-rgb), 0.1)' : 'rgba(var(--success-rgb), 0.1)',
-                        color: isFull ? 'var(--danger)' : 'var(--success)',
-                        border: `1px solid rgba(${isFull ? 'var(--danger-rgb)' : 'var(--success-rgb)'}, 0.25)`,
-                      }}
-                    >
-                      {isFull ? `Full — all ${e.capacity} seats taken` : `Only ${e.capacity} seats — first come, first served`}
-                    </div>
-                  )}
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{e.title}</h4>
-                  <ExpandableText text={e.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }} />
-                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                      <CalendarDays size={14} /> {formatDate(e.date)} at {e.time} SAST
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-                      <MapPin size={14} /> {e.location}
-                    </div>
-                    {isSafeUrl(e.link) && (
-                      <a
-                        href={e.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}
-                      >
-                        <Link size={14} /> Event Link <ExternalLink size={12} />
-                      </a>
-                    )}
-                    {/* Sunday Catchup recording - only within 14 days of it
-                        actually being posted. Summary notes have no such
-                        window. */}
-                    {e.recordingUrl && isSafeUrl(e.recordingUrl) && isRecordingStillVisible(e.recordingAddedAt) && (
-                      <a
-                        href={e.recordingUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}
-                      >
-                        <PlayCircle size={14} /> Watch Recording <ExternalLink size={12} />
-                      </a>
-                    )}
-                    {e.summaryNotesUrl && isSafeUrl(e.summaryNotesUrl) && (
-                      <a
-                        href={e.summaryNotesUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}
-                      >
-                        <FileText size={14} /> Summary Notes <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
-                  <div style={{ position: 'relative', marginTop: '4px' }}>
+          {/* View switcher - Grid (the original card board), Calendar
+              (a month view, click a day to see what's on it), or List (a
+              scannable table). */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+            {[
+              { key: 'grid', label: 'Grid', Icon: LayoutGrid },
+              { key: 'calendar', label: 'Calendar', Icon: CalendarDays },
+              { key: 'list', label: 'List', Icon: ListChecks },
+            ].map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => setEventsViewMode(key)}
+                className={`btn ${eventsViewMode === key ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              >
+                <Icon size={14} /> {label}
+              </button>
+            ))}
+          </div>
+
+          {loadingEvents && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading events...</p>}
+
+          {eventsViewMode === 'grid' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+              {filteredEvents.map(renderEventCard)}
+            </div>
+          )}
+
+          {eventsViewMode === 'list' && (
+            <div className="glass-card" style={{ padding: 0, overflowX: 'auto' }}>
+              {filteredEvents.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  Nothing upcoming in this category.
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '640px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>Date</th>
+                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>Title</th>
+                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>Type</th>
+                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>Location</th>
+                      <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>RSVPs</th>
+                      <th style={{ padding: '12px 16px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...filteredEvents].sort((a, b) => new Date(a.date) - new Date(b.date)).map((e) => {
+                      const typeStyle = EVENT_TYPE_STYLES[e.type] || {};
+                      const hasRsvped = hasRsvpedToEvent(e.id);
+                      const rsvpCount = rsvpCountForEvent(e);
+                      const rsvping = rsvpingEventId === e.id;
+                      const isCapped = e.capacity != null;
+                      const isFull = isCapped && rsvpCount !== null && rsvpCount >= e.capacity && !hasRsvped;
+                      return (
+                        <tr key={e.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '14px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                            {formatDate(e.date)}{e.time ? ` · ${e.time}` : ''}
+                          </td>
+                          <td style={{ padding: '14px 16px', fontSize: '0.9rem', fontWeight: 600, maxWidth: '260px' }}>
+                            {e.title}
+                            {e.status === 'Pending' && (
+                              <span className="badge badge-warning" style={{ marginLeft: '8px', fontSize: '0.65rem', whiteSpace: 'nowrap' }} title="Only visible to you until an admin approves it">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <span className={`badge ${typeStyle.className || ''}`} style={{ ...typeStyle.style, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{e.type}</span>
+                          </td>
+                          <td style={{ padding: '14px 16px', fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '220px' }}>{e.location || '—'}</td>
+                          <td style={{ padding: '14px 16px', fontSize: '0.82rem', color: isFull ? 'var(--danger)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                            {rsvpCount === null ? '…' : rsvpCount}{isCapped ? ` / ${e.capacity}` : ''}
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => handleEventRsvp(e.id)}
+                              disabled={rsvping || isFull}
+                              title={hasRsvped ? "Click to remove your RSVP" : isFull ? `All ${e.capacity} seats are taken` : undefined}
+                              className={`btn ${hasRsvped ? 'btn-secondary' : 'btn-primary'}`}
+                              style={{ fontSize: '0.78rem', padding: '6px 12px', whiteSpace: 'nowrap' }}
+                            >
+                              {rsvping
+                                ? (hasRsvped ? 'Leaving...' : 'Joining...')
+                                : isFull
+                                  ? 'Full'
+                                  : hasRsvped
+                                    ? "You're There"
+                                    : "I'm There"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {eventsViewMode === 'calendar' && (() => {
+            const year = calendarMonth.getFullYear();
+            const month = calendarMonth.getMonth();
+            const firstOfMonth = new Date(year, month, 1);
+            const startWeekday = firstOfMonth.getDay(); // 0 = Sunday
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const todayKey = new Date().toDateString();
+
+            // communityEvents, not filteredEvents - a member browsing the
+            // calendar should see every type at a glance regardless of the
+            // type-filter buttons above (which only scope Grid/List);
+            // clicking a day still shows only what's actually upcoming.
+            const eventsByDay = {};
+            communityEvents
+              .filter((e) => daysUntilEvent(e.date) >= 0 && (eventTypeFilter === 'All' || e.type === eventTypeFilter))
+              .forEach((e) => {
+                const key = new Date(`${e.date}T00:00:00`).toDateString();
+                (eventsByDay[key] = eventsByDay[key] || []).push(e);
+              });
+
+            const cells = [];
+            for (let i = 0; i < startWeekday; i++) cells.push(null);
+            for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+            const selectedDayEvents = selectedCalendarDate
+              ? (eventsByDay[selectedCalendarDate.toDateString()] || [])
+              : [];
+
+            return (
+              <div>
+                <div className="glass-card" style={{ padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <button
-                      onClick={() => handleEventRsvp(e.id)}
-                      disabled={rsvping || isFull}
-                      title={hasRsvped ? "Click to remove your RSVP" : isFull ? `All ${e.capacity} seats are taken` : undefined}
-                      className={`btn ${hasRsvped ? 'btn-secondary' : 'btn-primary'}`}
-                      style={{ justifyContent: 'center', width: '100%' }}
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 10px' }}
+                      onClick={() => setCalendarMonth(new Date(year, month - 1, 1))}
+                      aria-label="Previous month"
                     >
-                      {rsvping
-                        ? (hasRsvped ? 'Leaving...' : 'Joining...')
-                        : isFull
-                          ? 'Event Full'
-                          : hasRsvped
-                            ? <><CheckCircle2 size={14} /> You're There</>
-                            : <><Sparkles size={14} /> Yes I'm There</>}
+                      <ChevronDown size={16} style={{ transform: 'rotate(90deg)' }} />
                     </button>
-                    {burstingEventId === e.id && (
-                      <div style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
-                        {CONFETTI_PARTICLES.map((p, i) => (
-                          <span
-                            key={i}
-                            className="rsvp-confetti"
-                            style={{
-                              '--angle': `${p.angle}deg`,
-                              '--distance': `${p.distance}px`,
-                              '--delay': `${p.delay}s`,
-                              background: p.color,
-                            }}
-                          />
-                        ))}
+                    <h3 style={{ margin: 0 }}>{calendarMonth.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}</h3>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 10px' }}
+                      onClick={() => setCalendarMonth(new Date(year, month + 1, 1))}
+                      aria-label="Next month"
+                    >
+                      <ChevronDown size={16} style={{ transform: 'rotate(-90deg)' }} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '6px' }}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                      <div key={d} style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '4px 0' }}>{d}</div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                    {cells.map((d, i) => {
+                      if (d === null) return <div key={`blank-${i}`} />;
+                      const cellDate = new Date(year, month, d);
+                      const dayEvents = eventsByDay[cellDate.toDateString()] || [];
+                      const isToday = cellDate.toDateString() === todayKey;
+                      const isSelected = selectedCalendarDate && cellDate.toDateString() === selectedCalendarDate.toDateString();
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setSelectedCalendarDate(dayEvents.length ? cellDate : null)}
+                          style={{
+                            minHeight: '68px',
+                            padding: '6px',
+                            borderRadius: 'var(--border-radius-sm)',
+                            border: isSelected ? '1px solid var(--accent-cyan)' : isToday ? '1px solid rgba(var(--accent-rgb), 0.4)' : '1px solid var(--border-color)',
+                            background: isSelected ? 'rgba(var(--accent-rgb), 0.12)' : 'rgba(var(--overlay-rgb), 0.01)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            gap: '3px',
+                            cursor: dayEvents.length ? 'pointer' : 'default',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ fontSize: '0.75rem', fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--accent-cyan)' : 'var(--text-secondary)' }}>{d}</span>
+                          {dayEvents.slice(0, 2).map((e) => {
+                            const typeStyle = EVENT_TYPE_STYLES[e.type] || {};
+                            return (
+                              <span
+                                key={e.id}
+                                className={`badge ${typeStyle.className || ''}`}
+                                style={{ ...typeStyle.style, fontSize: '0.6rem', padding: '1px 6px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+                                title={e.title}
+                              >
+                                {e.title}
+                              </span>
+                            );
+                          })}
+                          {dayEvents.length > 2 && (
+                            <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>+{dayEvents.length - 2} more</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {selectedCalendarDate && (
+                  <div style={{ marginTop: '24px' }}>
+                    <h4 style={{ marginBottom: '14px' }}>{formatDate(selectedCalendarDate)}</h4>
+                    {selectedDayEvents.length === 0 ? (
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Nothing on this day.</p>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                        {selectedDayEvents.map(renderEventCard)}
                       </div>
                     )}
                   </div>
-                  {hasRsvped && (
-                    <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                      {formatEventCountdown(daysUntilEvent(e.date))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                )}
+              </div>
+            );
+          })()}
 
           {showAddEventForm && (
             <div
