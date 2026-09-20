@@ -638,14 +638,6 @@ const MOCK_EXAM_READINESS = [
   { certName: 'Security+', checklist: { study_course: true, objectives_reviewed: true, practice_test_1: false, practice_test_2: false }, latestPracticeScore: null, latestPracticeScoreAt: null },
 ];
 
-const MOCK_JOB_BOARD = [
-  { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', posted: '2026-08-01', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts, triaging incidents, and escalating to senior analysts. Great fit for members who\'ve completed Security+.', tags: ['Blue Team', 'Security+', 'Entry Level'], track: 'SOC', link: '' },
-  { id: 2, title: 'Junior Penetration Tester', company: 'Telspace Systems', location: 'Cape Town (Onsite)', type: 'Full-Time', posted: '2026-07-28', salary: 'R22,000 – R30,000 / month', description: 'Assist senior consultants on web and network penetration tests. OSCP in progress or completed strongly preferred.', tags: ['Red Team', 'OSCP', 'Junior'], track: 'Offensive Security', link: '' },
-  { id: 3, title: 'GRC Analyst Intern', company: 'Standard Bank', location: 'Johannesburg (Onsite)', type: 'Internship', posted: '2026-08-05', salary: 'R8,000 / month stipend', description: '6-month internship supporting risk assessments and compliance documentation within the group security office.', tags: ['GRC', 'Internship'], track: 'GRC', link: '' },
-  { id: 4, title: 'Cloud Security Engineer', company: 'Entelect', location: 'Remote (SA)', type: 'Full-Time', posted: '2026-07-20', salary: 'R45,000 – R60,000 / month', description: 'Own security posture for AWS and Azure workloads. AZ-500 or equivalent cloud security cert required.', tags: ['Cloud Security', 'AZ-500', 'Mid-Level'], track: 'Cloud Security', link: '' },
-  { id: 5, title: 'Vulnerability Assessment Contractor', company: 'Private Client (via HH Network)', location: 'Remote', type: 'Contract', posted: '2026-08-06', salary: 'Project-based', description: 'Short-term engagement running external vulnerability scans and reporting for a mid-size fintech. Referred through the Hacking Hub network.', tags: ['Red Team', 'Contract'], track: 'Offensive Security', link: '' },
-];
-
 const MOCK_RESOURCES = [
   { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
@@ -761,8 +753,8 @@ const MOCK_COMMUNITY_WINS = [
 
 // Suggested Content is real Supabase data now (045_suggested_content.sql) -
 // this is only the Mock Member fallback. No link fabricated for the demo
-// items - same as MOCK_JOB_BOARD, an empty link just renders without the
-// "Open" button rather than pointing anywhere real.
+// items - an empty link just renders without the "Open" button rather
+// than pointing anywhere real.
 const MOCK_SUGGESTED_CONTENT = [
   { id: 1, contentType: 'Video', title: 'How a real OSCP exam attempt actually goes', url: '' },
   { id: 2, contentType: 'Article', title: 'What hiring managers actually look for on a junior SOC CV', url: '' },
@@ -2996,11 +2988,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     : null;
 
   // Job Board — real Supabase data for a real session (RLS scopes reads to
-  // signed-in, approved members), local-only demo listings under Mock Member
-  // since there's no real session to fetch from. Members can add their own
-  // listing via the "Add Job" form below - those persist for everyone.
+  // signed-in, approved members). Mock Member starts empty too (no
+  // fabricated demo listings) since there's no real session to fetch from -
+  // members can add their own listing via the "Add Job" form below, which
+  // works identically under Mock Member (local-only state) or a real
+  // session (persists for everyone).
   const [jobTypeFilter, setJobTypeFilter] = useState('All');
-  const [jobListings, setJobListings] = useState(isMockSession ? MOCK_JOB_BOARD : []);
+  const [jobListings, setJobListings] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(!isMockSession);
   const [jobsError, setJobsError] = useState(null);
   const [showAddJobForm, setShowAddJobForm] = useState(false);

@@ -1600,9 +1600,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // board"), plus a new deleteJobListing (jobBoardData.js) since nothing on
   // the member side ever needed to delete a listing before.
   const JOB_TYPES = ['Full-Time', 'Contract', 'Internship'];
-  const [jobListings, setJobListings] = useState(isMockSession ? [
-    { id: 1, title: 'SOC Analyst (Junior)', company: 'Nclose', location: 'Johannesburg (Hybrid)', type: 'Full-Time', salary: 'R18,000 – R25,000 / month', description: 'Entry-level SOC role monitoring alerts and triaging incidents.', tags: ['Blue Team', 'Entry Level'], track: 'SOC', link: '', posted: '2026-08-01' },
-  ] : []);
+  const [jobListings, setJobListings] = useState([]);
   const [loadingJobListings, setLoadingJobListings] = useState(!isMockSession);
   const [jobListingsError, setJobListingsError] = useState(null);
   const [showAddJobForm, setShowAddJobForm] = useState(false);
