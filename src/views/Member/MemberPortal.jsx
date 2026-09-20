@@ -6795,6 +6795,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <InterviewPlaybookGuideModal
               onClose={() => setShowInterviewPlaybookGuide(false)}
               onBookInterviewPrep={!isMockSession ? () => setShowInterviewPrep(true) : undefined}
+              isMockSession={isMockSession}
             />
           )}
           {showKodeKloudGuide && <KodeKloudGuideModal onClose={() => setShowKodeKloudGuide(false)} />}
