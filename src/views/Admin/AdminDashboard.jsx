@@ -116,7 +116,7 @@ import {
   IdCard,
   ClipboardList,
 } from 'lucide-react';
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 // Focus 5 - the members getting the most attention this month, now backed
 // by supabase/038_focus_five.sql instead of a hardcoded list. Mock Admin
@@ -3017,6 +3017,31 @@ Pick new people to present next Sunday`;
         }[role] || { greeting: 'there', blurb: '', links: [] };
         const adminFirstName = (user?.user_metadata?.full_name || '').trim().split(' ')[0] || null;
 
+        // Community Manager-only: real counts pulled from data already
+        // fetched elsewhere in this component (roomLogs, communityEvents,
+        // breakdowns, groups, jobListings, certs - no new fetches added) -
+        // turns the plain row of nav-shortcut buttons below into tiles
+        // actually worth glancing at, and surfaces what needs action today
+        // instead of making a CM click into every tab to find out.
+        const cmPendingRoomLogs = role === 'community_manager' ? roomLogs.filter((l) => l.status === 'Pending').length : 0;
+        const cmDraftBreakdowns = role === 'community_manager' ? breakdowns.filter((b) => b.status === 'Draft').length : 0;
+        const cmActiveGroups = role === 'community_manager' ? groups.filter((g) => g.status === 'Active').length : 0;
+        const cmCertsDueSoon = role === 'community_manager' ? certs.filter((c) => {
+          if (c.result !== 'Pending') return false;
+          const diffDays = (new Date(c.date) - today) / 86400000;
+          return diffDays >= 0 && diffDays <= 7;
+        }).length : 0;
+        const cmPendingEvents = role === 'community_manager' ? pendingCommunityEvents.length : 0;
+        const cmNeedsAttentionTotal = cmPendingRoomLogs + cmPendingEvents + cmDraftBreakdowns;
+        const cmTiles = role === 'community_manager' ? [
+          { id: 'roomlogs', label: 'Room Logs', icon: ListChecks, value: cmPendingRoomLogs, caption: 'pending review', highlight: cmPendingRoomLogs > 0 },
+          { id: 'matchmaker', label: 'Matchmaker', icon: Handshake, value: cmActiveGroups, caption: 'active groups', highlight: false },
+          { id: 'meetups', label: 'Meetups & Events', icon: Calendar, value: liveCommunityEvents.length, caption: 'upcoming, approved', highlight: false },
+          { id: 'jobs', label: 'Job Board', icon: Briefcase, value: jobListings.length, caption: 'live listings', highlight: false },
+          { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap, value: cmCertsDueSoon, caption: 'exams due in 7 days', highlight: cmCertsDueSoon > 0 },
+          { id: 'community-content', label: 'Community Content', icon: Megaphone, value: cmDraftBreakdowns, caption: 'breakdowns in Draft', highlight: cmDraftBreakdowns > 0 },
+        ] : [];
+
         return (
           <div>
             <div style={{ marginBottom: '32px' }}>
@@ -3045,20 +3070,138 @@ Pick new people to present next Sunday`;
                 </div>
               )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-              {ROLE_LANDING.links.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setActiveTab(id)}
-                  className="glass-card hover-glow"
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '20px', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', background: 'rgba(var(--overlay-rgb), 0.02)' }}
-                >
-                  <Icon size={20} color="var(--accent-cyan)" />
-                  <span style={{ fontWeight: 600 }}>{label}</span>
-                </button>
-              ))}
-            </div>
+
+            {role === 'community_manager' && (
+              <>
+                {/* Needs your attention - only the 3 categories a CM can
+                    actually act on (approve/review), not every count on the
+                    tiles below. Swaps to a calm "all caught up" state
+                    instead of just rendering nothing when there's nothing
+                    to do - a CM should be able to tell at a glance that the
+                    absence of a banner means "nothing," not "not loaded yet." */}
+                <div style={{ marginBottom: '24px' }}>
+                  {cmNeedsAttentionTotal > 0 ? (
+                    <div
+                      className="glass-card"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap',
+                        borderColor: 'rgba(var(--warning-rgb), 0.35)', background: 'rgba(var(--warning-rgb), 0.06)',
+                      }}
+                    >
+                      <AlertTriangle size={20} color="var(--warning)" style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: '220px' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.92rem', marginBottom: '2px' }}>Needs your attention</div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {[
+                            cmPendingRoomLogs > 0 && `${cmPendingRoomLogs} room log${cmPendingRoomLogs === 1 ? '' : 's'} to review`,
+                            cmPendingEvents > 0 && `${cmPendingEvents} event${cmPendingEvents === 1 ? '' : 's'} awaiting approval`,
+                            cmDraftBreakdowns > 0 && `${cmDraftBreakdowns} breakdown${cmDraftBreakdowns === 1 ? '' : 's'} in Draft`,
+                          ].filter(Boolean).join(' · ')}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {cmPendingRoomLogs > 0 && (
+                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.78rem' }} onClick={() => setActiveTab('roomlogs')}>Review Room Logs</button>
+                        )}
+                        {cmPendingEvents > 0 && (
+                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.78rem' }} onClick={() => setActiveTab('meetups')}>Review Events</button>
+                        )}
+                        {cmDraftBreakdowns > 0 && (
+                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.78rem' }} onClick={() => setActiveTab('community-content')}>Review Breakdowns</button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="glass-card"
+                      style={{ display: 'flex', alignItems: 'center', gap: '12px', borderColor: 'rgba(var(--success-rgb), 0.3)', background: 'rgba(var(--success-rgb), 0.05)' }}
+                    >
+                      <CheckCircle size={20} color="var(--success)" style={{ flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>You're all caught up</div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>No pending room logs, event approvals, or draft breakdowns right now.</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Real, clickable KPI tiles - same card treatment as the
+                    founder's Admin Overview tiles above, but every number
+                    here is something a Community Manager specifically owns. */}
+                <div className="dashboard-grid">
+                  {cmTiles.map(({ id, label, icon: Icon, value, caption, highlight }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setActiveTab(id)}
+                      className="glass-card"
+                      style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--border-color)', background: 'rgba(var(--overlay-rgb), 0.02)', font: 'inherit', color: 'inherit' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>{label}</span>
+                        <Icon size={20} color={highlight ? 'var(--warning)' : 'var(--accent-cyan)'} />
+                      </div>
+                      <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{value}</h2>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{caption}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Visual comparison of the same 3 actionable categories
+                    from the banner above - skipped entirely when there's
+                    nothing pending, so it never renders as a pointless flat
+                    empty chart. */}
+                {cmNeedsAttentionTotal > 0 && (
+                  <div className="glass-card" style={{ marginBottom: '24px' }}>
+                    <h3 style={{ margin: '0 0 16px' }}>Pending by Category</h3>
+                    <div style={{ width: '100%', height: 180 }}>
+                      <ResponsiveContainer>
+                        <BarChart
+                          data={[
+                            { name: 'Room Logs', pending: cmPendingRoomLogs },
+                            { name: 'Events', pending: cmPendingEvents },
+                            { name: 'Breakdowns', pending: cmDraftBreakdowns },
+                          ]}
+                          margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                          <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--border-color)' }} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--border-color)' }} tickLine={false} width={30} />
+                          <Tooltip
+                            formatter={(value) => [value, 'Pending']}
+                            contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.8rem' }}
+                            labelStyle={{ color: 'var(--text-primary)' }}
+                            cursor={{ fill: 'rgba(var(--overlay-rgb), 0.06)' }}
+                          />
+                          <Bar dataKey="pending" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                            <Cell fill="var(--accent-cyan)" />
+                            <Cell fill="var(--accent-purple)" />
+                            <Cell fill="var(--warning)" />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {role !== 'community_manager' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                {ROLE_LANDING.links.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveTab(id)}
+                    className="glass-card"
+                    style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '20px', border: '1px solid var(--border-color)', cursor: 'pointer', textAlign: 'left', background: 'rgba(var(--overlay-rgb), 0.02)' }}
+                  >
+                    <Icon size={20} color="var(--accent-cyan)" />
+                    <span style={{ fontWeight: 600 }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Upcoming Mentee Meetings - mentor-only. Matches the mentor's
                 own connected Google Calendar (fetchCalendarEvents, already
