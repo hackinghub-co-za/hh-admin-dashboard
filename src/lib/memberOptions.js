@@ -296,6 +296,10 @@ export const ROADMAP_ITEM_INFO = {
     teaches: "A practical, exam-based certification covering security fundamentals, phishing analysis, digital forensics, SIEM, and incident response - built entirely around real defensive work, not multiple-choice theory.",
     journey: "BTL1's exam is a practical investigation, not a quiz - it's often cited by hiring managers as genuine proof you can actually do defensive work, which makes it a strong complement to the more theory-heavy certs on this track.",
   },
+  'CISCO Cybersecurity Defense Analyst': {
+    teaches: "A Splunk-powered SOC detection and response career path through Cisco's free NetAcad courses - SIEM fundamentals, log analysis and correlation, threat detection techniques, and incident response workflows, all hands-on with Splunk itself.",
+    journey: "Splunk is one of the most widely deployed SIEM platforms in real SOCs, and this is the one item on this track that gets you free, genuine hands-on time in it. It rounds out the SOC track's tool coverage alongside SC-200's Microsoft stack.",
+  },
 
   // ---- Specialization: Offensive Security ----
   'eJPT': {
