@@ -237,6 +237,17 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   // Projects - GRC
   'Mock Risk Assessment': 'Run a Real Risk Assessment Process',
   'Compliance Gap Analysis': 'Practice Real Regulatory Compliance Work',
+  // Advanced - SOC
+  'CompTIA SecurityX': 'Advanced Security Architecture & Engineering',
+  'AWS Certified Security – Specialty': 'Deep AWS Security Specialization',
+  'Write & Tune 3 Detection Rules': 'Build & Prove Real Detection Logic',
+  'Run a Real Threat Hunt': 'Practice Proactive Threat Hunting',
+  'THM SOC Level 2': 'Advanced Threat Hunting & Malware Analysis',
+  'Automate a Real SOC Workflow': 'Automate Real, Manual SOC Work',
+  'Build a SOAR Playbook': 'Practice Real Security Orchestration',
+  'Own a Real Incident End-to-End': 'Lead a Real Incident, Start to Finish',
+  'Mentor a Tier 1 Analyst': 'Practice Real Technical Mentorship',
+  'Present Findings to a Stakeholder': 'Practice Communicating Up, Not Just Analyzing',
 };
 
 // The longer "what does this actually teach me, and why am I doing it"
@@ -513,6 +524,48 @@ export const ROADMAP_ITEM_INFO = {
   'Compliance Gap Analysis': {
     teaches: "How to assess a hypothetical company's actual compliance posture against a real regulation (POPIA or GDPR) and document the specific gaps and a remediation plan.",
     journey: "Gap analysis is one of the most common real deliverables in GRC work - this project is direct, portfolio-ready practice for exactly that, using regulations that are genuinely, currently in force.",
+  },
+
+  // ---- Advanced: SOC ----
+  'CompTIA SecurityX': {
+    teaches: "Advanced security architecture and engineering - governance/risk/compliance, security architecture, security engineering, and security operations at a senior, design-level depth, not just day-to-day operation.",
+    journey: "This is CompTIA's top-tier cert (formerly CASP+), aimed at someone ready to architect enterprise security solutions, not just run them. It's one of two real Tier 2 certification options on the Advanced SOC track, alongside SC-500.",
+  },
+  'AWS Certified Security – Specialty': {
+    teaches: "Deep, AWS-specific security specialization - threat detection and incident response, security logging and monitoring, infrastructure security, identity and access management, and data protection at cloud scale.",
+    journey: "A huge share of real infrastructure runs on AWS specifically, and this proves you can secure it at depth, not just generally understand cloud security concepts. The AWS counterpart to SC-500 on this track.",
+  },
+  'Write & Tune 3 Detection Rules': {
+    teaches: "How to actually write, deploy, and tune detection rules at your own SOC - not just study detection theory - including documenting each rule's logic and its real false-positive rate.",
+    journey: "Tier 1 analysts triage alerts someone else wrote the rules for. Writing and tuning your own is the first real step toward Tier 2/3 work - proof you understand detection logic well enough to build it, not just respond to it.",
+  },
+  'Run a Real Threat Hunt': {
+    teaches: "How to run a real, proactive threat hunt - pick one MITRE ATT&CK technique, hunt for evidence of it in your own environment, and write up exactly what you found (or didn't).",
+    journey: "Threat hunting is the proactive counterpart to reactive alert triage - going looking for what your detections might be missing. This is proof you can work ahead of an alert, not just respond to one.",
+  },
+  'THM SOC Level 2': {
+    teaches: "The advanced follow-on to SOC Level 1 - deeper threat hunting, malware analysis fundamentals, advanced incident response, and threat intelligence, aimed at analysts ready to move beyond Tier 1 triage.",
+    journey: "This is where the SOC track's hands-on TryHackMe path continues past the fundamentals - the natural next step once SOC Level 1 and CySA+/SC-200 feel solid, and a strong companion to the real threat-hunting item above.",
+  },
+  'Automate a Real SOC Workflow': {
+    teaches: "How to actually automate a real, manual SOC task - AI-assisted or scripted - and document exactly how much manual time it replaces.",
+    journey: "SOC teams increasingly expect analysts who can automate their own repetitive work, not just do it by hand every time. This is concrete proof you can spot a manual bottleneck and actually fix it.",
+  },
+  'Build a SOAR Playbook': {
+    teaches: "How to design and build a real SOAR (Security Orchestration, Automation and Response) playbook, if your SOC has the tooling for it - automating the response side, not just detection.",
+    journey: "This is the automation track's natural extension from detection into response - SOAR is where a lot of modern SOC efficiency actually comes from, and hands-on playbook experience is a genuine differentiator at the senior analyst level.",
+  },
+  'Own a Real Incident End-to-End': {
+    teaches: "How to own a real security incident completely, start to finish - detection, containment, eradication, and lessons learned - written up as a sanitized case study.",
+    journey: "This is one of the clearest signs of Tier 2/3 readiness: not just contributing to an incident response, but actually owning one from first alert to final write-up.",
+  },
+  'Mentor a Tier 1 Analyst': {
+    teaches: "How to actually mentor someone more junior than you - walking a Tier 1 analyst through one real triage case this quarter, not just doing the work yourself.",
+    journey: "Leadership on a SOC team isn't a title, it's a demonstrated skill - and mentoring is usually the very first form it takes. This is proof you're ready to help build the next analyst, not just be one.",
+  },
+  'Present Findings to a Stakeholder': {
+    teaches: "How to present technical security findings to a non-technical stakeholder - translating what you found into what it actually means for the business.",
+    journey: "The best technical analysis in the world doesn't matter if you can't explain it to the person who has to act on it. This is the communication skill that separates a strong individual contributor from someone ready for a lead or client-facing role.",
   },
 };
 
