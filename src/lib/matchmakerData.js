@@ -15,6 +15,7 @@ function mapGroupRow(row) {
     status: row.status,
     dueDate: row.due_date,
     recordingUrl: row.recording_url,
+    notesUrl: row.notes_url,
   };
 }
 
@@ -41,7 +42,7 @@ export async function leaveOptinPool(email) {
 export async function fetchMyGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date, recording_url')
+    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
@@ -51,7 +52,7 @@ export async function fetchMyGroups() {
 export async function fetchAllGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date, recording_url')
+    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
@@ -64,7 +65,7 @@ export async function fetchAllGroups() {
 export async function fetchShowcaseGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date, recording_url')
+    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url')
     .not('recording_url', 'is', null)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -75,6 +76,13 @@ export async function fetchShowcaseGroups() {
  * presentation. */
 export async function submitGroupRecording(groupId, recordingUrl) {
   const { error } = await supabase.rpc('submit_group_recording', { p_group_id: groupId, p_recording_url: recordingUrl });
+  if (error) throw error;
+}
+
+/** A member of the group shares (or updates) a link to their meeting notes -
+ * same shape as submitGroupRecording, independent field. */
+export async function submitGroupNotes(groupId, notesUrl) {
+  const { error } = await supabase.rpc('submit_group_notes', { p_group_id: groupId, p_notes_url: notesUrl });
   if (error) throw error;
 }
 

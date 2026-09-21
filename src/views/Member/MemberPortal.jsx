@@ -41,7 +41,7 @@ import { fetchMyJobApplications, addJobApplication, updateJobApplication, delete
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
 import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
-import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
+import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
@@ -2168,6 +2168,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [ratingDraftByGroupId, setRatingDraftByGroupId] = useState({});
   const [submittingRatingGroupId, setSubmittingRatingGroupId] = useState(null);
   const [submittingRecording, setSubmittingRecording] = useState(false);
+  const [submittingNotes, setSubmittingNotes] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -2213,6 +2214,35 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setMatchmakerError(friendlyMemberErrorMessage(err));
     } finally {
       setSubmittingRecording(false);
+    }
+  };
+
+  // Same shape as the recording handlers above, independent field - a group
+  // can share meeting notes with or without a recording.
+  const handleActiveGroupNotesChange = (value) => {
+    setMyGroups((prev) => prev.map((g) => (g.id === activeGroup.id ? { ...g, notesUrl: value } : g)));
+  };
+
+  const handleSubmitGroupNotes = async () => {
+    const url = (activeGroup.notesUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) {
+      setMatchmakerError('Add a real link to the notes, starting with http:// or https://.');
+      return;
+    }
+    setMatchmakerError(null);
+    setSubmittingNotes(true);
+    if (isMockSession) {
+      setMyGroups((prev) => prev.map((g) => (g.id === activeGroup.id ? { ...g, notesUrl: url } : g)));
+      setSubmittingNotes(false);
+      return;
+    }
+    try {
+      await submitGroupNotes(activeGroup.id, url);
+      refreshMatchmakerData();
+    } catch (err) {
+      setMatchmakerError(friendlyMemberErrorMessage(err));
+    } finally {
+      setSubmittingNotes(false);
     }
   };
 
@@ -4946,6 +4976,29 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     {submittingRecording ? 'Saving...' : activeGroup.recordingUrl ? 'Update Link' : 'Share Recording'}
                   </button>
                 </div>
+
+                {isSafeUrl(activeGroup.notesUrl) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', margin: '14px 0 10px' }}>
+                    <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>Notes Shared</span>
+                    <a href={activeGroup.notesUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-cyan)' }}>View meeting notes</a>
+                  </div>
+                )}
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '14px 0 10px' }}>
+                  Got meeting notes written up too? Drop the link here.
+                </p>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <input
+                    type="url"
+                    value={activeGroup.notesUrl || ''}
+                    onChange={(e) => handleActiveGroupNotesChange(e.target.value)}
+                    placeholder="https://docs.google.com/..."
+                    className="form-input"
+                    style={{ fontSize: '0.82rem', padding: '6px 10px', flex: 1, minWidth: '200px' }}
+                  />
+                  <button type="button" className="btn btn-secondary" disabled={submittingNotes} onClick={handleSubmitGroupNotes} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+                    {submittingNotes ? 'Saving...' : activeGroup.notesUrl ? 'Update Link' : 'Share Notes'}
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -5018,10 +5071,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
                         {group.memberEmails.map(nameForEmail).join(', ')}
                       </p>
-                      {isSafeUrl(group.recordingUrl) && (
-                        <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--accent-cyan)', marginBottom: '14px' }}>
-                          <Video size={14} /> Watch Recording
-                        </a>
+                      {(isSafeUrl(group.recordingUrl) || isSafeUrl(group.notesUrl)) && (
+                        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                          {isSafeUrl(group.recordingUrl) && (
+                            <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>
+                              <Video size={14} /> Watch Recording
+                            </a>
+                          )}
+                          {isSafeUrl(group.notesUrl) && (
+                            <a href={group.notesUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>
+                              <ExternalLink size={14} /> Meeting Notes
+                            </a>
+                          )}
+                        </div>
                       )}
 
                       {isOwnGroup ? (

@@ -213,6 +213,39 @@ $$;
 GRANT EXECUTE ON FUNCTION public.submit_group_recording(BIGINT, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.submit_group_recording(BIGINT, TEXT) FROM PUBLIC, anon;
 
+-- A link to shared meeting notes (a doc, not a video) - same self-service
+-- shape as submit_group_recording above, added once a group actually asked
+-- to attach notes alongside their recording. Deliberately its own nullable
+-- column/function rather than overloading recording_url - a group can have
+-- one, the other, both, or neither.
+ALTER TABLE public.matchmaker_groups ADD COLUMN IF NOT EXISTS notes_url TEXT;
+
+CREATE OR REPLACE FUNCTION public.submit_group_notes(p_group_id BIGINT, p_notes_url TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_group RECORD;
+BEGIN
+  IF p_notes_url IS NULL OR trim(p_notes_url) = '' OR p_notes_url !~* '^https?://' THEN
+    RAISE EXCEPTION 'Add a real link to the notes, starting with http:// or https://.';
+  END IF;
+
+  SELECT * INTO v_group FROM public.matchmaker_groups WHERE id = p_group_id;
+  IF v_group IS NULL THEN
+    RAISE EXCEPTION 'Group not found.';
+  END IF;
+  IF NOT (v_email = ANY (v_group.member_emails)) THEN
+    RAISE EXCEPTION 'Only a member of this group can share its notes.';
+  END IF;
+
+  UPDATE public.matchmaker_groups SET notes_url = trim(p_notes_url) WHERE id = p_group_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.submit_group_notes(BIGINT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.submit_group_notes(BIGINT, TEXT) FROM PUBLIC, anon;
+
 -- One rating per (group, rater) - re-rating just overwrites via the upsert
 -- in rate_matchmaker_group() below, same "resubmitting resets the previous
 -- value" convention as Projects proof. rater_email is kept for that

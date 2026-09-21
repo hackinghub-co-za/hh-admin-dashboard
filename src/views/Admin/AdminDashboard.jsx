@@ -5175,10 +5175,19 @@ Pick new people to present next Sunday`;
                   <ul style={{ margin: '0 0 14px', paddingLeft: '18px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
                     {group.memberEmails.map((email) => <li key={email}>{nameForEmail(email)}</li>)}
                   </ul>
-                  {group.recordingUrl && (
-                    <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--accent-cyan)', marginBottom: '12px' }}>
-                      <ExternalLink size={12} /> View recording
-                    </a>
+                  {(group.recordingUrl || group.notesUrl) && (
+                    <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                      {group.recordingUrl && (
+                        <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--accent-cyan)' }}>
+                          <ExternalLink size={12} /> View recording
+                        </a>
+                      )}
+                      {group.notesUrl && (
+                        <a href={group.notesUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--accent-cyan)' }}>
+                          <ExternalLink size={12} /> Meeting notes
+                        </a>
+                      )}
+                    </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                     <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', flexShrink: 0 }}>Due:</label>
@@ -5218,6 +5227,11 @@ Pick new people to present next Sunday`;
                     {group.recordingUrl && (
                       <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
                         <ExternalLink size={11} /> Recording
+                      </a>
+                    )}
+                    {group.notesUrl && (
+                      <a href={group.notesUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
+                        <ExternalLink size={11} /> Notes
                       </a>
                     )}
                   </div>
