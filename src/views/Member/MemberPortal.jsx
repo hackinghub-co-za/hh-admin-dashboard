@@ -251,6 +251,13 @@ const DEMO_GROUP_RATINGS = {
 // event/resource cards - a long description was making tiles quite tall.
 const CARD_DESCRIPTION_COLLAPSED_LENGTH = 140;
 
+// Study Hours session length bounds - the 25/45/60 presets plus a free-typed
+// custom value, all clamped to the same range log_study_session() enforces
+// server-side (081_study_sessions.sql) so the UI never lets someone type a
+// value the RPC would just reject.
+const STUDY_MIN_MINUTES = 5;
+const STUDY_MAX_MINUTES = 180;
+
 // Confetti burst config for the "Yes I'm In" RSVP celebration - a fixed,
 // deterministic spread (not random) so it looks the same lively burst every
 // time rather than needing per-click randomization.
@@ -2912,6 +2919,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [joiningStudyHours, setJoiningStudyHours] = useState(false);
   const [showStudyHoursRules, setShowStudyHoursRules] = useState(false);
   const [studyDurationMinutes, setStudyDurationMinutes] = useState(25);
+  // Raw text of the custom-minutes input, kept separate from
+  // studyDurationMinutes so someone can freely type/backspace (e.g. clearing
+  // the field, or building up "18" one digit at a time) without every
+  // keystroke being clamped mid-edit. Empty whenever a preset is selected.
+  const [customDurationInput, setCustomDurationInput] = useState('');
   // Same two-step vendor-then-cert picker Cert Calendar uses
   // (CERT_CATALOG_BY_VENDOR, memberOptions.js) - studyCertVendor picks the
   // group first (a real vendor, or '__other__' for free text), studyCert is
@@ -2969,8 +2981,30 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // session already in progress) - a plain user action, not something to
   // route through an effect.
   const handleSelectStudyDuration = (mins) => {
+    setCustomDurationInput('');
     setStudyDurationMinutes(mins);
     setStudySecondsLeft(mins * 60);
+  };
+
+  // Free-typed alternative to the 25/45/60 presets - clamped to the same
+  // STUDY_MIN_MINUTES/STUDY_MAX_MINUTES range log_study_session() enforces
+  // server-side, live as the member types (once the value is a real number),
+  // so Start is never left pointing at something the RPC would reject.
+  const handleCustomDurationChange = (rawValue) => {
+    setCustomDurationInput(rawValue);
+    const parsed = parseInt(rawValue, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      const clamped = Math.min(STUDY_MAX_MINUTES, Math.max(STUDY_MIN_MINUTES, parsed));
+      setStudyDurationMinutes(clamped);
+      setStudySecondsLeft(clamped * 60);
+    }
+  };
+
+  // Once focus leaves the field, snap the displayed text back to whatever
+  // value actually took effect (e.g. "3" -> "5", the real minimum) instead
+  // of leaving a number on screen that doesn't match the timer underneath it.
+  const handleCustomDurationBlur = () => {
+    if (customDurationInput !== '') setCustomDurationInput(String(studyDurationMinutes));
   };
 
   // Fires when the countdown actually reaches 0 - the countdown itself is
@@ -7689,20 +7723,39 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Session length</label>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                         {[25, 45, 60].map((mins) => (
                           <button
                             key={mins}
                             type="button"
                             disabled={studyRunning}
                             onClick={() => handleSelectStudyDuration(mins)}
-                            className={`btn ${studyDurationMinutes === mins ? 'btn-primary' : 'btn-secondary'}`}
+                            className={`btn ${customDurationInput === '' && studyDurationMinutes === mins ? 'btn-primary' : 'btn-secondary'}`}
                             style={{ fontSize: '0.8rem', padding: '8px 14px', opacity: studyRunning ? 0.6 : 1 }}
                           >
                             {mins} min
                           </button>
                         ))}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={STUDY_MIN_MINUTES}
+                            max={STUDY_MAX_MINUTES}
+                            disabled={studyRunning}
+                            value={customDurationInput}
+                            onChange={(e) => handleCustomDurationChange(e.target.value)}
+                            onBlur={handleCustomDurationBlur}
+                            placeholder="Custom"
+                            className="form-input"
+                            style={{ width: '76px', fontSize: '0.8rem', padding: '8px 10px', opacity: studyRunning ? 0.6 : 1 }}
+                          />
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>min</span>
+                        </div>
                       </div>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                        {STUDY_MIN_MINUTES}–{STUDY_MAX_MINUTES} minutes if you set your own.
+                      </p>
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Studying for (optional)</label>

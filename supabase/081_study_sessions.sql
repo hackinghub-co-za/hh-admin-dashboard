@@ -65,13 +65,22 @@ CREATE TABLE IF NOT EXISTS public.study_sessions (
   -- (024_cert_calendar.sql) already free-texts. Nullable - a session
   -- doesn't have to be tagged to a cert.
   cert TEXT,
-  -- The only three lengths the in-app timer actually offers - checked here
-  -- too, not just client-side, since this RPC is reachable directly by any
-  -- authenticated member and a fake huge value would inflate the
-  -- leaderboard for free.
-  planned_minutes INTEGER NOT NULL CHECK (planned_minutes IN (25, 45, 60)),
+  -- The 25/45/60 presets, or a free-typed custom length - bounded rather
+  -- than an exact IN() list, since the timer now accepts any value in that
+  -- range. Checked here too, not just client-side, since this RPC is
+  -- reachable directly by any authenticated member and a fake huge value
+  -- would inflate the leaderboard for free.
+  planned_minutes INTEGER NOT NULL CHECK (planned_minutes BETWEEN 5 AND 180),
   logged_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Widens the constraint on a database where this table already existed
+-- with the old exact 25/45/60 list - the inline CHECK above only takes
+-- effect on a fresh CREATE TABLE. Postgres's default name for an inline
+-- column CHECK is <table>_<column>_check, same convention the old
+-- study_sessions_track_check (dropped below) already followed.
+ALTER TABLE public.study_sessions DROP CONSTRAINT IF EXISTS study_sessions_planned_minutes_check;
+ALTER TABLE public.study_sessions ADD CONSTRAINT study_sessions_planned_minutes_check CHECK (planned_minutes BETWEEN 5 AND 180);
 
 -- Renames a column from an earlier run of this file, before study sessions
 -- were tagged to a specific cert instead of a broad roadmap track - guarded
@@ -165,7 +174,7 @@ DECLARE
   v_last_date DATE;
   v_streak INTEGER;
 BEGIN
-  IF p_planned_minutes NOT IN (25, 45, 60) THEN
+  IF p_planned_minutes < 5 OR p_planned_minutes > 180 THEN
     RAISE EXCEPTION 'Invalid session length.';
   END IF;
 

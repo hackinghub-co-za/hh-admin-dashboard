@@ -39,11 +39,12 @@ export async function optOutOfStudyHours() {
   if (error) throw error;
 }
 
-/** Logs one completed Pomodoro session (planned_minutes must be one of the
- * timer's real options - 25/45/60 - the RPC itself re-validates this, so a
- * spoofed value never reaches the leaderboard). Requires having joined
- * Study Hours first. cert is free text - same CERT_CATALOG_BY_VENDOR
- * vendor-then-cert picker Cert Calendar already uses, "Other" included. */
+/** Logs one completed Pomodoro session (planned_minutes is the 25/45/60
+ * preset or a free-typed custom length, 5-180 - the RPC itself re-validates
+ * that range, so a spoofed value never reaches the leaderboard). Requires
+ * having joined Study Hours first. cert is free text - same
+ * CERT_CATALOG_BY_VENDOR vendor-then-cert picker Cert Calendar already
+ * uses, "Other" included. */
 export async function logStudySession(cert, plannedMinutes) {
   const { error } = await supabase.rpc('log_study_session', { p_cert: cert || null, p_planned_minutes: plannedMinutes });
   if (error) throw error;
