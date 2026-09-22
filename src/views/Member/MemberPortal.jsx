@@ -7606,7 +7606,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <tr
                         key={row.email || row.member}
                         className={row.email && row.email === justRsvpedEmail ? 'rsvp-row-new' : undefined}
-                        style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)', background: medal?.bg }}
+                        style={{
+                          borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)',
+                          background: row.eligible === false ? 'rgba(var(--danger-rgb), 0.1)' : medal?.bg,
+                        }}
                       >
                         <td style={{ padding: '14px 12px' }}>
                           {medal ? (
@@ -7854,16 +7857,42 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </tr>
                     </thead>
                     <tbody>
-                      {[...studyLeaderboard].sort((a, b) => b.minutes - a.minutes).map((row) => (
+                      {[...studyLeaderboard].sort((a, b) => b.minutes - a.minutes).map((row) => {
+                        // Same headshot + clickable-profile pattern as the
+                        // TryHackMe Current Standings table above.
+                        const directoryMatch = row.email ? directory.find((m) => m.email.toLowerCase() === row.email.toLowerCase()) : null;
+                        return (
                         <tr key={row.email || row.member} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
-                          <td style={{ padding: '14px 12px', fontWeight: 600 }}>{row.member}{row.email === user?.email ? ' (you)' : ''}</td>
+                          <td style={{ padding: '14px 12px', fontWeight: 600 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {directoryMatch?.headshotUrl ? (
+                                  <img src={directoryMatch.headshotUrl} alt={row.member} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <User size={14} color="var(--text-muted)" />
+                                )}
+                              </div>
+                              {directoryMatch ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDirectoryMember(directoryMatch)}
+                                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--accent-cyan)', textDecoration: 'underline', cursor: 'pointer' }}
+                                >
+                                  {row.member}{row.email === user?.email ? ' (you)' : ''}
+                                </button>
+                              ) : (
+                                <span>{row.member}{row.email === user?.email ? ' (you)' : ''}</span>
+                              )}
+                            </div>
+                          </td>
                           <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{Math.floor(row.minutes / 60)}h {row.minutes % 60}m</td>
                           <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.sessions}</td>
                           <td style={{ padding: '14px 12px', fontWeight: 700, color: row.streak > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
                             {row.streak > 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> {row.streak}</span> : '—'}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

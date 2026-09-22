@@ -56,7 +56,7 @@ import { fetchAllRoomLogs, reviewRoomLog, correctRoomLogReview } from '../../lib
 import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog, fetchAllOneOnOneLogs } from '../../lib/oneOnOneLogsData';
 import { hasStoredCalendarSyncToken, fetchCalendarSyncedMeetings } from '../../lib/calendarSyncData';
 import { supabase } from '../../lib/supabase';
-import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition } from '../../lib/competitionData';
+import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition, fetchCompetitionStandings, removeMemberFromCompetition } from '../../lib/competitionData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
 import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
 import { fetchAllRecommendedRooms, addRecommendedRoom, deleteRecommendedRoom } from '../../lib/recommendedRoomData';
@@ -739,6 +739,41 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   };
   const [newCompetitionForm, setNewCompetitionForm] = useState(emptyNewCompetitionForm);
   const [startingCompetition, setStartingCompetition] = useState(false);
+
+  // Standings + prize eligibility for the ineligible-members review panel
+  // below - the same fetchCompetitionStandings() the member-facing Current
+  // Standings table uses, admin just also gets a Remove action on each
+  // ineligible row. Manual, not automatic: nobody gets silently dropped -
+  // an admin reviews the list once a checkpoint has passed and decides.
+  const [competitionStandings, setCompetitionStandings] = useState([]);
+  const [loadingCompetitionStandings, setLoadingCompetitionStandings] = useState(!isMockSession);
+  const [removingFromCompetitionEmail, setRemovingFromCompetitionEmail] = useState(null);
+  const [removeCompetitionError, setRemoveCompetitionError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchCompetitionStandings()
+      .then((data) => !cancelled && setCompetitionStandings(data))
+      .catch(() => {})
+      .finally(() => !cancelled && setLoadingCompetitionStandings(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const ineligibleCompetitionMembers = competitionStandings.filter((row) => row.eligible === false);
+
+  const handleRemoveFromCompetition = async (email) => {
+    setRemovingFromCompetitionEmail(email);
+    setRemoveCompetitionError(null);
+    try {
+      await removeMemberFromCompetition(email);
+      setCompetitionStandings(await fetchCompetitionStandings());
+    } catch (err) {
+      setRemoveCompetitionError(friendlyErrorMessage(err));
+    } finally {
+      setRemovingFromCompetitionEmail(null);
+    }
+  };
 
   // Plain async helper (not called directly from the effect below - see its
   // comment) for re-fetching after starting a new competition, where a
@@ -5332,6 +5367,38 @@ Pick new people to present next Sunday`;
                       )}
                     </div>
                   )
+                )}
+
+                {/* Behind the pace checkpoint right now - recoverable, so
+                    this is a review list, not an auto-cut. Remove is a
+                    manual, reversible (opted_out) action - use it once a
+                    member is still on this list after the NEXT checkpoint
+                    date has passed, not the moment they first appear here. */}
+                {!showNewCompetitionForm && !loadingCompetitionStandings && ineligibleCompetitionMembers.length > 0 && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--warning)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertTriangle size={13} /> Behind pace, not prize-eligible ({ineligibleCompetitionMembers.length})
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                      They can still catch up and recover eligibility - only remove someone who's still on this list after the next checkpoint date passes.
+                    </p>
+                    {removeCompetitionError && <p style={{ fontSize: '0.78rem', color: 'var(--danger)', marginBottom: '8px' }}>{removeCompetitionError}</p>}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {ineligibleCompetitionMembers.map((row) => (
+                        <div key={row.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--danger-rgb), 0.06)', border: '1px solid rgba(var(--danger-rgb), 0.2)' }}>
+                          <span style={{ fontSize: '0.85rem' }}>{row.member} <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>· {row.rooms} rooms</span></span>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '5px 10px', color: 'var(--danger)' }}
+                            disabled={removingFromCompetitionEmail === row.email}
+                            onClick={() => handleRemoveFromCompetition(row.email)}
+                          >
+                            {removingFromCompetitionEmail === row.email ? 'Removing...' : 'Remove'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {showNewCompetitionForm && (

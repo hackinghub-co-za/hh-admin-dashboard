@@ -57,6 +57,19 @@ export async function optOutOfCompetition() {
   if (error) throw error;
 }
 
+/** Admin: soft-removes a member from the current competition - same
+ * reversible opted_out flag the member's own self-service opt-out uses
+ * above, just settable by an admin for someone else's row. Their
+ * rooms_completed/days_logged stay intact, so re-adding them later
+ * (flipping opted_out back to false, or them RSVPing again) picks back up
+ * where they left off rather than restarting at 0. Relies on the existing
+ * "admins manage competition standings" RLS policy (FOR ALL) rather than a
+ * dedicated RPC - no new migration needed. */
+export async function removeMemberFromCompetition(email) {
+  const { error } = await supabase.from('competition_standings').update({ opted_out: true }).eq('email', email.toLowerCase());
+  if (error) throw error;
+}
+
 function mapCompetition(row) {
   return {
     id: row.id,
