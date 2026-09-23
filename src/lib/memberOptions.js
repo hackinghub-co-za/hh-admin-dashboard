@@ -6,6 +6,24 @@
 // track. GRC now has a roadmap track counterpart too (see ROADMAP_TRACKS
 // and SPECIALIZATION_CATALOGS.GRC below).
 export const SPECIALTIES = ['Not Set', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
+
+// "Your Why" - preset reasons a member picks from (multi-select - real
+// motivation is rarely just one thing), shown as tappable chips in Edit
+// Profile. Deliberately NOT a DB-level CHECK enum on member_profiles.why_reasons
+// (a plain TEXT[]) - same reasoning as SPECIALTIES not being one either
+// today: this list is free to grow without a migration, and a member can
+// still fall through to a "Something Else" free-text chip in the UI that
+// just appends their own string to the array.
+export const WHY_REASONS = [
+  { key: 'financial_freedom', label: 'Financial Freedom', emoji: '💰' },
+  { key: 'remote_work', label: 'Remote Work / Flexibility', emoji: '🌍' },
+  { key: 'providing_for_family', label: 'Providing for Family', emoji: '🏠' },
+  { key: 'movie_show_game', label: 'A Movie, Show, or Game', emoji: '🎬' },
+  { key: 'loves_puzzles', label: 'Loves Solving Puzzles', emoji: '🧩' },
+  { key: 'protecting_people', label: 'Wants to Protect People', emoji: '🛡️' },
+  { key: 'career_change', label: 'Career Change', emoji: '🔁' },
+  { key: 'job_security', label: 'Job Security', emoji: '📈' },
+];
 export const JOB_READINESS_STAGES = ['Not Started', 'In Progress', 'Interview Ready', 'Job Placed'];
 export const GENDERS = ['Male', 'Female'];
 export const LOCATIONS = [

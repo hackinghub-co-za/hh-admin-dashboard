@@ -116,6 +116,7 @@ import {
   ImagePlus,
   IdCard,
   ClipboardList,
+  Compass,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -6612,6 +6613,22 @@ Pick new people to present next Sunday`;
       const genderBuckets = bucketBy((m) => m.profile?.gender);
       const locationBuckets = bucketBy((m) => m.profile?.location);
 
+      // "Your Why" is multi-select (a member can pick more than one reason),
+      // so this counts each reason across every member who picked it rather
+      // than bucketing one member into exactly one group like bucketBy above -
+      // percentages (against memberRoster.length, same denominator
+      // renderBreakdownBars already uses) can and will sum past 100%.
+      const bucketByMulti = (getKeys) => {
+        const counts = {};
+        memberRoster.forEach((m) => {
+          (getKeys(m) || []).forEach((key) => {
+            counts[key] = (counts[key] || 0) + 1;
+          });
+        });
+        return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      };
+      const whyReasonBuckets = bucketByMulti((m) => m.profile?.whyReasons);
+
       // Tab popularity - % of the last 30 days' active members who opened
       // each tab, not % of the whole roster (a member who hasn't touched
       // the portal at all in 30 days shouldn't drag every tab's number
@@ -6757,6 +6774,14 @@ Pick new people to present next Sunday`;
               <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Location</h3>
               {locationBuckets.length ? renderBreakdownBars(locationBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
             </div>
+          </div>
+
+          <div className="glass-card" style={{ marginTop: '20px' }}>
+            <h3 style={{ marginBottom: '4px', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Compass size={17} color="var(--accent-cyan)" /> Why Members Joined
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Self-reported on Edit Profile - a member can pick more than one reason, so this sums past 100%.</p>
+            {whyReasonBuckets.length ? renderBreakdownBars(whyReasonBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
           </div>
 
           <div style={{ marginTop: '40px', marginBottom: '20px' }}>

@@ -31,14 +31,16 @@ export async function fetchMemberDirectory() {
     employmentStatus: row.employment_status || 'Not Set',
     jobTitle: row.job_title || '',
     roadmapTrack: row.roadmap_track || null,
+    whyReasons: row.why_reasons || [],
+    whyStory: row.why_story || '',
   }));
 }
 
 /** Updates the current member's own directory card. Scoped server-side to only
- * these 17 public-facing-or-self-only columns on their own row. Age/gender are
+ * these 19 public-facing-or-self-only columns on their own row. Age/gender are
  * write-only from here (never returned by fetchMemberDirectory/
  * get_member_directory - see fetchMyAgeAndGender below for reading them back). */
-export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, githubUrl, tiktokUrl, websiteUrl, yearsExperience, certifications, funFact, specialty, employmentStatus, jobTitle, age, gender }) {
+export async function updateMyDirectoryProfile({ fullName, about, location, linkedin, tryhackmeUsername, headshotUrl, githubUrl, tiktokUrl, websiteUrl, yearsExperience, certifications, funFact, specialty, employmentStatus, jobTitle, age, gender, whyReasons, whyStory }) {
   const { error } = await supabase.rpc('update_my_directory_profile', {
     p_full_name: fullName || null,
     p_about: about || null,
@@ -57,6 +59,8 @@ export async function updateMyDirectoryProfile({ fullName, about, location, link
     p_job_title: employmentStatus === 'Employed' ? (jobTitle || null) : null,
     p_age: age || null,
     p_gender: gender || null,
+    p_why_reasons: whyReasons || [],
+    p_why_story: whyStory || null,
   });
   if (error) throw error;
 }

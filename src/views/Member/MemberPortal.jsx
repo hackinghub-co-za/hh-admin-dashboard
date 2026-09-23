@@ -63,7 +63,7 @@ import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete,
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
 import { renderMarkdown } from '../../lib/renderMarkdown';
-import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -87,6 +87,7 @@ import {
   Flame,
   Bell,
   Sparkles,
+  Compass,
   Info,
   MapPin,
   Users,
@@ -230,7 +231,7 @@ const MOCK_DIRECTORY = [];
 // shows under Mock Member for a Matchmaker preview. Not a permanent
 // restoration of MOCK_DIRECTORY's fake entries (see comment above, which
 // stays true) - remove this block once the preview's done.
-const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Offensive Security', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Offensive Security' };
+const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Offensive Security', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Offensive Security', whyReasons: ['Financial Freedom', 'A Movie, Show, or Game'], whyStory: 'I watched Mr. Robot at 19 and never looked at my laptop the same way again.' };
 const DEMO_MATCHMAKER_GROUP = { id: 99, activityType: 'Project', memberEmails: ['teammate@example.com'], status: 'Active', dueDate: '2026-09-23' };
 // Two already-presented groups so Mock Member can preview the showcase +
 // rating flow without a real Supabase session - one the mock member isn't
@@ -1047,6 +1048,73 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Getting Started checklist - the real content lives here once, reused by
   // both its normal spot (case 'dashboard', a dismissible card) and the
   // hard-gate short-circuit below (forceExpanded, no collapse toggle at all).
+  //
+  // Deliberately a separate list from ONBOARDING_STEPS (onboardingData.js) -
+  // that one drives App.jsx's hard gate (locks the portal down to
+  // Dashboard/Meetings/Members after GETTING_STARTED_GRACE_DAYS), and
+  // "Your Why" is a personal, optional share, not something anyone should
+  // ever get locked out of the portal for declining. It's shown and
+  // tracked here (own progress badge, own row, same
+  // member_onboarding_steps completion table) without being one of the
+  // gate's required steps.
+  const gettingStartedItems = [
+    {
+      key: 'watch_video',
+      icon: PlayCircle,
+      label: 'Watch the onboarding video',
+      actionLabel: expandedOnboardingStep === 'watch_video' ? 'Hide Video' : 'Watch',
+      action: () => setExpandedOnboardingStep((k) => (k === 'watch_video' ? null : 'watch_video')),
+    },
+    {
+      key: 'book_1on1',
+      icon: Calendar,
+      label: 'Book your first 1-on-1',
+      actionLabel: 'Book Now',
+      action: () => setActiveTab?.('meetings'),
+    },
+    {
+      key: 'join_whatsapp',
+      icon: MessageCircle,
+      label: 'Join the WhatsApp community',
+      actionLabel: 'Join',
+      action: () => {
+        window.open('https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1', '_blank', 'noopener,noreferrer');
+        handleCompleteOnboardingStep('join_whatsapp');
+      },
+    },
+    {
+      key: 'install_calendar',
+      icon: Download,
+      label: 'Install Google Calendar',
+      actionLabel: 'Get It',
+      action: () => {
+        window.open('https://workspace.google.com/products/calendar/', '_blank', 'noopener,noreferrer');
+        handleCompleteOnboardingStep('install_calendar');
+      },
+    },
+    {
+      key: 'setup_profile',
+      icon: User,
+      label: 'Set up your profile',
+      actionLabel: 'Edit Profile',
+      action: () => { setActiveTab?.('members'); openEditProfile(); },
+    },
+    {
+      key: 'your_why',
+      icon: Compass,
+      label: 'Share your why',
+      actionLabel: 'Add It',
+      action: () => { setActiveTab?.('members'); openEditProfile(); },
+    },
+    {
+      key: 'portal_tour',
+      icon: Map,
+      label: 'Take the portal tour',
+      actionLabel: 'Start Tour',
+      action: () => setShowPortalTour(true),
+    },
+  ];
+
   const renderGettingStartedChecklist = (forceExpanded) => (
     <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--accent-cyan)' }}>
       <div
@@ -1057,7 +1125,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           <Sparkles size={18} color="var(--accent-cyan)" />
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Getting Started</h3>
           <span className="badge badge-success">
-            {ONBOARDING_STEPS.filter((s) => !!onboardingSteps[s.key]).length} / {ONBOARDING_STEPS.length}
+            {gettingStartedItems.filter((s) => !!onboardingSteps[s.key]).length} / {gettingStartedItems.length}
           </span>
         </div>
         {!forceExpanded && (
@@ -1092,56 +1160,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 : "Less than a day left - finish this checklist or most of the portal locks down to just Dashboard, Meetings, and Members."}
             </div>
           )}
-          {[
-            {
-              key: 'watch_video',
-              icon: PlayCircle,
-              label: 'Watch the onboarding video',
-              actionLabel: expandedOnboardingStep === 'watch_video' ? 'Hide Video' : 'Watch',
-              action: () => setExpandedOnboardingStep((k) => (k === 'watch_video' ? null : 'watch_video')),
-            },
-            {
-              key: 'book_1on1',
-              icon: Calendar,
-              label: 'Book your first 1-on-1',
-              actionLabel: 'Book Now',
-              action: () => setActiveTab?.('meetings'),
-            },
-            {
-              key: 'join_whatsapp',
-              icon: MessageCircle,
-              label: 'Join the WhatsApp community',
-              actionLabel: 'Join',
-              action: () => {
-                window.open('https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1', '_blank', 'noopener,noreferrer');
-                handleCompleteOnboardingStep('join_whatsapp');
-              },
-            },
-            {
-              key: 'install_calendar',
-              icon: Download,
-              label: 'Install Google Calendar',
-              actionLabel: 'Get It',
-              action: () => {
-                window.open('https://workspace.google.com/products/calendar/', '_blank', 'noopener,noreferrer');
-                handleCompleteOnboardingStep('install_calendar');
-              },
-            },
-            {
-              key: 'setup_profile',
-              icon: User,
-              label: 'Set up your profile',
-              actionLabel: 'Edit Profile',
-              action: () => { setActiveTab?.('members'); openEditProfile(); },
-            },
-            {
-              key: 'portal_tour',
-              icon: Map,
-              label: 'Take the portal tour',
-              actionLabel: 'Start Tour',
-              action: () => setShowPortalTour(true),
-            },
-          ].map(({ key, icon: StepIcon, label, actionLabel, action }) => {
+          {gettingStartedItems.map(({ key, icon: StepIcon, label, actionLabel, action }) => {
             const done = !!onboardingSteps[key];
             return (
               <div key={key}>
@@ -1558,6 +1577,29 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
         )}
 
+        {(selectedDirectoryMember.whyReasons?.length > 0 || selectedDirectoryMember.whyStory) && (
+          <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--accent-rgb), 0.06)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Compass size={13} /> Your Why
+            </div>
+            {selectedDirectoryMember.whyReasons?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: selectedDirectoryMember.whyStory ? '10px' : 0 }}>
+                {selectedDirectoryMember.whyReasons.map((reason) => {
+                  const preset = WHY_REASONS.find((w) => w.label === reason);
+                  return (
+                    <span key={reason} style={{ fontSize: '0.76rem', fontWeight: 600, padding: '4px 11px', borderRadius: '999px', background: 'var(--bg-tertiary)', border: '1px solid rgba(var(--accent-rgb), 0.2)', color: 'var(--text-primary)' }}>
+                      {preset ? `${preset.emoji} ${preset.label}` : reason}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {selectedDirectoryMember.whyStory && (
+              <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>"{selectedDirectoryMember.whyStory}"</p>
+            )}
+          </div>
+        )}
+
         {(selectedDirectoryMember.tryhackmeUsername || isSafeUrl(selectedDirectoryMember.linkedin) || isSafeUrl(selectedDirectoryMember.githubUrl) || isSafeUrl(selectedDirectoryMember.tiktokUrl) || isSafeUrl(selectedDirectoryMember.websiteUrl)) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
             {selectedDirectoryMember.tryhackmeUsername && (
@@ -1701,8 +1743,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     jobTitle: '',
     age: '',
     gender: '',
+    whyReasons: [],
+    whyStory: '',
   };
   const [profileForm, setProfileForm] = useState(emptyProfileForm);
+  // "Your Why" preset chips toggle a label in/out of profileForm.whyReasons
+  // directly; showWhyCustomInput reveals a free-text box for the
+  // "Something Else" escape hatch, same two-step reveal CERT_CATALOG_BY_VENDOR's
+  // '__other__' option already uses elsewhere in this form.
+  const [showWhyCustomInput, setShowWhyCustomInput] = useState(false);
+  const [whyCustomInput, setWhyCustomInput] = useState('');
+
+  const toggleWhyReason = (label) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      whyReasons: prev.whyReasons.includes(label)
+        ? prev.whyReasons.filter((r) => r !== label)
+        : [...prev.whyReasons, label],
+    }));
+  };
+
+  const addCustomWhyReason = () => {
+    const value = whyCustomInput.trim();
+    if (!value) { setShowWhyCustomInput(false); return; }
+    setProfileForm((prev) => (prev.whyReasons.includes(value) ? prev : { ...prev, whyReasons: [...prev.whyReasons, value] }));
+    setWhyCustomInput('');
+    setShowWhyCustomInput(false);
+  };
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1776,6 +1843,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // matching Getting Started step instead of requiring a separate,
       // easy-to-forget manual tick after the fact.
       handleCompleteOnboardingStep('setup_profile');
+      // Only ticks if they actually picked a reason or wrote something -
+      // saving the rest of the profile without touching Your Why shouldn't
+      // silently mark it done.
+      if (profileForm.whyReasons?.length > 0 || profileForm.whyStory?.trim()) {
+        handleCompleteOnboardingStep('your_why');
+      }
       setEditingProfile(false);
     } catch (err) {
       setDirectoryError(friendlyMemberErrorMessage(err));
@@ -4228,6 +4301,72 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <input type="text" className="form-input" placeholder="Something interesting other members might enjoy" value={profileForm.funFact} onChange={(e) => setProfileForm({ ...profileForm, funFact: e.target.value })} />
                   </div>
 
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      <Compass size={13} /> Your Why <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>— optional</span>
+                    </label>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 8px' }}>Why did you actually get into cybersecurity? Pick as many as apply.</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', marginBottom: '10px' }}>
+                      {WHY_REASONS.map(({ key, label, emoji }) => {
+                        const on = profileForm.whyReasons.includes(label);
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => toggleWhyReason(label)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 13px', borderRadius: '999px',
+                              fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
+                              border: on ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                              background: on ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--bg-tertiary)',
+                              color: on ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                            }}
+                          >
+                            {emoji} {label}
+                          </button>
+                        );
+                      })}
+                      {profileForm.whyReasons.filter((r) => !WHY_REASONS.some((w) => w.label === r)).map((custom) => (
+                        <button
+                          key={custom}
+                          type="button"
+                          onClick={() => toggleWhyReason(custom)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 13px', borderRadius: '999px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', border: '1px solid var(--accent-cyan)', background: 'rgba(var(--accent-rgb), 0.12)', color: 'var(--accent-cyan)' }}
+                        >
+                          {custom} <X size={12} />
+                        </button>
+                      ))}
+                      {showWhyCustomInput ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          className="form-input"
+                          placeholder="Type your own, press Enter"
+                          value={whyCustomInput}
+                          onChange={(e) => setWhyCustomInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomWhyReason(); } }}
+                          onBlur={addCustomWhyReason}
+                          style={{ width: '180px', padding: '8px 13px', fontSize: '0.82rem', borderRadius: '999px' }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowWhyCustomInput(true)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 13px', borderRadius: '999px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', border: '1px dashed var(--border-color)', background: 'transparent', color: 'var(--text-muted)' }}
+                        >
+                          + Something Else
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      className="form-input"
+                      rows={2}
+                      placeholder="Tell the story, if you want to (optional)"
+                      value={profileForm.whyStory}
+                      onChange={(e) => setProfileForm({ ...profileForm, whyStory: e.target.value })}
+                    />
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Employment Status</label>
@@ -5364,6 +5503,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             );
           })()}
+
+          {/* Remember your why - a quiet reflection, not a nag: only shows
+              once a member has actually filled in Your Why (Edit Profile),
+              never a prompt to go add one. */}
+          {(myDirectoryEntry?.whyReasons?.length > 0 || myDirectoryEntry?.whyStory) && (
+            <div className="glass-card" style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-start', gap: '12px', background: 'rgba(var(--accent-rgb), 0.04)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
+              <Compass size={18} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '6px' }}>Remember your why</div>
+                {myDirectoryEntry.whyReasons?.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: myDirectoryEntry.whyStory ? '8px' : 0 }}>
+                    {myDirectoryEntry.whyReasons.map((reason) => {
+                      const preset = WHY_REASONS.find((w) => w.label === reason);
+                      return (
+                        <span key={reason} style={{ fontSize: '0.78rem', fontWeight: 600, padding: '4px 11px', borderRadius: '999px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+                          {preset ? `${preset.emoji} ${preset.label}` : reason}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {myDirectoryEntry.whyStory && (
+                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>"{myDirectoryEntry.whyStory}"</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* TOP PANEL: Community Feed, Upcoming Events & Certification Victories */}
           <div className="dashboard-grid" style={{ marginBottom: '32px' }}>

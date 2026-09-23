@@ -46,6 +46,8 @@ export async function fetchMemberProfiles() {
       leftAt: row.left_at || '',
       onboardedAt: row.onboarded_at || '',
       manualStartDate: row.manual_start_date || '',
+      whyReasons: row.why_reasons || [],
+      whyStory: row.why_story || '',
     };
   });
   return byEmail;
