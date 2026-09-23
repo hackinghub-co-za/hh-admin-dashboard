@@ -30,6 +30,7 @@ import {
   ArrowLeftRight,
   ShieldAlert,
   ShieldCheck,
+  Kanban,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
@@ -412,6 +413,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'members', label: 'Members', icon: Contact },
+        { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
         { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },

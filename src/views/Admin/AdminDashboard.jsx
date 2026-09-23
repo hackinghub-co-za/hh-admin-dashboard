@@ -5,6 +5,7 @@ import MemberProfileModal from '../../components/MemberProfileModal';
 import AddMemberModal from '../../components/AddMemberModal';
 import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
+import SalesPipelineBoard from '../../components/SalesPipelineBoard';
 // Anonymized fixture data for Mock Admin only - same shape and aggregate
 // realism (amounts, dates, plan mix) as the real historical PayFast export,
 // but with every real member/email swapped for a fake "Demo Member N"
@@ -4499,6 +4500,9 @@ Pick new people to present next Sunday`;
         </div>
       );
     }
+
+    case 'pipeline':
+      return <SalesPipelineBoard isMockSession={isMockSession} user={user} />;
 
     case 'roadmaps': {
       const roadmapSelected = roadmapMemberEmail
