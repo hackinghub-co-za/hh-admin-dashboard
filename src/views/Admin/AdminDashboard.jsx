@@ -60,7 +60,6 @@ import { supabase } from '../../lib/supabase';
 import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition, fetchCompetitionStandings, removeMemberFromCompetition } from '../../lib/competitionData';
 import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
 import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
-import { fetchAllRecommendedRooms, addRecommendedRoom, deleteRecommendedRoom } from '../../lib/recommendedRoomData';
 import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend, fetchMobileBlockCount } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
@@ -888,10 +887,6 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [roomRacesError, setRoomRacesError] = useState(null);
   const [approvingRaceKey, setApprovingRaceKey] = useState(null);
 
-  const [recommendedRooms, setRecommendedRooms] = useState([]);
-  const [newRecommendedRoom, setNewRecommendedRoom] = useState({ name: '', url: '', difficulty: 'Easy' });
-  const [addingRecommendedRoom, setAddingRecommendedRoom] = useState(false);
-
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
@@ -899,9 +894,6 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .then((data) => !cancelled && setRoomRaces(data))
       .catch((err) => !cancelled && setRoomRacesError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingRoomRaces(false));
-    fetchAllRecommendedRooms()
-      .then((data) => !cancelled && setRecommendedRooms(data))
-      .catch((err) => !cancelled && setRoomRacesError(friendlyErrorMessage(err)));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
@@ -978,32 +970,6 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       setTriviaError(friendlyErrorMessage(err));
     } finally {
       setTriviaActionBusy(false);
-    }
-  };
-
-  const handleAddRecommendedRoom = async (e) => {
-    e.preventDefault();
-    if (!newRecommendedRoom.name.trim() || !newRecommendedRoom.url.trim()) return;
-    setAddingRecommendedRoom(true);
-    setRoomRacesError(null);
-    try {
-      await addRecommendedRoom(newRecommendedRoom.name.trim(), newRecommendedRoom.url.trim(), newRecommendedRoom.difficulty, user?.email);
-      setRecommendedRooms(await fetchAllRecommendedRooms());
-      setNewRecommendedRoom({ name: '', url: '', difficulty: 'Easy' });
-    } catch (err) {
-      setRoomRacesError(friendlyErrorMessage(err));
-    } finally {
-      setAddingRecommendedRoom(false);
-    }
-  };
-
-  const handleDeleteRecommendedRoom = async (id) => {
-    setRoomRacesError(null);
-    try {
-      await deleteRecommendedRoom(id);
-      setRecommendedRooms(await fetchAllRecommendedRooms());
-    } catch (err) {
-      setRoomRacesError(friendlyErrorMessage(err));
     }
   };
 
@@ -5723,49 +5689,6 @@ Pick new people to present next Sunday`;
                       </div>
                     ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Recommended Rooms pool (064_recommended_rooms.sql) - members see
-              one of these per day on their Dashboard, rotating by day of
-              year, so this list needs no daily upkeep. */}
-          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', margin: '32px 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ListChecks size={14} /> Daily Room Pool ({recommendedRooms.length})
-          </div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-            Members see one of these on their Dashboard each day, rotating automatically by day of the year — no daily upkeep needed.
-          </p>
-          {!isMockSession && (
-            <form onSubmit={handleAddRecommendedRoom} className="glass-card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '14px' }}>
-              <input className="form-input" placeholder="Room name" style={{ flex: '1 1 180px' }} value={newRecommendedRoom.name} onChange={(e) => setNewRecommendedRoom({ ...newRecommendedRoom, name: e.target.value })} required />
-              <input className="form-input" placeholder="Room URL" type="url" style={{ flex: '1 1 220px' }} value={newRecommendedRoom.url} onChange={(e) => setNewRecommendedRoom({ ...newRecommendedRoom, url: e.target.value })} required />
-              <select className="form-input" style={{ width: '120px' }} value={newRecommendedRoom.difficulty} onChange={(e) => setNewRecommendedRoom({ ...newRecommendedRoom, difficulty: e.target.value })}>
-                {['Easy', 'Medium', 'Hard'].map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
-              <button type="submit" className="btn btn-primary" disabled={addingRecommendedRoom}>
-                <Plus size={14} /> {addingRecommendedRoom ? 'Adding...' : 'Add Room'}
-              </button>
-            </form>
-          )}
-          {recommendedRooms.length === 0 ? (
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No rooms in the pool yet.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {recommendedRooms.map((room) => (
-                <div key={room.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    {isSafeUrl(room.url) ? (
-                      <a href={room.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>{room.name}</a>
-                    ) : <strong>{room.name}</strong>}
-                    {room.difficulty && <span className="badge badge-success" style={{ fontSize: '0.62rem', marginLeft: '8px' }}>{room.difficulty}</span>}
-                  </div>
-                  {!isMockSession && (
-                    <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '5px 10px', color: 'var(--danger)' }} onClick={() => handleDeleteRecommendedRoom(room.id)}>
-                      <Trash2 size={13} /> Remove
-                    </button>
-                  )}
                 </div>
               ))}
             </div>

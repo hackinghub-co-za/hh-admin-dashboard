@@ -58,7 +58,7 @@ import {
   fetchLatestTriviaSession, subscribeToTriviaSession, subscribeToTriviaParticipants, subscribeToTriviaBuzzes,
   fetchCurrentTriviaQuestion, fetchTriviaLeaderboard, joinTriviaSession, buzzInTrivia,
 } from '../../lib/triviaData';
-import { fetchTodaysRecommendedRoom } from '../../lib/recommendedRoomData';
+import { fetchTodaysDailyQuestion, submitDailyQuestionAnswer } from '../../lib/dailyQuestionData';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
@@ -772,6 +772,22 @@ const MOCK_SUGGESTED_CONTENT = [
   { id: 3, contentType: 'Meme', title: 'The five stages of a failed pentest report deadline', url: '' },
 ];
 
+const MOCK_DAILY_QUESTION = {
+  questionId: 9001,
+  domain: 'SOC',
+  question: 'What does "SIEM" stand for?',
+  choices: [
+    'Security Information and Event Management',
+    'Secure Internet Encryption Method',
+    'System Integrity and Event Monitor',
+    'Security Incident and Escalation Model',
+  ],
+  alreadyAnswered: false,
+  wasCorrect: null,
+  selectedIndex: null,
+  currentStreak: 4,
+};
+
 const CONTENT_TYPE_ICONS = {
   Video: Video,
   Article: Newspaper,
@@ -1481,17 +1497,40 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  // Today's recommended TryHackMe room (supabase/064_recommended_rooms.sql)
-  // - day-of-year rotation, no admin upkeep needed day to day.
-  const [todaysRoom, setTodaysRoom] = useState(null);
+  // Cyber Question of the Day (supabase/087_daily_question.sql) - day-of-
+  // year rotation over duel_questions, correct-answer-only streak.
+  const [dailyQuestion, setDailyQuestion] = useState(isMockSession ? MOCK_DAILY_QUESTION : null);
+  const [submittingDailyQuestion, setSubmittingDailyQuestion] = useState(false);
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
-    fetchTodaysRecommendedRoom()
-      .then((room) => !cancelled && setTodaysRoom(room))
+    fetchTodaysDailyQuestion()
+      .then((q) => !cancelled && setDailyQuestion(q))
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isMockSession]);
+
+  const handleAnswerDailyQuestion = async (idx) => {
+    if (isMockSession) {
+      setDailyQuestion((prev) => ({
+        ...prev,
+        alreadyAnswered: true,
+        selectedIndex: idx,
+        wasCorrect: idx === 0,
+        currentStreak: idx === 0 ? prev.currentStreak + 1 : 0,
+      }));
+      return;
+    }
+    setSubmittingDailyQuestion(true);
+    try {
+      const { isCorrect, currentStreak } = await submitDailyQuestionAnswer(idx);
+      setDailyQuestion((prev) => ({ ...prev, alreadyAnswered: true, selectedIndex: idx, wasCorrect: isCorrect, currentStreak }));
+    } catch (err) {
+      console.error('Could not submit daily question answer:', err);
+    } finally {
+      setSubmittingDailyQuestion(false);
+    }
+  };
 
   // The member profile detail modal - real content lives here once, reused
   // by both the Members directory (its original home) and the Matchmaker
@@ -5899,25 +5938,63 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 )}
               </div>
 
-              {/* Today's Recommended Room - supabase/064_recommended_rooms.sql,
-                  day-of-year rotation through an admin-curated pool */}
-              {todaysRoom && (
+              {/* Cyber Question of the Day - supabase/087_daily_question.sql,
+                  day-of-year rotation over duel_questions, correct-answer-
+                  only streak */}
+              {dailyQuestion && (
                 <div className="glass-card">
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
-                    <Target size={20} color="var(--accent-cyan)" />
-                    <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Today's TryHackMe Room</h4>
+                    <ListChecks size={20} color="var(--accent-cyan)" />
+                    <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Cyber Question of the Day</h4>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  {dailyQuestion.alreadyAnswered ? (
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>{todaysRoom.name}</div>
-                      {todaysRoom.difficulty && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{todaysRoom.difficulty}</span>}
+                      <p style={{ fontWeight: 600, color: dailyQuestion.wasCorrect ? 'var(--accent-green)' : 'var(--danger)', marginBottom: '10px' }}>
+                        {dailyQuestion.wasCorrect ? 'Correct! Come back tomorrow for the next one.' : "Not quite - come back tomorrow for the next one."}
+                      </p>
+                      {dailyQuestion.currentStreak > 0 && (
+                        <div
+                          title={`${dailyQuestion.currentStreak} day${dailyQuestion.currentStreak === 1 ? '' : 's'} in a row`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 18px',
+                            borderRadius: 'var(--border-radius-md)',
+                            background: 'rgba(var(--warning-rgb), 0.08)',
+                            border: '1px solid rgba(var(--warning-rgb), 0.25)',
+                          }}
+                        >
+                          <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>🔥</span>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.1 }}>{dailyQuestion.currentStreak}</div>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                              day{dailyQuestion.currentStreak === 1 ? '' : 's'} in a row
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {isSafeUrl(todaysRoom.url) && (
-                      <a href={todaysRoom.url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-                        <ExternalLink size={13} /> Start Room
-                      </a>
-                    )}
-                  </div>
+                  ) : (
+                    <div>
+                      <span className="badge badge-success" style={{ fontSize: '0.65rem', marginBottom: '10px', display: 'inline-block' }}>{dailyQuestion.domain}</span>
+                      <p style={{ fontSize: '0.9rem', marginBottom: '14px', lineHeight: 1.5 }}>{dailyQuestion.question}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {dailyQuestion.choices.map((choice, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 14px', fontSize: '0.85rem' }}
+                            onClick={() => handleAnswerDailyQuestion(idx)}
+                            disabled={submittingDailyQuestion}
+                          >
+                            {choice}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
