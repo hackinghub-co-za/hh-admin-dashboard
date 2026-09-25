@@ -5374,18 +5374,21 @@ Pick new people to present next Sunday`;
                   )
                 )}
 
-                {/* Behind the pace checkpoint right now - recoverable, so
-                    this is a review list, not an auto-cut. Remove is a
-                    manual, reversible (opted_out) action - use it once a
-                    member is still on this list after the NEXT checkpoint
-                    date has passed, not the moment they first appear here. */}
+                {/* Behind the pace checkpoint right now - a weekly cron
+                    (eliminate_ineligible_competition_members(),
+                    070_competition_seasons.sql) already auto-removes
+                    whoever's still on this list every Monday at 06:00 UTC,
+                    same opted_out mechanism this Remove button uses. This
+                    panel is for acting sooner than that, not the only way
+                    it happens - leaving someone here does not mean they're
+                    safe until you click it. */}
                 {!showNewCompetitionForm && !loadingCompetitionStandings && ineligibleCompetitionMembers.length > 0 && (
                   <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--warning)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <AlertTriangle size={13} /> Behind pace, not prize-eligible ({ineligibleCompetitionMembers.length})
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--danger)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertTriangle size={13} /> Behind pace - auto-removed Monday ({ineligibleCompetitionMembers.length})
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                      They can still catch up and recover eligibility - only remove someone who's still on this list after the next checkpoint date passes.
+                      They're automatically removed from the competition this Monday if still behind - use Remove below only if you want to act sooner.
                     </p>
                     {removeCompetitionError && <p style={{ fontSize: '0.78rem', color: 'var(--danger)', marginBottom: '8px' }}>{removeCompetitionError}</p>}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -5450,7 +5453,7 @@ Pick new people to present next Sunday`;
                       </div>
                     ))}
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      Prize eligibility checkpoints (optional - leave a row blank to skip it). Recoverable: a member behind at one checkpoint who catches up by a later one becomes prize-eligible again, they're never permanently cut.
+                      Prize eligibility checkpoints (optional - leave a row blank to skip it). Enforced weekly: anyone still behind a checkpoint gets automatically removed from the competition every Monday, not just marked ineligible.
                     </label>
                     {[1, 2, 3].map((n) => (
                       <div key={n} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px', alignItems: 'center' }}>

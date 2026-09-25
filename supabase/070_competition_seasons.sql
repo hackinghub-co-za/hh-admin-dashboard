@@ -231,3 +231,54 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_competition_prize_eligibility() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_competition_prize_eligibility() FROM PUBLIC, anon;
+
+-- =========================================================================
+-- AUTOMATIC WEEKLY ELIMINATION (founder-specified, 2026-09-25)
+-- =========================================================================
+-- Policy change on top of the eligibility computation above, not a change
+-- to it: get_competition_prize_eligibility() itself is still computed live
+-- and is still "recoverable" in the sense that catching up before this
+-- runs again avoids it entirely. What's new is that eligibility now has a
+-- real, automatic consequence instead of just coloring a badge - every
+-- Monday, whoever is ineligible AT THAT MOMENT is opted out of the
+-- competition (same opted_out flag/mechanism as the member's own
+-- self-service opt-out and the admin "Remove" action below), which hides
+-- them from the leaderboard entirely rather than just marking a pill.
+-- Same reversibility path as any other opt-out: rsvp_for_competition()
+-- already clears a prior opted_out on re-RSVP and resumes from their
+-- existing rooms_completed - so someone eliminated for falling behind can
+-- still come back on their own if they catch up and re-RSVP, they just
+-- don't get put back automatically.
+CREATE OR REPLACE FUNCTION public.eliminate_ineligible_competition_members()
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.competition_standings cs
+  SET opted_out = true
+  FROM public.get_competition_prize_eligibility() e
+  WHERE cs.email = e.email
+    AND e.eligible = false
+    AND cs.opted_out = false;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'eliminate-ineligible-competition-members-weekly') THEN
+    PERFORM cron.unschedule('eliminate-ineligible-competition-members-weekly');
+  END IF;
+END $$;
+
+-- 06:00 UTC every Monday (cron day-of-week 1) - same off-peak slot as the
+-- other weekly crons in this project (e.g. weekly-breakdown-email's Friday
+-- 06:00 UTC send). Deliberately no immediate catch-up run here, unlike
+-- expire_leaving_members()/expire_time_limited_access() - this is a new
+-- policy starting now, not automating enforcement of an already-overdue
+-- state, so the first real sweep is the next actual Monday, not this
+-- instant.
+SELECT cron.schedule(
+  'eliminate-ineligible-competition-members-weekly',
+  '0 6 * * 1',
+  $$ SELECT public.eliminate_ineligible_competition_members(); $$
+);

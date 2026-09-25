@@ -7812,10 +7812,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           {row.rooms}
                           {row.eligible === false && (
                             <span
-                              title="Behind the current pace checkpoint - catch up to become prize-eligible again."
-                              style={{ marginLeft: '8px', fontSize: '0.68rem', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', background: 'rgba(var(--warning-rgb), 0.15)', border: '1px solid var(--warning)', color: 'var(--warning)' }}
+                              title="Behind the current pace checkpoint - catch up before Monday or you'll be automatically removed from the competition."
+                              style={{ marginLeft: '8px', fontSize: '0.68rem', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', background: 'rgba(var(--danger-rgb), 0.15)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
                             >
-                              Not prize eligible
+                              Behind pace - removed Monday
                             </span>
                           )}
                         </td>
