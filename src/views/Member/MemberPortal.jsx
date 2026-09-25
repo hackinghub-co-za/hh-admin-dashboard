@@ -7917,7 +7917,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             onBlur={handleCustomDurationBlur}
                             placeholder="Custom"
                             className="form-input"
-                            style={{ width: '76px', fontSize: '0.8rem', padding: '8px 10px', opacity: studyRunning ? 0.6 : 1 }}
+                            style={{ width: '96px', fontSize: '0.8rem', padding: '8px 10px', opacity: studyRunning ? 0.6 : 1 }}
                           />
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>min</span>
                         </div>
