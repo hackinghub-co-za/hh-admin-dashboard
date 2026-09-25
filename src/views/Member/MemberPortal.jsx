@@ -7812,7 +7812,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           {row.rooms}
                           {row.eligible === false && (
                             <span
-                              title="Behind the current pace checkpoint - catch up before Monday or you'll be automatically removed from the competition."
+                              title="Behind the current pace checkpoint - only Approved rooms count, so log (and get them approved) with time to spare. Still behind Monday and you'll be automatically removed from the competition."
                               style={{ marginLeft: '8px', fontSize: '0.68rem', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', background: 'rgba(var(--danger-rgb), 0.15)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
                             >
                               Behind pace - removed Monday

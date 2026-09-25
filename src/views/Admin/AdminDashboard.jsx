@@ -5388,7 +5388,7 @@ Pick new people to present next Sunday`;
                       <AlertTriangle size={13} /> Behind pace - auto-removed Monday ({ineligibleCompetitionMembers.length})
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                      They're automatically removed from the competition this Monday if still behind - use Remove below only if you want to act sooner.
+                      Only Approved rooms count toward this - a member with unreviewed Pending logs still shows here until those are approved. They're automatically removed this Monday if still behind, so review any backlog before then - use Remove below only if you want to act sooner.
                     </p>
                     {removeCompetitionError && <p style={{ fontSize: '0.78rem', color: 'var(--danger)', marginBottom: '8px' }}>{removeCompetitionError}</p>}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -5453,7 +5453,7 @@ Pick new people to present next Sunday`;
                       </div>
                     ))}
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      Prize eligibility checkpoints (optional - leave a row blank to skip it). Enforced weekly: anyone still behind a checkpoint gets automatically removed from the competition every Monday, not just marked ineligible.
+                      Prize eligibility checkpoints (optional - leave a row blank to skip it). Enforced weekly: anyone still behind a checkpoint on Approved rooms gets automatically removed from the competition every Monday, not just marked ineligible - review any Pending room log backlog before then.
                     </label>
                     {[1, 2, 3].map((n) => (
                       <div key={n} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px', alignItems: 'center' }}>
