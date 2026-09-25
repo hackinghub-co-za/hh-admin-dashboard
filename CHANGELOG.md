@@ -56,6 +56,32 @@ saved in their browser's `localStorage`.
   "needs your attention" banner, and a pending-by-category chart,
   replacing the old plain nav-shortcut row. Admin/Mentor dashboards
   unchanged. (`AdminDashboard.jsx`)
+- **Cyber Question of the Day, replacing TryHackMe Room of the Day** —
+  removed `recommended_rooms`/`get_todays_recommended_room()`
+  (`086_drop_recommended_rooms.sql`) and the admin "Daily Room Pool"
+  management UI entirely, since nothing else used them. Reuses
+  `duel_questions` as a read-only content pool (added a nullable
+  `explanation` column, backfilled for all 21 questions) rather than a
+  third question bank, picking "today's" question with the same
+  day-of-year modulo rotation the old feature used. New
+  `daily_question_answers` (log) / `daily_question_streaks` (aggregate)
+  tables, `get_todays_daily_question()` / `submit_daily_question_answer()`
+  RPCs — grading is always server-side, and the explanation/today's
+  answered-correct tally are only returned once a member has answered.
+  Streak counts correct answers only (wrong, or a missed day, resets it
+  to 0). Renders as a blocking `DailyQuestionModal.jsx` popup the first
+  time a member opens the Dashboard each day — no dismiss without
+  answering. (`087_daily_question.sql`)
+- **Network Security as an 8th roadmap track/specialty** — full parity
+  with the existing 7: `SPECIALTIES`/`ROADMAP_TRACKS`, a
+  `SPECIALIZATION_CATALOGS`/`PROJECT_CATALOGS` entry (CCNA, TryHackMe
+  Network Fundamentals, Fortinet NSE 4, Palo Alto PCNSA, WCNA + 2
+  portfolio projects) with matching `ROADMAP_ITEM_LINKS`/
+  `_DESCRIPTIONS`/`_INFO`, a `TRACK_COLORS`/`TRACK_DESCRIPTIONS`/
+  `TRACK_INFO` entry for the By Domain directory view, and
+  `linkedInPlaybookData.js`'s `DOMAIN_HASHTAGS`. No DB migration needed
+  — `roadmap_track`/`specialty` are plain `TEXT`, no CHECK constraint.
+  (`memberOptions.js`)
 
 ### Changed
 - **Competition pace checkpoints now auto-eliminate, not just flag** —
@@ -68,6 +94,12 @@ saved in their browser's `localStorage`.
   (`070_competition_seasons.sql`)
 - Ineligible members' row in Current Standings highlights red (was a
   plain warning pill only).
+- **Admin Roadmaps tab text is now white** — every gray/muted text
+  element (subtitle, track chip labels, category/phase headings, item
+  descriptions, empty states) switched from `--text-secondary`/
+  `--text-muted` to `--text-primary` for readability. Danger/warning/
+  success colors left alone since those still carry real meaning.
+  (`AdminDashboard.jsx`)
 
 ### Fixed
 - **10 Advanced (SOC) roadmap items had no explainer content at all** —

@@ -8,8 +8,8 @@ export const RELEASE_NOTES = [
   {
     version: '2026.09.25',
     date: '2026-09-25',
-    headline: 'Share Your Why, custom Study Hours lengths, and a real consequence for falling behind pace.',
-    intro: "A new \"Your Why\" on your profile - why you actually got into cybersecurity, in your own words. Study Hours now takes any custom session length, not just 25/45/60. Matchmaker groups can share meeting notes alongside their recording. And the TryHackMe competition's pace checkpoints now actually mean something - falling behind gets you removed, not just flagged.",
+    headline: 'Share Your Why, a Cyber Question of the Day, and a real consequence for falling behind pace.',
+    intro: "A new \"Your Why\" on your profile - why you actually got into cybersecurity, in your own words. A Cyber Question of the Day now greets you on the Dashboard, with its own streak. Study Hours takes any custom session length, not just 25/45/60. Matchmaker groups can share meeting notes alongside their recording. Network Security joins the roadmap as an 8th specialization track. And the TryHackMe competition's pace checkpoints now actually mean something - falling behind gets you removed, not just flagged.",
     groups: [
       {
         label: 'Growth',
@@ -32,6 +32,18 @@ export const RELEASE_NOTES = [
             title: 'Matchmaker meeting notes',
             body: "Share a link to your group's meeting notes alongside your recording - two separate links, so you can add one, the other, both, or neither.",
             where: 'Competitions → Matchmaker',
+          },
+          {
+            icon: '❓',
+            title: 'Cyber Question of the Day',
+            body: "The old TryHackMe room recommendation is now a quick multiple-choice cyber question instead - it pops up the first time you open the Dashboard each day, and you'll need to answer it before it goes away. Get it right and your streak grows; get it wrong, or miss a day, and it resets. Once you've answered, you'll see the explanation and how many other members got it right today too.",
+            where: 'Dashboard, once a day',
+          },
+          {
+            icon: '🌐',
+            title: 'Network Security is now a track',
+            body: "A new 8th specialization alongside SOC, Offensive Security, Cloud Security, DevSecOps, IAM, AI Security, and GRC - firewalls, VPNs, segmentation, and packet analysis. Ask your coach to move you onto it if it's the right fit.",
+            where: 'My Roadmap · Members → By Domain',
           },
         ],
       },
