@@ -6,6 +6,62 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.25',
+    date: '2026-09-25',
+    headline: 'Share Your Why, custom Study Hours lengths, and a real consequence for falling behind pace.',
+    intro: "A new \"Your Why\" on your profile - why you actually got into cybersecurity, in your own words. Study Hours now takes any custom session length, not just 25/45/60. Matchmaker groups can share meeting notes alongside their recording. And the TryHackMe competition's pace checkpoints now actually mean something - falling behind gets you removed, not just flagged.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🧭',
+            title: 'Share Your Why',
+            body: "Why did you actually get into cybersecurity? Money, remote work, a movie or show, providing for family - pick as many reasons as apply, plus your own story if you want to tell it. Shown on your profile, and there's a new Getting Started step for it (skippable, never something you'll get locked out for leaving blank).",
+            where: 'Members → Edit Profile',
+          },
+          {
+            icon: '⏱️',
+            title: 'Study Hours, your own length',
+            body: "Type in any session length from 5 to 180 minutes instead of only picking 25, 45, or 60. The leaderboard also shows everyone's headshot now, same as the TryHackMe standings.",
+            where: 'Competitions → Study Hours',
+          },
+          {
+            icon: '📝',
+            title: 'Matchmaker meeting notes',
+            body: "Share a link to your group's meeting notes alongside your recording - two separate links, so you can add one, the other, both, or neither.",
+            where: 'Competitions → Matchmaker',
+          },
+        ],
+      },
+      {
+        label: 'Competition',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '⚠️',
+            title: 'Pace checkpoints now have real stakes',
+            body: "Falling behind a checkpoint used to just gray out your prize eligibility until you caught up. Now it's a hard deadline: anyone still behind gets automatically removed from the competition every Monday. Watch for the red \"Behind pace\" tag on Current Standings - that's your warning.",
+            where: 'Competitions',
+          },
+        ],
+      },
+      {
+        label: 'Fixed',
+        color: '#94a3b8',
+        items: [
+          {
+            icon: '🗺️',
+            title: 'Advanced roadmap items now actually explain themselves',
+            body: "Clicking most Advanced-phase SOC items used to open a modal with nothing in it. All 10 now have real \"what this teaches you, and why\" content, and the CISCO Cybersecurity Defense Analyst item in Specialization (SOC) had the same bug fixed too.",
+            where: 'My Roadmap → Advanced',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.20',
     date: '2026-09-20',
     headline: 'A real Interview Playbook you can type in, a Calendar/List view for Events, and Sunday Catchup recordings.',

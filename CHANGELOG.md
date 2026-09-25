@@ -18,6 +18,66 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.09.25
+
+### Added
+- **"Your Why"** — `member_profiles.why_reasons`/`why_story`, threaded
+  through `get_member_directory()`/`update_my_directory_profile()`
+  exactly like `fun_fact` already is. Preset multi-select reason chips
+  (`WHY_REASONS`, `memberOptions.js`) plus a free-text story; shown in
+  the profile modal, a new "Share your why" Getting Started step
+  (deliberately excluded from the hard-gate's required set), and a
+  "Why Members Joined" breakdown on admin Insights.
+  (`085_member_why.sql`)
+- **Custom Study Hours session length** — a free-typed 5–180 minute
+  input alongside the 25/45/60 presets; `study_sessions.planned_minutes`
+  CHECK and `log_study_session()`'s guard both widened from an exact
+  list to that range. Leaderboard also gained headshots + clickable
+  profiles, matching the TryHackMe standings.
+- **Matchmaker meeting notes** — `matchmaker_groups.notes_url` +
+  `submit_group_notes()`, same self-service shape as the existing
+  `recording_url`/`submit_group_recording()`, independent field.
+  (`030_matchmaker.sql`)
+- **Admin-only Sales Pipeline tracker** — new `pipeline_prospects`
+  table, admin-only RLS, a Kanban board (`@dnd-kit`, new dependency)
+  for tracking people interested in or about to join HH, separate from
+  `member_profiles` (which only has rows for people who've joined).
+  (`083_pipeline_prospects.sql`, `SalesPipelineBoard.jsx`)
+- **Automatic time-limited access** — `member_profiles.access_expires_at`
+  + `expire_time_limited_access()`, a daily pg_cron sweep for bounded
+  trial/guest grants, consolidating two pre-existing one-off per-member
+  cron jobs that predated any migration file. (`084_leaving_auto_expire.sql`)
+- **Automatic `Leaving` → `Left` after 3 days** — a member who never
+  logs back in to finish `OffboardingSequence` used to sit in `Leaving`
+  indefinitely; a new daily sweep (`expire_leaving_members()`) finalizes
+  it the same way `submit_exit_feedback()` already does.
+  (`084_leaving_auto_expire.sql`)
+- **Real, interactive Community Manager dashboard** — KPI tiles, a
+  "needs your attention" banner, and a pending-by-category chart,
+  replacing the old plain nav-shortcut row. Admin/Mentor dashboards
+  unchanged. (`AdminDashboard.jsx`)
+
+### Changed
+- **Competition pace checkpoints now auto-eliminate, not just flag** —
+  falling behind used to only mark a member "not prize eligible,"
+  recoverable by catching up later. A new weekly pg_cron job
+  (`eliminate_ineligible_competition_members()`, 06:00 UTC every Monday)
+  now opts anyone still behind out of the competition entirely, same
+  `opted_out` mechanism as the existing self-service opt-out — still
+  technically reversible via re-RSVP, just no longer automatic.
+  (`070_competition_seasons.sql`)
+- Ineligible members' row in Current Standings highlights red (was a
+  plain warning pill only).
+
+### Fixed
+- **10 Advanced (SOC) roadmap items had no explainer content at all** —
+  clicking them opened `CoreFoundationInfoModal` with nothing in it,
+  since `ROADMAP_ITEM_INFO`/`ROADMAP_ITEM_DESCRIPTIONS` had no entries
+  for them. All 10 written up; audited every other catalog for the same
+  gap (none found).
+- **CISCO Cybersecurity Defense Analyst (Specialization → SOC)** — same
+  "modal opens to nothing" bug, isolated case, fixed.
+
 ## 2026.09.20
 
 ### Added
