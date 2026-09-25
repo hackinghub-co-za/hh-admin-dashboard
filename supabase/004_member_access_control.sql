@@ -75,6 +75,20 @@ GRANT EXECUTE ON FUNCTION public.is_member_allowed(TEXT) TO anon, authenticated;
 -- without a payment - defeating the status's whole purpose. Reactivating
 -- 'Left'/'Leaving' back to 'Active' on a new payment is still correct and
 -- unchanged; only 'Active (Permanent)' is now left alone.
+--
+-- REVISION (2026-09-25, QA fix): also clears access_expires_at
+-- (084_leaving_auto_expire.sql) on every real payment. That column exists
+-- for a deliberate, bounded trial/guest grant - if someone on a
+-- time-limited grant goes on to make a genuine payment before it expires,
+-- they're now a real paying member, not a trial, and the leftover expiry
+-- date must not still be sitting there. Without this, expire_time_limited_
+-- access()'s next daily 03:00 UTC sweep would silently flip a real,
+-- paying, 'Active' member to 'Left' on the original trial's expiry date,
+-- with no error or warning anywhere - this function is the only place a
+-- real payment is recorded (PayFast webhook + admin EFT both call it), so
+-- it's the only place that can safely clear the trial flag once it's been
+-- superseded by real payment. No-op for every normal member, who never had
+-- access_expires_at set in the first place.
 CREATE OR REPLACE FUNCTION public.grant_member_portal_access(p_email TEXT, p_full_name TEXT)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -93,6 +107,7 @@ BEGIN
   ON CONFLICT (email) DO UPDATE SET
     status = CASE WHEN member_profiles.status = 'Active (Permanent)' THEN member_profiles.status ELSE 'Active' END,
     full_name = COALESCE(NULLIF(trim(member_profiles.full_name), ''), EXCLUDED.full_name),
+    access_expires_at = NULL,
     updated_at = timezone('utc'::text, now());
 END;
 $$;
