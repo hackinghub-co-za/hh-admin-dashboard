@@ -4568,7 +4568,7 @@ Pick new people to present next Sunday`;
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Roadmaps</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>Assign a track and curate a member's checklist. They can only mark items done - the plan itself is yours to author.</p>
+            <p style={{ color: 'var(--text-primary)' }}>Assign a track and curate a member's checklist. They can only mark items done - the plan itself is yours to author.</p>
           </div>
 
           {isMockSession && (
@@ -4583,7 +4583,7 @@ Pick new people to present next Sunday`;
           <div className="glass-card" style={{ marginBottom: '20px' }}>
             <h3 style={{ fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Milestone size={16} color="var(--accent-cyan)" /> Active Members by Track
-              <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>· click to filter</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-primary)' }}>· click to filter</span>
             </h3>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {roadmapTrackCounts.map(({ track, count }) => (
@@ -4598,7 +4598,7 @@ Pick new people to present next Sunday`;
                     cursor: 'pointer', font: 'inherit', color: 'inherit',
                   }}
                 >
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{track}</span>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{track}</span>
                   <span className={`badge ${track === 'Not Assigned' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.7rem' }}>{count}</span>
                 </button>
               ))}
@@ -4629,7 +4629,7 @@ Pick new people to present next Sunday`;
               </select>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '520px', overflowY: 'auto' }}>
                 {filteredRoadmapRoster.length === 0 && (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '8px 4px' }}>No active members on this track.</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)', padding: '8px 4px' }}>No active members on this track.</p>
                 )}
                 {filteredRoadmapRoster.map((m) => {
                   const pct = getRoadmapProgressPct(m.email);
@@ -4675,16 +4675,16 @@ Pick new people to present next Sunday`;
             {/* Selected member's roadmap */}
             <div className="glass-card" style={{ padding: '24px' }}>
               {!roadmapSelected ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Pick a member on the left to assign a track and build their checklist.</p>
+                <p style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>Pick a member on the left to assign a track and build their checklist.</p>
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '20px' }}>
                     <div>
                       <h3 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{roadmapSelected.member}</h3>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{roadmapSelected.email}</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{roadmapSelected.email}</p>
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Track</label>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '6px', color: 'var(--text-primary)' }}>Track</label>
                       <select
                         className="form-input"
                         value={roadmapSelected.profile?.roadmapTrack || 'Not Assigned'}
@@ -4729,9 +4729,9 @@ Pick new people to present next Sunday`;
                     )}
 
                     {isMockSession ? null : loadingOneOnOneLogs ? (
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading...</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>Loading...</p>
                     ) : oneOnOneLogs.length === 0 ? (
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No 1-on-1s logged yet.</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>No 1-on-1s logged yet.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         {oneOnOneLogs.map((log) => (
@@ -4753,7 +4753,7 @@ Pick new people to present next Sunday`;
                   )}
 
                   {!isMockSession && loadingRoadmapItems ? (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading checklist...</p>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Loading checklist...</p>
                   ) : (
                     <>
                       {roadmapItems.length > 0 && (
@@ -4766,12 +4766,12 @@ Pick new people to present next Sunday`;
                       )}
 
                       {phaseGroups.length === 0 ? (
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '20px' }}>No checklist items yet.</p>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontStyle: 'italic', marginBottom: '20px' }}>No checklist items yet.</p>
                       ) : (
                         phaseGroups.map((g) => (
                           <div key={g.phase} style={{ marginBottom: '20px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-purple)' }}>{g.phase}</div>
+                              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-primary)' }}>{g.phase}</div>
                               {g.phase === 'Core Foundations' && (
                                 <span className={`badge ${coreFoundationsMet ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.62rem' }}>
                                   {coreFoundationsDone}/{CORE_FOUNDATIONS_CATALOG.length} Foundation Certs
@@ -4799,7 +4799,7 @@ Pick new people to present next Sunday`;
                             </div>
                             {g.categories.map((c) => (
                               <div key={c.category} style={{ marginBottom: '14px' }}>
-                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>{c.category}</div>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>{c.category}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                   {c.items.map((item) => (
                                     <div key={item.id} style={{ padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)' }}>
@@ -4835,10 +4835,10 @@ Pick new people to present next Sunday`;
                                           <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{ fontSize: '0.9rem', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.title}</div>
                                             {ROADMAP_ITEM_DESCRIPTIONS[item.title] && (
-                                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{ROADMAP_ITEM_DESCRIPTIONS[item.title]}</div>
+                                              <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>{ROADMAP_ITEM_DESCRIPTIONS[item.title]}</div>
                                             )}
                                             {(item.detail || item.dueDate) && (
-                                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                              <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>
                                                 {item.detail}{item.detail && item.dueDate ? ' · ' : ''}{item.dueDate && `Due ${formatDate(item.dueDate)}`}
                                               </div>
                                             )}
@@ -4852,7 +4852,7 @@ Pick new people to present next Sunday`;
                                               // visually distinct (secondary button, explicit "Without Proof"
                                               // wording) so it reads as the exception, not the default click.
                                               <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No proof submitted yet</span>
+                                                <span style={{ fontSize: '0.72rem', color: 'var(--text-primary)' }}>No proof submitted yet</span>
                                                 <input
                                                   className="form-input"
                                                   placeholder="Note (optional, e.g. why this is credited without proof)"
@@ -4920,7 +4920,7 @@ Pick new people to present next Sunday`;
                                               <ExternalLink size={12} /> Open Link / Resource
                                             </a>
                                           )}
-                                          <button onClick={() => startEditRoadmapItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }} aria-label="Edit item">
+                                          <button onClick={() => startEditRoadmapItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', flexShrink: 0 }} aria-label="Edit item">
                                             <Pencil size={15} />
                                           </button>
                                           <button onClick={() => handleDeleteRoadmapItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', flexShrink: 0 }} aria-label="Delete item">
@@ -4943,13 +4943,13 @@ Pick new people to present next Sunday`;
                     <form onSubmit={handleAddRoadmapItem} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Phase</label>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-primary)' }}>Phase</label>
                           <select className="form-input" value={newRoadmapItem.phase} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, phase: e.target.value })}>
                             {ROADMAP_PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Category</label>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-primary)' }}>Category</label>
                           <input className="form-input" list="roadmap-category-suggestions" value={newRoadmapItem.category} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, category: e.target.value })} placeholder="e.g. Certifications" required />
                           <datalist id="roadmap-category-suggestions">
                             {existingCategories.map((c) => <option key={c} value={c} />)}
@@ -4957,16 +4957,16 @@ Pick new people to present next Sunday`;
                         </div>
                       </div>
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Item title</label>
+                        <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-primary)' }}>Item title</label>
                         <input className="form-input" value={newRoadmapItem.title} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, title: e.target.value })} placeholder="e.g. CompTIA Security+" required />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Detail (optional)</label>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-primary)' }}>Detail (optional)</label>
                           <input className="form-input" value={newRoadmapItem.detail} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, detail: e.target.value })} placeholder="e.g. 9/20 collections" />
                         </div>
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Due date (optional)</label>
+                          <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-primary)' }}>Due date (optional)</label>
                           <input type="date" className="form-input" value={newRoadmapItem.dueDate} onChange={(e) => setNewRoadmapItem({ ...newRoadmapItem, dueDate: e.target.value })} />
                         </div>
                       </div>
@@ -5031,14 +5031,14 @@ Pick new people to present next Sunday`;
               )}
             </div>
             {awaitingApprovalMembers.length === 0 ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nothing waiting on you right now.</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Nothing waiting on you right now.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {awaitingApprovalMembers.map(({ member, doneCount }) => (
                   <div key={member.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{member.member}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{member.email} · {member.profile?.roadmapTrack || 'No track assigned'}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>{member.email} · {member.profile?.roadmapTrack || 'No track assigned'}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{doneCount}/{CORE_FOUNDATIONS_CATALOG.length} Core Foundations</span>
@@ -5074,16 +5074,16 @@ Pick new people to present next Sunday`;
                     <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{confirmedCount}/{linkedInEngagement.length} confirmed this week</span>
                   )}
                 </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)', marginBottom: '16px' }}>
                   Every active member with a track assigned who hasn't confirmed this week's post yet.
                 </p>
 
                 {linkedInEngagementError ? (
                   <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Couldn't load this: {linkedInEngagementError}</p>
                 ) : loadingLinkedInEngagement ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Loading...</p>
                 ) : linkedInEngagement.length === 0 ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
                     {role === 'mentor' ? "None of your mentees have a track assigned yet." : 'No active, track-assigned members yet.'}
                   </p>
                 ) : notConfirmed.length === 0 ? (
@@ -5096,7 +5096,7 @@ Pick new people to present next Sunday`;
                         <div key={r.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                           <div>
                             <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{r.fullName || r.email}</div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>
                               {r.roadmapTrack} · This week: {week.theme}
                             </div>
                           </div>
