@@ -59,6 +59,7 @@ import {
   fetchCurrentTriviaQuestion, fetchTriviaLeaderboard, joinTriviaSession, buzzInTrivia,
 } from '../../lib/triviaData';
 import { fetchTodaysDailyQuestion, submitDailyQuestionAnswer } from '../../lib/dailyQuestionData';
+import DailyQuestionModal from '../../components/DailyQuestionModal';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
@@ -786,6 +787,9 @@ const MOCK_DAILY_QUESTION = {
   wasCorrect: null,
   selectedIndex: null,
   currentStreak: 4,
+  explanation: 'A SIEM (Security Information and Event Management) system centralizes log collection and correlates events across an environment to surface potential threats.',
+  totalAnsweredToday: null,
+  totalCorrectToday: null,
 };
 
 const CONTENT_TYPE_ICONS = {
@@ -1498,33 +1502,54 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   };
 
   // Cyber Question of the Day (supabase/087_daily_question.sql) - day-of-
-  // year rotation over duel_questions, correct-answer-only streak.
+  // year rotation over duel_questions, correct-answer-only streak. Popped
+  // up as a blocking modal (not just a dashboard card) until answered, so
+  // dailyQuestionModalOpen is set at the same point dailyQuestion itself is
+  // set (mock init, fetch resolution, or a successful answer) rather than
+  // derived via a separate effect reacting to it.
   const [dailyQuestion, setDailyQuestion] = useState(isMockSession ? MOCK_DAILY_QUESTION : null);
   const [submittingDailyQuestion, setSubmittingDailyQuestion] = useState(false);
+  const [dailyQuestionModalOpen, setDailyQuestionModalOpen] = useState(isMockSession && !MOCK_DAILY_QUESTION.alreadyAnswered);
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
     fetchTodaysDailyQuestion()
-      .then((q) => !cancelled && setDailyQuestion(q))
+      .then((q) => {
+        if (cancelled) return;
+        setDailyQuestion(q);
+        if (q && !q.alreadyAnswered) setDailyQuestionModalOpen(true);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isMockSession]);
 
   const handleAnswerDailyQuestion = async (idx) => {
     if (isMockSession) {
+      const wasCorrect = idx === 0;
       setDailyQuestion((prev) => ({
         ...prev,
         alreadyAnswered: true,
         selectedIndex: idx,
-        wasCorrect: idx === 0,
-        currentStreak: idx === 0 ? prev.currentStreak + 1 : 0,
+        wasCorrect,
+        currentStreak: wasCorrect ? prev.currentStreak + 1 : 0,
+        totalAnsweredToday: 15,
+        totalCorrectToday: 10,
       }));
       return;
     }
     setSubmittingDailyQuestion(true);
     try {
-      const { isCorrect, currentStreak } = await submitDailyQuestionAnswer(idx);
-      setDailyQuestion((prev) => ({ ...prev, alreadyAnswered: true, selectedIndex: idx, wasCorrect: isCorrect, currentStreak }));
+      const { isCorrect, currentStreak, explanation, totalAnsweredToday, totalCorrectToday } = await submitDailyQuestionAnswer(idx);
+      setDailyQuestion((prev) => ({
+        ...prev,
+        alreadyAnswered: true,
+        selectedIndex: idx,
+        wasCorrect: isCorrect,
+        currentStreak,
+        explanation,
+        totalAnsweredToday,
+        totalCorrectToday,
+      }));
     } catch (err) {
       console.error('Could not submit daily question answer:', err);
     } finally {
@@ -5938,67 +5963,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 )}
               </div>
 
-              {/* Cyber Question of the Day - supabase/087_daily_question.sql,
-                  day-of-year rotation over duel_questions, correct-answer-
-                  only streak */}
-              {dailyQuestion && (
-                <div className="glass-card">
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
-                    <ListChecks size={20} color="var(--accent-cyan)" />
-                    <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Cyber Question of the Day</h4>
-                  </div>
-                  {dailyQuestion.alreadyAnswered ? (
-                    <div>
-                      <p style={{ fontWeight: 600, color: dailyQuestion.wasCorrect ? 'var(--accent-green)' : 'var(--danger)', marginBottom: '10px' }}>
-                        {dailyQuestion.wasCorrect ? 'Correct! Come back tomorrow for the next one.' : "Not quite - come back tomorrow for the next one."}
-                      </p>
-                      {dailyQuestion.currentStreak > 0 && (
-                        <div
-                          title={`${dailyQuestion.currentStreak} day${dailyQuestion.currentStreak === 1 ? '' : 's'} in a row`}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '10px 18px',
-                            borderRadius: 'var(--border-radius-md)',
-                            background: 'rgba(var(--warning-rgb), 0.08)',
-                            border: '1px solid rgba(var(--warning-rgb), 0.25)',
-                          }}
-                        >
-                          <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>🔥</span>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.1 }}>{dailyQuestion.currentStreak}</div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                              day{dailyQuestion.currentStreak === 1 ? '' : 's'} in a row
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="badge badge-success" style={{ fontSize: '0.65rem', marginBottom: '10px', display: 'inline-block' }}>{dailyQuestion.domain}</span>
-                      <p style={{ fontSize: '0.9rem', marginBottom: '14px', lineHeight: 1.5 }}>{dailyQuestion.question}</p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {dailyQuestion.choices.map((choice, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 14px', fontSize: '0.85rem' }}
-                            onClick={() => handleAnswerDailyQuestion(idx)}
-                            disabled={submittingDailyQuestion}
-                          >
-                            {choice}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
+
+          {dailyQuestionModalOpen && dailyQuestion && (
+            <DailyQuestionModal
+              question={dailyQuestion}
+              submitting={submittingDailyQuestion}
+              onAnswer={handleAnswerDailyQuestion}
+              onClose={() => setDailyQuestionModalOpen(false)}
+            />
+          )}
 
           {specializationCelebration && (
             <SpecializationUnlockedModal quote={specializationCelebration} onClose={() => setSpecializationCelebration(null)} />

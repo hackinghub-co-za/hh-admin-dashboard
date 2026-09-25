@@ -19,6 +19,9 @@ export async function fetchTodaysDailyQuestion() {
     wasCorrect: row.was_correct,
     selectedIndex: row.selected_index,
     currentStreak: row.current_streak,
+    explanation: row.explanation,
+    totalAnsweredToday: row.total_answered_today,
+    totalCorrectToday: row.total_correct_today,
   };
 }
 
@@ -26,5 +29,11 @@ export async function submitDailyQuestionAnswer(selectedIndex) {
   const { data, error } = await supabase.rpc('submit_daily_question_answer', { p_selected_index: selectedIndex });
   if (error) throw error;
   const row = (data || [])[0];
-  return { isCorrect: row?.is_correct, currentStreak: row?.current_streak };
+  return {
+    isCorrect: row?.is_correct,
+    currentStreak: row?.current_streak,
+    explanation: row?.explanation,
+    totalAnsweredToday: row?.total_answered_today,
+    totalCorrectToday: row?.total_correct_today,
+  };
 }
