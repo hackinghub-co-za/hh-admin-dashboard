@@ -66,6 +66,7 @@ export const DOMAIN_HASHTAGS = {
   IAM: '#IAM #IdentitySecurity #ZeroTrust #AccessManagement',
   'AI Security': '#AISecurity #LLMSecurity #PromptInjection #AIRedTeam',
   GRC: '#GRC #RiskManagement #Compliance #ISO27001',
+  'Network Security': '#NetworkSecurity #Firewalls #VPN #NetworkDefense #CyberSecurity',
 };
 
 export const DOMAINS = Object.keys(DOMAIN_HASHTAGS);

@@ -21,7 +21,7 @@ import { ROADMAP_TRACKS } from '../lib/memberOptions';
 
 const WEEKLY_SESSION_CAP = 3; // must match gemma-interview-prep's own WEEKLY_SESSION_CAP - client-side hint only
 
-// Which domain the real interview is FOR - same 7 tracks as ROADMAP_TRACKS
+// Which domain the real interview is FOR - same tracks as ROADMAP_TRACKS
 // minus 'Not Assigned' (memberOptions.js), so the vocabulary matches My
 // Roadmap and the LinkedIn Playbook exactly. Read by gemma-interview-prep
 // to tailor generated questions to this domain rather than just the

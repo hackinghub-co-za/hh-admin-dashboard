@@ -5,7 +5,7 @@
 // made it easy to assign a specialty that didn't match the actual roadmap
 // track. GRC now has a roadmap track counterpart too (see ROADMAP_TRACKS
 // and SPECIALIZATION_CATALOGS.GRC below).
-export const SPECIALTIES = ['Not Set', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
+export const SPECIALTIES = ['Not Set', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
 
 // "Your Why" - preset reasons a member picks from (multi-select - real
 // motivation is rarely just one thing), shown as tappable chips in Edit
@@ -58,7 +58,7 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Ope
 // The learning path a coach assigns a member to - drives which checklist shows
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
 // own self-described directory badge); this one is coach-assigned.
-export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
+export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
 export const ROADMAP_PHASES = ['Core Foundations', 'Specialization', 'Projects', 'Advanced'];
 
 // A member only sees their Projects section once they've completed this
@@ -170,6 +170,13 @@ export const ROADMAP_ITEM_LINKS = {
   'CompTIA SecurityX': 'https://www.comptia.org/en/certifications/securityx/',
   'AWS Certified Security – Specialty': 'https://aws.amazon.com/certification/certified-security-specialty/',
   'THM SOC Level 2': 'https://tryhackme.com/path/outline/soclevel2',
+  //
+  // Network Security specialization (SPECIALIZATION_CATALOGS['Network Security'] below)
+  'CCNA': 'https://www.cisco.com/site/us/en/learn/training-certifications/certifications/ccna/index.html',
+  'TryHackMe Network Fundamentals': 'https://tryhackme.com/module/network-fundamentals',
+  'Fortinet NSE 4': 'https://training.fortinet.com/',
+  'Palo Alto Networks PCNSA': 'https://www.paloaltonetworks.com/services/education/pcnsa',
+  'Wireshark Certified Network Analyst (WCNA)': 'https://www.wiresharktraining.com/',
 };
 
 // Short "what is this" line shown under every roadmap item's title (Core
@@ -255,6 +262,15 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   // Projects - GRC
   'Mock Risk Assessment': 'Run a Real Risk Assessment Process',
   'Compliance Gap Analysis': 'Practice Real Regulatory Compliance Work',
+  // Specialization - Network Security
+  'CCNA': 'Professional-Level Networking Fundamentals',
+  'TryHackMe Network Fundamentals': 'Hands-On Networking & Packet Basics',
+  'Fortinet NSE 4': 'Firewall & Network Security Administration',
+  'Palo Alto Networks PCNSA': 'Next-Gen Firewall Administration',
+  'Wireshark Certified Network Analyst (WCNA)': 'Deep Packet Analysis Certification',
+  // Projects - Network Security
+  'Segment a Home/Lab Network': 'Apply Real Network Segmentation & Hardening',
+  'Packet Capture Analysis Write-Up': 'Practice Real Traffic Analysis',
   // Advanced - SOC
   'CompTIA SecurityX': 'Advanced Security Architecture & Engineering',
   'AWS Certified Security – Specialty': 'Deep AWS Security Specialization',
@@ -272,7 +288,7 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
 // explanation shown in CoreFoundationInfoModal when a member clicks an
 // item - ROADMAP_ITEM_DESCRIPTIONS above stays the short one-line tag shown
 // inline on the checklist itself. Covers every Core Foundations,
-// Specialization, and Projects item across all 7 tracks.
+// Specialization, and Projects item across every track.
 export const ROADMAP_ITEM_INFO = {
   // ---- Core Foundations ----
   'CISCO Junior Cyber Pathway': {
@@ -293,11 +309,11 @@ export const ROADMAP_ITEM_INFO = {
   },
   'AZ-900': {
     teaches: "Core cloud concepts - what Azure actually is, its main services, how pricing works, and basic governance - with zero prior cloud experience assumed.",
-    journey: "The overwhelming majority of companies you'll interview at run at least part of their infrastructure on a cloud platform. This is a fast, cheap way to speak that language credibly in an interview, no matter which of the 7 specializations you end up on.",
+    journey: "The overwhelming majority of companies you'll interview at run at least part of their infrastructure on a cloud platform. This is a fast, cheap way to speak that language credibly in an interview, no matter which of the 8 specializations you end up on.",
   },
   'AI-901': {
     teaches: "What AI and machine learning actually are, common AI workloads, and responsible AI principles - no coding or data science background needed.",
-    journey: "AI is already showing up inside the tools you'll use day to day - SOC copilots, AI-assisted code review - and AI Security is one of the 7 specialization tracks here. This gives you the vocabulary to understand what you're securing before you ever specialize in securing it.",
+    journey: "AI is already showing up inside the tools you'll use day to day - SOC copilots, AI-assisted code review - and AI Security is one of the 8 specialization tracks here. This gives you the vocabulary to understand what you're securing before you ever specialize in securing it.",
   },
   'SC-900': {
     teaches: "The building blocks of identity, access management, and compliance in a Microsoft cloud environment - Zero Trust, MFA, and the reasoning behind access controls.",
@@ -544,6 +560,38 @@ export const ROADMAP_ITEM_INFO = {
     journey: "Gap analysis is one of the most common real deliverables in GRC work - this project is direct, portfolio-ready practice for exactly that, using regulations that are genuinely, currently in force.",
   },
 
+  // ---- Specialization: Network Security ----
+  'CCNA': {
+    teaches: "Professional-level networking fundamentals - routing, switching, IP addressing, and network security basics - Cisco's own flagship associate-level certification.",
+    journey: "This is the foundational credential almost every network security role assumes you already have. Where Core Foundations' CISCO Junior Cyber Pathway gives you a first taste, CCNA is the real, industry-recognized proof you understand networking at a professional level.",
+  },
+  'TryHackMe Network Fundamentals': {
+    teaches: "A hands-on, guided module covering how networks actually work in practice - packet analysis, common protocols, and traffic patterns - through real TryHackMe labs.",
+    journey: "This is where CCNA's theory turns into something you've actually done - capturing and reading real traffic, not just answering exam questions about it.",
+  },
+  'Fortinet NSE 4': {
+    teaches: "How to administer FortiGate firewalls in production - policies, VPNs, and security profiles - Fortinet's own official Network Security Professional certification.",
+    journey: "Fortinet is one of the most widely deployed firewall platforms in the world, and NSE 4 is the entry point into their genuinely respected NSE certification track - a strong, specific signal for network security hiring.",
+  },
+  'Palo Alto Networks PCNSA': {
+    teaches: "How to configure and administer Palo Alto Networks' next-generation firewalls - security policies, App-ID, and threat prevention - the other major enterprise firewall platform.",
+    journey: "Between this and NSE 4, you can credibly operate the two firewall platforms companies actually run in production, not just describe firewall concepts in the abstract.",
+  },
+  'Wireshark Certified Network Analyst (WCNA)': {
+    teaches: "Deep, exam-based validation of packet-level traffic analysis using Wireshark - the industry-standard protocol analyzer - reading and interpreting real network behavior at the byte level.",
+    journey: "Almost every serious network security investigation eventually comes down to reading packets. WCNA is the credential that proves you can actually do that, not just recognize the tool's icon.",
+  },
+
+  // ---- Projects: Network Security ----
+  'Segment a Home/Lab Network': {
+    teaches: "How to actually design and implement network segmentation - VLANs, firewall rules, and basic intrusion detection - on a real home or lab network, not just diagram it.",
+    journey: "This is the project that turns \"I know what network segmentation is\" into \"I've built it.\" It's exactly the kind of concrete, walk-me-through-it proof a hiring manager can ask about in an interview.",
+  },
+  'Packet Capture Analysis Write-Up': {
+    teaches: "How to capture and analyze real network traffic with Wireshark, identify a genuinely suspicious pattern, and document what it means and why it matters.",
+    journey: "This is the practical counterpart to WCNA's exam-based proof - a real, portfolio-ready write-up showing you can find something meaningful in a packet capture, not just pass a multiple-choice test about one.",
+  },
+
   // ---- Advanced: SOC ----
   'CompTIA SecurityX': {
     teaches: "Advanced security architecture and engineering - governance/risk/compliance, security architecture, security engineering, and security operations at a senior, design-level depth, not just day-to-day operation.",
@@ -684,6 +732,16 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'THM AI Security', defaultDetail: '' },
     ],
   },
+  'Network Security': {
+    category: 'Network Security',
+    items: [
+      { title: 'CCNA', defaultDetail: '' },
+      { title: 'TryHackMe Network Fundamentals', defaultDetail: '' },
+      { title: 'Fortinet NSE 4', defaultDetail: '' },
+      { title: 'Palo Alto Networks PCNSA', defaultDetail: '' },
+      { title: 'Wireshark Certified Network Analyst (WCNA)', defaultDetail: '' },
+    ],
+  },
 };
 
 // Standard Projects catalogs, by roadmap_track - unlocked once a member
@@ -739,6 +797,13 @@ export const PROJECT_CATALOGS = {
     items: [
       { title: 'Mock Risk Assessment', defaultDetail: 'Perform a risk assessment for a hypothetical org using a real framework (NIST RMF or ISO 27001), document findings' },
       { title: 'Compliance Gap Analysis', defaultDetail: "Assess a hypothetical company's posture against a real regulation (POPIA or GDPR), document gaps and remediation" },
+    ],
+  },
+  'Network Security': {
+    category: 'Network Security Projects',
+    items: [
+      { title: 'Segment a Home/Lab Network', defaultDetail: 'Design and implement VLANs, a firewall ruleset, and basic IDS/IPS on a home or lab network - document before/after' },
+      { title: 'Packet Capture Analysis Write-Up', defaultDetail: 'Capture and analyze real traffic (or a public PCAP) with Wireshark, document a suspicious pattern you found and why it matters' },
     ],
   },
 };
@@ -1763,6 +1828,7 @@ export const TRACK_COLORS = {
   'IAM': '#f5b942',
   'AI Security': '#f472b6',
   'GRC': '#22c55e',
+  'Network Security': '#6366f1',
 };
 export const OTHER_GROUP_COLOR = '#94a3b8';
 export const TEAM_GROUP_COLOR = '#f5b942';
@@ -1779,6 +1845,7 @@ export const TRACK_DESCRIPTIONS = {
   'IAM': 'Who gets access to what, and proving it - identity, authentication, and access governance.',
   'AI Security': 'Securing AI systems, and using AI as a security tool - prompt injection, model risk, and the newest attack surface.',
   'GRC': 'Governance, Risk & Compliance - policy, audits, and translating security into language the business understands.',
+  'Network Security': 'Defending the network layer itself - firewalls, VPNs, segmentation, and the routes data actually travels on.',
 };
 
 // Fuller "what is this domain, really" copy for the modal opened by
@@ -1824,6 +1891,11 @@ export const TRACK_INFO = {
     whatItIs: "Governance, Risk & Compliance - policy, audits, frameworks, and translating security into language a board or regulator actually understands. Less hands-on-keyboard, more structured and strategic.",
     roles: ['GRC Analyst', 'Compliance Officer', 'Risk Analyst', 'IT Auditor', 'GRC Manager'],
     salaryRange: 'R22,000 – R40,000/month entry-to-mid, R45,000 – R75,000+/month senior/manager',
+  },
+  'Network Security': {
+    whatItIs: "The infrastructure layer everything else sits on top of - firewalls, VPNs, segmentation, and intrusion detection, defending how data actually moves rather than the systems sitting at its endpoints.",
+    roles: ['Network Security Engineer', 'Network Security Analyst', 'Firewall Administrator', 'Network Security Architect'],
+    salaryRange: 'R25,000 – R45,000/month mid-level, R50,000 – R85,000+/month senior/architect',
   },
 };
 
