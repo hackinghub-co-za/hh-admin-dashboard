@@ -203,6 +203,7 @@ const MENTORS = [
     sideNote: 'Book Directly',
     bio: 'Data Security & AI.',
     bookingUrl: 'https://calendly.com/nonhlanhlakamangethe/30min',
+    linkedinUrl: 'https://www.linkedin.com/in/nonhlanhla-z/',
   },
   {
     id: 'nokulunga',
@@ -212,6 +213,7 @@ const MENTORS = [
     badgeClass: 'badge-warning',
     sideNote: 'Synced via Siya',
     bio: 'Digital Forensics (DFIR).',
+    linkedinUrl: 'https://www.linkedin.com/in/nokulunga-aphane-1159b51a1/',
   },
   {
     id: 'momelezi',
@@ -6158,6 +6160,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       />
                     )}
                     <h3 style={{ fontSize: '1.3rem', fontWeight: 700 }}>{m.name}</h3>
+                    {m.linkedinUrl && (
+                      <a
+                        href={m.linkedinUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`${m.name} on LinkedIn`}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '18px', height: '18px', borderRadius: '3px',
+                          background: '#0A66C2', color: '#fff', fontSize: '0.6rem', fontWeight: 700, fontStyle: 'italic',
+                        }}
+                      >
+                        in
+                      </a>
+                    )}
                   </div>
 
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
