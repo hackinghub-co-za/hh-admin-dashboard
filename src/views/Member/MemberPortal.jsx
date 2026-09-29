@@ -43,7 +43,8 @@ import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySess
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
 import { fetchMyRoadmapSubtasks, toggleMyRoadmapSubtask } from '../../lib/roadmapSubtasksData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
-import { recordDailyLogin } from '../../lib/loginStreakData';
+import { recordDailyLogin, fetchMyLoginStreakSummary, fetchMyLoginHistory, fetchTopLoginStreak } from '../../lib/loginStreakData';
+import LoginStreakModal from '../../components/LoginStreakModal';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchMyJourneyOverrides, setJourneyOverride, clearJourneyOverride } from '../../lib/journeyOverridesData';
@@ -798,6 +799,24 @@ const MOCK_DAILY_QUESTION = {
   totalAnsweredToday: null,
   totalCorrectToday: null,
 };
+
+// Mock login history for the streak modal's calendar - the last 5
+// consecutive days (matching MOCK_DAILY_QUESTION-adjacent mock streak
+// values below) plus a handful of scattered older days so the calendar
+// doesn't demo as suspiciously empty.
+function buildMockLoginHistory() {
+  const dates = new Set();
+  const today = new Date();
+  for (let i = 0; i < 5; i++) {
+    dates.add(new Date(today.getTime() - i * 86400000).toISOString().slice(0, 10));
+  }
+  [12, 13, 14, 20, 21, 35, 40, 41, 42, 60].forEach((daysAgo) => {
+    dates.add(new Date(today.getTime() - daysAgo * 86400000).toISOString().slice(0, 10));
+  });
+  return dates;
+}
+const MOCK_LOGIN_HISTORY = buildMockLoginHistory();
+const MOCK_TOP_LOGIN_STREAK = { fullName: 'Siya', email: 'siya@hackinghub.co.za', streak: 23 };
 
 const CONTENT_TYPE_ICONS = {
   Video: Video,
@@ -1999,12 +2018,36 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   };
 
   // Daily login streak - recorded once per session load, shown as a
-  // "🔥 N day streak" badge on the dashboard.
+  // "🔥 N day streak" badge on the dashboard. Clicking it opens a
+  // GitHub-style history + personal-best + community-leader modal
+  // (LoginStreakModal) - that detail is fetched lazily only when the modal
+  // actually opens, not on every dashboard load.
   const [loginStreak, setLoginStreak] = useState(isMockSession ? 5 : 0);
+  const [longestLoginStreak, setLongestLoginStreak] = useState(isMockSession ? 12 : 0);
+  const [loginHistory, setLoginHistory] = useState(isMockSession ? MOCK_LOGIN_HISTORY : new Set());
+  const [topLoginStreak, setTopLoginStreak] = useState(isMockSession ? MOCK_TOP_LOGIN_STREAK : null);
+  const [showLoginStreakModal, setShowLoginStreakModal] = useState(false);
+  const [loadingLoginStreakDetail, setLoadingLoginStreakDetail] = useState(false);
+
   useEffect(() => {
     if (isMockSession) return;
     recordDailyLogin().then(setLoginStreak).catch((err) => console.error('Could not record login streak:', err));
   }, [isMockSession]);
+
+  const handleOpenLoginStreakModal = () => {
+    setShowLoginStreakModal(true);
+    if (isMockSession) return;
+    setLoadingLoginStreakDetail(true);
+    Promise.all([fetchMyLoginStreakSummary(), fetchMyLoginHistory(), fetchTopLoginStreak()])
+      .then(([summary, history, top]) => {
+        setLoginStreak(summary.currentStreak);
+        setLongestLoginStreak(summary.longestStreak);
+        setLoginHistory(history);
+        setTopLoginStreak(top);
+      })
+      .catch((err) => console.error('Could not load login streak detail:', err))
+      .finally(() => setLoadingLoginStreakDetail(false));
+  };
 
   // Portal usage analytics (050_portal_events.sql) - session_start once per
   // load here, tab_view on every tab change below. Fire-and-forget, never
@@ -5380,8 +5423,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
               <ThemeToggle />
               {loginStreak > 0 && (
-                <div
-                  title={`Signed in ${loginStreak} day${loginStreak === 1 ? '' : 's'} in a row`}
+                <button
+                  type="button"
+                  onClick={handleOpenLoginStreakModal}
+                  title={`Signed in ${loginStreak} day${loginStreak === 1 ? '' : 's'} in a row - click for your history`}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -5391,16 +5436,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     background: 'rgba(var(--warning-rgb), 0.08)',
                     border: '1px solid rgba(var(--warning-rgb), 0.25)',
                     flexShrink: 0,
+                    cursor: 'pointer',
+                    font: 'inherit',
+                    color: 'inherit',
                   }}
+                  className="hover-glow"
                 >
                   <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>🔥</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.1 }}>{loginStreak}</div>
+                    <div style={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.1, textAlign: 'left' }}>{loginStreak}</div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                       day{loginStreak === 1 ? '' : 's'} in a row
                     </div>
                   </div>
-                </div>
+                </button>
               )}
             </div>
           </div>
@@ -5917,6 +5966,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               submitting={submittingDailyQuestion}
               onAnswer={handleAnswerDailyQuestion}
               onClose={() => setDailyQuestionModalOpen(false)}
+            />
+          )}
+
+          {showLoginStreakModal && (
+            <LoginStreakModal
+              currentStreak={loginStreak}
+              longestStreak={longestLoginStreak}
+              loginHistory={loginHistory}
+              topStreak={topLoginStreak}
+              loading={loadingLoginStreakDetail}
+              onClose={() => setShowLoginStreakModal(false)}
             />
           )}
 
