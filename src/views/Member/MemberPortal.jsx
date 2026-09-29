@@ -700,7 +700,7 @@ const MOCK_ROADMAP_ITEMS = [
 // item) is left partway so the demo shows a live, in-progress checklist.
 const MOCK_ROADMAP_SUBTASKS = {
   'CISCO Junior Cyber Pathway': new Set(['cisco-1', 'cisco-2', 'cisco-3', 'cisco-4', 'cisco-5', 'cisco-6']),
-  'Immersive Labs': new Set(['immersive-1', 'immersive-2', 'immersive-3', 'immersive-4', 'immersive-5', 'immersive-6']),
+  'Immersive Labs': new Set(['immersive-defsecops', 'immersive-fundamentals', 'immersive-humanconnection']),
   'AZ-900': new Set(['az900-1', 'az900-2', 'az900-3']),
   'AI-901': new Set(['ai900-1', 'ai900-2', 'ai900-3', 'ai900-4', 'ai900-5']),
   'CompTIA Security+': new Set(['secplus-1', 'secplus-2']),

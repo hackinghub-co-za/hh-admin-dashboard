@@ -108,8 +108,11 @@ export const CORE_FOUNDATIONS_MIN_REQUIRED = 4;
 // - the catalog's "AI-901" label is kept so the lookup matches - SC-900),
 // CompTIA Security+ SY0-701 domains, the Cisco Junior Cybersecurity
 // Analyst pathway's six courses, and the TryHackMe path modules. Immersive
-// Labs is grouped into its foundational skill areas rather than all ~20
-// individual collections, which would be an unreadable checklist.
+// Labs is its 3 real collection groups (confirmed by the founder) rather
+// than a flat 20-item list - Cyber Million Defensive Security Operations
+// (13 collections) + Cyber Million Fundamentals (6 collections) + The
+// Human Connection Challenge (1), which is where "20 collections" in
+// CORE_FOUNDATIONS_CATALOG's defaultDetail comes from.
 export const CORE_FOUNDATION_SUBTASKS = {
   'CISCO Junior Cyber Pathway': [
     { key: 'cisco-1', label: 'Introduction to Cybersecurity' },
@@ -120,12 +123,9 @@ export const CORE_FOUNDATION_SUBTASKS = {
     { key: 'cisco-6', label: 'Cyber Threat Management' },
   ],
   'Immersive Labs': [
-    { key: 'immersive-1', label: 'Fundamentals (Linux, Windows & networking basics)' },
-    { key: 'immersive-2', label: 'Web Application Security' },
-    { key: 'immersive-3', label: 'Digital Forensics' },
-    { key: 'immersive-4', label: 'Cyber Threat Intelligence' },
-    { key: 'immersive-5', label: 'Incident Response' },
-    { key: 'immersive-6', label: 'Defensive Cyber (SIEM & detection)' },
+    { key: 'immersive-defsecops', label: 'Cyber Million: Defensive Security Operations (13 collections)' },
+    { key: 'immersive-fundamentals', label: 'Cyber Million: Fundamentals (6 collections)' },
+    { key: 'immersive-humanconnection', label: 'The Human Connection Challenge' },
   ],
   'TryHackMe Pre-Security': [
     { key: 'thmpre-1', label: 'Cyber Security Introduction' },
