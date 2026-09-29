@@ -34,7 +34,7 @@ import { fetchReviews } from '../../lib/reviewsData';
 import { fetchAllReferrals, updateReferralStatus } from '../../lib/referralsData';
 import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
-import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail } from '../../lib/certCalendarData';
+import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail, sendCertFailEmail } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
 import { fetchMemberDirectory } from '../../lib/memberDirectoryData';
@@ -1461,9 +1461,48 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     setNewCert({ member: '', cert: '', date: '', cohort: '', memberEmail: '' });
   };
 
+  // Sends the Gemma-written encouragement email (best-effort - a send
+  // failure shouldn't block the removal below), then removes the entry from
+  // Cert Calendar entirely - a failed attempt shouldn't keep sitting there
+  // as clutter. Call only after the row's result has already been
+  // persisted as 'Failed' in the DB - the edge function reads the live row
+  // server-side, not whatever the client thinks it should be.
+  const removeFailedCert = async (id) => {
+    if (isMockSession) {
+      setCerts((prev) => prev.filter((c) => c.id !== id));
+      return;
+    }
+    try {
+      await sendCertFailEmail(id);
+    } catch (err) {
+      setCertsError(`Removed from the calendar, but the encouragement email failed to send: ${friendlyErrorMessage(err)}`);
+    }
+    try {
+      await deleteCertCalendarEntry(id);
+      setCerts((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      setCertsError(friendlyErrorMessage(err));
+    }
+  };
+
   const handleUpdateCertResult = async (id, result) => {
     const cert = certs.find((c) => c.id === id);
     const justPassed = result === 'Passed' && cert?.result !== 'Passed';
+    const justFailed = result === 'Failed' && cert?.result !== 'Failed';
+
+    if (justFailed && cert) {
+      if (!isMockSession) {
+        try {
+          await updateCertCalendarResult(id, result);
+        } catch (err) {
+          setCertsError(friendlyErrorMessage(err));
+          return;
+        }
+      }
+      await removeFailedCert(id);
+      return;
+    }
+
     setCerts(certs.map(c => c.id === id ? { ...c, result } : c));
     if (!isMockSession) {
       try {
@@ -1486,6 +1525,22 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const handleSaveCertEdit = async (cert) => {
     const updated = { ...cert, ...editCertForm };
     const justPassed = updated.result === 'Passed' && cert.result !== 'Passed';
+    const justFailed = updated.result === 'Failed' && cert.result !== 'Failed';
+
+    if (justFailed) {
+      if (!isMockSession) {
+        try {
+          await updateCertCalendarEntry(cert.id, editCertForm);
+        } catch (err) {
+          setCertsError(friendlyErrorMessage(err));
+          return;
+        }
+      }
+      setEditingCertId(null);
+      await removeFailedCert(cert.id);
+      return;
+    }
+
     if (isMockSession) {
       setCerts(certs.map((c) => (c.id === cert.id ? updated : c)));
     } else {

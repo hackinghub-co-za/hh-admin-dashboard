@@ -121,3 +121,19 @@ export async function sendCertPassEmail(certId) {
   if (data?.error) throw new Error(data.error);
   return data;
 }
+
+/** Admin/community_manager/mentor: sends the member a Gemma-written
+ * encouraging email for one specific cert calendar entry
+ * (supabase/functions/cert-fail-email) - a no-op server-side (returns
+ * { skipped: true, reason }) if it isn't actually marked Failed or has no
+ * member_email on file. Meant to be called right after
+ * updateCertCalendarResult()/updateCertCalendarEntry() marks an entry
+ * Failed, and BEFORE deleteCertCalendarEntry() removes the row - this
+ * function reads the cert's real details server-side, so the row has to
+ * still exist when it's called. */
+export async function sendCertFailEmail(certId) {
+  const { data, error } = await supabase.functions.invoke('cert-fail-email', { body: { certId } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
