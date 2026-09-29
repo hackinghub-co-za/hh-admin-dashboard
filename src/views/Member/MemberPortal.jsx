@@ -41,6 +41,7 @@ import { fetchMyJobApplications, addJobApplication, updateJobApplication, delete
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
 import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
+import { fetchMyRoadmapSubtasks, toggleMyRoadmapSubtask } from '../../lib/roadmapSubtasksData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin } from '../../lib/loginStreakData';
 import { logPortalEvent } from '../../lib/portalEventsData';
@@ -64,7 +65,7 @@ import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete,
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
 import { renderMarkdown } from '../../lib/renderMarkdown';
-import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
+import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATION_SUBTASKS, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -693,6 +694,17 @@ const MOCK_ROADMAP_ITEMS = [
   { id: 15, phase: 'Projects', category: 'Offensive Security Projects', title: 'Full Pentest Report', detail: '', completed: false, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 16, phase: 'Projects', category: 'Offensive Security Projects', title: 'Custom Offensive Tool Build', detail: '', completed: false, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
 ];
+
+// Mock Core Foundations subtask ticks - completed items are fully ticked
+// (completed ⇒ all subtasks done); CompTIA Security+ (an incomplete mock
+// item) is left partway so the demo shows a live, in-progress checklist.
+const MOCK_ROADMAP_SUBTASKS = {
+  'CISCO Junior Cyber Pathway': new Set(['cisco-1', 'cisco-2', 'cisco-3', 'cisco-4', 'cisco-5', 'cisco-6']),
+  'Immersive Labs': new Set(['immersive-1', 'immersive-2', 'immersive-3', 'immersive-4', 'immersive-5', 'immersive-6']),
+  'AZ-900': new Set(['az900-1', 'az900-2', 'az900-3']),
+  'AI-901': new Set(['ai900-1', 'ai900-2', 'ai900-3', 'ai900-4', 'ai900-5']),
+  'CompTIA Security+': new Set(['secplus-1', 'secplus-2']),
+};
 
 
 const todayISODate = () => new Date().toISOString().split('T')[0];
@@ -1939,6 +1951,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [roadmapFoundationsApproved, setRoadmapFoundationsApproved] = useState(false);
   const [loadingRoadmap, setLoadingRoadmap] = useState(!isMockSession);
   const [roadmapError, setRoadmapError] = useState(null);
+  // Ticked Core Foundations subtasks (088_roadmap_subtasks.sql), shaped
+  // { [itemTitle]: Set(subtaskKey) }. Drives each item's progress bar and
+  // auto-completes the item once every subtask is ticked.
+  const [roadmapSubtasks, setRoadmapSubtasks] = useState(isMockSession ? MOCK_ROADMAP_SUBTASKS : {});
+  // Which Core Foundations items have their subtask dropdown expanded.
+  const [expandedSubtaskItems, setExpandedSubtaskItems] = useState({});
+  const [subtaskBusyKey, setSubtaskBusyKey] = useState(null);
   // Dismissing the "gone quiet" banner is session-only, not persisted - it
   // comes back next login if the roadmap is still stale, rather than being
   // silence-able forever with one click.
@@ -1961,12 +1980,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
-    Promise.all([fetchMyRoadmapTrack(), fetchMyRoadmap(), fetchMyRoadmapFoundationsApproved()])
-      .then(([track, items, approved]) => {
+    Promise.all([fetchMyRoadmapTrack(), fetchMyRoadmap(), fetchMyRoadmapFoundationsApproved(), fetchMyRoadmapSubtasks()])
+      .then(([track, items, approved, subtasks]) => {
         if (cancelled) return;
         setRoadmapTrack(track);
         setRoadmapItems(items);
         setRoadmapFoundationsApproved(approved);
+        setRoadmapSubtasks(subtasks);
       })
       .catch((err) => !cancelled && setRoadmapError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingRoadmap(false));
@@ -2061,6 +2081,42 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     } catch (err) {
       setRoadmapError(friendlyMemberErrorMessage(err));
       setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+    }
+  };
+
+  // Ticks/un-ticks one subtask of a Core Foundations item. Persists the
+  // subtask, then reconciles the parent item's completion: ticking the last
+  // subtask auto-completes the item (and un-ticking one un-completes it),
+  // reusing handleToggleMyRoadmapItem so the same persistence + the
+  // Specialization-unlock chime fire exactly as a manual toggle would.
+  const handleToggleSubtask = async (item, subtaskKey) => {
+    const catalog = CORE_FOUNDATION_SUBTASKS[item.title];
+    if (!catalog) return;
+    const current = roadmapSubtasks[item.title] || new Set();
+    const willComplete = !current.has(subtaskKey);
+    const nextSet = new Set(current);
+    if (willComplete) nextSet.add(subtaskKey); else nextSet.delete(subtaskKey);
+    setRoadmapSubtasks((prev) => ({ ...prev, [item.title]: nextSet }));
+    const allDone = nextSet.size >= catalog.length;
+
+    if (!isMockSession) {
+      setSubtaskBusyKey(`${item.title}::${subtaskKey}`);
+      try {
+        await toggleMyRoadmapSubtask(item.title, subtaskKey, willComplete);
+      } catch (err) {
+        setRoadmapSubtasks((prev) => ({ ...prev, [item.title]: current }));
+        setRoadmapError(friendlyMemberErrorMessage(err));
+        setSubtaskBusyKey(null);
+        return;
+      }
+      setSubtaskBusyKey(null);
+    }
+
+    // Only fire the parent toggle when the completion state actually needs
+    // to flip - handleToggleMyRoadmapItem toggles !item.completed, which
+    // equals allDone precisely when they currently differ.
+    if (allDone !== item.completed) {
+      handleToggleMyRoadmapItem(item);
     }
   };
 
@@ -4776,10 +4832,23 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             const rowColor = isProjects
                               ? { Approved: 'success', Pending: 'warning', Rejected: 'danger', 'Not Submitted': null }[reviewStatus]
                               : (item.completed ? 'success' : null);
+                            // Core Foundations items with a subtask catalog are
+                            // driven by their subtasks: the row expands the
+                            // subtask checklist instead of toggling completion
+                            // directly (completion follows the subtasks).
+                            const subtaskCatalog = !isProjects && g.phase === 'Core Foundations' ? CORE_FOUNDATION_SUBTASKS[item.title] : null;
+                            const hasSubtasks = !!subtaskCatalog;
+                            const subtaskDoneCount = hasSubtasks ? (roadmapSubtasks[item.title]?.size || 0) : 0;
+                            const isExpanded = !!expandedSubtaskItems[item.id];
+                            const rowOnClick = isProjects
+                              ? undefined
+                              : hasSubtasks
+                                ? () => setExpandedSubtaskItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                                : () => handleToggleMyRoadmapItem(item);
                             return (
                             <div
                               key={item.id}
-                              onClick={isProjects ? undefined : () => handleToggleMyRoadmapItem(item)}
+                              onClick={rowOnClick}
                               style={{
                                 display: 'flex',
                                 alignItems: 'flex-start',
@@ -4817,17 +4886,26 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                   userSelect: 'none',
                                 }}>
                                   <VendorLogo title={item.title} size={16} /> <span>{item.title}</span>
+                                  {hasSubtasks && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                      {subtaskDoneCount}/{subtaskCatalog.length}
+                                    </span>
+                                  )}
                                 </div>
                                 {/* Horizontal progress bar under the item's
-                                    name - at-a-glance per-item progress,
-                                    reading whatever fraction the member's
-                                    self-reported into detail
-                                    (roadmapItemProgressPercent above), full
-                                    and success-colored once actually ticked
-                                    done. Replaces the small inline pie
-                                    marker this used to be. */}
+                                    name - at-a-glance per-item progress. For
+                                    items with a subtask catalog it reads the
+                                    fraction of subtasks ticked; otherwise it
+                                    falls back to the member's self-reported
+                                    "x/y" detail. Full and success-colored once
+                                    the item is actually done. */}
                                 {g.phase === 'Core Foundations' && (() => {
-                                  const pct = roadmapItemProgressPercent(item);
+                                  const pct = item.completed
+                                    ? 100
+                                    : hasSubtasks
+                                      ? Math.round((subtaskDoneCount / subtaskCatalog.length) * 100)
+                                      : roadmapItemProgressPercent(item);
                                   return (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
                                       <div
@@ -4856,6 +4934,37 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                   >
                                     {ROADMAP_ITEM_DESCRIPTIONS[item.title]}
                                   </button>
+                                )}
+                                {hasSubtasks && isExpanded && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: '2px', borderLeft: '2px solid var(--border-color)' }}
+                                  >
+                                    {subtaskCatalog.map((st) => {
+                                      const done = (roadmapSubtasks[item.title] || new Set()).has(st.key);
+                                      const busy = subtaskBusyKey === `${item.title}::${st.key}`;
+                                      return (
+                                        <button
+                                          key={st.key}
+                                          type="button"
+                                          onClick={() => !busy && handleToggleSubtask(item, st.key)}
+                                          disabled={busy}
+                                          style={{
+                                            display: 'flex', alignItems: 'center', gap: '9px', width: '100%',
+                                            background: 'none', border: 'none', padding: '6px 10px', font: 'inherit',
+                                            textAlign: 'left', cursor: busy ? 'default' : 'pointer', borderRadius: 'var(--border-radius-sm)',
+                                          }}
+                                        >
+                                          {done
+                                            ? <CheckSquare size={16} color="var(--success)" style={{ flexShrink: 0 }} />
+                                            : <Square size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />}
+                                          <span style={{ fontSize: '0.82rem', textDecoration: done ? 'line-through' : 'none', color: done ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
+                                            {st.label}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 )}
                                 {isProjects ? (
                                   <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '6px' }}>
@@ -4908,15 +5017,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                   </div>
                                 ) : (g.phase === 'Core Foundations' || g.phase === 'Specialization' || g.phase === 'Advanced') ? (
                                   <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-                                    <input
-                                      type="text"
-                                      value={item.detail || ''}
-                                      onChange={(e) => handleRoadmapItemFieldChange(item.id, 'detail', e.target.value)}
-                                      onBlur={() => handleSaveMyRoadmapItemProgress(item)}
-                                      placeholder="Your progress, e.g. 3/6 or 45%"
-                                      className="form-input"
-                                      style={{ fontSize: '0.75rem', padding: '5px 8px', width: '150px' }}
-                                    />
+                                    {/* Subtask-driven items get their progress
+                                        from the ticked subtasks above, so the
+                                        free-text "x/y" progress field is hidden
+                                        for them - the due date and resource
+                                        link stay useful and remain. */}
+                                    {!hasSubtasks && (
+                                      <input
+                                        type="text"
+                                        value={item.detail || ''}
+                                        onChange={(e) => handleRoadmapItemFieldChange(item.id, 'detail', e.target.value)}
+                                        onBlur={() => handleSaveMyRoadmapItemProgress(item)}
+                                        placeholder="Your progress, e.g. 3/6 or 45%"
+                                        className="form-input"
+                                        style={{ fontSize: '0.75rem', padding: '5px 8px', width: '150px' }}
+                                      />
+                                    )}
                                     <input
                                       type="date"
                                       value={item.dueDate || ''}

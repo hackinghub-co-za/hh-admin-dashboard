@@ -94,6 +94,83 @@ export const CORE_FOUNDATIONS_CATALOG = [
 ];
 export const CORE_FOUNDATIONS_MIN_REQUIRED = 4;
 
+// Subtasks that break each Core Foundations Certifications item into the
+// real, tickable steps toward completing it - the exam domains for a cert,
+// the courses inside a learning pathway, the modules inside a TryHackMe
+// path. Keyed by the exact catalog title above so a member's roadmap item
+// (roadmap_items.title) maps straight to its list. A member ticks these
+// off in an expandable dropdown under the item (My Roadmap); once every
+// subtask is ticked the item auto-completes, and the per-item progress bar
+// reads the fraction of subtasks done. `key` is a stable slug so ticked
+// state (088_roadmap_subtasks.sql) survives label wording changes.
+//
+// Content is real: Microsoft exam skills-measured domains (AZ-900, AI-900
+// - the catalog's "AI-901" label is kept so the lookup matches - SC-900),
+// CompTIA Security+ SY0-701 domains, the Cisco Junior Cybersecurity
+// Analyst pathway's six courses, and the TryHackMe path modules. Immersive
+// Labs is grouped into its foundational skill areas rather than all ~20
+// individual collections, which would be an unreadable checklist.
+export const CORE_FOUNDATION_SUBTASKS = {
+  'CISCO Junior Cyber Pathway': [
+    { key: 'cisco-1', label: 'Introduction to Cybersecurity' },
+    { key: 'cisco-2', label: 'Networking Basics' },
+    { key: 'cisco-3', label: 'Networking Devices and Initial Configuration' },
+    { key: 'cisco-4', label: 'Endpoint Security' },
+    { key: 'cisco-5', label: 'Network Defense' },
+    { key: 'cisco-6', label: 'Cyber Threat Management' },
+  ],
+  'Immersive Labs': [
+    { key: 'immersive-1', label: 'Fundamentals (Linux, Windows & networking basics)' },
+    { key: 'immersive-2', label: 'Web Application Security' },
+    { key: 'immersive-3', label: 'Digital Forensics' },
+    { key: 'immersive-4', label: 'Cyber Threat Intelligence' },
+    { key: 'immersive-5', label: 'Incident Response' },
+    { key: 'immersive-6', label: 'Defensive Cyber (SIEM & detection)' },
+  ],
+  'TryHackMe Pre-Security': [
+    { key: 'thmpre-1', label: 'Cyber Security Introduction' },
+    { key: 'thmpre-2', label: 'Network Fundamentals' },
+    { key: 'thmpre-3', label: 'How The Web Works' },
+    { key: 'thmpre-4', label: 'Linux Fundamentals' },
+    { key: 'thmpre-5', label: 'Windows Fundamentals' },
+  ],
+  'TryHackMe Cyber 101': [
+    { key: 'thm101-1', label: 'Cyber Security Introduction' },
+    { key: 'thm101-2', label: 'Linux Fundamentals' },
+    { key: 'thm101-3', label: 'Windows & Active Directory Fundamentals' },
+    { key: 'thm101-4', label: 'Networking' },
+    { key: 'thm101-5', label: 'Cryptography' },
+    { key: 'thm101-6', label: 'Exploitation Basics' },
+    { key: 'thm101-7', label: 'Web Hacking' },
+    { key: 'thm101-8', label: 'Defensive Security' },
+  ],
+  'AZ-900': [
+    { key: 'az900-1', label: 'Describe cloud concepts' },
+    { key: 'az900-2', label: 'Describe Azure architecture and services' },
+    { key: 'az900-3', label: 'Describe Azure management and governance' },
+  ],
+  'AI-901': [
+    { key: 'ai900-1', label: 'AI workloads and considerations' },
+    { key: 'ai900-2', label: 'Fundamental principles of machine learning on Azure' },
+    { key: 'ai900-3', label: 'Computer vision workloads on Azure' },
+    { key: 'ai900-4', label: 'Natural Language Processing (NLP) workloads on Azure' },
+    { key: 'ai900-5', label: 'Generative AI workloads on Azure' },
+  ],
+  'SC-900': [
+    { key: 'sc900-1', label: 'Concepts of security, compliance, and identity' },
+    { key: 'sc900-2', label: 'Capabilities of Microsoft Entra (identity & access)' },
+    { key: 'sc900-3', label: 'Capabilities of Microsoft security solutions' },
+    { key: 'sc900-4', label: 'Capabilities of Microsoft compliance solutions' },
+  ],
+  'CompTIA Security+': [
+    { key: 'secplus-1', label: 'General Security Concepts' },
+    { key: 'secplus-2', label: 'Threats, Vulnerabilities & Mitigations' },
+    { key: 'secplus-3', label: 'Security Architecture' },
+    { key: 'secplus-4', label: 'Security Operations' },
+    { key: 'secplus-5', label: 'Security Program Management & Oversight' },
+  ],
+};
+
 // External course links for select Core Foundations catalog items, shown as
 // an "Open Link / Resource" action wherever a roadmap checklist renders
 // (My Roadmap, and the admin Roadmaps tab). Keyed by title so it applies to
