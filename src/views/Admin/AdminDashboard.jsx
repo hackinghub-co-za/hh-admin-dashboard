@@ -37,6 +37,7 @@ import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail } from '../../lib/certCalendarData';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
+import { fetchMemberDirectory } from '../../lib/memberDirectoryData';
 import { fetchRoadmapExclusions, addRoadmapExclusion, removeRoadmapExclusion } from '../../lib/roadmapExclusionsData';
 import { fetchMenteesForMentor, addMentee, removeMentee } from '../../lib/mentorMenteesData';
 import { fetchLinkedInEngagementOverview } from '../../lib/linkedInPostData';
@@ -1716,6 +1717,11 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // lowercased email - the same update also emails siya@hackinghub.co.za
   // directly, this is just a fallback in-app view.
   const [todaysFocusFiveUpdates, setTodaysFocusFiveUpdates] = useState({});
+  // Member headshots (member-headshots bucket, via get_member_directory),
+  // keyed by lowercased email - used to show a real photo in Focus 5
+  // instead of just initials. Falls back to initials wherever a member
+  // hasn't uploaded one.
+  const [memberHeadshots, setMemberHeadshots] = useState({});
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1725,6 +1731,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .catch((err) => !cancelled && setFocusFiveError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingFocusFive(false));
     fetchTodaysFocusFiveUpdates().then((data) => !cancelled && setTodaysFocusFiveUpdates(data)).catch((err) => console.error('Could not load today\'s Focus 5 updates:', err));
+    fetchMemberDirectory()
+      .then((rows) => {
+        if (cancelled) return;
+        const byEmail = {};
+        rows.forEach((r) => { if (r.headshotUrl) byEmail[r.email.toLowerCase()] = r.headshotUrl; });
+        setMemberHeadshots(byEmail);
+      })
+      .catch((err) => console.error('Could not load member headshots for Focus 5:', err));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
@@ -3576,6 +3590,7 @@ Pick new people to present next Sunday`;
                       const match = memberRoster.find((m) => m.email.toLowerCase() === f.memberEmail.toLowerCase());
                       const displayName = match?.member || f.memberEmail;
                       const initials = displayName.split(' ').map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+                      const headshotUrl = memberHeadshots[f.memberEmail.toLowerCase()];
                       // Effective (live) login streak: the stored count only
                       // counts if the member logged in today or yesterday -
                       // otherwise the streak is really broken and shows 0, so
@@ -3601,24 +3616,32 @@ Pick new people to present next Sunday`;
                             width: '100%',
                           }}
                         >
-                          <div
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 700,
-                              fontSize: '0.72rem',
-                              color: 'var(--accent-ink)',
-                              flexShrink: 0,
-                              marginTop: '2px',
-                            }}
-                          >
-                            {initials}
-                          </div>
+                          {headshotUrl ? (
+                            <img
+                              src={headshotUrl}
+                              alt={displayName}
+                              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, marginTop: '2px' }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                fontSize: '0.72rem',
+                                color: 'var(--accent-ink)',
+                                flexShrink: 0,
+                                marginTop: '2px',
+                              }}
+                            >
+                              {initials}
+                            </div>
+                          )}
                           <div style={{ overflow: 'hidden', flex: 1 }}>
                             <div style={{ fontWeight: 600, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{displayName}</div>
                             {match ? (
