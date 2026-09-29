@@ -2586,14 +2586,19 @@ Pick new people to present next Sunday`;
     .filter(p => (p.plan === 'Monthly Operative' || p.plan === 'Basic Access') && new Date(p.date) >= last30DaysStart)
     .reduce((acc, p) => acc + p.amount, 0);
 
-  // Monthly churn = last full month's payers who didn't pay again the following month
+  // Monthly churn = last completed calendar month's payers who haven't paid
+  // again so far this (current) month. Anchored to the real calendar month,
+  // so the cohort advances the moment the month rolls over instead of
+  // lagging a month behind - the current month is still in progress, so
+  // this number firms up as the month fills in (the tile's caption says
+  // "so far" to make that explicit).
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const lastFullMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const twoMonthsAgoStart = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-  const priorMonthPayers = emailsPaidBetween(twoMonthsAgoStart, lastFullMonthStart);
-  const lastMonthPayers = emailsPaidBetween(lastFullMonthStart, today);
-  const churnedCount = [...priorMonthPayers].filter(email => !lastMonthPayers.has(email)).length;
+  const priorMonthPayers = emailsPaidBetween(lastFullMonthStart, currentMonthStart);
+  const currentMonthPayers = emailsPaidBetween(currentMonthStart, today);
+  const churnedCount = [...priorMonthPayers].filter(email => !currentMonthPayers.has(email)).length;
   const monthlyChurnRate = priorMonthPayers.size ? (churnedCount / priorMonthPayers.size) * 100 : 0;
-  const churnMonthLabel = `${twoMonthsAgoStart.toLocaleDateString('en-ZA', { month: 'short' })} → ${lastFullMonthStart.toLocaleDateString('en-ZA', { month: 'short' })}`;
+  const churnMonthLabel = `${lastFullMonthStart.toLocaleDateString('en-ZA', { month: 'short' })} → ${currentMonthStart.toLocaleDateString('en-ZA', { month: 'short' })}`;
 
   // All-time paying members & average revenue per member
   const allTimeMemberEmails = new Set(
@@ -2636,7 +2641,11 @@ Pick new people to present next Sunday`;
       total: payfast + eft,
     };
   });
-  const revenueTrendMax = Math.max(...revenueTrend.map(m => m.total), 1);
+  // Monthly gross revenue target - drawn as a reference line on the trend
+  // chart. Folded into the axis max below so the goal line always stays on
+  // scale even in a month that came in well under it.
+  const REVENUE_GOAL = 34000;
+  const revenueTrendMax = Math.max(...revenueTrend.map(m => m.total), REVENUE_GOAL, 1);
   // Round the axis top up to a clean step so the y-axis ticks read as round
   // numbers (R5,000 / R10,000 / ...) instead of an arbitrary max value.
   const revenueTrendStep = revenueTrendMax <= 5000 ? 1000 : revenueTrendMax <= 20000 ? 5000 : revenueTrendMax <= 50000 ? 10000 : 20000;
@@ -3289,7 +3298,7 @@ Pick new people to present next Sunday`;
               </div>
               <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>{monthlyChurnRate.toFixed(1)}%</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                <span>{churnMonthLabel} payers who didn't return</span>
+                <span>{churnMonthLabel} payers who haven't returned so far</span>
               </div>
             </div>
 
@@ -3346,6 +3355,10 @@ Pick new people to present next Sunday`;
                     <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'var(--warning)', display: 'inline-block', flexShrink: 0 }} />
                     EFT
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ width: '14px', height: '0', borderTop: '2px dashed var(--success)', display: 'inline-block', flexShrink: 0 }} />
+                    Goal (R34,000)
+                  </div>
                 </div>
               </div>
 
@@ -3364,6 +3377,16 @@ Pick new people to present next Sunday`;
                     <div style={{ borderTop: '1px solid var(--border-color)' }} />
                     <div style={{ borderTop: '1px solid var(--border-color)' }} />
                     <div style={{ borderTop: '1px solid var(--border-color)' }} />
+                  </div>
+
+                  {/* Monthly gross revenue goal line (REVENUE_GOAL), on the
+                      same 160px scale as the gridlines and bars */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '160px', pointerEvents: 'none', zIndex: 5 }}>
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${(REVENUE_GOAL / revenueTrendNiceMax) * 160}px`, borderTop: '2px dashed var(--success)' }}>
+                      <span style={{ position: 'absolute', right: 0, top: '-16px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--success)', fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', padding: '0 4px', borderRadius: '3px' }}>
+                        Goal R34,000
+                      </span>
+                    </div>
                   </div>
 
                   <div style={{ height: '160px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px', position: 'relative' }}>
@@ -3553,6 +3576,13 @@ Pick new people to present next Sunday`;
                       const match = memberRoster.find((m) => m.email.toLowerCase() === f.memberEmail.toLowerCase());
                       const displayName = match?.member || f.memberEmail;
                       const initials = displayName.split(' ').map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+                      // Effective (live) login streak: the stored count only
+                      // counts if the member logged in today or yesterday -
+                      // otherwise the streak is really broken and shows 0, so
+                      // a stale number can't imply activity that isn't there.
+                      const lastLogin = match?.profile?.lastLoginDate ? new Date(`${match.profile.lastLoginDate}T00:00:00`) : null;
+                      const daysSinceLogin = lastLogin ? Math.floor((today - lastLogin) / 86400000) : null;
+                      const liveStreak = daysSinceLogin !== null && daysSinceLogin <= 1 ? (match.profile?.loginStreak || 0) : 0;
                       return (
                         <button
                           key={f.id}
@@ -3603,6 +3633,14 @@ Pick new people to present next Sunday`;
                                 </div>
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '5px' }}>
                                   Last 1on1: {match.lastMeetingDate ? formatDate(match.lastMeetingDate) : '—'}
+                                </div>
+                                <div
+                                  title={liveStreak > 0 ? `Logged in ${liveStreak} day${liveStreak === 1 ? '' : 's'} in a row` : 'No active login streak - not logged in today or yesterday'}
+                                  style={{ fontSize: '0.72rem', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px', color: liveStreak > 0 ? 'var(--text-secondary)' : 'var(--text-muted)' }}
+                                >
+                                  <span style={{ opacity: liveStreak > 0 ? 1 : 0.45 }}>🔥</span>
+                                  <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{liveStreak}</span>
+                                  <span>day login streak{liveStreak === 0 ? ' (inactive)' : ''}</span>
                                 </div>
                                 {todaysFocusFiveUpdates[f.memberEmail.toLowerCase()] ? (
                                   <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '6px', padding: '6px 8px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)' }}>
@@ -6555,6 +6593,28 @@ Pick new people to present next Sunday`;
       };
       const whyReasonBuckets = bucketByMulti((m) => m.profile?.whyReasons);
 
+      // Membership tier mix - buckets each member's most recent plan
+      // (lastPlan) into the tiers the business actually sells. Anything
+      // that isn't one of the four named plans (Custom Plan, Maintenance
+      // Fee, the legacy "Hacking Hub" label, or no payment yet) rolls up
+      // into "Other". Kept in tier order rather than count-sorted so the
+      // hierarchy reads top-down.
+      const tierOf = (plan) => {
+        if (plan === 'Elite Operative') return 'Elite';
+        if (plan === 'Permanent Access') return 'Permanent';
+        if (plan === 'Monthly Operative') return 'Monthly';
+        if (plan === 'Basic Access') return 'Basic';
+        return 'Other';
+      };
+      const tierCounts = {};
+      memberRoster.forEach((m) => {
+        const t = tierOf(m.lastPlan);
+        tierCounts[t] = (tierCounts[t] || 0) + 1;
+      });
+      const tierBuckets = ['Elite', 'Permanent', 'Monthly', 'Basic', 'Other']
+        .map((t) => [t, tierCounts[t] || 0])
+        .filter(([, c]) => c > 0);
+
       // Tab popularity - % of the last 30 days' active members who opened
       // each tab, not % of the whole roster (a member who hasn't touched
       // the portal at all in 30 days shouldn't drag every tab's number
@@ -6699,6 +6759,10 @@ Pick new people to present next Sunday`;
             <div className="glass-card">
               <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Location</h3>
               {locationBuckets.length ? renderBreakdownBars(locationBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
+            </div>
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Membership Tier</h3>
+              {tierBuckets.length ? renderBreakdownBars(tierBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
             </div>
           </div>
 

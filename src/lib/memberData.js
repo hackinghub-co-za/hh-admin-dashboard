@@ -48,6 +48,12 @@ export async function fetchMemberProfiles() {
       manualStartDate: row.manual_start_date || '',
       whyReasons: row.why_reasons || [],
       whyStory: row.why_story || '',
+      // Daily login streak (032_login_streak.sql) - written server-side by
+      // record_daily_login(), read-only here. lastLoginDate lets a viewer
+      // tell a live streak from a stale one (the stored count only resets
+      // on the member's next login after a gap).
+      loginStreak: row.login_streak || 0,
+      lastLoginDate: row.last_login_date || '',
     };
   });
   return byEmail;
