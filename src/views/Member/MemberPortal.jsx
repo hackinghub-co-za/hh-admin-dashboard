@@ -54,11 +54,6 @@ import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib/merchStoreData';
 import { challengeToDuel, fetchMyDuels, fetchDuelQuestions, submitDuelAnswer } from '../../lib/quizDuelData';
-import { challengeToRoomRace, fetchMyRoomRaces, submitRoomRaceProof, acceptRoomRace, declineRoomRace } from '../../lib/roomRaceData';
-import {
-  fetchLatestTriviaSession, subscribeToTriviaSession, subscribeToTriviaParticipants, subscribeToTriviaBuzzes,
-  fetchCurrentTriviaQuestion, fetchTriviaLeaderboard, joinTriviaSession, buzzInTrivia,
-} from '../../lib/triviaData';
 import { fetchTodaysDailyQuestion, submitDailyQuestionAnswer } from '../../lib/dailyQuestionData';
 import DailyQuestionModal from '../../components/DailyQuestionModal';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
@@ -87,7 +82,6 @@ import {
   Award,
   AlertTriangle,
   Flame,
-  Bell,
   Sparkles,
   Compass,
   Info,
@@ -135,7 +129,6 @@ import {
   X,
   ShoppingBag,
   Swords,
-  Flag,
   Trash2,
   Check,
   RotateCcw,
@@ -1260,20 +1253,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Full breakdown shown when a member clicks another member's directory card.
   const [selectedDirectoryMember, setSelectedDirectoryMember] = useState(null);
 
-  // Head-to-head competitions (supabase/062_quiz_duels.sql,
-  // 063_room_races.sql) - challenge state lives on the profile modal above
-  // (that's where the "Challenge" buttons live), the actual duel/race
-  // lists and play UI live in the Competitions tab below.
+  // Head-to-head competitions (supabase/062_quiz_duels.sql) - challenge
+  // state lives on the profile modal above (that's where the "Challenge"
+  // button lives), the actual duel list and play UI live in the
+  // Competitions tab below.
   const [duelChallengeBusy, setDuelChallengeBusy] = useState(false);
   const [duelChallengeMsg, setDuelChallengeMsg] = useState(null);
-  const [raceChallengeBusy, setRaceChallengeBusy] = useState(false);
-  const [raceChallengeMsg, setRaceChallengeMsg] = useState(null);
-  const [raceResponseBusy, setRaceResponseBusy] = useState(null);
 
   const [myDuels, setMyDuels] = useState([]);
   const [loadingMyDuels, setLoadingMyDuels] = useState(!isMockSession);
-  const [myRoomRaces, setMyRoomRaces] = useState([]);
-  const [loadingMyRoomRaces, setLoadingMyRoomRaces] = useState(!isMockSession);
   const [competitionsError, setCompetitionsError] = useState(null);
 
   // Active duel being played - fetched fresh each time a member opens it,
@@ -1286,121 +1274,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [loadingActiveDuel, setLoadingActiveDuel] = useState(false);
   const [submittingDuelAnswer, setSubmittingDuelAnswer] = useState(false);
 
-  const [raceProofBusy, setRaceProofBusy] = useState(null);
-
-  const loadMyDuelsAndRaces = () => {
+  const loadMyDuels = () => {
     if (isMockSession) return;
     fetchMyDuels()
       .then((data) => setMyDuels(data))
       .catch((err) => setCompetitionsError(friendlyMemberErrorMessage(err)))
       .finally(() => setLoadingMyDuels(false));
-    fetchMyRoomRaces()
-      .then((data) => setMyRoomRaces(data))
-      .catch((err) => setCompetitionsError(friendlyMemberErrorMessage(err)))
-      .finally(() => setLoadingMyRoomRaces(false));
-  };
-
-  // Live Buzzer Trivia (supabase/066_live_trivia.sql) - the one
-  // Competitions format that's actually real-time. triviaSession tracks
-  // the single live/most-recent session; a Postgres Changes subscription
-  // on it (below) is what makes the lobby flip to Active, and the question
-  // advance, for every joined member at once with no refresh. Scoped to
-  // the Competitions tab being open, not the whole portal - no reason to
-  // hold a live socket open on a tab nobody's looking at.
-  const [triviaSession, setTriviaSession] = useState(null);
-  const [loadingTrivia, setLoadingTrivia] = useState(!isMockSession);
-  const [triviaJoined, setTriviaJoined] = useState(false);
-  const [triviaJoining, setTriviaJoining] = useState(false);
-  const [triviaQuestion, setTriviaQuestion] = useState(null);
-  const [triviaLeaderboard, setTriviaLeaderboard] = useState([]);
-  const [triviaBuzzResult, setTriviaBuzzResult] = useState(null); // 'correct' | 'wrong' | 'too-late' | null
-  const [triviaBuzzing, setTriviaBuzzing] = useState(false);
-
-  const refreshTriviaLeaderboard = (sessionId) => {
-    fetchTriviaLeaderboard(sessionId)
-      .then((rows) => {
-        setTriviaLeaderboard(rows);
-        setTriviaJoined(rows.some((r) => r.isMe));
-      })
-      .catch(() => {});
   };
 
   useEffect(() => {
-    if (isMockSession || activeTab !== 'competitions') return;
-    let cancelled = false;
-    let unsubSession = null;
-    let unsubParticipants = null;
-    let unsubBuzzes = null;
-
-    const attach = (session) => {
-      if (cancelled || !session) return;
-      refreshTriviaLeaderboard(session.id);
-      if (session.status === 'Active') {
-        fetchCurrentTriviaQuestion(session.id).then((q) => !cancelled && setTriviaQuestion(q)).catch(() => {});
-      }
-      unsubSession = subscribeToTriviaSession(session.id, (updated) => {
-        if (cancelled) return;
-        setTriviaSession(updated);
-        setTriviaBuzzResult(null);
-        if (updated.status === 'Active') {
-          fetchCurrentTriviaQuestion(session.id).then((q) => !cancelled && setTriviaQuestion(q)).catch(() => {});
-        } else {
-          setTriviaQuestion(null);
-        }
-      });
-      unsubParticipants = subscribeToTriviaParticipants(session.id, () => refreshTriviaLeaderboard(session.id));
-      unsubBuzzes = subscribeToTriviaBuzzes(session.id, () => refreshTriviaLeaderboard(session.id));
-    };
-
-    fetchLatestTriviaSession()
-      .then((session) => {
-        if (cancelled) return;
-        setTriviaSession(session);
-        attach(session);
-      })
-      .catch(() => {})
-      .finally(() => !cancelled && setLoadingTrivia(false));
-
-    return () => {
-      cancelled = true;
-      unsubSession?.();
-      unsubParticipants?.();
-      unsubBuzzes?.();
-    };
-  }, [isMockSession, activeTab]);
-
-  const handleJoinTrivia = async () => {
-    if (!triviaSession) return;
-    setTriviaJoining(true);
-    try {
-      await joinTriviaSession(triviaSession.id);
-      setTriviaJoined(true);
-      refreshTriviaLeaderboard(triviaSession.id);
-    } catch (err) {
-      setCompetitionsError(friendlyMemberErrorMessage(err));
-    } finally {
-      setTriviaJoining(false);
-    }
-  };
-
-  const handleBuzzIn = async (chosenIndex) => {
-    if (!triviaSession || triviaBuzzing || triviaBuzzResult) return;
-    setTriviaBuzzing(true);
-    try {
-      const won = await buzzInTrivia(triviaSession.id, chosenIndex);
-      setTriviaBuzzResult(won ? 'correct' : 'wrong');
-    } catch {
-      // A common, expected case here is "someone already won this
-      // question" - the row-lock in buzz_in_trivia() means whoever loses
-      // the race gets exactly this error, not a real failure.
-      setTriviaBuzzResult('too-late');
-    } finally {
-      setTriviaBuzzing(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'competitions') loadMyDuelsAndRaces();
+    if (activeTab === 'competitions') loadMyDuels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isMockSession]);
 
@@ -1411,7 +1294,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     try {
       await challengeToDuel(selectedDirectoryMember.email, selectedDirectoryMember.fullName);
       setDuelChallengeMsg({ type: 'success', text: `Duel sent to ${selectedDirectoryMember.fullName || 'them'}! Check My Duels in Competitions.` });
-      loadMyDuelsAndRaces();
+      loadMyDuels();
     } catch (err) {
       setDuelChallengeMsg({ type: 'error', text: friendlyMemberErrorMessage(err) });
     } finally {
@@ -1419,46 +1302,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  const handleChallengeToRoomRace = async () => {
-    if (!selectedDirectoryMember) return;
-    setRaceChallengeBusy(true);
-    setRaceChallengeMsg(null);
-    try {
-      await challengeToRoomRace(selectedDirectoryMember.email, selectedDirectoryMember.fullName);
-      setRaceChallengeMsg({ type: 'success', text: `Race challenge sent to ${selectedDirectoryMember.fullName || 'them'} - once they accept, a room is randomly assigned to you both at 8am. Check My Room Races in Competitions.` });
-      loadMyDuelsAndRaces();
-    } catch (err) {
-      setRaceChallengeMsg({ type: 'error', text: friendlyMemberErrorMessage(err) });
-    } finally {
-      setRaceChallengeBusy(false);
-    }
-  };
-
   const closeMemberProfileModal = () => {
     setSelectedDirectoryMember(null);
     setDuelChallengeMsg(null);
-    setRaceChallengeMsg(null);
-  };
-
-  // Accept/decline a race someone else challenged this member to - only
-  // ever shown for a race where the caller is member_b (the recipient),
-  // still 'Pending'. Accepting doesn't reveal a room; that only happens
-  // for everyone accepted-but-unassigned, at once, at the next 8am sweep.
-  const handleRespondToRoomRace = async (raceId, accept) => {
-    setRaceResponseBusy(raceId);
-    setCompetitionsError(null);
-    try {
-      if (accept) {
-        await acceptRoomRace(raceId);
-      } else {
-        await declineRoomRace(raceId);
-      }
-      loadMyDuelsAndRaces();
-    } catch (err) {
-      setCompetitionsError(friendlyMemberErrorMessage(err));
-    } finally {
-      setRaceResponseBusy(null);
-    }
   };
 
   const handleOpenDuel = async (duelId) => {
@@ -1492,26 +1338,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         } else {
           setActiveDuel(null);
           setActiveDuelQuestions([]);
-          loadMyDuelsAndRaces();
+          loadMyDuels();
         }
       }, 900);
     } catch (err) {
       setCompetitionsError(friendlyMemberErrorMessage(err));
     } finally {
       setSubmittingDuelAnswer(false);
-    }
-  };
-
-  const handleSubmitRaceProof = async (raceId) => {
-    setRaceProofBusy(raceId);
-    setCompetitionsError(null);
-    try {
-      await submitRoomRaceProof(raceId, true);
-      loadMyDuelsAndRaces();
-    } catch (err) {
-      setCompetitionsError(friendlyMemberErrorMessage(err));
-    } finally {
-      setRaceProofBusy(null);
     }
   };
 
@@ -1723,15 +1556,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={handleChallengeToDuel} disabled={duelChallengeBusy}>
                 <Swords size={13} /> {duelChallengeBusy ? 'Sending...' : 'Challenge to Quiz Duel'}
               </button>
-              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={handleChallengeToRoomRace} disabled={raceChallengeBusy}>
-                <Flag size={13} /> {raceChallengeBusy ? 'Sending...' : 'Challenge to Room Race'}
-              </button>
             </div>
             {duelChallengeMsg && (
               <p style={{ fontSize: '0.8rem', marginTop: '10px', color: duelChallengeMsg.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{duelChallengeMsg.text}</p>
-            )}
-            {raceChallengeMsg && (
-              <p style={{ fontSize: '0.8rem', marginTop: '10px', color: raceChallengeMsg.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{raceChallengeMsg.text}</p>
             )}
           </div>
         )}
@@ -8253,11 +8080,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {showStudyHoursRules && <StudyHoursRulesModal onClose={() => setShowStudyHoursRules(false)} />}
 
-          {/* Shared across Duels, Room Races, and Trivia below - every
-              action across all three (challenge, accept/decline, submit
-              proof, join, buzz) reports into this one state, so it needs
-              one visible surface, not just whichever card happened to
-              check it first. */}
+          {/* Shared across Duels below - every action (challenge, answer)
+              reports into this one state, so it needs one visible surface. */}
           {competitionsError && (
             <div style={{ padding: '12px 16px', marginTop: '32px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
               {competitionsError}
@@ -8340,183 +8164,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           )}
 
-          <div className="glass-card" style={{ marginTop: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <Flag size={20} color="var(--accent-cyan)" />
-              <h3 style={{ margin: 0 }}>Room Races</h3>
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              Race a member to finish the same TryHackMe room. Once they accept, a random room is assigned to you both at 8am - neither of you picks it, so it's a fair shot either way. Submit your proof once you're done — same WhatsApp-proof rule as daily room logging, and whoever's approved by an admin first wins.
-            </p>
-            {isMockSession ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to race someone for real.</p>
-            ) : loadingMyRoomRaces ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your races...</p>
-            ) : myRoomRaces.length === 0 ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No races yet — open a member's profile in the Members directory to challenge them.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {myRoomRaces.map((r) => {
-                  // member_b is always the challenged member, never the
-                  // challenger, so !isMemberA means "it's on me to respond."
-                  const awaitingMyResponse = r.status === 'Pending' && !r.isMemberA;
-                  const awaitingRoom = r.status === 'Active' && !r.roomName;
-                  const badgeClass = r.status === 'Completed'
-                    ? (r.winnerEmail === user?.email ? 'badge-success' : 'badge-warning')
-                    : r.status === 'Declined' ? 'badge-danger' : 'badge-warning';
-                  return (
-                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                          {r.roomName ? (
-                            isSafeUrl(r.roomUrl) ? <a href={r.roomUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)' }}>{r.roomName}</a> : r.roomName
-                          ) : (
-                            <span style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontWeight: 400 }}>Room not assigned yet</span>
-                          )}
-                          {' '}vs {r.opponentName || r.opponentEmail}
-                        </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {r.status === 'Pending' && (awaitingMyResponse ? 'They challenged you - accept or decline below' : 'Waiting for them to accept')}
-                          {awaitingRoom && `Accepted${r.acceptedAt ? ` ${formatDate(r.acceptedAt)}` : ''} - a random room is assigned to you both at 8am`}
-                          {r.status === 'Active' && r.roomName && (r.myApprovedAt ? 'Waiting on your opponent' : r.mySubmittedAt ? 'Submitted — waiting on admin approval' : 'Not submitted yet')}
-                          {r.status === 'Completed' && (r.winnerEmail === user?.email ? 'You won!' : 'They won')}
-                          {r.status === 'Declined' && 'Declined'}
-                          {r.status === 'Cancelled' && 'Cancelled'}
-                        </div>
-                      </div>
-                      {awaitingMyResponse ? (
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleRespondToRoomRace(r.id, true)} disabled={raceResponseBusy === r.id}>
-                            {raceResponseBusy === r.id ? '...' : 'Accept'}
-                          </button>
-                          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleRespondToRoomRace(r.id, false)} disabled={raceResponseBusy === r.id}>
-                            Decline
-                          </button>
-                        </div>
-                      ) : r.status === 'Active' && r.roomName && !r.mySubmittedAt ? (
-                        <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSubmitRaceProof(r.id)} disabled={raceProofBusy === r.id}>
-                          {raceProofBusy === r.id ? 'Submitting...' : "I've Finished It"}
-                        </button>
-                      ) : (
-                        <span className={`badge ${badgeClass}`}>{r.status}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="glass-card" style={{ marginTop: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <Bell size={20} color="var(--accent-cyan)" />
-              <h3 style={{ margin: 0 }}>Live Buzzer Trivia</h3>
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              A live, hosted trivia session — everyone sees the same question at the same moment, first correct buzz wins the point.
-            </p>
-            {isMockSession ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to join a live session for real.</p>
-            ) : loadingTrivia ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Checking for a live session...</p>
-            ) : !triviaSession ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No live trivia scheduled right now — check back when one's announced.</p>
-            ) : (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '18px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{triviaSession.title}</div>
-                  <span className={`badge ${triviaSession.status === 'Active' ? 'badge-success' : triviaSession.status === 'Waiting' ? 'badge-warning' : ''}`}>{triviaSession.status}</span>
-                </div>
-
-                {triviaSession.status === 'Waiting' && (
-                  <div style={{ textAlign: 'center', padding: '20px' }}>
-                    {triviaJoined ? (
-                      <p style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>You're in — waiting for the host to start...</p>
-                    ) : (
-                      <button type="button" className="btn btn-primary" onClick={handleJoinTrivia} disabled={triviaJoining}>
-                        {triviaJoining ? 'Joining...' : 'Join Live Trivia'}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {triviaSession.status === 'Active' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 220px', gap: '20px' }}>
-                    <div>
-                      {!triviaJoined ? (
-                        <div style={{ textAlign: 'center', padding: '20px' }}>
-                          <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>This session is already live — jump in to play the next question.</p>
-                          <button type="button" className="btn btn-primary" onClick={handleJoinTrivia} disabled={triviaJoining}>
-                            {triviaJoining ? 'Joining...' : 'Join Now'}
-                          </button>
-                        </div>
-                      ) : !triviaQuestion ? (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading question...</p>
-                      ) : (
-                        <>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{triviaQuestion.domain}</span>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Question {triviaQuestion.questionNumber} of {triviaQuestion.totalQuestions}</span>
-                          </div>
-                          <h4 style={{ marginBottom: '16px', lineHeight: 1.5 }}>{triviaQuestion.question}</h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {triviaQuestion.choices.map((choice, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                className="btn btn-secondary"
-                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 14px' }}
-                                onClick={() => handleBuzzIn(idx)}
-                                disabled={triviaBuzzing || !!triviaBuzzResult || triviaQuestion.locked}
-                              >
-                                {choice}
-                              </button>
-                            ))}
-                          </div>
-                          {triviaBuzzResult && (
-                            <p style={{ marginTop: '14px', fontWeight: 600, color: triviaBuzzResult === 'correct' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                              {triviaBuzzResult === 'correct' ? "You buzzed in first — correct! 🎉" : triviaBuzzResult === 'too-late' ? 'Someone else already won this one.' : 'Not quite — wait for the next question.'}
-                            </p>
-                          )}
-                          {!triviaBuzzResult && triviaQuestion.locked && (
-                            <p style={{ marginTop: '14px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>This question's already been won — hang tight for the next one.</p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Live Scoreboard</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {triviaLeaderboard.slice(0, 8).map((row, i) => (
-                          <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '6px 10px', borderRadius: 'var(--border-radius-sm)', background: row.isMe ? 'rgba(var(--accent-rgb), 0.08)' : 'transparent' }}>
-                            <span>{i + 1}. {row.memberName || row.memberEmail}{row.isMe ? ' (you)' : ''}</span>
-                            <span style={{ fontWeight: 700 }}>{row.score}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {triviaSession.status === 'Completed' && (
-                  <div>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '14px' }}>Final standings:</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {triviaLeaderboard.map((row, i) => (
-                        <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', padding: '10px 14px', borderRadius: 'var(--border-radius-md)', background: i === 0 ? 'var(--medal-gold-bg)' : 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {i === 0 && <Trophy size={15} color="var(--medal-gold)" />}
-                            {i + 1}. {row.memberName || row.memberEmail}{row.isMe ? ' (you)' : ''}
-                          </span>
-                          <span style={{ fontWeight: 700 }}>{row.score}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
           {renderMemberProfileModal()}
         </div>
       );

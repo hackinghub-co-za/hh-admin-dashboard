@@ -59,8 +59,6 @@ import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog, fetchAllOne
 import { hasStoredCalendarSyncToken, fetchCalendarSyncedMeetings } from '../../lib/calendarSyncData';
 import { supabase } from '../../lib/supabase';
 import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition, fetchCompetitionStandings, removeMemberFromCompetition } from '../../lib/competitionData';
-import { fetchAllActiveRoomRaces, approveRoomRaceSubmission } from '../../lib/roomRaceData';
-import { fetchLatestTriviaSession, fetchTriviaLeaderboard, createTriviaSession, startTriviaSession, advanceTriviaQuestion, endTriviaSession } from '../../lib/triviaData';
 import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend, fetchMobileBlockCount } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
@@ -106,8 +104,6 @@ import {
   CalendarClock,
   Activity,
   LayoutGrid,
-  Swords,
-  Bell,
   PlayCircle,
   Smartphone,
   UserCog,
@@ -878,101 +874,6 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .finally(() => !cancelled && setLoadingRoomLogs(false));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
-
-  // Room Races (063_room_races.sql) and the daily recommended room pool
-  // (064_recommended_rooms.sql) - both live on the Room Logs tab, since
-  // that's already the "approve a claimed TryHackMe completion" surface and
-  // the pool is TryHackMe content too.
-  const [roomRaces, setRoomRaces] = useState([]);
-  const [loadingRoomRaces, setLoadingRoomRaces] = useState(!isMockSession);
-  const [roomRacesError, setRoomRacesError] = useState(null);
-  const [approvingRaceKey, setApprovingRaceKey] = useState(null);
-
-  useEffect(() => {
-    if (isMockSession) return;
-    let cancelled = false;
-    fetchAllActiveRoomRaces()
-      .then((data) => !cancelled && setRoomRaces(data))
-      .catch((err) => !cancelled && setRoomRacesError(friendlyErrorMessage(err)))
-      .finally(() => !cancelled && setLoadingRoomRaces(false));
-    return () => { cancelled = true; };
-  }, [isMockSession, dataRefreshKey]);
-
-  const handleApproveRaceSubmission = async (raceId, memberEmail) => {
-    setApprovingRaceKey(`${raceId}:${memberEmail}`);
-    setRoomRacesError(null);
-    try {
-      await approveRoomRaceSubmission(raceId, memberEmail);
-      setRoomRaces(await fetchAllActiveRoomRaces());
-    } catch (err) {
-      setRoomRacesError(friendlyErrorMessage(err));
-    } finally {
-      setApprovingRaceKey(null);
-    }
-  };
-
-  // Live Buzzer Trivia (066_live_trivia.sql) - hosted here too, same "keep
-  // every Competitions admin action on one tab" reasoning as Room Races
-  // above. Refetches on every action rather than subscribing to Realtime
-  // itself - the admin is the one driving state changes, so there's
-  // nothing external to listen for here the way there is on the member side.
-  const [triviaSession, setTriviaSession] = useState(null);
-  const [loadingTrivia, setLoadingTrivia] = useState(!isMockSession);
-  const [triviaLeaderboard, setTriviaLeaderboard] = useState([]);
-  const [newTriviaTitle, setNewTriviaTitle] = useState('');
-  const [newTriviaQuestionCount, setNewTriviaQuestionCount] = useState(10);
-  const [triviaActionBusy, setTriviaActionBusy] = useState(false);
-  const [triviaError, setTriviaError] = useState(null);
-
-  const refreshTriviaAdmin = async () => {
-    const session = await fetchLatestTriviaSession();
-    setTriviaSession(session);
-    if (session) setTriviaLeaderboard(await fetchTriviaLeaderboard(session.id));
-  };
-
-  useEffect(() => {
-    if (isMockSession) return;
-    let cancelled = false;
-    fetchLatestTriviaSession()
-      .then(async (session) => {
-        if (cancelled) return;
-        setTriviaSession(session);
-        if (session) setTriviaLeaderboard(await fetchTriviaLeaderboard(session.id));
-      })
-      .catch((err) => !cancelled && setTriviaError(friendlyErrorMessage(err)))
-      .finally(() => !cancelled && setLoadingTrivia(false));
-    return () => { cancelled = true; };
-  }, [isMockSession, dataRefreshKey]);
-
-  const handleCreateTrivia = async (e) => {
-    e.preventDefault();
-    if (!newTriviaTitle.trim()) return;
-    setTriviaActionBusy(true);
-    setTriviaError(null);
-    try {
-      await createTriviaSession(newTriviaTitle.trim(), Number(newTriviaQuestionCount) || 10);
-      setNewTriviaTitle('');
-      await refreshTriviaAdmin();
-    } catch (err) {
-      setTriviaError(friendlyErrorMessage(err));
-    } finally {
-      setTriviaActionBusy(false);
-    }
-  };
-
-  const handleTriviaAction = async (action) => {
-    if (!triviaSession) return;
-    setTriviaActionBusy(true);
-    setTriviaError(null);
-    try {
-      await action(triviaSession.id);
-      await refreshTriviaAdmin();
-    } catch (err) {
-      setTriviaError(friendlyErrorMessage(err));
-    } finally {
-      setTriviaActionBusy(false);
-    }
-  };
 
   // Portal usage analytics (050_portal_events.sql) - powers the "usage"
   // section of the Insights tab. Aggregated server-side (three small RPCs),
@@ -5752,150 +5653,6 @@ Pick new people to present next Sunday`;
                 </div>
               )}
             </>
-          )}
-
-          {/* Room Races (063_room_races.sql) - head-to-head races between two
-              members. First submission you approve wins the race outright. */}
-          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', margin: '32px 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Swords size={14} /> Active Room Races ({roomRaces.length})
-          </div>
-          {roomRacesError && (
-            <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
-              {roomRacesError}
-            </div>
-          )}
-          {isMockSession ? (
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Not available under Mock Admin - this reads real races from Supabase.</p>
-          ) : loadingRoomRaces ? (
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading races...</p>
-          ) : roomRaces.length === 0 ? (
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No active races right now.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {roomRaces.map((race) => (
-                <div key={race.id} className="glass-card">
-                  <div style={{ fontWeight: 600, marginBottom: '10px' }}>
-                    {isSafeUrl(race.roomUrl) ? (
-                      <a href={race.roomUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-cyan)' }}>{race.roomName}</a>
-                    ) : race.roomName}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {[
-                      { email: race.memberAEmail, name: race.memberAName, submittedAt: race.memberASubmittedAt, approvedAt: race.memberAApprovedAt },
-                      { email: race.memberBEmail, name: race.memberBName, submittedAt: race.memberBSubmittedAt, approvedAt: race.memberBApprovedAt },
-                    ].map((p) => (
-                      <div key={p.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '0.85rem' }}>
-                        <div>
-                          <strong>{p.name || nameForLogEmail(p.email)}</strong>
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            {' · '}
-                            {p.approvedAt ? `approved ${formatDate(p.approvedAt)}` : p.submittedAt ? `submitted ${formatDate(p.submittedAt)}` : 'not submitted yet'}
-                          </span>
-                        </div>
-                        {p.submittedAt && !p.approvedAt && (
-                          <button
-                            className="btn btn-primary"
-                            style={{ fontSize: '0.78rem', padding: '6px 12px' }}
-                            disabled={approvingRaceKey === `${race.id}:${p.email}`}
-                            onClick={() => handleApproveRaceSubmission(race.id, p.email)}
-                          >
-                            <CheckCircle size={13} /> Approve &amp; Declare Winner
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Live Buzzer Trivia (066_live_trivia.sql) - the one Competitions
-              format that's actually real-time (Supabase Postgres Changes).
-              Members see the same session update live via
-              subscribeToTriviaSession() in the Competitions tab; this panel
-              is purely the host controls. */}
-          <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', margin: '32px 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Bell size={14} /> Live Buzzer Trivia
-          </div>
-          {triviaError && (
-            <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
-              {triviaError}
-            </div>
-          )}
-          {isMockSession ? (
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Not available under Mock Admin - this hosts a real live session over Supabase Realtime.</p>
-          ) : loadingTrivia ? (
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading...</p>
-          ) : !triviaSession || triviaSession.status === 'Completed' ? (
-            <>
-              {triviaSession?.status === 'Completed' && (
-                <div className="glass-card" style={{ marginBottom: '14px' }}>
-                  <div style={{ fontWeight: 600, marginBottom: '10px' }}>Last session: {triviaSession.title} — final standings</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {triviaLeaderboard.map((row, i) => (
-                      <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                        <span>{i + 1}. {row.memberName || nameForLogEmail(row.memberEmail)}</span>
-                        <span style={{ fontWeight: 700 }}>{row.score}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <form onSubmit={handleCreateTrivia} className="glass-card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <div style={{ flex: '1 1 220px' }}>
-                  <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Session title</label>
-                  <input className="form-input" placeholder="e.g. Friday Night Trivia" value={newTriviaTitle} onChange={(e) => setNewTriviaTitle(e.target.value)} required />
-                </div>
-                <div style={{ width: '110px' }}>
-                  <label style={{ display: 'block', fontSize: '0.78rem', marginBottom: '4px', color: 'var(--text-secondary)' }}>Questions</label>
-                  <input type="number" className="form-input" min="1" max="21" value={newTriviaQuestionCount} onChange={(e) => setNewTriviaQuestionCount(e.target.value)} />
-                </div>
-                <button type="submit" className="btn btn-primary" disabled={triviaActionBusy}>
-                  <Plus size={14} /> {triviaActionBusy ? 'Creating...' : 'Create Session'}
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="glass-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                <div style={{ fontWeight: 700 }}>{triviaSession.title}</div>
-                <span className={`badge ${triviaSession.status === 'Active' ? 'badge-success' : 'badge-warning'}`}>{triviaSession.status}</span>
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-                {triviaSession.status === 'Waiting'
-                  ? `${triviaLeaderboard.length} member${triviaLeaderboard.length === 1 ? '' : 's'} in the lobby`
-                  : `Question ${triviaSession.currentQuestionIndex + 1} of ${triviaSession.totalQuestions} · ${triviaLeaderboard.length} playing`}
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                {triviaSession.status === 'Waiting' && (
-                  <button className="btn btn-primary" disabled={triviaActionBusy} onClick={() => handleTriviaAction(startTriviaSession)}>
-                    <PlayCircle size={14} /> Start Session
-                  </button>
-                )}
-                {triviaSession.status === 'Active' && (
-                  <button className="btn btn-primary" disabled={triviaActionBusy} onClick={() => handleTriviaAction(advanceTriviaQuestion)}>
-                    Next Question
-                  </button>
-                )}
-                <button className="btn btn-secondary" style={{ color: 'var(--danger)' }} disabled={triviaActionBusy} onClick={() => handleTriviaAction(endTriviaSession)}>
-                  End Session
-                </button>
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Live Scoreboard</div>
-              {triviaLeaderboard.length === 0 ? (
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nobody's joined yet.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {triviaLeaderboard.map((row, i) => (
-                    <div key={row.memberEmail} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                      <span>{i + 1}. {row.memberName || nameForLogEmail(row.memberEmail)}</span>
-                      <span style={{ fontWeight: 700 }}>{row.score}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           )}
         </div>
       );
