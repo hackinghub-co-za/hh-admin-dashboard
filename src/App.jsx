@@ -494,7 +494,12 @@ export default function App() {
       />
 
       {/* Main Panel View Area */}
-      <main className="main-content">
+      {/* member-portal only applies when MemberPortal is actually mounted
+          (never for staff viewing their own admin tools) - it scopes the
+          Duolingo-inspired button/streak overrides in src/index.css to the
+          member side without touching AdminDashboard's identical .btn/.badge
+          classes. */}
+      <main className={`main-content${showStaffDashboard ? '' : ' member-portal'}`}>
         {/* Dynamic Dashboard views */}
         {showStaffDashboard ? (
           <AdminDashboard activeTab={activeTab} setActiveTab={setActiveTab} providerToken={providerToken} isMockSession={isMockSession} user={user} />

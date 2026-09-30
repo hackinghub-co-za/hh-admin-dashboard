@@ -70,6 +70,7 @@ import {
   CalendarDays,
   CheckSquare,
   Square,
+  Play,
   Clock,
   BookOpen,
   ArrowRight,
@@ -283,6 +284,37 @@ function daysUntilEvent(dateStr) {
 function isRecordingStillVisible(recordingAddedAt) {
   if (!recordingAddedAt) return false;
   return (Date.now() - new Date(recordingAddedAt).getTime()) < 14 * 24 * 60 * 60 * 1000;
+}
+
+// A short synthesized "tick" for checking off a roadmap item or subtask -
+// Duolingo-style positive feedback on the everyday win, not the rare one.
+// One quick bright tone (not the two-note chime below, which is reserved for
+// the much rarer Specialization unlock) so it doesn't feel like the same
+// magnitude of celebration every time a member ticks a checkbox. Same
+// zero-dependency raw-oscillator technique as playSpecializationChime, and
+// the same never-throws contract - never worth failing a checkbox toggle
+// over a sound.
+function playTaskTickSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880; // A5
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.15);
+  } catch {
+    // Web Audio can throw in odd environments (no support, blocked policy) -
+    // not worth failing the actual toggle over.
+  }
 }
 
 // A short synthesized "level up" chime for the Specialization-unlocked
@@ -1779,7 +1811,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  const handleToggleMyRoadmapItem = async (item) => {
+  const handleToggleMyRoadmapItem = async (item, { silent = false } = {}) => {
     // Projects items are never self-toggled - completion only ever comes
     // from an admin's review_project_submission approval (see the
     // Projects-specific proof UI in My Roadmap). This guard exists because
@@ -1802,6 +1834,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     setRoadmapItems(nextItems);
 
     if (updated.completed) {
+      // Skipped when this call is the auto-complete cascade from ticking a
+      // Core Foundations item's last subtask (handleToggleSubtask below) -
+      // that click already played its own tick sound, so this would
+      // otherwise double up on the same click.
+      if (!silent) playTaskTickSound();
       const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
       const isCoreFoundationCert = (i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title);
       const doneBefore = roadmapItems.filter(isCoreFoundationCert).filter((i) => i.completed).length;
@@ -1838,6 +1875,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     if (willComplete) nextSet.add(subtaskKey); else nextSet.delete(subtaskKey);
     setRoadmapSubtasks((prev) => ({ ...prev, [item.title]: nextSet }));
     const allDone = nextSet.size >= catalog.length;
+    if (willComplete) playTaskTickSound();
 
     if (!isMockSession) {
       setSubtaskBusyKey(`${item.title}::${subtaskKey}`);
@@ -1856,7 +1894,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     // to flip - handleToggleMyRoadmapItem toggles !item.completed, which
     // equals allDone precisely when they currently differ.
     if (allDone !== item.completed) {
-      handleToggleMyRoadmapItem(item);
+      handleToggleMyRoadmapItem(item, { silent: true });
     }
   };
 
@@ -4611,7 +4649,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 : () => handleToggleMyRoadmapItem(item);
                             return (
                             <div
-                              key={item.id}
+                              // Keyed on completed too (Duolingo-style pop
+                              // bounce below) so the row's checkmark replays
+                              // its "just landed" animation on every real
+                              // transition, not just first mount.
+                              key={`${item.id}-${item.completed}`}
                               onClick={rowOnClick}
                               style={{
                                 display: 'flex',
@@ -4626,7 +4668,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             >
                               {isProjects ? (
                                 reviewStatus === 'Approved' ? (
-                                  <CheckSquare size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                  <CheckSquare size={18} color="var(--success)" className="duo-pop" style={{ flexShrink: 0, marginTop: '1px' }} />
                                 ) : reviewStatus === 'Pending' ? (
                                   <Clock size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: '1px' }} />
                                 ) : reviewStatus === 'Rejected' ? (
@@ -4635,7 +4677,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                   <Square size={18} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '1px' }} />
                                 )
                               ) : item.completed ? (
-                                <CheckSquare size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                                <CheckSquare size={18} color="var(--success)" className="duo-pop" style={{ flexShrink: 0, marginTop: '1px' }} />
                               ) : (
                                 <Square size={18} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '1px' }} />
                               )}
@@ -4709,7 +4751,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       const busy = subtaskBusyKey === `${item.title}::${st.key}`;
                                       return (
                                         <button
-                                          key={st.key}
+                                          // Keyed on done too, same reason as
+                                          // the item row above - replays the
+                                          // pop bounce on every real toggle.
+                                          key={`${st.key}-${done}`}
                                           type="button"
                                           onClick={() => !busy && handleToggleSubtask(item, st.key)}
                                           disabled={busy}
@@ -4720,7 +4765,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                           }}
                                         >
                                           {done
-                                            ? <CheckSquare size={16} color="var(--success)" style={{ flexShrink: 0 }} />
+                                            ? <CheckSquare size={16} color="var(--success)" className="duo-pop" style={{ flexShrink: 0 }} />
                                             : <Square size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />}
                                           <span style={{ fontSize: '0.82rem', textDecoration: done ? 'line-through' : 'none', color: done ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
                                             {st.label}
@@ -5315,6 +5360,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
               <ThemeToggle />
               {loginStreak > 0 && (
+                // Duolingo-inspired: the streak is the single most repeated
+                // "come back tomorrow" mechanic this app has, so it gets a
+                // chunky stat-card-sized chip here instead of a small header
+                // pill - same click-for-history behavior, just given room
+                // to matter (see the "Duolingo-Inspired Design System" canvas).
                 <button
                   type="button"
                   onClick={handleOpenLoginStreakModal}
@@ -5322,22 +5372,27 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 18px',
-                    borderRadius: 'var(--border-radius-md)',
-                    background: 'rgba(var(--warning-rgb), 0.08)',
-                    border: '1px solid rgba(var(--warning-rgb), 0.25)',
+                    gap: '16px',
+                    padding: '16px 24px',
+                    borderRadius: 'var(--border-radius-lg)',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                    borderBottom: '4px solid rgba(var(--warning-rgb), 0.35)',
+                    boxShadow: 'var(--glass-shadow)',
                     flexShrink: 0,
                     cursor: 'pointer',
                     font: 'inherit',
                     color: 'inherit',
+                    transition: 'transform 0.08s ease, border-bottom-width 0.08s ease',
                   }}
-                  className="hover-glow"
+                  onMouseDown={(e) => { e.currentTarget.style.borderBottomWidth = '2px'; e.currentTarget.style.transform = 'translateY(2px)'; }}
+                  onMouseUp={(e) => { e.currentTarget.style.borderBottomWidth = '4px'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderBottomWidth = '4px'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
-                  <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>🔥</span>
+                  <span style={{ fontSize: '2rem', lineHeight: 1 }}>🔥</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.1, textAlign: 'left' }}>{loginStreak}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    <div style={{ fontWeight: 800, fontSize: '1.8rem', lineHeight: 1 }}>{loginStreak}</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginTop: '2px' }}>
                       day{loginStreak === 1 ? '' : 's'} in a row
                     </div>
                   </div>
@@ -5711,41 +5766,98 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <div style={{ width: `${roadmapProgressPercent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px', transition: 'width 0.4s ease' }}></div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
-                    {[...roadmapItems].sort((a, b) => a.completed - b.completed).slice(0, 4).map(item => (
-                      <div
-                        key={item.id}
-                        onClick={() => handleToggleMyRoadmapItem(item)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          padding: '12px 14px',
-                          borderRadius: 'var(--border-radius-md)',
-                          background: item.completed ? 'rgba(var(--success-rgb), 0.03)' : 'rgba(var(--overlay-rgb), 0.01)',
-                          border: item.completed ? '1px solid rgba(var(--success-rgb), 0.15)' : '1px solid var(--border-color)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {item.completed ? (
-                          <CheckSquare size={20} color="var(--success)" style={{ flexShrink: 0 }} />
-                        ) : (
-                          <Square size={20} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                        )}
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{
-                            fontSize: '0.9rem',
-                            textDecoration: item.completed ? 'line-through' : 'none',
-                            color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
-                            userSelect: 'none',
-                          }}>
-                            {item.title}
-                          </div>
-                          {item.detail && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.detail}</div>}
+                  {/* Duolingo-inspired: the same top-4 items, walked as a
+                      short path instead of read as a list - every item stays
+                      exactly as clickable as before (roadmap items aren't
+                      sequentially gated in this app, so nothing here is shown
+                      "locked"; only the first not-yet-done item gets the
+                      bigger "you're up" ring). See the "Duolingo-Inspired
+                      Design System" canvas's My Roadmap example. */}
+                  {(() => {
+                    const previewItems = [...roadmapItems].sort((a, b) => a.completed - b.completed).slice(0, 4);
+                    const nextIndex = previewItems.findIndex((i) => !i.completed);
+                    const justifyFor = (idx) => ['center', 'flex-start', 'flex-end'][idx % 3];
+                    return (
+                      <div style={{ position: 'relative', marginBottom: '18px' }}>
+                        <div
+                          aria-hidden="true"
+                          style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '8px',
+                            bottom: '8px',
+                            width: '3px',
+                            transform: 'translateX(-50%)',
+                            backgroundImage: 'linear-gradient(var(--border-color) 50%, transparent 0)',
+                            backgroundSize: '3px 14px',
+                            backgroundRepeat: 'repeat-y',
+                          }}
+                        />
+                        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                          {previewItems.map((item, idx) => {
+                            const isNext = idx === nextIndex;
+                            const size = isNext ? 60 : 46;
+                            return (
+                              // Keyed on completed too, not just item.id - a
+                              // deliberate remount so the duo-pop bounce
+                              // below replays every time this node's state
+                              // actually flips, not just on first mount.
+                              <div key={`${item.id}-${item.completed}`} style={{ display: 'flex', justifyContent: justifyFor(idx) }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', maxWidth: '150px' }}>
+                                  {isNext && (
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.05em', color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>
+                                      You're up
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleMyRoadmapItem(item)}
+                                    title={item.title}
+                                    className={item.completed ? 'duo-pop' : undefined}
+                                    style={{
+                                      width: `${size}px`,
+                                      height: `${size}px`,
+                                      flexShrink: 0,
+                                      borderRadius: '50%',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      background: item.completed || isNext ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
+                                      boxShadow: item.completed
+                                        ? '0 4px 0 0 var(--accent-purple)'
+                                        : isNext
+                                          ? '0 4px 0 0 var(--accent-purple), 0 0 0 5px rgba(94, 227, 122, 0.16)'
+                                          : 'none',
+                                      border: item.completed || isNext ? 'none' : '1px solid var(--border-color)',
+                                    }}
+                                  >
+                                    {item.completed ? (
+                                      <CheckSquare size={isNext ? 26 : 20} color="var(--accent-ink)" />
+                                    ) : isNext ? (
+                                      <Play size={22} color="var(--accent-ink)" fill="var(--accent-ink)" />
+                                    ) : null}
+                                  </button>
+                                  <span
+                                    style={{
+                                      fontSize: '0.76rem',
+                                      fontWeight: isNext ? 700 : 500,
+                                      textAlign: 'center',
+                                      lineHeight: 1.3,
+                                      textDecoration: item.completed ? 'line-through' : 'none',
+                                      color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                    }}
+                                  >
+                                    {item.title}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
 
                   <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setActiveTab?.('roadmap')}>
                     View Full Roadmap <ArrowRight size={14} />
