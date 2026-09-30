@@ -154,6 +154,13 @@ body {
 
 .main-content {
   flex-grow: 1;
+  /* Without this, a flex item's automatic minimum width is its content's
+     min-content size - a wide-but-internally-scrollable child (e.g. the
+     Sales Pipeline board's overflow-x:auto row) still forced this whole
+     panel wider than the viewport instead of letting that child scroll
+     on its own, pushing the real horizontal scrollbar to the page/sidebar
+     level where it was easy to miss. */
+  min-width: 0;
   margin-left: var(--sidebar-width);
   padding: 32px;
   min-height: 100vh;
@@ -162,7 +169,12 @@ body {
 
 @media (max-width: 1024px) {
   .main-content {
-    margin-left: 0;
+    /* Sidebar (src/components/Sidebar.jsx) is a fixed-position icon rail
+       at every viewport width, never collapsing/hiding here - zeroing
+       margin-left used to slide page content left underneath it,
+       hiding/blocking the leftmost ~76px of every page (e.g. the Sales
+       Pipeline board's own left-edge scroll affordance) on a laptop-width
+       screen. Keep reserving the sidebar's width; only tighten padding. */
     padding: 16px;
   }
 }

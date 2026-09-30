@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DndContext, closestCorners, PointerSensor, useSensor, useSensors, DragOverlay, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, X, Pencil, Trash2, Mail, Phone, Tag, Clock } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, Mail, Phone, Tag, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchProspects, addProspect, updateProspect, updateProspectPhase, deleteProspect } from '../lib/pipelineData';
 import { friendlyErrorMessage } from '../lib/errorMessages';
 
@@ -258,6 +258,27 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
 
   const activeProspect = prospects.find((p) => p.id === activeId);
 
+  // The board (6 phase columns, 260px each) is wider than most laptop
+  // screens fit - overflow-x: auto alone technically supports scrolling it,
+  // but on a trackpad/mouse a plain vertical wheel gesture does nothing
+  // here (macOS hides an idle scrollbar entirely), which reads as "stuck",
+  // especially once a click lands you scrolled toward the right-hand
+  // phases with no obvious way back to Lead/Contacted on the left. A wheel
+  // handler that redirects vertical scroll into horizontal scroll while
+  // hovering the board, plus explicit arrow buttons, makes "how do I get
+  // back to the left" always answerable regardless of input device.
+  const boardScrollRef = useRef(null);
+  const handleBoardWheel = (e) => {
+    const el = boardScrollRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // already a horizontal gesture - let it through natively
+    e.preventDefault();
+    el.scrollLeft += e.deltaY;
+  };
+  const scrollBoardBy = (amount) => {
+    boardScrollRef.current?.scrollBy({ left: amount, behavior: 'smooth' });
+  };
+
   return (
     <div>
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
@@ -282,17 +303,37 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px' }}>
-            {PHASES.map((phase) => (
-              <PhaseColumn
-                key={phase}
-                phase={phase}
-                prospects={prospects.filter((p) => p.phase === phase).sort((a, b) => a.sortOrder - b.sortOrder)}
-                onEdit={(p) => setEditingProspect({ ...p, _originalPhase: p.phase })}
-                onDelete={handleDelete}
-                onAdd={openAddForm}
-              />
-            ))}
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => scrollBoardBy(-280)}
+              aria-label="Scroll pipeline left"
+              className="hover-glow"
+              style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', zIndex: 2, width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer', boxShadow: 'var(--glass-shadow)' }}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollBoardBy(280)}
+              aria-label="Scroll pipeline right"
+              className="hover-glow"
+              style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', zIndex: 2, width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer', boxShadow: 'var(--glass-shadow)' }}
+            >
+              <ChevronRight size={18} />
+            </button>
+            <div ref={boardScrollRef} onWheel={handleBoardWheel} style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px', scrollBehavior: 'smooth' }}>
+              {PHASES.map((phase) => (
+                <PhaseColumn
+                  key={phase}
+                  phase={phase}
+                  prospects={prospects.filter((p) => p.phase === phase).sort((a, b) => a.sortOrder - b.sortOrder)}
+                  onEdit={(p) => setEditingProspect({ ...p, _originalPhase: p.phase })}
+                  onDelete={handleDelete}
+                  onAdd={openAddForm}
+                />
+              ))}
+            </div>
           </div>
           <DragOverlay>
             {activeProspect ? (
