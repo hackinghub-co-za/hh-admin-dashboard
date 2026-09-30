@@ -56,6 +56,7 @@ import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from
 import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib/merchStoreData';
 import { fetchTodaysDailyQuestion, submitDailyQuestionAnswer } from '../../lib/dailyQuestionData';
 import DailyQuestionModal from '../../components/DailyQuestionModal';
+import MonthlyRecapModal from '../../components/MonthlyRecapModal';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
@@ -1315,6 +1316,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [dailyQuestion, setDailyQuestion] = useState(isMockSession ? MOCK_DAILY_QUESTION : null);
   const [submittingDailyQuestion, setSubmittingDailyQuestion] = useState(false);
   const [dailyQuestionModalOpen, setDailyQuestionModalOpen] = useState(isMockSession && !MOCK_DAILY_QUESTION.alreadyAnswered);
+
+  // Monthly Recap - state only here; the eligibility check itself lives
+  // next to computeJourneyStory further down, since it needs roadmapItems/
+  // roomLogs/communityEvents which aren't declared yet at this point in the
+  // component.
+  const [showMonthlyRecap, setShowMonthlyRecap] = useState(false);
+  const [monthlyRecapData, setMonthlyRecapData] = useState(null);
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
@@ -2472,6 +2480,87 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .finally(() => !cancelled && setLoadingEvents(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
+
+  // Monthly Recap - a Duolingo/Spotify-Wrapped-style celebration shown once,
+  // automatically, the first time a member opens the Dashboard on the last
+  // day of the month. Checked once per session (monthlyRecapCheckedRef),
+  // not on every roadmap/room/event update, so ticking something off after
+  // dismissal never reopens it. "Seen" is remembered in localStorage per
+  // calendar month, same tradeoff Sidebar's markReleaseSeen already accepts
+  // (no cross-device memory, but zero new backend surface for something
+  // this low-stakes). Skipped entirely on an all-zero month - a forced
+  // reminder that you did nothing felt worse than no recap at all.
+  //
+  // Two stats from the original design aren't here: "1-on-1s had" and
+  // "presentations given" have no real dated history anywhere in the schema
+  // yet (1-on-1s only ever expose the single next upcoming one, live from
+  // Google Calendar; matchmaker_groups has no "presented on" timestamp,
+  // only created_at, which is group-formation time). Only counting what's
+  // actually backed by real per-member dates: roadmap completions, cert
+  // completions (a subset of the same roadmap data), approved TryHackMe
+  // room logs, and RSVPed events.
+  const monthlyRecapCheckedRef = useRef(false);
+  useEffect(() => {
+    if (monthlyRecapCheckedRef.current) return;
+    if (loadingRoadmap || loadingRoomLogs || loadingEvents) return;
+    // Both this and Cyber Question of the Day auto-open on Dashboard mount,
+    // and they'll coincide every month-end for anyone who hasn't answered
+    // today's question yet - wait for that one to resolve first rather than
+    // stacking a second modal over an unanswered one. Deliberately doesn't
+    // set the ref here, so this re-checks once dailyQuestionModalOpen flips.
+    if (dailyQuestionModalOpen) return;
+    monthlyRecapCheckedRef.current = true;
+
+    const now = new Date();
+    const isLastDayOfMonth = now.getDate() === new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    if (!isLastDayOfMonth) return;
+
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    let alreadySeen = false;
+    try {
+      alreadySeen = localStorage.getItem(`hh_monthly_recap_seen_${monthKey}`) === 'true';
+    } catch {
+      // Storage unavailable - treat as not-yet-seen rather than failing closed.
+    }
+    if (alreadySeen) return;
+
+    const isThisMonth = (dateStr) => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    };
+
+    const itemsThisMonth = roadmapItems.filter((i) => i.completed && isThisMonth(i.updatedAt));
+    const certsThisMonth = itemsThisMonth.filter((i) => i.category === 'Certifications');
+    const roomsThisMonth = roomLogs.filter((l) => l.status === 'Approved' && isThisMonth(l.logDate)).reduce((sum, l) => sum + l.roomCount, 0);
+    const eventsThisMonth = communityEvents.filter((e) => hasRsvpedToEvent(e.id) && isThisMonth(e.date));
+    const totalCount = itemsThisMonth.length + roomsThisMonth + eventsThisMonth.length;
+    if (totalCount === 0) return;
+
+    // Deferred a tick (not called synchronously in the effect body) so this
+    // reads as reacting to an external condition settling, same shape as
+    // every other setState-in-effect in this file, which all happen inside
+    // a fetch's .then()/.finally() callback rather than the effect body
+    // directly.
+    Promise.resolve().then(() => {
+      setMonthlyRecapData({
+        monthLabel: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        itemsCount: itemsThisMonth.length,
+        certsCount: certsThisMonth.length,
+        roomsCount: roomsThisMonth,
+        eventsCount: eventsThisMonth.length,
+        totalCount,
+        currentStreak: loginStreak,
+      });
+      setShowMonthlyRecap(true);
+    });
+    try {
+      localStorage.setItem(`hh_monthly_recap_seen_${monthKey}`, 'true');
+    } catch {
+      // Storage unavailable - the recap just won't remember it's been shown,
+      // same tradeoff Sidebar's markReleaseSeen accepts.
+    }
+  }, [loadingRoadmap, loadingRoomLogs, loadingEvents, roadmapItems, roomLogs, communityEvents, loginStreak, hasRsvpedToEvent, dailyQuestionModalOpen]);
 
   const handleAddEvent = async (e) => {
     e.preventDefault();
@@ -5970,6 +6059,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               submitting={submittingDailyQuestion}
               onAnswer={handleAnswerDailyQuestion}
               onClose={() => setDailyQuestionModalOpen(false)}
+            />
+          )}
+
+          {showMonthlyRecap && monthlyRecapData && (
+            <MonthlyRecapModal
+              firstName={firstName}
+              {...monthlyRecapData}
+              onClose={() => setShowMonthlyRecap(false)}
             />
           )}
 

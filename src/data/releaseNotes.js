@@ -6,6 +6,50 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.09.30',
+    date: '2026-09-30',
+    headline: 'A bouncier portal, and a Monthly Recap of everything you got done.',
+    intro: "Buttons now press instead of just sitting there, ticking off a roadmap item gets a little sound and a bounce, My Roadmap on your Dashboard is a path you walk instead of a list you read, and Cyber Question of the Day gives a real result screen instead of a small line of text. And on the last day of every month, a Monthly Recap greets you with everything you actually got done — roadmap items, certs, TryHackMe rooms, and events, all in one place.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🎉',
+            title: 'Monthly Recap',
+            body: "On the last day of each month, your Dashboard opens with a real recap — roadmap items ticked off, certs completed, TryHackMe rooms finished, and events attended, all pulled from what you actually did that month. Skipped entirely if there's nothing to show yet.",
+            where: 'Dashboard, on the last day of each month',
+          },
+          {
+            icon: '🧗',
+            title: 'My Roadmap, walked instead of read',
+            body: "The Dashboard's My Roadmap tile shows your next few items as a winding path instead of a flat list, with whichever one's next enlarged and marked \"You're up.\" Every item's exactly as clickable as before — nothing's actually locked.",
+            where: 'Dashboard',
+          },
+          {
+            icon: '🔊',
+            title: 'A sound and a bounce when you tick something off',
+            body: "Checking off a roadmap item or a Core Foundations subtask now gets a quick sound and a satisfying little pop on the checkmark - on the Dashboard and on the full My Roadmap page.",
+            where: 'Dashboard, or My Roadmap',
+          },
+          {
+            icon: '✅',
+            title: "Cyber Question of the Day, with a real result screen",
+            body: "Answer today's question and the whole screen reacts now — a big color-blocked \"Correct!\" or \"Not quite,\" your streak folded right into it, instead of a small green or red line of text.",
+            where: 'Dashboard, once a day',
+          },
+          {
+            icon: '🔥',
+            title: 'Your streak, given some room',
+            body: "The login streak on your Dashboard is now a proper stat chip instead of a small header pill — same number, just given the space to actually matter.",
+            where: 'Dashboard',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.25',
     date: '2026-09-25',
     headline: 'Share Your Why, a Cyber Question of the Day, and a real consequence for falling behind pace.',
