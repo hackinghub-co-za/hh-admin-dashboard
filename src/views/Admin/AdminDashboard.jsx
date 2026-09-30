@@ -4670,7 +4670,7 @@ Pick new people to present next Sunday`;
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{m.member}</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{m.member}</span>
                         <span style={{ fontSize: '0.72rem', fontWeight: 700, color: pct === null ? 'var(--text-muted)' : pct === 100 ? 'var(--success)' : 'var(--accent-cyan)', flexShrink: 0 }}>
                           {pct === null ? '—' : `${pct}%`}
                         </span>
