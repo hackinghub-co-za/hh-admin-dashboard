@@ -54,7 +54,6 @@ import { fetchCommunityBroadcasts, fetchCommunityWins } from '../../lib/communit
 import { fetchSuggestedContent } from '../../lib/suggestedContentData';
 import { fetchMyLastPayment, fetchMyPaymentHistory, fetchMyBillingSummary } from '../../lib/billingData';
 import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib/merchStoreData';
-import { challengeToDuel, fetchMyDuels, fetchDuelQuestions, submitDuelAnswer } from '../../lib/quizDuelData';
 import { fetchTodaysDailyQuestion, submitDailyQuestionAnswer } from '../../lib/dailyQuestionData';
 import DailyQuestionModal from '../../components/DailyQuestionModal';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
@@ -129,7 +128,6 @@ import {
   ChevronUp,
   X,
   ShoppingBag,
-  Swords,
   Trash2,
   Check,
   RotateCcw,
@@ -1272,99 +1270,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Full breakdown shown when a member clicks another member's directory card.
   const [selectedDirectoryMember, setSelectedDirectoryMember] = useState(null);
 
-  // Head-to-head competitions (supabase/062_quiz_duels.sql) - challenge
-  // state lives on the profile modal above (that's where the "Challenge"
-  // button lives), the actual duel list and play UI live in the
-  // Competitions tab below.
-  const [duelChallengeBusy, setDuelChallengeBusy] = useState(false);
-  const [duelChallengeMsg, setDuelChallengeMsg] = useState(null);
-
-  const [myDuels, setMyDuels] = useState([]);
-  const [loadingMyDuels, setLoadingMyDuels] = useState(!isMockSession);
-  const [competitionsError, setCompetitionsError] = useState(null);
-
-  // Active duel being played - fetched fresh each time a member opens it,
-  // never cached, so a re-open after answering some questions resumes
-  // correctly (get_duel_questions returns the fixed set regardless).
-  const [activeDuel, setActiveDuel] = useState(null);
-  const [activeDuelQuestions, setActiveDuelQuestions] = useState([]);
-  const [activeDuelIndex, setActiveDuelIndex] = useState(0);
-  const [activeDuelFeedback, setActiveDuelFeedback] = useState(null);
-  const [loadingActiveDuel, setLoadingActiveDuel] = useState(false);
-  const [submittingDuelAnswer, setSubmittingDuelAnswer] = useState(false);
-
-  const loadMyDuels = () => {
-    if (isMockSession) return;
-    fetchMyDuels()
-      .then((data) => setMyDuels(data))
-      .catch((err) => setCompetitionsError(friendlyMemberErrorMessage(err)))
-      .finally(() => setLoadingMyDuels(false));
-  };
-
-  useEffect(() => {
-    if (activeTab === 'competitions') loadMyDuels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, isMockSession]);
-
-  const handleChallengeToDuel = async () => {
-    if (!selectedDirectoryMember) return;
-    setDuelChallengeBusy(true);
-    setDuelChallengeMsg(null);
-    try {
-      await challengeToDuel(selectedDirectoryMember.email, selectedDirectoryMember.fullName);
-      setDuelChallengeMsg({ type: 'success', text: `Duel sent to ${selectedDirectoryMember.fullName || 'them'}! Check My Duels in Competitions.` });
-      loadMyDuels();
-    } catch (err) {
-      setDuelChallengeMsg({ type: 'error', text: friendlyMemberErrorMessage(err) });
-    } finally {
-      setDuelChallengeBusy(false);
-    }
-  };
-
   const closeMemberProfileModal = () => {
     setSelectedDirectoryMember(null);
-    setDuelChallengeMsg(null);
-  };
-
-  const handleOpenDuel = async (duelId) => {
-    setLoadingActiveDuel(true);
-    setActiveDuelFeedback(null);
-    setCompetitionsError(null);
-    try {
-      const questions = await fetchDuelQuestions(duelId);
-      setActiveDuelQuestions(questions);
-      setActiveDuel(myDuels.find((d) => d.id === duelId) || { id: duelId });
-      setActiveDuelIndex(0);
-    } catch (err) {
-      setCompetitionsError(friendlyMemberErrorMessage(err));
-    } finally {
-      setLoadingActiveDuel(false);
-    }
-  };
-
-  const handleAnswerDuelQuestion = async (chosenIndex) => {
-    if (!activeDuel || submittingDuelAnswer) return;
-    const question = activeDuelQuestions[activeDuelIndex];
-    if (!question) return;
-    setSubmittingDuelAnswer(true);
-    try {
-      const isCorrect = await submitDuelAnswer(activeDuel.id, question.id, chosenIndex);
-      setActiveDuelFeedback(isCorrect ? 'correct' : 'incorrect');
-      setTimeout(() => {
-        setActiveDuelFeedback(null);
-        if (activeDuelIndex + 1 < activeDuelQuestions.length) {
-          setActiveDuelIndex((i) => i + 1);
-        } else {
-          setActiveDuel(null);
-          setActiveDuelQuestions([]);
-          loadMyDuels();
-        }
-      }, 900);
-    } catch (err) {
-      setCompetitionsError(friendlyMemberErrorMessage(err));
-    } finally {
-      setSubmittingDuelAnswer(false);
-    }
   };
 
   // Cyber Question of the Day (supabase/087_daily_question.sql) - day-of-
@@ -1566,21 +1473,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
         )}
 
-        {selectedDirectoryMember.email !== user?.email && !isMockSession && (
-          <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--accent-rgb), 0.05)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Swords size={13} /> Head-to-Head
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={handleChallengeToDuel} disabled={duelChallengeBusy}>
-                <Swords size={13} /> {duelChallengeBusy ? 'Sending...' : 'Challenge to Quiz Duel'}
-              </button>
-            </div>
-            {duelChallengeMsg && (
-              <p style={{ fontSize: '0.8rem', marginTop: '10px', color: duelChallengeMsg.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{duelChallengeMsg.text}</p>
-            )}
-          </div>
-        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
           <button type="button" className="btn btn-secondary" onClick={closeMemberProfileModal}>Close</button>
@@ -8139,90 +8031,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
 
           {showStudyHoursRules && <StudyHoursRulesModal onClose={() => setShowStudyHoursRules(false)} />}
-
-          {/* Shared across Duels below - every action (challenge, answer)
-              reports into this one state, so it needs one visible surface. */}
-          {competitionsError && (
-            <div style={{ padding: '12px 16px', marginTop: '32px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
-              {competitionsError}
-            </div>
-          )}
-
-          <div className="glass-card" style={{ marginTop: competitionsError ? '16px' : '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <Swords size={20} color="var(--accent-cyan)" />
-              <h3 style={{ margin: 0 }}>Head-to-Head Duels</h3>
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              Challenge another member directly from their profile in the Members directory. 10 general-cyber questions each, 48 hours to finish — most correct wins, no-shows forfeit.
-            </p>
-            {isMockSession ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Member — sign in with Google to challenge someone for real.</p>
-            ) : loadingMyDuels ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading your duels...</p>
-            ) : myDuels.length === 0 ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No duels yet — open a member's profile in the Members directory to challenge them.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {myDuels.map((d) => (
-                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>vs {d.opponentName || d.opponentEmail}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                        {d.status === 'Active' && `${d.myAnsweredCount}/${d.totalQuestions} answered · expires ${formatDate(d.expiresAt)}`}
-                        {d.status === 'Completed' && (d.winnerEmail ? (d.winnerEmail === user?.email ? 'You won!' : 'They won') : 'Tied — no winner') + ` · ${d.myCorrectCount}-${d.opponentCorrectCount}`}
-                        {d.status === 'Void' && 'Voided — neither player finished in time'}
-                      </div>
-                    </div>
-                    {d.status === 'Active' && d.myAnsweredCount < d.totalQuestions ? (
-                      <button type="button" className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleOpenDuel(d.id)} disabled={loadingActiveDuel}>
-                        {d.myAnsweredCount > 0 ? 'Continue' : 'Play Now'}
-                      </button>
-                    ) : (
-                      <span className={`badge ${d.status === 'Completed' ? (d.winnerEmail === user?.email ? 'badge-success' : 'badge-warning') : 'badge-warning'}`}>{d.status}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {activeDuel && (
-            <div style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-              <div className="glass-card" style={{ width: '100%', maxWidth: '520px', padding: '32px', border: '1px solid var(--accent-cyan)' }}>
-                {activeDuelQuestions[activeDuelIndex] ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{activeDuelQuestions[activeDuelIndex].domain}</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Question {activeDuelIndex + 1} of {activeDuelQuestions.length}</span>
-                    </div>
-                    <h3 style={{ marginBottom: '20px', lineHeight: 1.5 }}>{activeDuelQuestions[activeDuelIndex].question}</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {activeDuelQuestions[activeDuelIndex].choices.map((choice, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          className="btn btn-secondary"
-                          style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '12px 16px' }}
-                          onClick={() => handleAnswerDuelQuestion(idx)}
-                          disabled={submittingDuelAnswer || !!activeDuelFeedback}
-                        >
-                          {choice}
-                        </button>
-                      ))}
-                    </div>
-                    {activeDuelFeedback && (
-                      <p style={{ marginTop: '16px', fontWeight: 600, color: activeDuelFeedback === 'correct' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                        {activeDuelFeedback === 'correct' ? 'Correct!' : 'Not quite.'}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p style={{ color: 'var(--text-muted)' }}>Loading question...</p>
-                )}
-              </div>
-            </div>
-          )}
 
           {renderMemberProfileModal()}
         </div>
