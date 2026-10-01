@@ -8,9 +8,21 @@ export const RELEASE_NOTES = [
   {
     version: '2026.10.01',
     date: '2026-10-01',
-    headline: 'Multi-day events, a Gross Revenue chart admins can actually read, and a few quiet bug fixes.',
-    intro: "Multi-day events (like a weekend CTF) now stay listed until they're actually over, instead of disappearing after day one. Your login streak and Cyber Question of the Day now roll over at real midnight here in SA, not 2am. And a handful of smaller things got fixed along the way.",
+    headline: 'Hub Score - one number for everything you\'ve built here, plus multi-day events and a few quiet bug fixes.',
+    intro: "Hub Score adds up everything you've actually done here - certs passed, roadmap progress, TryHackMe rooms, your login streak, how long you've been around, study sessions, events, even landing a job - into one number that only ever goes up, with tiers to climb toward. Multi-day events (like a weekend CTF) now stay listed until they're actually over, instead of disappearing after day one. Your login streak and Cyber Question of the Day now roll over at real midnight here in SA, not 2am. And a handful of smaller things got fixed along the way.",
     groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🏆',
+            title: 'Hub Score',
+            body: "A new number on your Dashboard that adds up everything you've actually built here - certs passed, roadmap items completed, TryHackMe rooms, your best login streak, how long you've been a member, study sessions, events attended, even landing a job. It never resets. Tap it to see the full breakdown and how far you are from the next tier.",
+            where: 'Dashboard',
+          },
+        ],
+      },
       {
         label: 'Community',
         color: '#60a5fa',

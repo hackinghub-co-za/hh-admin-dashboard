@@ -48,6 +48,19 @@ saved in their browser's `localStorage`.
   due, and respects the on/off switch on the tab. The cron command is
   built from the existing overdue-1on1 job's, so the cron secret is
   reused server-side instead of pasted in.
+- **Hub Score (Phase 1)** — a composite, never-resetting point total per
+  member across 8 real signals: certs passed (100/cert), roadmap items
+  completed (5/item), TryHackMe rooms approved (3/room), a one-time login
+  streak milestone bonus (10/60/210 cumulative at 7/30/100 days), community
+  tenure (10/month), study sessions (1/session, capped 4/day), events
+  attended (15/event, once the event's actually over), and job landed
+  (250, one-time). One RPC, `get_my_hub_score()` (`093_hub_score.sql`),
+  computes the caller's own score and category breakdown on demand -
+  read-only for now, surfaced as a new stat chip on the member's own
+  Dashboard (`src/components/HubScoreModal.jsx`) showing their tier
+  (Newcomer/Contributor/Regular/Veteran/Legend at 0/100/500/2,000/4,000
+  points) and progress to the next one. No leaderboard or reward claiming
+  yet - later phases on top of this same function.
 
 ### Changed
 - Pressable button styling now applies app-wide, admin included.

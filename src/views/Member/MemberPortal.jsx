@@ -45,6 +45,8 @@ import { fetchMyRoadmapSubtasks, toggleMyRoadmapSubtask } from '../../lib/roadma
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin, fetchMyLoginStreakSummary, fetchMyLoginHistory, fetchTopLoginStreak } from '../../lib/loginStreakData';
 import LoginStreakModal from '../../components/LoginStreakModal';
+import { fetchMyHubScore } from '../../lib/hubScoreData';
+import HubScoreModal from '../../components/HubScoreModal';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchMyJourneyOverrides, setJourneyOverride, clearJourneyOverride } from '../../lib/journeyOverridesData';
@@ -865,6 +867,28 @@ function buildMockLoginHistory() {
 }
 const MOCK_LOGIN_HISTORY = buildMockLoginHistory();
 const MOCK_TOP_LOGIN_STREAK = { fullName: 'Siya', email: 'siya@hackinghub.co.za', streak: 23 };
+
+// Mock Hub Score for Mock Member demo sessions - "Regular" tier, roughly
+// 4 months in, a couple certs and a steady roadmap/room/study cadence, no
+// job landed yet, so the modal's breakdown and progress bar both have
+// something real to show.
+const MOCK_HUB_SCORE = {
+  totalPoints: 742,
+  currentTier: 'Regular',
+  nextTier: 'Veteran',
+  nextTierPoints: 2000,
+  pointsToNextTier: 1258,
+  categories: {
+    certs: { points: 200, count: 2 },
+    roadmap: { points: 70, count: 14 },
+    rooms: { points: 108, count: 36 },
+    streak: { points: 60, days: 32 },
+    tenure: { points: 40, months: 4 },
+    study: { points: 52, count: 52 },
+    events: { points: 45, count: 3 },
+    job: { points: 0, landed: false },
+  },
+};
 
 const CONTENT_TYPE_ICONS = {
   Video: Video,
@@ -2027,6 +2051,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .catch((err) => console.error('Could not load login streak detail:', err))
       .finally(() => setLoadingLoginStreakDetail(false));
   };
+
+  // Hub Score (093_hub_score.sql) - a composite, never-resetting point total
+  // across 8 real signals. Fetched once per session load, same as the login
+  // streak above; HubScoreModal just re-displays the already-loaded object,
+  // no separate lazy detail fetch needed since the RPC already returns the
+  // full breakdown in one call.
+  const [hubScore, setHubScore] = useState(isMockSession ? MOCK_HUB_SCORE : null);
+  const [showHubScoreModal, setShowHubScoreModal] = useState(false);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchMyHubScore()
+      .then(setHubScore)
+      .catch((err) => console.error('Could not load Hub Score:', err));
+  }, [isMockSession]);
 
   // Portal usage analytics (050_portal_events.sql) - session_start once per
   // load here, tab_view on every tab change below. Fire-and-forget, never
@@ -5497,6 +5536,45 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
               <ThemeToggle />
+              {hubScore && (
+                // Composite "how much have I actually built here" metric -
+                // always shown once loaded, even at 0 points/Newcomer,
+                // unlike the login streak below which hides until a habit
+                // exists. Same chunky pressable-chip pattern, its own
+                // accent color.
+                <button
+                  type="button"
+                  onClick={() => setShowHubScoreModal(true)}
+                  title={`Hub Score: ${hubScore.totalPoints} points (${hubScore.currentTier}) - click for your full breakdown`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    padding: '16px 24px',
+                    borderRadius: 'var(--border-radius-lg)',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                    borderBottom: '4px solid rgba(var(--accent-rgb), 0.35)',
+                    boxShadow: 'var(--glass-shadow)',
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                    font: 'inherit',
+                    color: 'inherit',
+                    transition: 'transform 0.08s ease, border-bottom-width 0.08s ease',
+                  }}
+                  onMouseDown={(e) => { e.currentTarget.style.borderBottomWidth = '2px'; e.currentTarget.style.transform = 'translateY(2px)'; }}
+                  onMouseUp={(e) => { e.currentTarget.style.borderBottomWidth = '4px'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderBottomWidth = '4px'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  <Trophy size={32} color="var(--accent-purple)" style={{ flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '1.8rem', lineHeight: 1 }}>{hubScore.totalPoints}</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginTop: '2px' }}>
+                      {hubScore.currentTier} tier
+                    </div>
+                  </div>
+                </button>
+              )}
               {loginStreak > 0 && (
                 // Duolingo-inspired: the streak is the single most repeated
                 // "come back tomorrow" mechanic this app has, so it gets a
@@ -6127,6 +6205,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               topStreak={topLoginStreak}
               loading={loadingLoginStreakDetail}
               onClose={() => setShowLoginStreakModal(false)}
+            />
+          )}
+
+          {showHubScoreModal && hubScore && (
+            <HubScoreModal
+              hubScore={hubScore}
+              onClose={() => setShowHubScoreModal(false)}
             />
           )}
 
