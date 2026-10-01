@@ -2569,6 +2569,10 @@ Pick new people to present next Sunday`;
   const churnedCount = [...priorMonthPayers].filter(email => !currentMonthPayers.has(email)).length;
   const monthlyChurnRate = priorMonthPayers.size ? (churnedCount / priorMonthPayers.size) * 100 : 0;
   const churnMonthLabel = `${lastFullMonthStart.toLocaleDateString('en-ZA', { month: 'short' })} → ${currentMonthStart.toLocaleDateString('en-ZA', { month: 'short' })}`;
+  // Hidden for the first 7 days of each month - most of last month's payers
+  // simply haven't paid yet that early, so the tile read close to 100%
+  // churn every month-start and meant nothing until payments landed.
+  const showChurnTile = today.getDate() > 7;
 
   // All-time paying members & average revenue per member
   const allTimeMemberEmails = new Set(
@@ -3261,6 +3265,7 @@ Pick new people to present next Sunday`;
               </div>
             </div>
 
+            {showChurnTile && (
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Monthly Churn Rate</span>
@@ -3271,6 +3276,7 @@ Pick new people to present next Sunday`;
                 <span>{churnMonthLabel} payers who haven't returned so far</span>
               </div>
             </div>
+            )}
 
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>

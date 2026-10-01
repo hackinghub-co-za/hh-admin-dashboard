@@ -55,6 +55,43 @@ CREATE TABLE IF NOT EXISTS public.roadmap_items (
 -- column above only takes effect on a fresh CREATE TABLE.
 ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS due_date DATE;
 
+-- When an item was actually completed - distinct from updated_at, which
+-- moves on ANY edit (progress notes, due date, proof link). Before this,
+-- "completed this month" (Monthly Recap) and the My Journey timeline dated
+-- completions by updated_at, so editing an old item's progress made it
+-- look newly completed. NULL whenever completed is false.
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
+
+-- Stamped by a trigger rather than in each write path, since completion is
+-- written from several places (toggle_my_roadmap_item, project review
+-- approval, admin edits/inserts) and any one of them forgetting would
+-- silently leave a completed item with no date.
+CREATE OR REPLACE FUNCTION public._stamp_roadmap_item_completed_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.completed AND (TG_OP = 'INSERT' OR NOT OLD.completed) THEN
+    NEW.completed_at := timezone('utc'::text, now());
+  ELSIF NOT NEW.completed THEN
+    NEW.completed_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_stamp_roadmap_item_completed_at ON public.roadmap_items;
+CREATE TRIGGER trg_stamp_roadmap_item_completed_at
+  BEFORE INSERT OR UPDATE OF completed ON public.roadmap_items
+  FOR EACH ROW EXECUTE FUNCTION public._stamp_roadmap_item_completed_at();
+
+-- Backfill: items already completed before this column existed get their
+-- updated_at - the closest real timestamp there is for them. Only touches
+-- rows still missing a value, so re-running is a no-op.
+UPDATE public.roadmap_items
+SET completed_at = updated_at
+WHERE completed AND completed_at IS NULL;
+
 -- Widens the phase CHECK for a database where this table already existed
 -- before 'Projects' was added (2026-09) - the inline CHECK above only takes
 -- effect on a fresh CREATE TABLE, same reasoning as 026_resources.sql's

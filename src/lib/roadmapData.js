@@ -17,6 +17,9 @@ function mapRow(row) {
     detail: row.detail || '',
     dueDate: row.due_date || null,
     completed: !!row.completed,
+    // When it was actually completed (028_roadmap.sql's trigger) - not
+    // updatedAt, which moves on any edit. null while not completed.
+    completedAt: row.completed_at || null,
     sortOrder: row.sort_order || 0,
     updatedAt: row.updated_at || null,
     // Projects-only proof-of-work fields - always present on the row, but
@@ -35,7 +38,7 @@ function mapRow(row) {
 export async function fetchMyRoadmap() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });
   if (error) throw error;
@@ -129,7 +132,7 @@ export async function setRoadmapFoundationsApproval(email, approved) {
 export async function fetchAllRoadmapItems() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at');
+    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at');
   if (error) throw error;
   return (data || []).map(mapRow);
 }
@@ -139,7 +142,7 @@ export async function fetchAllRoadmapItems() {
 export async function fetchRoadmapForMember(email) {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
+    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
     .eq('member_email', email.toLowerCase())
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });

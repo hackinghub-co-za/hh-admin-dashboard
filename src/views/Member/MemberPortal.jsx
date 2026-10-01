@@ -1870,7 +1870,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     // server-side to the same effect, and doing it here means the "gone
     // quiet" banner clears the moment a member actually touches their
     // roadmap, not just after the next refetch.
-    const updated = { ...item, completed: !item.completed, updatedAt: new Date().toISOString() };
+    const nowIso = new Date().toISOString();
+    const updated = { ...item, completed: !item.completed, updatedAt: nowIso, completedAt: item.completed ? null : nowIso };
     const nextItems = roadmapItems.map((i) => (i.id === item.id ? updated : i));
     setRoadmapItems(nextItems);
 
@@ -2582,7 +2583,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     };
 
-    const itemsThisMonth = roadmapItems.filter((i) => i.completed && isThisMonth(i.updatedAt));
+    // completedAt is the real completion moment; updatedAt is only a
+    // fallback for mock data, which predates the column.
+    const itemsThisMonth = roadmapItems.filter((i) => i.completed && isThisMonth(i.completedAt || i.updatedAt));
     const certsThisMonth = itemsThisMonth.filter((i) => i.category === 'Certifications');
     const roomsThisMonth = roomLogs.filter((l) => l.status === 'Approved' && isThisMonth(l.logDate)).reduce((sum, l) => sum + l.roomCount, 0);
     const eventsThisMonth = communityEvents.filter((e) => hasRsvpedToEvent(e.id) && isThisMonth(e.date));
@@ -3945,7 +3948,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
     certsCompleted.forEach((item) => {
       const entryKey = `cert:${item.id}`;
-      timeline.push({ ...withOverride(entryKey, (item.updatedAt ? item.updatedAt.slice(0, 10) : myStartDate) || null), kind: 'cert', title: `Completed ${item.title}` });
+      const completedOn = item.completedAt || item.updatedAt;
+      timeline.push({ ...withOverride(entryKey, (completedOn ? completedOn.slice(0, 10) : myStartDate) || null), kind: 'cert', title: `Completed ${item.title}` });
     });
     const roomsByMonth = {};
     approvedRoomLogs.forEach((log) => {
