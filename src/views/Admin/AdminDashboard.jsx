@@ -2616,11 +2616,13 @@ Pick new people to present next Sunday`;
       total: payfast + eft,
     };
   });
-  // Monthly gross revenue target - drawn as a reference line on the trend
-  // chart. Folded into the axis max below so the goal line always stays on
-  // scale even in a month that came in well under it.
-  const REVENUE_GOAL = 34000;
-  const revenueTrendMax = Math.max(...revenueTrend.map(m => m.total), REVENUE_GOAL, 1);
+  // Two reference lines on the trend chart: the monthly Target to aim for,
+  // and the Standard - the baseline month that's expected. Both are folded
+  // into the axis max below (Target with ~10% headroom) so they always stay
+  // on scale and the Target line never sits pinned to the plot's top edge.
+  const REVENUE_TARGET = 50000;
+  const REVENUE_STANDARD = 34000;
+  const revenueTrendMax = Math.max(...revenueTrend.map(m => m.total), REVENUE_TARGET * 1.1, 1);
   // Round the axis top up to a clean step so the y-axis ticks read as round
   // numbers (R5,000 / R10,000 / ...) instead of an arbitrary max value.
   const revenueTrendStep = revenueTrendMax <= 5000 ? 1000 : revenueTrendMax <= 20000 ? 5000 : revenueTrendMax <= 50000 ? 10000 : 20000;
@@ -3334,7 +3336,11 @@ Pick new people to present next Sunday`;
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                     <span style={{ width: '14px', height: '0', borderTop: '2px dashed var(--success)', display: 'inline-block', flexShrink: 0 }} />
-                    Goal (R34,000)
+                    Target (R{REVENUE_TARGET.toLocaleString('en-ZA')})
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ width: '14px', height: '0', borderTop: '2px dotted var(--info)', display: 'inline-block', flexShrink: 0 }} />
+                    Standard (R{REVENUE_STANDARD.toLocaleString('en-ZA')})
                   </div>
                 </div>
               </div>
@@ -3356,25 +3362,37 @@ Pick new people to present next Sunday`;
                     <div style={{ borderTop: '1px solid var(--border-color)' }} />
                   </div>
 
-                  {/* Monthly gross revenue goal line (REVENUE_GOAL), on the
-                      same 160px scale as the gridlines and bars */}
+                  {/* Target and Standard reference lines, on the same 160px
+                      scale as the gridlines and bars - bars now start exactly
+                      at the 0 line (month labels moved out of the plot
+                      below), so a bar only reaches a line when the month
+                      really did. */}
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '160px', pointerEvents: 'none', zIndex: 5 }}>
-                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${(REVENUE_GOAL / revenueTrendNiceMax) * 160}px`, borderTop: '2px dashed var(--success)' }}>
-                      <span style={{ position: 'absolute', right: 0, top: '-16px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--success)', fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', padding: '0 4px', borderRadius: '3px' }}>
-                        Goal R34,000
-                      </span>
-                    </div>
+                    {[
+                      { value: REVENUE_TARGET, label: 'Target', color: 'var(--success)', style: 'dashed' },
+                      { value: REVENUE_STANDARD, label: 'Standard', color: 'var(--info)', style: 'dotted' },
+                    ].map((line) => (
+                      <div key={line.label} style={{ position: 'absolute', left: 0, right: 0, bottom: `${(line.value / revenueTrendNiceMax) * 160}px`, borderTop: `2px ${line.style} ${line.color}` }}>
+                        <span style={{ position: 'absolute', right: 0, top: '-16px', fontSize: '0.68rem', fontWeight: 700, color: line.color, fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', padding: '0 4px', borderRadius: '3px' }}>
+                          {line.label} R{line.value.toLocaleString('en-ZA')}
+                        </span>
+                      </div>
+                    ))}
                   </div>
 
                   <div style={{ height: '160px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px', position: 'relative' }}>
                     {revenueTrend.map((m) => {
                       const payfastHeight = (m.payfast / revenueTrendNiceMax) * 160;
                       const eftHeight = (m.eft / revenueTrendNiceMax) * 160;
+                      // The divider between segments is carved out of the
+                      // PayFast segment, not added on top, so the stack's
+                      // total height is exactly the month's total.
+                      const hasBoth = m.payfast > 0 && m.eft > 0;
                       const isHovered = hoveredTrendMonth === m.month;
                       return (
                         <div
                           key={m.month}
-                          style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', position: 'relative' }}
+                          style={{ flexGrow: 1, flexBasis: 0, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', position: 'relative' }}
                           onMouseEnter={() => setHoveredTrendMonth(m.month)}
                           onMouseLeave={() => setHoveredTrendMonth(null)}
                         >
@@ -3422,19 +3440,26 @@ Pick new people to present next Sunday`;
                             {m.eft > 0 && (
                               <div style={{ width: '100%', height: `${Math.max(eftHeight, 3)}px`, background: 'var(--warning)', borderRadius: '4px 4px 0 0' }} />
                             )}
-                            {m.payfast > 0 && m.eft > 0 && <div style={{ height: '2px', background: 'var(--bg-primary)' }} />}
                             {m.payfast > 0 && (
-                              <div style={{ width: '100%', height: `${Math.max(payfastHeight, 3)}px`, background: 'var(--accent-cyan)', borderRadius: m.eft > 0 ? '0' : '4px 4px 0 0' }} />
+                              <div style={{ width: '100%', boxSizing: 'border-box', height: `${Math.max(payfastHeight, 3)}px`, background: 'var(--accent-cyan)', borderTop: hasBoth ? '2px solid var(--bg-primary)' : 'none', borderRadius: m.eft > 0 ? '0' : '4px 4px 0 0' }} />
                             )}
                             {m.total === 0 && (
                               <div style={{ width: '100%', height: '2px', background: 'var(--border-color)' }} />
                             )}
                           </div>
-
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '8px' }}>{m.label}</span>
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* Month labels - their own row under the plot, NOT inside
+                      each bar's 160px column. Inside the column they pushed
+                      every bar ~22px up off the 0 line, so bars overshot the
+                      reference lines (a R32k month crossed the R34k line). */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginTop: '8px' }}>
+                    {revenueTrend.map((m) => (
+                      <span key={m.month} style={{ flexGrow: 1, flexBasis: 0, textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{m.label}</span>
+                    ))}
                   </div>
                 </div>
               </div>
