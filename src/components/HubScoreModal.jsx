@@ -1,16 +1,11 @@
-import { X, Trophy, Award, CheckCircle2, Target, Flame, CalendarClock, Timer, CalendarCheck, Briefcase } from 'lucide-react';
+import { X, Trophy, Award, CheckCircle2, Target, Flame, CalendarClock, Timer, CalendarCheck, Briefcase, Gift } from 'lucide-react';
+import { HUB_SCORE_TIERS } from '../lib/hubScoreTiers';
 
-// Finalized tier thresholds - display-only here (the RPC is the source of
-// truth for currentTier/nextTier/pointsToNextTier); this local copy only
-// drives the ladder's highlight. Keep in sync with 093_hub_score.sql if
-// these numbers ever change.
-const TIERS = [
-  { name: 'Newcomer', min: 0 },
-  { name: 'Contributor', min: 100 },
-  { name: 'Regular', min: 500 },
-  { name: 'Veteran', min: 2000 },
-  { name: 'Legend', min: 4000 },
-];
+// Tier thresholds/rewards now live in src/lib/hubScoreTiers.js (shared with
+// the Leaderboard section and the admin Claims tab) - the RPC is still the
+// source of truth for currentTier/nextTier/pointsToNextTier, this just
+// drives the ladder's highlight and the reward/claim rows below it.
+const TIERS = HUB_SCORE_TIERS;
 
 const CATEGORY_ROWS = [
   { key: 'certs', icon: Award, label: 'Certs Passed', unit: (c) => `${c.count} cert${c.count === 1 ? '' : 's'}` },
@@ -23,7 +18,7 @@ const CATEGORY_ROWS = [
   { key: 'job', icon: Briefcase, label: 'Job Landed', unit: (c) => (c.landed ? 'Yes' : 'Not yet') },
 ];
 
-export default function HubScoreModal({ hubScore, onClose }) {
+export default function HubScoreModal({ hubScore, claims = [], onClaim, onClose }) {
   const { totalPoints, currentTier, nextTier, pointsToNextTier, categories } = hubScore;
 
   // Which ladder segment the member is currently progressing through, for
@@ -33,6 +28,8 @@ export default function HubScoreModal({ hubScore, onClose }) {
   const floor = TIERS[currentIdx].min;
   const ceiling = TIERS[currentIdx + 1]?.min ?? floor;
   const segmentPct = ceiling > floor ? Math.min(100, Math.round(((totalPoints - floor) / (ceiling - floor)) * 100)) : 100;
+
+  const claimForTier = (tierName) => claims.find((c) => c.tier === tierName);
 
   return (
     <div
@@ -88,6 +85,48 @@ export default function HubScoreModal({ hubScore, onClose }) {
         </div>
         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '28px' }}>
           {nextTier ? `${pointsToNextTier} points to ${nextTier}` : 'Top tier reached - Legend status'}
+        </div>
+
+        {/* Rewards - one row per tier that actually has one (Newcomer
+            doesn't), with a Claim button once unlocked or a status badge
+            once claimed. Eligibility is re-verified server-side by a
+            BEFORE INSERT trigger on claim - this button never has to
+            guess, it just reflects what the member can see here. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '28px' }}>
+          {TIERS.filter((t) => t.reward).map((t) => {
+            const unlocked = totalPoints >= t.min;
+            const claim = claimForTier(t.name);
+            return (
+              <div
+                key={t.name}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                  padding: '12px 14px', borderRadius: 'var(--border-radius-md)',
+                  background: t.name === currentTier ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--bg-tertiary)',
+                  border: t.name === currentTier ? '1px solid var(--accent-purple)' : '1px solid var(--border-color)',
+                  opacity: unlocked ? 1 : 0.55,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Gift size={14} /> {t.name} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({t.min}+)</span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{t.reward}</div>
+                </div>
+                {!unlocked ? (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Locked</span>
+                ) : claim ? (
+                  <span className={`badge ${claim.status === 'Fulfilled' || claim.status === 'Approved' ? 'badge-success' : claim.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
+                    {claim.status}
+                  </span>
+                ) : (
+                  <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 14px' }} onClick={() => onClaim?.(t.name)}>
+                    Claim Reward
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '10px' }}>How your score breaks down</div>

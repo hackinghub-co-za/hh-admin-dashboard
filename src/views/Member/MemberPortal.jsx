@@ -45,7 +45,7 @@ import { fetchMyRoadmapSubtasks, toggleMyRoadmapSubtask } from '../../lib/roadma
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin, fetchMyLoginStreakSummary, fetchMyLoginHistory, fetchTopLoginStreak } from '../../lib/loginStreakData';
 import LoginStreakModal from '../../components/LoginStreakModal';
-import { fetchMyHubScore } from '../../lib/hubScoreData';
+import { fetchMyHubScore, fetchHubScoreLeaderboard, fetchMyHubScoreClaims, claimHubScoreTier } from '../../lib/hubScoreData';
 import HubScoreModal from '../../components/HubScoreModal';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
@@ -889,6 +889,27 @@ const MOCK_HUB_SCORE = {
     job: { points: 0, landed: false },
   },
 };
+
+// Mock Hub Score Leaderboard - a handful of other demo members plus the
+// Mock Member themselves (742 pts, Regular) ranked outside the top 10
+// (same rank the real RPC's "top N" cutoff uses), pinned below with a
+// divider, to demo that UI state in one session.
+const MOCK_HUB_SCORE_LEADERBOARD = [
+  { rank: 1, email: 'ayanda@example.com', totalPoints: 5120, tier: 'Legend' },
+  { rank: 2, email: 'thabo@example.com', totalPoints: 3400, tier: 'Veteran' },
+  { rank: 3, email: 'lerato@example.com', totalPoints: 2150, tier: 'Veteran' },
+  { rank: 4, email: 'kabelo@example.com', totalPoints: 1200, tier: 'Regular' },
+  { rank: 5, email: 'naledi@example.com', totalPoints: 910, tier: 'Regular' },
+  { rank: 14, email: 'member@hackinghub.co.za', totalPoints: 742, tier: 'Regular' },
+];
+
+// Mock claims - Contributor already Fulfilled, Regular Pending, to show
+// every claim-state the UI supports (unlocked-not-yet-claimed, Pending,
+// Fulfilled) against MOCK_HUB_SCORE's 742-point Regular tier.
+const MOCK_HUB_SCORE_CLAIMS = [
+  { id: 1, tier: 'Contributor', status: 'Fulfilled', note: '', claimedAt: '2026-07-10T09:00:00Z', reviewedAt: '2026-07-12T09:00:00Z' },
+  { id: 2, tier: 'Regular', status: 'Pending', note: '', claimedAt: '2026-09-28T09:00:00Z', reviewedAt: null },
+];
 
 const CONTENT_TYPE_ICONS = {
   Video: Video,
@@ -2056,15 +2077,50 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // across 8 real signals. Fetched once per session load, same as the login
   // streak above; HubScoreModal just re-displays the already-loaded object,
   // no separate lazy detail fetch needed since the RPC already returns the
-  // full breakdown in one call.
+  // full breakdown in one call. Claims (094_hub_score_leaderboard_and_
+  // claims.sql) ride along in the same round trip since both are needed
+  // the moment the modal opens.
   const [hubScore, setHubScore] = useState(isMockSession ? MOCK_HUB_SCORE : null);
+  const [hubScoreClaims, setHubScoreClaims] = useState(isMockSession ? MOCK_HUB_SCORE_CLAIMS : []);
   const [showHubScoreModal, setShowHubScoreModal] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
-    fetchMyHubScore()
-      .then(setHubScore)
+    Promise.all([fetchMyHubScore(), fetchMyHubScoreClaims()])
+      .then(([score, claims]) => { setHubScore(score); setHubScoreClaims(claims); })
       .catch((err) => console.error('Could not load Hub Score:', err));
+  }, [isMockSession]);
+
+  // Claiming a tier's reward - optimistic insert, rolled back on error
+  // (e.g. the server-side eligibility trigger rejecting a stale claim).
+  // Same shape as every other optimistic handler in this file.
+  const handleClaimHubScoreTier = async (tier) => {
+    const optimisticClaim = { id: `temp-${tier}`, tier, status: 'Pending', note: '', claimedAt: new Date().toISOString(), reviewedAt: null };
+    setHubScoreClaims((prev) => [optimisticClaim, ...prev]);
+    if (isMockSession) return;
+    try {
+      const saved = await claimHubScoreTier({ memberEmail: user?.email, tier });
+      setHubScoreClaims((prev) => prev.map((c) => (c.id === optimisticClaim.id ? saved : c)));
+    } catch (err) {
+      console.error('Could not claim Hub Score tier:', err);
+      setHubScoreClaims((prev) => prev.filter((c) => c.id !== optimisticClaim.id));
+    }
+  };
+
+  // Hub Score Leaderboard - fetched once at mount, same non-tab-gated shape
+  // as fetchCompetitionStandings below, even though it's only rendered
+  // inside the Competitions tab (so it's ready the moment that tab opens).
+  const [hubScoreLeaderboard, setHubScoreLeaderboard] = useState(isMockSession ? MOCK_HUB_SCORE_LEADERBOARD : []);
+  const [loadingHubScoreLeaderboard, setLoadingHubScoreLeaderboard] = useState(!isMockSession);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchHubScoreLeaderboard(10)
+      .then((data) => !cancelled && setHubScoreLeaderboard(data))
+      .catch((err) => !cancelled && console.error('Could not load Hub Score leaderboard:', err))
+      .finally(() => !cancelled && setLoadingHubScoreLeaderboard(false));
+    return () => { cancelled = true; };
   }, [isMockSession]);
 
   // Portal usage analytics (050_portal_events.sql) - session_start once per
@@ -6211,6 +6267,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           {showHubScoreModal && hubScore && (
             <HubScoreModal
               hubScore={hubScore}
+              claims={hubScoreClaims}
+              onClaim={handleClaimHubScoreTier}
               onClose={() => setShowHubScoreModal(false)}
             />
           )}
@@ -8375,6 +8433,107 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 )}
               </>
             )}
+          </div>
+
+          {/* Hub Score Leaderboard (094_hub_score_leaderboard_and_claims.sql) -
+              third nested glass-card in this tab, same convention as the
+              TryHackMe and Study Hours leaderboards above it. Avatars/names
+              are matched against `directory` client-side - the RPC returns
+              raw (rank, email, totalPoints, tier) rows only, same as every
+              leaderboard in this app. */}
+          <div className="glass-card" style={{ marginTop: '32px', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Trophy size={20} color="var(--accent-purple)" />
+              <h3 style={{ margin: 0 }}>Hub Score Leaderboard</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              Your composite score across everything you've done here - certs, roadmap, rooms, streaks, tenure, study, events, and job landed. Tap your own Hub Score chip on the Dashboard for the full breakdown.
+            </p>
+
+            {loadingHubScoreLeaderboard && <p style={{ color: 'var(--text-muted)' }}>Loading leaderboard...</p>}
+            {!loadingHubScoreLeaderboard && hubScoreLeaderboard.length > 0 && (() => {
+              const myEmail = (user?.email || '').toLowerCase();
+              const topRows = hubScoreLeaderboard.filter((row) => row.rank <= 10);
+              const myRow = hubScoreLeaderboard.find((row) => row.email.toLowerCase() === myEmail);
+              const myRowIsPinned = myRow && !topRows.some((row) => row.email.toLowerCase() === myEmail);
+
+              const tierBadge = (tierName) => {
+                const colors = {
+                  Legend: { bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' },
+                  Veteran: { bg: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' },
+                  Regular: { bg: 'rgba(94, 227, 122, 0.15)', color: '#5ee37a' },
+                  Contributor: { bg: 'rgba(250, 204, 21, 0.15)', color: '#facc15' },
+                  Newcomer: { bg: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' },
+                }[tierName] || { bg: 'var(--bg-tertiary)', color: 'var(--text-muted)' };
+                return (
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '3px 9px', borderRadius: '9999px', background: colors.bg, color: colors.color }}>
+                    {tierName}
+                  </span>
+                );
+              };
+
+              const renderRow = (row) => {
+                const directoryMatch = row.email ? directory.find((m) => m.email.toLowerCase() === row.email.toLowerCase()) : null;
+                const isMe = row.email.toLowerCase() === myEmail;
+                return (
+                  <tr
+                    key={row.email}
+                    style={{
+                      borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)',
+                      background: isMe ? 'rgba(var(--accent-rgb), 0.1)' : undefined,
+                    }}
+                  >
+                    <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--text-secondary)' }}>#{row.rank}</td>
+                    <td style={{ padding: '14px 12px', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {directoryMatch?.headshotUrl ? (
+                            <img src={directoryMatch.headshotUrl} alt={directoryMatch.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <User size={14} color="var(--text-muted)" />
+                          )}
+                        </div>
+                        {directoryMatch ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDirectoryMember(directoryMatch)}
+                            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--accent-cyan)', textDecoration: 'underline', cursor: 'pointer' }}
+                          >
+                            {directoryMatch.fullName || row.email}{isMe ? ' (you)' : ''}
+                          </button>
+                        ) : (
+                          <span>{row.email}{isMe ? ' (you)' : ''}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '14px 12px', fontWeight: 700, color: 'var(--accent-purple)' }}>{row.totalPoints}</td>
+                    <td style={{ padding: '14px 12px' }}>{tierBadge(row.tier)}</td>
+                  </tr>
+                );
+              };
+
+              return (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Rank</th>
+                      <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
+                      <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Hub Score</th>
+                      <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Tier</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topRows.map(renderRow)}
+                    {myRowIsPinned && (
+                      <>
+                        <tr><td colSpan={4} style={{ padding: '6px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.72rem', borderBottom: '1px solid var(--border-color)' }}>⋯</td></tr>
+                        {renderRow(myRow)}
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              );
+            })()}
           </div>
 
           {showStudyHoursRules && <StudyHoursRulesModal onClose={() => setShowStudyHoursRules(false)} />}

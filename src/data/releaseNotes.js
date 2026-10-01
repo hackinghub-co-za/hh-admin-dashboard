@@ -8,8 +8,8 @@ export const RELEASE_NOTES = [
   {
     version: '2026.10.01',
     date: '2026-10-01',
-    headline: 'Hub Score - one number for everything you\'ve built here, plus multi-day events and a few quiet bug fixes.',
-    intro: "Hub Score adds up everything you've actually done here - certs passed, roadmap progress, TryHackMe rooms, your login streak, how long you've been around, study sessions, events, even landing a job - into one number that only ever goes up, with tiers to climb toward. Multi-day events (like a weekend CTF) now stay listed until they're actually over, instead of disappearing after day one. Your login streak and Cyber Question of the Day now roll over at real midnight here in SA, not 2am. And a handful of smaller things got fixed along the way.",
+    headline: 'Hub Score - one number for everything you\'ve built here, a real leaderboard, and real rewards.',
+    intro: "Hub Score adds up everything you've actually done here - certs passed, roadmap progress, TryHackMe rooms, your login streak, how long you've been around, study sessions, events, even landing a job - into one number that only ever goes up, with tiers to climb toward. It's now got a real leaderboard too, and once you cross a tier you can actually claim the reward. Multi-day events (like a weekend CTF) now stay listed until they're actually over, instead of disappearing after day one. Your login streak and Cyber Question of the Day now roll over at real midnight here in SA, not 2am. And a handful of smaller things got fixed along the way.",
     groups: [
       {
         label: 'Growth',
@@ -20,6 +20,12 @@ export const RELEASE_NOTES = [
             title: 'Hub Score',
             body: "A new number on your Dashboard that adds up everything you've actually built here - certs passed, roadmap items completed, TryHackMe rooms, your best login streak, how long you've been a member, study sessions, events attended, even landing a job. It never resets. Tap it to see the full breakdown and how far you are from the next tier.",
             where: 'Dashboard',
+          },
+          {
+            icon: '🥇',
+            title: 'Hub Score Leaderboard, and real rewards to claim',
+            body: "See where you rank against everyone else - top 10 shown, your own spot pinned below if you're not in it. Cross a tier (Contributor, Regular, Veteran, Legend) and a \"Claim Reward\" button shows up right on your Hub Score card - a drink and a high five, a mousepad, a top or hoodie, all the way up to a free cert.",
+            where: 'Competitions · Dashboard',
           },
         ],
       },

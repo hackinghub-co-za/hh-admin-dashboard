@@ -52,6 +52,8 @@ import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown,
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, updateEventRecording, fetchEventAgenda, updateEventAgenda, uploadEventImage } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
+import { fetchAllHubScoreClaims, updateHubScoreClaimStatus } from '../../lib/hubScoreData';
+import { HUB_SCORE_TIERS } from '../../lib/hubScoreTiers';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
@@ -1661,6 +1663,42 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       : `Cancel this order? Use this if the mismatched payment turns out to be unrelated to this order, or the order shouldn't be fulfilled.`;
     if (!window.confirm(confirmMsg)) return;
     handleUpdateMerchOrderStatus(order, resolution);
+  };
+
+  // Hub Score Tier Claims - see supabase/094_hub_score_leaderboard_and_claims.sql
+  // / src/lib/hubScoreData.js. Member-initiated INSERT (server-validated by
+  // a BEFORE INSERT trigger against their real Hub Score), admin review is
+  // a plain status update, same no-RPC pattern as Merch Orders.
+  const [hubScoreClaims, setHubScoreClaims] = useState(isMockSession ? [
+    { id: 1, memberEmail: 'demo.member1@example.com', tier: 'Regular', status: 'Pending', note: '', claimedAt: '2026-09-25T10:00:00Z', reviewedBy: '', reviewedAt: null },
+  ] : []);
+  const [loadingHubScoreClaims, setLoadingHubScoreClaims] = useState(!isMockSession);
+  const [hubScoreClaimsError, setHubScoreClaimsError] = useState(null);
+  const [rejectHubScoreNoteDraft, setRejectHubScoreNoteDraft] = useState({});
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllHubScoreClaims()
+      .then((data) => !cancelled && setHubScoreClaims(data))
+      .catch((err) => !cancelled && setHubScoreClaimsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingHubScoreClaims(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleUpdateHubScoreClaimStatus = async (claim, status, note) => {
+    const prevClaims = hubScoreClaims;
+    setHubScoreClaims(hubScoreClaims.map((c) => (
+      c.id === claim.id ? { ...c, status, note: note ?? c.note, reviewedBy: user?.email, reviewedAt: new Date().toISOString() } : c
+    )));
+    if (!isMockSession) {
+      try {
+        await updateHubScoreClaimStatus(claim.id, status, note, user?.email);
+      } catch (err) {
+        setHubScoreClaimsError(friendlyErrorMessage(err));
+        setHubScoreClaims(prevClaims);
+      }
+    }
   };
 
   // Focus 5 - see supabase/038_focus_five.sql / src/lib/focusFiveData.js.
@@ -6305,6 +6343,107 @@ Pick new people to present next Sunday`;
               </div>
             )}
           </div>
+        </div>
+      );
+    }
+
+    case 'hubscore': {
+      const nameForClaimEmail = (email) => {
+        const match = memberRoster.find((m) => m.email.toLowerCase() === (email || '').toLowerCase());
+        return match?.member || email;
+      };
+      const pendingClaims = hubScoreClaims.filter((c) => c.status === 'Pending');
+      const reviewedClaims = hubScoreClaims.filter((c) => c.status !== 'Pending');
+      const rewardForTier = (tierName) => HUB_SCORE_TIERS.find((t) => t.name === tierName)?.reward || '';
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Hub Score Claims</h1>
+            <p>Reward claims for crossing a Hub Score tier - a member's claim is only ever inserted after a server-side trigger confirms their real score actually qualifies (see supabase/094_hub_score_leaderboard_and_claims.sql), so every row below is a real, eligible claim. Approve/Reject, then Mark Fulfilled once the reward's actually been handed over.</p>
+          </div>
+
+          {hubScoreClaimsError && (
+            <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{hubScoreClaimsError}</p>
+          )}
+
+          {!isMockSession && loadingHubScoreClaims ? (
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading claims...</p>
+          ) : (
+            <>
+              <div className="glass-card" style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0 }}>Pending Review</h3>
+                  <span className="badge badge-warning">{pendingClaims.length}</span>
+                </div>
+                {pendingClaims.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Nothing waiting on review.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {pendingClaims.map((claim) => (
+                      <div key={claim.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{claim.status}</span>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{nameForClaimEmail(claim.memberEmail)}</h4>
+                          </div>
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{claim.memberEmail} · {formatDate(claim.claimedAt)}</p>
+                          <p style={{ fontSize: '0.82rem' }}><strong>{claim.tier}</strong> tier - {rewardForTier(claim.tier)}</p>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 14px' }} onClick={() => handleUpdateHubScoreClaimStatus(claim, 'Approved')}>
+                              Approve
+                            </button>
+                            <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 14px', color: 'var(--danger)' }} onClick={() => handleUpdateHubScoreClaimStatus(claim, 'Rejected', rejectHubScoreNoteDraft[claim.id])}>
+                              Reject
+                            </button>
+                          </div>
+                          <input
+                            className="form-input"
+                            placeholder="Rejection note (optional)"
+                            style={{ fontSize: '0.78rem', padding: '6px 10px', width: '220px' }}
+                            value={rejectHubScoreNoteDraft[claim.id] || ''}
+                            onChange={(e) => setRejectHubScoreNoteDraft({ ...rejectHubScoreNoteDraft, [claim.id]: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="glass-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0 }}>Reviewed</h3>
+                  <span className="badge badge-success">{reviewedClaims.length}</span>
+                </div>
+                {reviewedClaims.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No reviewed claims yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {reviewedClaims.map((claim) => (
+                      <div key={claim.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '0.85rem' }}>
+                          <strong>{nameForClaimEmail(claim.memberEmail)}</strong>
+                          <span style={{ color: 'var(--text-muted)' }}> · {claim.tier} · {formatDate(claim.claimedAt)}{claim.note ? ` · "${claim.note}"` : ''}</span>
+                          {claim.reviewedBy && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}> · reviewed by {nameForClaimEmail(claim.reviewedBy)}</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                          <span className={`badge ${claim.status === 'Fulfilled' || claim.status === 'Approved' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.65rem' }}>{claim.status}</span>
+                          {claim.status === 'Approved' && (
+                            <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleUpdateHubScoreClaimStatus(claim, 'Fulfilled')}>
+                              Mark Fulfilled
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       );
     }

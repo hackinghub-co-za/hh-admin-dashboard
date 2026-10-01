@@ -61,6 +61,23 @@ saved in their browser's `localStorage`.
   (Newcomer/Contributor/Regular/Veteran/Legend at 0/100/500/2,000/4,000
   points) and progress to the next one. No leaderboard or reward claiming
   yet - later phases on top of this same function.
+- **Hub Score Phases 2 & 3 (Leaderboard + Reward Claiming)** — the scoring
+  engine was refactored into a single set-based function,
+  `_hub_score_breakdown()`, that computes one member or every member at
+  once (`094_hub_score_leaderboard_and_claims.sql`); `get_my_hub_score()`
+  now delegates to it with its signature unchanged. New
+  `get_hub_score_leaderboard()` RPC returns the top 10 by score plus the
+  caller's own rank pinned on if they're outside it, surfaced as a new
+  "Hub Score Leaderboard" table on the Competitions tab (avatars matched
+  against the member directory, same as the TryHackMe/Study Hours
+  leaderboards next to it). New `hub_score_tier_claims` table lets a
+  member claim a tier's reward once they've actually crossed it - a
+  `BEFORE INSERT` trigger re-derives their real score server-side and
+  rejects the insert outright if they haven't, same self-attributed-INSERT
+  pattern as `merch_orders`. Claim buttons/status live right on
+  `HubScoreModal`'s tier cards. New admin-only **Hub Score Claims** tab
+  (`Sidebar.jsx`, `AdminDashboard.jsx`) for Approve/Reject/Mark Fulfilled,
+  mirroring the Merch Orders queue UI.
 
 ### Changed
 - Pressable button styling now applies app-wide, admin included.
