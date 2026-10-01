@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { UserCheck, Plus, Clock, Users, Mail, ChevronDown, X, Search, Trash2 } from 'lucide-react';
 import {
+  syncNewJoinerAccountability,
   fetchAccountabilityRoster,
   fetchAccountabilityList,
   addToAccountabilityList,
@@ -52,8 +53,17 @@ const MOCK_ROSTER = [
   { email: 'sizwe@example.com', fullName: 'Sizwe Zwane', specialty: 'IAM', headshotUrl: null },
 ];
 
+// Thabo and Naledi stand in for new joiners, auto-assigned to the Mock
+// Community Manager's account so "Assigned to me" has something to show.
+const MOCK_NEW_JOINERS = new Set(['naledi@example.com', 'thabo@example.com']);
 const MOCK_LIST = ['naledi@example.com', 'thabo@example.com', 'karabo@example.com', 'refilwe@example.com', 'blessing@example.com']
-  .map((memberEmail, i) => ({ memberEmail, addedBy: 'siya@hackinghub.co.za', addedAt: isoDaysAgo(30 - i) }));
+  .map((memberEmail, i) => ({
+    memberEmail,
+    addedBy: MOCK_NEW_JOINERS.has(memberEmail) ? 'auto: new joiner' : 'siya@hackinghub.co.za',
+    addedAt: isoDaysAgo(30 - i),
+    assignedTo: MOCK_NEW_JOINERS.has(memberEmail) ? 'cm@hackinghub.co.za' : null,
+    isNewJoiner: MOCK_NEW_JOINERS.has(memberEmail),
+  }));
 
 const MOCK_CHECKINS = [
   { id: 1, memberEmail: 'naledi@example.com', note: 'Mentioned they might pause their subscription - offered a 1on1 to talk it through.', loggedBy: 'siya@hackinghub.co.za', loggedByName: 'Siya', loggedAt: isoDaysAgo(12) },
@@ -103,11 +113,16 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
   const [expanded, setExpanded] = useState({});
   const [previewOpen, setPreviewOpen] = useState(false);
   const [togglingEmail, setTogglingEmail] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
-    Promise.all([fetchAccountabilityRoster(), fetchAccountabilityList(), fetchAccountabilityCheckins(), fetchAccountabilityEmailSettings()])
+    // Sync new joiners first so the list reflects today, not the last 7am
+    // run - but never let a sync hiccup block the tab from loading.
+    syncNewJoinerAccountability()
+      .catch((err) => console.error('Could not sync new joiners:', err))
+      .then(() => Promise.all([fetchAccountabilityRoster(), fetchAccountabilityList(), fetchAccountabilityCheckins(), fetchAccountabilityEmailSettings()]))
       .then(([r, l, c, s]) => {
         if (cancelled) return;
         setRoster(r);
@@ -143,11 +158,16 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
       history,
       lastCheckinAt,
       due,
+      assignedTo: entry.assignedTo || null,
+      isNewJoiner: !!entry.isNewJoiner,
     };
   });
+  const assigneeLabel = (email) => (email === myEmail ? 'you' : rosterByEmail[email]?.fullName || email);
+  const assignedToMeCount = tracked.filter((t) => t.assignedTo === myEmail).length;
+  const visible = onlyMine ? tracked.filter((t) => t.assignedTo === myEmail) : tracked;
   // Longest-waiting first, same order as the daily email.
-  const dueToday = tracked.filter((t) => t.due).sort((a, b) => (a.lastCheckinAt ? new Date(a.lastCheckinAt) : 0) - (b.lastCheckinAt ? new Date(b.lastCheckinAt) : 0));
-  const checkedInThisWeek = tracked.length - dueToday.length;
+  const dueToday = visible.filter((t) => t.due).sort((a, b) => (a.lastCheckinAt ? new Date(a.lastCheckinAt) : 0) - (b.lastCheckinAt ? new Date(b.lastCheckinAt) : 0));
+  const checkedInThisWeek = visible.length - dueToday.length;
 
   const onList = new Set(list.map((l) => l.memberEmail));
   const searchResults = search.trim()
@@ -293,12 +313,29 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
         </div>
       )}
 
+      {assignedToMeCount > 0 && (
+        <div role="group" aria-label="Filter the list" style={{ display: 'flex', gap: '8px' }}>
+          {[{ key: false, label: 'Everyone' }, { key: true, label: `Assigned to me (${assignedToMeCount})` }].map((f) => (
+            <button
+              key={String(f.key)}
+              type="button"
+              aria-pressed={onlyMine === f.key}
+              onClick={() => setOnlyMine(f.key)}
+              className={`btn ${onlyMine === f.key ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ padding: '7px 14px', fontSize: '0.72rem' }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Stat row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
         {[
           { label: 'Due Today', value: dueToday.length, caption: 'Not checked in on for a week or more', color: 'var(--warning)' },
-          { label: 'On the List', value: tracked.length, caption: "Members you're actively tracking", color: 'var(--accent-cyan)' },
-          { label: 'Checked In This Week', value: checkedInThisWeek, caption: `Out of ${tracked.length} on the list`, color: 'var(--success)' },
+          { label: 'On the List', value: visible.length, caption: onlyMine ? 'Assigned to you' : "Members you're actively tracking", color: 'var(--accent-cyan)' },
+          { label: 'Checked In This Week', value: checkedInThisWeek, caption: `Out of ${visible.length} on the list`, color: 'var(--success)' },
         ].map((s) => (
           <div key={s.label} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', color: s.color, textTransform: 'uppercase' }}>{s.label}</span>
@@ -321,7 +358,7 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Loading...</p>
             ) : dueToday.length === 0 ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-                {tracked.length === 0 ? 'Nobody on the list yet - add a member above to start tracking check-ins.' : "Everyone on the list has been checked in on this week. Nice."}
+                {visible.length === 0 ? 'Nobody on the list yet - add a member above to start tracking check-ins.' : "Everyone on the list has been checked in on this week. Nice."}
               </p>
             ) : (
               dueToday.map((t) => (
@@ -330,8 +367,11 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
                     <Avatar name={t.name} headshotUrl={t.headshotUrl} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>{t.name}</div>
-                      <div style={{ fontSize: '0.76rem', color: 'var(--warning)' }}>{lastCheckinLabel(t.lastCheckinAt)}</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--warning)' }}>
+                        {lastCheckinLabel(t.lastCheckinAt)}{t.assignedTo ? <span style={{ color: 'var(--text-muted)' }}> · Assigned to {assigneeLabel(t.assignedTo)}</span> : null}
+                      </div>
                     </div>
+                    {t.isNewJoiner && <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>New joiner</span>}
                     {t.specialty && <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>{t.specialty}</span>}
                   </div>
                   {renderLogBox(t)}
@@ -347,12 +387,12 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
                 <Users size={18} color="var(--accent-cyan)" />
                 <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Everyone You're Tracking</h3>
               </div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{tracked.length} member{tracked.length === 1 ? '' : 's'}</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{visible.length} member{visible.length === 1 ? '' : 's'}</span>
             </div>
-            {!loading && tracked.length === 0 && (
+            {!loading && visible.length === 0 && (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Nobody on the list yet.</p>
             )}
-            {tracked.map((t) => {
+            {visible.map((t) => {
               const isOpen = !!expanded[t.email];
               return (
                 <div key={t.email} style={{ borderRadius: 'var(--border-radius-md)', border: `1px solid ${isOpen ? 'var(--border-glow)' : 'var(--border-color)'}`, background: isOpen ? 'rgba(var(--accent-rgb), 0.03)' : 'transparent' }}>
@@ -364,9 +404,12 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
                   >
                     <Avatar name={t.name} headshotUrl={t.headshotUrl} size={34} />
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem' }}>{t.name}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.9rem' }}>
+                        {t.name}
+                        {t.isNewJoiner && <span className="badge badge-warning" style={{ fontSize: '0.58rem' }}>New joiner</span>}
+                      </span>
                       <span style={{ display: 'block', fontSize: '0.75rem', color: t.due ? 'var(--warning)' : 'var(--text-muted)' }}>
-                        {t.specialty ? `${t.specialty} · ` : ''}{lastCheckinLabel(t.lastCheckinAt)}
+                        {t.specialty ? `${t.specialty} · ` : ''}{lastCheckinLabel(t.lastCheckinAt)}{t.assignedTo ? ` · Assigned to ${assigneeLabel(t.assignedTo)}` : ''}
                       </span>
                     </span>
                     <ChevronDown size={16} color="var(--text-muted)" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease', flexShrink: 0 }} />
@@ -388,14 +431,22 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
                         )}
                       </div>
                       {renderLogBox(t)}
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: '0.7rem', color: 'var(--danger)' }}
-                        onClick={() => handleRemove(t.email)}
-                      >
-                        <Trash2 size={13} /> Remove from List
-                      </button>
+                      {t.isNewJoiner ? (
+                        // The daily sync would just put them straight back -
+                        // new joiners come off on their own after 3 weeks.
+                        <span style={{ alignSelf: 'flex-end', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Comes off the list automatically after their first 3 weeks
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: '0.7rem', color: 'var(--danger)' }}
+                          onClick={() => handleRemove(t.email)}
+                        >
+                          <Trash2 size={13} /> Remove from List
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -446,6 +497,7 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
             <h3 style={{ fontSize: '0.95rem', margin: 0 }}>How this works</h3>
             <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
               <li>Add anyone you want to keep closer tabs on - no limit, unlike Focus 5.</li>
+              <li>Every new member is added automatically for their first 3 weeks and assigned to a community manager, who gets their own morning email for them.</li>
               <li>"Due Today" surfaces whoever hasn't been checked in on for a week or more.</li>
               <li>Every note is dated and attributed to whichever staff member logged it.</li>
               <li>Remove someone once they're back on track - their history stays on record.</li>

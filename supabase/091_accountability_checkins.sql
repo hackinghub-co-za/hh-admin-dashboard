@@ -55,6 +55,20 @@ ON CONFLICT (id) DO NOTHING;
 -- community manager again.
 ALTER TABLE public.accountability_settings ADD COLUMN IF NOT EXISTS recipient_emails TEXT[];
 
+-- New joiners: every member is automatically on the list for their first
+-- NEW_JOINER_DAYS (21) days, assigned to this staff member, then comes off
+-- again by itself (sync_new_joiner_accountability() below). Like
+-- recipient_emails, the actual address is set in the live database only.
+ALTER TABLE public.accountability_settings ADD COLUMN IF NOT EXISTS new_joiner_assignee TEXT;
+
+-- Who a list entry belongs to (NULL = shared, nobody in particular) and how
+-- it got there - 'new_joiner' rows are the only ones the sync ever removes,
+-- so a member staff added by hand is never taken off automatically.
+ALTER TABLE public.accountability_list ADD COLUMN IF NOT EXISTS assigned_to TEXT;
+ALTER TABLE public.accountability_list ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE public.accountability_list DROP CONSTRAINT IF EXISTS accountability_list_source_check;
+ALTER TABLE public.accountability_list ADD CONSTRAINT accountability_list_source_check CHECK (source IN ('manual', 'new_joiner'));
+
 ALTER TABLE public.accountability_list ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accountability_checkins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accountability_settings ENABLE ROW LEVEL SECURITY;
@@ -103,8 +117,9 @@ REVOKE EXECUTE ON FUNCTION public.get_accountability_roster() FROM PUBLIC, anon;
 -- last p_days (SAST calendar days). Shared by the admin tab's "Due Today"
 -- and the daily email, so the two can never disagree. Callable by staff,
 -- or by the edge function via the service role (auth.uid() is NULL there).
-CREATE OR REPLACE FUNCTION public.get_accountability_due(p_days INTEGER DEFAULT 7)
-RETURNS TABLE (email TEXT, full_name TEXT, specialty TEXT, last_checkin_at TIMESTAMP WITH TIME ZONE)
+DROP FUNCTION IF EXISTS public.get_accountability_due(INTEGER);
+CREATE FUNCTION public.get_accountability_due(p_days INTEGER DEFAULT 7)
+RETURNS TABLE (email TEXT, full_name TEXT, specialty TEXT, last_checkin_at TIMESTAMP WITH TIME ZONE, assigned_to TEXT)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE
 AS $$
 BEGIN
@@ -116,11 +131,12 @@ BEGIN
     al.member_email,
     mp.full_name,
     mp.specialty,
-    MAX(ac.logged_at) AS last_checkin_at
+    MAX(ac.logged_at) AS last_checkin_at,
+    al.assigned_to
   FROM public.accountability_list al
   LEFT JOIN public.member_profiles mp ON mp.email = al.member_email
   LEFT JOIN public.accountability_checkins ac ON ac.member_email = al.member_email
-  GROUP BY al.member_email, mp.full_name, mp.specialty
+  GROUP BY al.member_email, mp.full_name, mp.specialty, al.assigned_to
   HAVING MAX(ac.logged_at) IS NULL
       OR (MAX(ac.logged_at) AT TIME ZONE 'Africa/Johannesburg')::date
          <= (now() AT TIME ZONE 'Africa/Johannesburg')::date - p_days
@@ -159,3 +175,54 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_accountability_digest_recipients() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_accountability_digest_recipients() FROM PUBLIC, anon;
+
+-- Keeps the new-joiner entries in step with join dates: adds every member
+-- who joined within the last 21 SAST days (and hasn't left), assigned to
+-- accountability_settings.new_joiner_assignee, and removes new-joiner
+-- entries whose 21 days are up. Join date is the same rule the member
+-- portal uses: COALESCE(manual_start_date, onboarded_at).
+--
+-- Never touches 'manual' rows, and a member staff already added by hand
+-- stays exactly as they were (ON CONFLICT DO NOTHING). Run by the daily
+-- digest function and whenever the admin tab loads, so the list is never
+-- more than a page-load stale. Returns how many rows it added/removed.
+CREATE OR REPLACE FUNCTION public.sync_new_joiner_accountability(p_days INTEGER DEFAULT 21)
+RETURNS TABLE (added INTEGER, removed INTEGER)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_today DATE := (now() AT TIME ZONE 'Africa/Johannesburg')::date;
+  v_assignee TEXT;
+  v_added INTEGER;
+  v_removed INTEGER;
+BEGIN
+  IF auth.role() = 'authenticated' AND NOT public.is_community_manager(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins and community managers can do this.';
+  END IF;
+
+  SELECT lower(s.new_joiner_assignee) INTO v_assignee FROM public.accountability_settings s WHERE s.id = 1;
+
+  INSERT INTO public.accountability_list (member_email, added_by, assigned_to, source)
+  SELECT lower(mp.email), 'auto: new joiner', v_assignee, 'new_joiner'
+  FROM public.member_profiles mp
+  WHERE mp.status != 'Left'
+    AND lower(mp.email) != 'siya@hackinghub.co.za'
+    AND COALESCE(mp.manual_start_date, mp.onboarded_at::date) >= v_today - p_days
+  ON CONFLICT (member_email) DO NOTHING;
+  GET DIAGNOSTICS v_added = ROW_COUNT;
+
+  DELETE FROM public.accountability_list al
+  WHERE al.source = 'new_joiner'
+    AND NOT EXISTS (
+      SELECT 1 FROM public.member_profiles mp
+      WHERE lower(mp.email) = al.member_email
+        AND mp.status != 'Left'
+        AND COALESCE(mp.manual_start_date, mp.onboarded_at::date) >= v_today - p_days
+    );
+  GET DIAGNOSTICS v_removed = ROW_COUNT;
+
+  RETURN QUERY SELECT v_added, v_removed;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.sync_new_joiner_accountability(INTEGER) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.sync_new_joiner_accountability(INTEGER) FROM PUBLIC, anon;

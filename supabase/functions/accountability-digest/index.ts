@@ -11,8 +11,14 @@
 // "Due Today" uses (091_accountability_checkins.sql), so they always agree.
 //
 // Unlike overdue-1on1-digest, this sends NOTHING on a morning where nobody's
-// due: it's a to-do list for the community manager, and an empty one is
-// noise. It also respects the on/off switch on the admin tab.
+// due: it's a to-do list, and an empty one is noise. It also respects the
+// on/off switch on the admin tab.
+//
+// Two kinds of email go out:
+//  - the full digest (everyone due) to accountability_settings.recipient_emails
+//  - a personal one to each staff member members are ASSIGNED to (e.g. new
+//    joiners, auto-assigned by sync_new_joiner_accountability()), listing
+//    only their own - skipped for anyone already getting the full digest.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -20,7 +26,7 @@ const FROM_ADDRESS = 'Hacking Hub <siya@hackinghub.co.za>';
 const DUE_AFTER_DAYS = 7;
 const PORTAL_URL = 'https://portal.hackinghub.co.za';
 
-type DueRow = { email: string; full_name: string | null; specialty: string | null; last_checkin_at: string | null };
+type DueRow = { email: string; full_name: string | null; specialty: string | null; last_checkin_at: string | null; assigned_to: string | null };
 
 async function sendEmail(resendApiKey: string, to: string[], subject: string, html: string): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
@@ -41,7 +47,7 @@ function lastCheckinLabel(iso: string | null): string {
   return `Last checked in ${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-function digestHtml(rows: DueRow[]): string {
+function digestHtml(rows: DueRow[], intro: string): string {
   const items = rows.map((r) => {
     const name = esc(r.full_name || r.email);
     const meta = [lastCheckinLabel(r.last_checkin_at), r.specialty && r.specialty !== 'Not Set' ? esc(r.specialty) : null]
@@ -54,11 +60,11 @@ function digestHtml(rows: DueRow[]): string {
   }).join('');
   return `
     <div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:560px;color:#374151;">
-      <p style="font-size:14px;line-height:1.6;">Morning! Here's who hasn't been checked in on in over a week - a quick message goes a long way.</p>
+      <p style="font-size:14px;line-height:1.6;">${intro}</p>
       ${items}
       <a href="${PORTAL_URL}" style="display:inline-block;padding:11px 22px;border-radius:8px;background:#17a856;color:#ffffff;font-size:13px;font-weight:700;text-decoration:none;">Open Accountability Check-ins</a>
       <p style="font-size:12px;color:#9ca3af;line-height:1.5;margin-top:24px;border-top:1px solid #f3f4f6;padding-top:12px;">
-        You're getting this because you're a Community Manager for Hacking Hub. Sent automatically every morning - nothing to reply to.
+        You're getting this because you help run accountability check-ins at Hacking Hub. Sent automatically every morning - nothing to reply to.
       </p>
     </div>`;
 }
@@ -81,6 +87,11 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
+  // Bring new joiners on/off the list before deciding who's due - runs even
+  // when the email is switched off, so the tab stays current regardless.
+  const { error: syncError } = await admin.rpc('sync_new_joiner_accountability');
+  if (syncError) console.error('accountability-digest: new-joiner sync failed', syncError.message);
+
   const { data: settings } = await admin.from('accountability_settings').select('email_enabled').eq('id', 1).maybeSingle();
   if (settings && settings.email_enabled === false) {
     return new Response(JSON.stringify({ skipped: 'disabled' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -100,17 +111,38 @@ Deno.serve(async (req) => {
     console.error('accountability-digest: recipient lookup failed', recipientError?.message);
     return new Response('Recipient lookup failed', { status: 500 });
   }
-  const recipients = recipientRows.map((r: { email: string }) => r.email);
+  const recipients: string[] = recipientRows.map((r: { email: string }) => r.email.toLowerCase());
+  const due = rows as DueRow[];
+  const subjectFor = (n: number) => `${n} member${n === 1 ? ' needs' : 's need'} a check-in today`;
 
-  const subject = `${rows.length} member${rows.length === 1 ? ' needs' : 's need'} a check-in today`;
   try {
-    await sendEmail(resendKey, recipients, subject, digestHtml(rows as DueRow[]));
+    await sendEmail(resendKey, recipients, subjectFor(due.length),
+      digestHtml(due, "Morning! Here's who hasn't been checked in on in over a week - a quick message goes a long way."));
   } catch (e) {
     console.error('accountability-digest: send failed', e instanceof Error ? e.message : e);
     return new Response('Send failed', { status: 500 });
   }
 
-  return new Response(JSON.stringify({ dueCount: rows.length, sent: true, recipients: recipients.length }), {
+  // Personal emails for assignees not already on the full digest.
+  const byAssignee = new Map<string, DueRow[]>();
+  for (const r of due) {
+    const a = r.assigned_to?.toLowerCase();
+    if (!a || recipients.includes(a)) continue;
+    byAssignee.set(a, [...(byAssignee.get(a) || []), r]);
+  }
+  let personalSent = 0;
+  for (const [assignee, theirs] of byAssignee) {
+    try {
+      await sendEmail(resendKey, [assignee], subjectFor(theirs.length),
+        digestHtml(theirs, "Morning! These members are assigned to you and haven't been checked in on in over a week - a quick message goes a long way."));
+      personalSent += 1;
+    } catch (e) {
+      // One failed personal email shouldn't stop the others.
+      console.error('accountability-digest: personal send failed', e instanceof Error ? e.message : e);
+    }
+  }
+
+  return new Response(JSON.stringify({ dueCount: due.length, sent: true, recipients: recipients.length, personalSent }), {
     status: 200, headers: { 'Content-Type': 'application/json' },
   });
 });

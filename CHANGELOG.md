@@ -36,7 +36,15 @@ saved in their browser's `localStorage`.
   07:00 SAST via `092_accountability_digest_cron.sql`. Recipients come
   from `accountability_settings.recipient_emails` (currently the founder
   plus one community manager); clearing it widens to every community
-  manager, with the founder as a last-resort fallback. Sends nothing on a day nobody's
+  manager, with the founder as a last-resort fallback.
+- **New joiners on the list automatically** — every member is on the
+  accountability list for their first 21 days (join date =
+  `COALESCE(manual_start_date, onboarded_at)`), assigned to
+  `accountability_settings.new_joiner_assignee`, then comes off by
+  itself (`sync_new_joiner_accountability()`, run by the digest and on
+  every tab load). Assignees get their own morning email listing only
+  their members; the tab shows "New joiner" / "Assigned to" labels and an
+  "Assigned to me" filter. Hand-added members are never auto-removed. Sends nothing on a day nobody's
   due, and respects the on/off switch on the tab. The cron command is
   built from the existing overdue-1on1 job's, so the cron secret is
   reused server-side instead of pasted in.

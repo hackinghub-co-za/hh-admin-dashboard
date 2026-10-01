@@ -20,14 +20,29 @@ export async function fetchAccountabilityRoster() {
   }));
 }
 
+/** Brings new joiners (first 21 days) onto the list, assigned to the
+ * configured staff member, and takes them off once their 21 days are up -
+ * see sync_new_joiner_accountability() in 091. Called before every list
+ * load so the tab never waits on the 7am digest to catch up. */
+export async function syncNewJoinerAccountability() {
+  const { error } = await supabase.rpc('sync_new_joiner_accountability');
+  if (error) throw error;
+}
+
 /** Everyone currently on the list, oldest-added first. */
 export async function fetchAccountabilityList() {
   const { data, error } = await supabase
     .from('accountability_list')
-    .select('member_email, added_by, added_at')
+    .select('member_email, added_by, added_at, assigned_to, source')
     .order('added_at', { ascending: true });
   if (error) throw error;
-  return (data || []).map((row) => ({ memberEmail: row.member_email, addedBy: row.added_by, addedAt: row.added_at }));
+  return (data || []).map((row) => ({
+    memberEmail: row.member_email,
+    addedBy: row.added_by,
+    addedAt: row.added_at,
+    assignedTo: row.assigned_to || null,
+    isNewJoiner: row.source === 'new_joiner',
+  }));
 }
 
 /** Harmless no-op if they're already on it (member_email is the primary key). */
