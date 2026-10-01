@@ -18,6 +18,38 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.01
+
+### Added
+- **Accountability Check-ins** — a new admin tab, also open to community
+  managers: a staff-curated list of members who need closer attention,
+  with a dated, attributed note logged every time someone checks in on
+  them. "Due Today" is anyone never checked in on, or not within 7 SAST
+  days. Removing someone keeps their history. Tables
+  `accountability_list` / `accountability_checkins` /
+  `accountability_settings`, plus `get_accountability_roster()` — a
+  name/track/photo-only whitelist so a community manager can pick members
+  without reading `member_profiles`' financial fields — and
+  `get_accountability_due()`, shared by the tab and the email
+  (`091_accountability_checkins.sql`).
+- **Daily accountability email** — `accountability-digest` edge function,
+  07:00 SAST via `092_accountability_digest_cron.sql`, to every
+  community manager (founder fallback). Sends nothing on a day nobody's
+  due, and respects the on/off switch on the tab. The cron command is
+  built from the existing overdue-1on1 job's, so the cron secret is
+  reused server-side instead of pasted in.
+
+### Changed
+- Pressable button styling now applies app-wide, admin included.
+- Roadmap items record a real `completed_at` (trigger in
+  `028_roadmap.sql`); Monthly Recap and My Journey use it instead of
+  `updated_at`.
+- Events can have an optional `end_date` (`019_events.sql`), so
+  multi-day events stay listed until their last day.
+- Login streak and Cyber Question of the Day roll over at SAST
+  midnight, not 02:00 (`032`, `087`). The admin churn tile is hidden for
+  the first week of each month.
+
 ## 2026.09.25
 
 ### Added

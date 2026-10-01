@@ -31,6 +31,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Kanban,
+  UserCheck,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
@@ -415,6 +416,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'members', label: 'Members', icon: Contact },
         { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
+        { id: 'accountability', label: 'Accountability Check-ins', icon: UserCheck },
         { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
@@ -431,6 +433,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     : viewRole === 'community_manager'
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'accountability', label: 'Accountability Check-ins', icon: UserCheck },
         { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
         { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
