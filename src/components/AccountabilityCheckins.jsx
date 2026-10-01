@@ -171,8 +171,14 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
   const assignedToMeCount = tracked.filter((t) => t.assignedTo === myEmail).length;
   const visible = onlyMine ? tracked.filter((t) => t.assignedTo === myEmail) : tracked;
   // Longest-waiting first, same order as the daily email.
-  const dueToday = visible.filter((t) => t.due).sort((a, b) => (a.lastCheckinAt ? new Date(a.lastCheckinAt) : 0) - (b.lastCheckinAt ? new Date(b.lastCheckinAt) : 0));
+  const dueSort = (a, b) => (a.lastCheckinAt ? new Date(a.lastCheckinAt) : 0) - (b.lastCheckinAt ? new Date(b.lastCheckinAt) : 0);
+  const dueToday = visible.filter((t) => t.due).sort(dueSort);
   const checkedInThisWeek = visible.length - dueToday.length;
+  // Everyone due, ignoring the "Assigned to me" toggle - the real daily
+  // email always goes out for the whole list regardless of which filter an
+  // admin happens to have selected when they open the preview, so the
+  // preview has to use this instead of the (filter-aware) dueToday above.
+  const dueAll = tracked.filter((t) => t.due).sort(dueSort);
 
   const onList = new Set(list.map((l) => l.memberEmail));
   const searchResults = search.trim()
@@ -539,8 +545,8 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
               <div style={{ fontSize: '12px', lineHeight: 1.7 }}>
                 <div><strong style={{ color: '#111827' }}>To</strong> {emailSettings?.recipients?.join(', ') || '—'}</div>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827' }}>
-                  {dueToday.length
-                    ? `${dueToday.length} member${dueToday.length === 1 ? ' needs' : 's need'} a check-in today`
+                  {dueAll.length
+                    ? `${dueAll.length} member${dueAll.length === 1 ? ' needs' : 's need'} a check-in today`
                     : 'Nothing to send today'}
                 </div>
               </div>
@@ -549,12 +555,12 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
               </button>
             </div>
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {dueToday.length === 0 ? (
+              {dueAll.length === 0 ? (
                 <p style={{ margin: 0, fontSize: '14px' }}>Nobody's due today, so no email goes out this morning.</p>
               ) : (
                 <>
                   <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6 }}>Morning! Here's who hasn't been checked in on in over a week - a quick message goes a long way.</p>
-                  {dueToday.map((t) => (
+                  {dueAll.map((t) => (
                     <div key={t.email} style={{ padding: '14px 16px', borderRadius: '10px', background: '#fffbeb', border: '1px solid #fde68a' }}>
                       <div style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>{t.name}</div>
                       <div style={{ fontSize: '12px', color: '#92400e' }}>{lastCheckinLabel(t.lastCheckinAt)}{t.specialty ? ` · ${t.specialty}` : ''}</div>
