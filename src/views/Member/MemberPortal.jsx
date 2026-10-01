@@ -6869,7 +6869,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     case 'resources':
       return (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
+          {/* paddingRight matches the two glass-cards below (their own 24px
+              padding), so this row's button lines up with "Get Reviewed"
+              and "Log Application" instead of sitting 24px further right -
+              this row has no card wrapper of its own to provide that inset. */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px', paddingRight: '24px' }}>
             <div>
               <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Library size={28} color="var(--accent-cyan)" /> Resources
