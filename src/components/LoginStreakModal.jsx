@@ -101,7 +101,7 @@ export default function LoginStreakModal({ currentStreak, longestStreak, loginHi
             </div>
             {topStreak ? (
               <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>
-                {topStreak.fullName || topStreak.email}
+                {topStreak.fullName || 'A fellow member'}
                 <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 400, color: 'var(--text-secondary)', marginTop: '2px' }}>{topStreak.streak} day{topStreak.streak === 1 ? '' : 's'} in a row</span>
               </div>
             ) : (

@@ -140,7 +140,9 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE
 AS $$
 DECLARE
   v_email TEXT := lower(auth.jwt() ->> 'email');
-  v_today DATE := (timezone('utc'::text, now()))::date;
+  -- SAST calendar day, so the question flips at local midnight rather than
+  -- 02:00 (UTC's midnight) - same fix as 032_login_streak.sql.
+  v_today DATE := (now() AT TIME ZONE 'Africa/Johannesburg')::date;
   v_count INTEGER;
   v_question_id BIGINT;
   v_already_answered BOOLEAN;
@@ -202,7 +204,9 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
   v_email TEXT := lower(auth.jwt() ->> 'email');
-  v_today DATE := (timezone('utc'::text, now()))::date;
+  -- SAST calendar day, so the question flips at local midnight rather than
+  -- 02:00 (UTC's midnight) - same fix as 032_login_streak.sql.
+  v_today DATE := (now() AT TIME ZONE 'Africa/Johannesburg')::date;
   v_count INTEGER;
   v_question_id BIGINT;
   v_correct_index INTEGER;

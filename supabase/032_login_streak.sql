@@ -54,22 +54,27 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
   v_email TEXT := lower(auth.jwt() ->> 'email');
+  -- The member's own calendar day (SAST), not the server's UTC CURRENT_DATE
+  -- - with UTC, the "day" rolled over at 02:00 local, so a 01:30 login
+  -- counted as yesterday and a later login the same local day bumped the
+  -- streak twice.
+  v_today DATE := (now() AT TIME ZONE 'Africa/Johannesburg')::date;
   v_new_streak INTEGER;
 BEGIN
   INSERT INTO public.member_profiles (email, login_streak, last_login_date, longest_login_streak)
-  VALUES (v_email, 1, CURRENT_DATE, 1)
+  VALUES (v_email, 1, v_today, 1)
   ON CONFLICT (email) DO UPDATE SET
     login_streak = CASE
-      WHEN public.member_profiles.last_login_date = CURRENT_DATE THEN public.member_profiles.login_streak
-      WHEN public.member_profiles.last_login_date = CURRENT_DATE - 1 THEN public.member_profiles.login_streak + 1
+      WHEN public.member_profiles.last_login_date = v_today THEN public.member_profiles.login_streak
+      WHEN public.member_profiles.last_login_date = v_today - 1 THEN public.member_profiles.login_streak + 1
       ELSE 1
     END,
-    last_login_date = CURRENT_DATE,
+    last_login_date = v_today,
     longest_login_streak = GREATEST(
       public.member_profiles.longest_login_streak,
       CASE
-        WHEN public.member_profiles.last_login_date = CURRENT_DATE THEN public.member_profiles.login_streak
-        WHEN public.member_profiles.last_login_date = CURRENT_DATE - 1 THEN public.member_profiles.login_streak + 1
+        WHEN public.member_profiles.last_login_date = v_today THEN public.member_profiles.login_streak
+        WHEN public.member_profiles.last_login_date = v_today - 1 THEN public.member_profiles.login_streak + 1
         ELSE 1
       END
     )
@@ -79,7 +84,7 @@ BEGIN
   -- streak math above uses - ON CONFLICT DO NOTHING rather than checking
   -- first, since this table's PK already enforces it.
   INSERT INTO public.login_history (member_email, login_date)
-  VALUES (v_email, CURRENT_DATE)
+  VALUES (v_email, v_today)
   ON CONFLICT (member_email, login_date) DO NOTHING;
 
   RETURN v_new_streak;
@@ -99,7 +104,7 @@ AS $$
   SELECT lh.login_date
   FROM public.login_history lh
   WHERE lh.member_email = lower(auth.jwt() ->> 'email')
-    AND lh.login_date >= CURRENT_DATE - p_days;
+    AND lh.login_date >= (now() AT TIME ZONE 'Africa/Johannesburg')::date - p_days;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_my_login_history(INTEGER) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_my_login_history(INTEGER) FROM PUBLIC, anon;
@@ -126,13 +131,21 @@ REVOKE EXECUTE ON FUNCTION public.get_my_login_streak_summary() FROM PUBLIC, ano
 -- personal - this one changes as people's live streaks rise and reset).
 -- A narrow, name+count-only RPC rather than exposing the whole roster's
 -- streaks, same reasoning as every other leaderboard RPC in this app.
-CREATE OR REPLACE FUNCTION public.get_top_login_streak()
-RETURNS TABLE (full_name TEXT, email TEXT, login_streak INTEGER)
+-- Only counts a streak that's still alive (logged in today or yesterday,
+-- SAST) - login_streak itself is only ever reset by the member's NEXT
+-- login, so without this a member who stopped coming a month ago kept
+-- their old count and could show as the "longest active streak". Returns
+-- name + count only, no email - every authenticated member calls this.
+-- (DROP first: the return shape changed, which CREATE OR REPLACE can't do.)
+DROP FUNCTION IF EXISTS public.get_top_login_streak();
+CREATE FUNCTION public.get_top_login_streak()
+RETURNS TABLE (full_name TEXT, login_streak INTEGER)
 LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE
 AS $$
-  SELECT mp.full_name, mp.email, mp.login_streak
+  SELECT mp.full_name, mp.login_streak
   FROM public.member_profiles mp
   WHERE mp.login_streak > 0
+    AND mp.last_login_date >= (now() AT TIME ZONE 'Africa/Johannesburg')::date - 1
   ORDER BY mp.login_streak DESC, mp.last_login_date DESC
   LIMIT 1;
 $$;

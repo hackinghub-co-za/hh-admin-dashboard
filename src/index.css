@@ -78,6 +78,10 @@
      --bg-primary's dark value in both themes, since the gradient itself
      stays a bright green either way and needs dark text for contrast. */
   --accent-ink: #12132b;
+
+  /* Sidebar profile-section tint - a darkening in dark mode; light mode
+     gets its own value below instead of a grey slab. */
+  --sidebar-footer-bg: rgba(0, 0, 0, 0.2);
 }
 
 /* Light theme - opt-in via the Sidebar toggle (src/lib/theme.js), applied
@@ -110,6 +114,7 @@
   --glass-shadow: 0 8px 24px 0 rgba(18, 20, 31, 0.08);
   --glass-border: 1px solid rgba(18, 20, 31, 0.06);
   --glass-hover-shadow: 0 8px 24px 0 rgba(23, 149, 79, 0.12);
+  --sidebar-footer-bg: rgba(18, 20, 31, 0.03);
 }
 
 * {
@@ -226,7 +231,17 @@ p {
   border-radius: var(--border-radius-lg);
   border: none;
   cursor: pointer;
+  /* .btn is also used on <a> link-buttons - never underline those. */
+  text-decoration: none;
   transition: transform 0.08s ease, border-bottom-width 0.08s ease, filter 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+/* A disabled button must not look or feel pressable - no squish, no
+   brightening, visibly dimmed. The :active/:hover rules below are all
+   gated on :not(:disabled) for the same reason. */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -236,13 +251,13 @@ p {
   box-shadow: none;
 }
 
-.btn-primary:hover {
+.btn-primary:not(:disabled):hover {
   transform: none;
   box-shadow: none;
   filter: brightness(1.05);
 }
 
-.btn-primary:active {
+.btn-primary:not(:disabled):active {
   border-bottom-width: 2px;
   transform: translateY(3px) scale(0.97);
   filter: none;
@@ -255,11 +270,11 @@ p {
   border-bottom: 4px solid var(--border-color);
 }
 
-.btn-secondary:hover {
+.btn-secondary:not(:disabled):hover {
   border-color: var(--text-secondary);
 }
 
-.btn-secondary:active {
+.btn-secondary:not(:disabled):active {
   border-bottom-width: 2px;
   transform: translateY(2px) scale(0.97);
 }
@@ -267,11 +282,11 @@ p {
 /* Multiple-choice answer cards (DailyQuestionModal) - same pressable
    anatomy as .btn, sized for a full-width option row rather than an
    inline action. */
-.member-portal .duo-choice:hover {
+.member-portal .duo-choice:not(:disabled):hover {
   border-color: var(--accent-cyan);
 }
 
-.member-portal .duo-choice:active {
+.member-portal .duo-choice:not(:disabled):active {
   border-bottom-width: 2px !important;
   transform: translateY(2px) scale(0.98);
 }
@@ -283,7 +298,7 @@ p {
   transition: transform 0.08s ease, border-bottom-width 0.08s ease;
 }
 
-.member-portal .duo-continue:active {
+.member-portal .duo-continue:not(:disabled):active {
   border-bottom-width: 2px !important;
   transform: translateY(3px) scale(0.97);
 }

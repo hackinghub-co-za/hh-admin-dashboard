@@ -322,7 +322,7 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
             >
               <ChevronRight size={18} />
             </button>
-            <div ref={boardScrollRef} onWheel={handleBoardWheel} style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px', scrollBehavior: 'smooth' }}>
+            <div ref={boardScrollRef} onWheel={handleBoardWheel} style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px', paddingInline: '48px', scrollBehavior: 'smooth' }}>
               {PHASES.map((phase) => (
                 <PhaseColumn
                   key={phase}

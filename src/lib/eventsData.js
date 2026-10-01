@@ -12,7 +12,7 @@ import { supabase } from './supabase';
 export async function fetchCommunityEvents() {
   const { data, error } = await supabase
     .from('community_events')
-    .select('id, type, title, description, date, time, location, link, image_url, created_by, status, capacity, recording_url, recording_added_at, summary_notes_url')
+    .select('id, type, title, description, date, end_date, time, location, link, image_url, created_by, status, capacity, recording_url, recording_added_at, summary_notes_url')
     .order('date', { ascending: true });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -21,6 +21,7 @@ export async function fetchCommunityEvents() {
     title: row.title,
     description: row.description || '',
     date: row.date,
+    endDate: row.end_date || '', // '' = single-day event
     time: row.time || '',
     location: row.location || '',
     link: row.link || '',
@@ -38,7 +39,7 @@ export async function fetchCommunityEvents() {
  * enforces created_by can only ever be the caller's own email). Always lands
  * as 'Pending' server-side regardless of what's sent - only visible to its
  * submitter and admins until approved via approveCommunityEvent(). */
-export async function createCommunityEvent({ type, title, description, date, time, location, link, imageUrl, createdBy }) {
+export async function createCommunityEvent({ type, title, description, date, endDate, time, location, link, imageUrl, createdBy }) {
   const { data, error } = await supabase
     .from('community_events')
     .insert({
@@ -46,6 +47,7 @@ export async function createCommunityEvent({ type, title, description, date, tim
       title,
       description: description || null,
       date,
+      end_date: endDate || null,
       time: time || null,
       location: location || null,
       link: link || null,
@@ -61,6 +63,7 @@ export async function createCommunityEvent({ type, title, description, date, tim
     title: data.title,
     description: data.description || '',
     date: data.date,
+    endDate: data.end_date || '',
     time: data.time || '',
     location: data.location || '',
     link: data.link || '',
@@ -100,7 +103,7 @@ export async function uploadEventImage(eventKey, file) {
  * RLS policy already covers this write, same as approve/delete - no new
  * policy or RPC needed). Status is deliberately not editable here; that
  * stays approveCommunityEvent()'s own job. */
-export async function updateCommunityEvent(eventId, { type, title, description, date, time, location, link, imageUrl, capacity }) {
+export async function updateCommunityEvent(eventId, { type, title, description, date, endDate, time, location, link, imageUrl, capacity }) {
   const { error } = await supabase
     .from('community_events')
     .update({
@@ -108,6 +111,7 @@ export async function updateCommunityEvent(eventId, { type, title, description, 
       title,
       description: description || null,
       date,
+      end_date: endDate || null,
       time: time || null,
       location: location || null,
       link: link || null,

@@ -2220,7 +2220,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // referencing it before initialization.
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
-  const liveCommunityEvents = communityEvents.filter((e) => e.status === 'Approved' && new Date(`${e.date}T00:00:00`) >= startOfToday);
+  const liveCommunityEvents = communityEvents.filter((e) => e.status === 'Approved' && new Date(`${e.endDate || e.date}T00:00:00`) >= startOfToday);
 
   const handleApproveEvent = async (eventId) => {
     setApprovingEventId(eventId);
@@ -2281,7 +2281,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const HH_EVENT_IMAGE_URL = 'https://kveiflphktpvsddhkspz.supabase.co/storage/v1/object/public/event-images/_hh-branding/logo.png';
   const HH_RUN_EVENT_TYPES = ['HH Meetup', 'Sunday Catchup', 'Study Session'];
 
-  const EMPTY_EVENT_FORM = { type: 'HH Meetup', title: '', description: '', date: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL, capacity: '' };
+  const EMPTY_EVENT_FORM = { type: 'HH Meetup', title: '', description: '', date: '', endDate: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL, capacity: '' };
   const [showAddEventForm, setShowAddEventForm] = useState(false);
   const [newEvent, setNewEvent] = useState(EMPTY_EVENT_FORM);
   const [addingEvent, setAddingEvent] = useState(false);
@@ -2327,7 +2327,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const startEditEvent = (ev) => {
     setEditingEventId(ev.id);
     setNewEvent({
-      type: ev.type, title: ev.title, description: ev.description || '', date: ev.date, time: ev.time || '',
+      type: ev.type, title: ev.title, description: ev.description || '', date: ev.date, endDate: ev.endDate || '', time: ev.time || '',
       location: ev.location || '', link: ev.link || '', imageUrl: ev.imageUrl || '', capacity: ev.capacity ?? '',
     });
     setShowAddEventForm(true);
@@ -4090,7 +4090,7 @@ Pick new people to present next Sunday`;
             };
 
             const hasActiveFilters = JSON.stringify(memberSheetFilters) !== JSON.stringify(emptyMemberSheetFilters);
-            const filterSelectStyle = { fontSize: '0.78rem', padding: '6px 8px' };
+            const filterSelectStyle = { fontSize: '0.78rem', padding: '6px 8px', width: 'auto' }; // .form-input defaults to 100% width, which stacked every filter on its own row
 
             return (
               <div className="glass-card" style={{ marginBottom: '24px' }}>
@@ -5702,8 +5702,11 @@ Pick new people to present next Sunday`;
                 <input className="form-input" placeholder="Title" value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} required />
               </div>
               <textarea className="form-input" placeholder="Description (optional)" rows={2} value={newEvent.description} onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                <input type="date" className="form-input" value={newEvent.date} onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })} required />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+                <input type="date" className="form-input" title="Start date" aria-label="Start date" value={newEvent.date} onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })} required />
+                {/* Optional - only for multi-day events (a weekend CTF), so they
+                    stay listed as upcoming until their last day. */}
+                <input type="date" className="form-input" title="End date (optional, multi-day events)" aria-label="End date (optional)" min={newEvent.date || undefined} value={newEvent.endDate} onChange={(e) => setNewEvent({ ...newEvent, endDate: e.target.value })} />
                 <input className="form-input" placeholder="Time (optional)" value={newEvent.time} onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })} />
                 <input className="form-input" placeholder="Location (optional)" value={newEvent.location} onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })} />
               </div>
@@ -5785,7 +5788,7 @@ Pick new people to present next Sunday`;
                           <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{ev.title}</h4>
                         </div>
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                          {formatDate(ev.date)}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'}
+                          {formatDate(ev.date)}{ev.endDate ? ` - ${formatDate(ev.endDate)}` : ''}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'}
                           {ev.createdBy && ` | Submitted by ${ev.createdBy}`}
                         </p>
                       </div>
@@ -5942,7 +5945,7 @@ Pick new people to present next Sunday`;
                     <div>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '4px' }}>{ev.title}</h4>
                       <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                        {formatDate(ev.date)}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'} | Submitted by {ev.createdBy}
+                        {formatDate(ev.date)}{ev.endDate ? ` - ${formatDate(ev.endDate)}` : ''}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'} | Submitted by {ev.createdBy}
                       </p>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>

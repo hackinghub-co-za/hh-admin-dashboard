@@ -567,7 +567,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         style={{
           padding: '20px 16px',
           borderTop: 'var(--glass-border)',
-          background: 'rgba(0, 0, 0, 0.2)',
+          background: 'var(--sidebar-footer-bg)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

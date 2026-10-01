@@ -94,7 +94,7 @@ export default function DailyQuestionModal({ question, submitting, onAnswer, onC
                 padding: '16px',
                 borderRadius: 'var(--border-radius-lg)',
                 border: 'none',
-                borderBottom: '5px solid var(--bg-primary)',
+                borderBottom: '5px solid #0b0c1e', // fixed dark edge - --bg-primary turns near-white in light theme
                 background: '#1a1c3d',
                 color: '#ffffff',
                 fontFamily: 'inherit',

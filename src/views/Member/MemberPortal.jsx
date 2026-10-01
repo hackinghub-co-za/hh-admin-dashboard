@@ -310,6 +310,9 @@ function playTaskTickSound() {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
     osc.connect(gain);
     gain.connect(ctx.destination);
+    // Each sound gets its own context - close it once done, since browsers
+    // cap how many can be open at once and every tick would otherwise leak one.
+    osc.onended = () => ctx.close().catch(() => {});
     osc.start(now);
     osc.stop(now + 0.15);
   } catch {
@@ -345,6 +348,8 @@ function playSpecializationChime() {
       gain.connect(ctx.destination);
       osc.start(now + start);
       osc.stop(now + start + 0.45);
+      // Second (last) note done = whole chime done; free the context.
+      if (start > 0) osc.onended = () => ctx.close().catch(() => {});
     });
   } catch {
     // Web Audio can throw in odd environments (no support, blocked policy) -
@@ -433,6 +438,18 @@ function formatEventCountdown(days) {
   if (days === 0) return 'Today';
   if (days === 1) return 'Tomorrow';
   return `In ${days} days`;
+}
+
+// A multi-day event (endDate set) stays "upcoming" until its last day, not
+// its first - otherwise a Fri-Sun event disappeared from every list on
+// Saturday. Its countdown reads "Happening now" between the two.
+function isEventUpcoming(e) {
+  return daysUntilEvent(e.endDate || e.date) >= 0;
+}
+
+function eventCountdownLabel(e) {
+  if (e.endDate && daysUntilEvent(e.date) < 0 && daysUntilEvent(e.endDate) >= 0) return 'Happening now';
+  return formatEventCountdown(daysUntilEvent(e.date));
 }
 
 // Small vendor/brand logo next to a title, detected from a free-text title
@@ -1323,6 +1340,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // component.
   const [showMonthlyRecap, setShowMonthlyRecap] = useState(false);
   const [monthlyRecapData, setMonthlyRecapData] = useState(null);
+  // True once today's question fetch has settled either way - the Monthly
+  // Recap waits on this, not just on dailyQuestionModalOpen, since that
+  // flag only flips true AFTER the fetch resolves and could otherwise still
+  // read false while the recap's own data had already finished loading.
+  const [dailyQuestionSettled, setDailyQuestionSettled] = useState(isMockSession);
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
@@ -1332,7 +1354,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         setDailyQuestion(q);
         if (q && !q.alreadyAnswered) setDailyQuestionModalOpen(true);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => !cancelled && setDailyQuestionSettled(true));
     return () => { cancelled = true; };
   }, [isMockSession]);
 
@@ -1833,6 +1856,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       setActiveTab?.('roadmap');
       return;
     }
+    // Core Foundations items with a subtask catalog complete via their
+    // subtasks, not a direct toggle - the full My Roadmap row already
+    // expands its subtasks instead of toggling, but the Dashboard path tile
+    // called this directly and marked the item done with every subtask
+    // still unticked. Send the member to the real checklist instead. (The
+    // subtask cascade itself calls this with silent: true, so it's exempt.)
+    if (!silent && item.phase === 'Core Foundations' && CORE_FOUNDATION_SUBTASKS[item.title]) {
+      setActiveTab?.('roadmap');
+      return;
+    }
     // updatedAt is bumped optimistically too - the toggle RPC sets it
     // server-side to the same effect, and doing it here means the "gone
     // quiet" banner clears the moment a member actually touches their
@@ -1846,14 +1879,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // Core Foundations item's last subtask (handleToggleSubtask below) -
       // that click already played its own tick sound, so this would
       // otherwise double up on the same click.
-      if (!silent) playTaskTickSound();
       const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
       const isCoreFoundationCert = (i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title);
       const doneBefore = roadmapItems.filter(isCoreFoundationCert).filter((i) => i.completed).length;
       const doneAfter = nextItems.filter(isCoreFoundationCert).filter((i) => i.completed).length;
       if (doneBefore < SPECIALIZATION_UNLOCK_MIN && doneAfter >= SPECIALIZATION_UNLOCK_MIN) {
+        // The unlock chime replaces the everyday tick on this one click
+        // rather than both playing over each other.
         playSpecializationChime();
         setSpecializationCelebration(randomSpecializationQuote());
+      } else if (!silent) {
+        playTaskTickSound();
       }
     }
 
@@ -1966,10 +2002,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [topLoginStreak, setTopLoginStreak] = useState(isMockSession ? MOCK_TOP_LOGIN_STREAK : null);
   const [showLoginStreakModal, setShowLoginStreakModal] = useState(false);
   const [loadingLoginStreakDetail, setLoadingLoginStreakDetail] = useState(false);
+  const [loginStreakSettled, setLoginStreakSettled] = useState(isMockSession);
 
   useEffect(() => {
     if (isMockSession) return;
-    recordDailyLogin().then(setLoginStreak).catch((err) => console.error('Could not record login streak:', err));
+    recordDailyLogin()
+      .then(setLoginStreak)
+      .catch((err) => console.error('Could not record login streak:', err))
+      .finally(() => setLoginStreakSettled(true));
   }, [isMockSession]);
 
   const handleOpenLoginStreakModal = () => {
@@ -2502,7 +2542,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const monthlyRecapCheckedRef = useRef(false);
   useEffect(() => {
     if (monthlyRecapCheckedRef.current) return;
-    if (loadingRoadmap || loadingRoomLogs || loadingEvents) return;
+    // Only ever shown on the Dashboard (where the release notes say to find
+    // it) - not set as checked here, so landing on another tab first just
+    // defers it until the member gets to the Dashboard.
+    if (activeTab !== 'dashboard') return;
+    // Every input it reads has to have actually loaded first - RSVPs and the
+    // login streak included, otherwise an all-zero-looking month gets the
+    // recap skipped for good (the ref is set below) or the streak pill
+    // silently missing.
+    if (loadingRoadmap || loadingRoomLogs || loadingEvents || loadingEventRsvps || !loginStreakSettled || !dailyQuestionSettled) return;
     // Both this and Cyber Question of the Day auto-open on Dashboard mount,
     // and they'll coincide every month-end for anyone who hasn't answered
     // today's question yet - wait for that one to resolve first rather than
@@ -2526,6 +2574,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
     const isThisMonth = (dateStr) => {
       if (!dateStr) return false;
+      // Date-only strings (logDate, event date) compare as plain calendar
+      // strings - new Date('YYYY-MM-DD') parses as UTC midnight, which lands
+      // on the previous day in any timezone behind UTC.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr.slice(0, 7) === monthKey;
       const d = new Date(dateStr);
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     };
@@ -2560,7 +2612,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // Storage unavailable - the recap just won't remember it's been shown,
       // same tradeoff Sidebar's markReleaseSeen accepts.
     }
-  }, [loadingRoadmap, loadingRoomLogs, loadingEvents, roadmapItems, roomLogs, communityEvents, loginStreak, hasRsvpedToEvent, dailyQuestionModalOpen]);
+  }, [activeTab, loadingRoadmap, loadingRoomLogs, loadingEvents, loadingEventRsvps, loginStreakSettled, dailyQuestionSettled, roadmapItems, roomLogs, communityEvents, loginStreak, hasRsvpedToEvent, dailyQuestionModalOpen]);
 
   const handleAddEvent = async (e) => {
     e.preventDefault();
@@ -2622,7 +2674,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const filteredEvents = (eventTypeFilter === 'All'
     ? communityEvents
     : communityEvents.filter(e => e.type === eventTypeFilter)
-  ).filter((e) => daysUntilEvent(e.date) >= 0);
+  ).filter(isEventUpcoming);
 
   // The full event card - real content lives here once, reused by Grid
   // view's board and by Calendar view's "here's what's on the day you
@@ -2679,7 +2731,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         <ExpandableText text={e.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }} />
         <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-            <CalendarDays size={14} /> {formatDate(e.date)} at {e.time} SAST
+            <CalendarDays size={14} /> {formatDate(e.date)}{e.endDate ? ` - ${formatDate(e.endDate)}` : ''} at {e.time} SAST
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
             <MapPin size={14} /> {e.location}
@@ -2753,7 +2805,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         </div>
         {hasRsvped && (
           <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-            {formatEventCountdown(daysUntilEvent(e.date))}
+            {eventCountdownLabel(e)}
           </div>
         )}
       </div>
@@ -2764,7 +2816,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // that hasn't happened yet, not a hardcoded placeholder. undefined once
   // there's genuinely nothing on the calendar.
   const nextCommunityEvent = communityEvents
-    .filter((e) => e.status === 'Approved' && daysUntilEvent(e.date) >= 0)
+    .filter((e) => e.status === 'Approved' && isEventUpcoming(e))
     .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
 
   // Cert Calendar - real Supabase data for a real session (RLS scopes reads
@@ -4738,11 +4790,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 : () => handleToggleMyRoadmapItem(item);
                             return (
                             <div
-                              // Keyed on completed too (Duolingo-style pop
-                              // bounce below) so the row's checkmark replays
-                              // its "just landed" animation on every real
-                              // transition, not just first mount.
-                              key={`${item.id}-${item.completed}`}
+                              key={item.id}
                               onClick={rowOnClick}
                               style={{
                                 display: 'flex',
@@ -4840,10 +4888,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                       const busy = subtaskBusyKey === `${item.title}::${st.key}`;
                                       return (
                                         <button
-                                          // Keyed on done too, same reason as
-                                          // the item row above - replays the
-                                          // pop bounce on every real toggle.
-                                          key={`${st.key}-${done}`}
+                                          key={st.key}
                                           type="button"
                                           onClick={() => !busy && handleToggleSubtask(item, st.key)}
                                           disabled={busy}
@@ -6275,7 +6320,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {(() => {
             const myRsvpedEvents = communityEvents
-              .filter((e) => hasRsvpedToEvent(e.id) && daysUntilEvent(e.date) >= 0)
+              .filter((e) => hasRsvpedToEvent(e.id) && isEventUpcoming(e))
               .sort((a, b) => new Date(a.date) - new Date(b.date));
             if (myRsvpedEvents.length === 0) return null;
             return (
@@ -6292,10 +6337,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     >
                       <div>
                         <div style={{ fontWeight: 600 }}>{e.title}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{formatDate(e.date)} at {e.time} SAST</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{formatDate(e.date)}{e.endDate ? ` - ${formatDate(e.endDate)}` : ''} at {e.time} SAST</div>
                       </div>
                       <span className="badge badge-success" style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                        {formatEventCountdown(daysUntilEvent(e.date))}
+                        {eventCountdownLabel(e)}
                       </span>
                     </div>
                   ))}
@@ -6394,7 +6439,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       return (
                         <tr key={e.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                           <td style={{ padding: '14px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                            {formatDate(e.date)}{e.time ? ` · ${e.time}` : ''}
+                            {formatDate(e.date)}{e.endDate ? ` - ${formatDate(e.endDate)}` : ''}{e.time ? ` · ${e.time}` : ''}
                           </td>
                           <td style={{ padding: '14px 16px', fontSize: '0.9rem', fontWeight: 600, maxWidth: '260px' }}>
                             {e.title}
@@ -6451,7 +6496,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             // clicking a day still shows only what's actually upcoming.
             const eventsByDay = {};
             communityEvents
-              .filter((e) => daysUntilEvent(e.date) >= 0 && (eventTypeFilter === 'All' || e.type === eventTypeFilter))
+              .filter((e) => isEventUpcoming(e) && (eventTypeFilter === 'All' || e.type === eventTypeFilter))
               .forEach((e) => {
                 const key = new Date(`${e.date}T00:00:00`).toDateString();
                 (eventsByDay[key] = eventsByDay[key] || []).push(e);
@@ -8732,7 +8777,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-primary"
-                        style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, var(--danger), var(--accent-purple))' }}
+                        style={{ width: '100%', justifyContent: 'center', background: 'var(--danger)', borderBottomColor: '#b91c1c', color: '#ffffff' }}
                       >
                         Apply for Placement <ExternalLink size={14} />
                       </a>

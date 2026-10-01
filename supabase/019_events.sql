@@ -74,6 +74,19 @@ ALTER TABLE public.community_events
 ALTER TABLE public.community_events
   ADD COLUMN IF NOT EXISTS capacity INTEGER CHECK (capacity IS NULL OR capacity > 0);
 
+-- Optional last day for a multi-day event (e.g. a weekend CTF) - NULL
+-- means a single-day event, same as every event before this column
+-- existed. Without it, "upcoming" filters only ever looked at the start
+-- `date`, so a Fri-Sun event vanished from every list from Saturday on,
+-- mid-event. The client treats COALESCE(end_date, date) as the day an
+-- event stops being upcoming.
+ALTER TABLE public.community_events
+  ADD COLUMN IF NOT EXISTS end_date DATE;
+ALTER TABLE public.community_events
+  DROP CONSTRAINT IF EXISTS community_events_end_date_after_start;
+ALTER TABLE public.community_events
+  ADD CONSTRAINT community_events_end_date_after_start CHECK (end_date IS NULL OR end_date >= date);
+
 -- Optional logo/cover image - most events don't set one and the member/
 -- public cards render fine without it; useful for an external community's
 -- own branding (e.g. a partner meetup's logo) or a hero image for HH's own

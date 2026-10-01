@@ -35,5 +35,5 @@ export async function fetchTopLoginStreak() {
   if (error) throw error;
   const row = (data || [])[0];
   if (!row) return null;
-  return { fullName: row.full_name, email: row.email, streak: row.login_streak };
+  return { fullName: row.full_name, streak: row.login_streak };
 }
