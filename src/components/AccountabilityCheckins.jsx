@@ -114,6 +114,11 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [togglingEmail, setTogglingEmail] = useState(false);
   const [onlyMine, setOnlyMine] = useState(false);
+  // Which member's note box was just submitted empty - shows a hint rather
+  // than leaving the button silently disabled with no explanation (the
+  // actual report: "I can't select 'Log Check-in'" - it wasn't broken, it
+  // was disabled until a note existed, with nothing on screen saying so).
+  const [emptyNoteFor, setEmptyNoteFor] = useState(null);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -203,7 +208,12 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
 
   const handleLogCheckin = async (email) => {
     const note = (drafts[email] || '').trim();
-    if (!note) return;
+    if (!note) {
+      setEmptyNoteFor(email);
+      document.getElementById(`checkin-${email}`)?.focus();
+      return;
+    }
+    setEmptyNoteFor(null);
     setError(null);
     setSavingEmail(email);
     try {
@@ -245,14 +255,24 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
         rows={2}
         placeholder="What are they working on? How's it going?"
         value={drafts[t.email] || ''}
-        onChange={(e) => setDrafts((prev) => ({ ...prev, [t.email]: e.target.value }))}
-        style={textareaStyle}
+        onChange={(e) => {
+          setDrafts((prev) => ({ ...prev, [t.email]: e.target.value }));
+          if (emptyNoteFor === t.email) setEmptyNoteFor(null);
+        }}
+        aria-invalid={emptyNoteFor === t.email}
+        style={emptyNoteFor === t.email ? { ...textareaStyle, borderColor: 'var(--danger)' } : textareaStyle}
       />
+      {emptyNoteFor === t.email && (
+        <span style={{ fontSize: '0.74rem', color: 'var(--danger)', marginTop: '-6px' }}>Type a note before logging the check-in.</span>
+      )}
+      {/* Always clickable (not disabled by an empty note) - a disabled
+          button with no explanation reads as broken, not as "do something
+          first". Clicking empty shows the hint above instead. */}
       <button
         type="button"
         className="btn btn-primary"
         style={{ alignSelf: 'flex-start', padding: '8px 16px', fontSize: '0.75rem' }}
-        disabled={!(drafts[t.email] || '').trim() || savingEmail === t.email}
+        disabled={savingEmail === t.email}
         onClick={() => handleLogCheckin(t.email)}
       >
         {savingEmail === t.email ? 'Saving...' : 'Log Check-in'}
