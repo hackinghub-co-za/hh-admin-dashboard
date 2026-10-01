@@ -59,6 +59,17 @@ saved in their browser's `localStorage`.
 - Login streak and Cyber Question of the Day roll over at SAST
   midnight, not 02:00 (`032`, `087`). The admin churn tile is hidden for
   the first week of each month.
+- Gross Revenue chart: goal line replaced with two — Target (R50,000,
+  dashed) and Standard (R34,000, dotted) — and the axis now always has
+  headroom above Target. Month labels moved out of each bar's own
+  column into a row below the chart, fixing a layout bug where a bar
+  could visually cross a reference line it hadn't actually reached.
+
+### Fixed
+- Accountability Check-ins' "Log Check-in" button was always disabled
+  until a note was typed, with nothing telling you why. It's enabled
+  now; clicking it empty focuses the note field and shows a hint
+  instead of just sitting there.
 
 ## 2026.09.25
 

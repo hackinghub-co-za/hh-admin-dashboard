@@ -6,6 +6,38 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.01',
+    date: '2026-10-01',
+    headline: 'Multi-day events, a Gross Revenue chart admins can actually read, and a few quiet bug fixes.',
+    intro: "Multi-day events (like a weekend CTF) now stay listed until they're actually over, instead of disappearing after day one. Your login streak and Cyber Question of the Day now roll over at real midnight here in SA, not 2am. And a handful of smaller things got fixed along the way.",
+    groups: [
+      {
+        label: 'Community',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '🗓️',
+            title: 'Multi-day events stay listed until they end',
+            body: "An event spanning more than one day (like HHCTF) used to drop off your upcoming list after its first day. It now stays there, showing the full date range, until the last day has actually passed.",
+            where: 'Events',
+          },
+        ],
+      },
+      {
+        label: 'Fixed',
+        color: '#94a3b8',
+        items: [
+          {
+            icon: '🕛',
+            title: 'Streaks and the Daily Question now roll over at real midnight',
+            body: "Your login streak and Cyber Question of the Day used to reset two hours later than they should've, thanks to a timezone quirk. Both now roll over right at midnight, South African time.",
+            where: 'Dashboard',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.09.30',
     date: '2026-09-30',
     headline: 'A bouncier portal, and a Monthly Recap of everything you got done.',
