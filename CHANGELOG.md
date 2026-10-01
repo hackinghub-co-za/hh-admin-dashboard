@@ -33,8 +33,10 @@ saved in their browser's `localStorage`.
   `get_accountability_due()`, shared by the tab and the email
   (`091_accountability_checkins.sql`).
 - **Daily accountability email** — `accountability-digest` edge function,
-  07:00 SAST via `092_accountability_digest_cron.sql`, to every
-  community manager (founder fallback). Sends nothing on a day nobody's
+  07:00 SAST via `092_accountability_digest_cron.sql`. Recipients come
+  from `accountability_settings.recipient_emails` (currently the founder
+  plus one community manager); clearing it widens to every community
+  manager, with the founder as a last-resort fallback. Sends nothing on a day nobody's
   due, and respects the on/off switch on the tab. The cron command is
   built from the existing overdue-1on1 job's, so the cron secret is
   reused server-side instead of pasted in.

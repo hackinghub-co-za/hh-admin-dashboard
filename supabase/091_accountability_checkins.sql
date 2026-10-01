@@ -47,6 +47,14 @@ INSERT INTO public.accountability_settings (id, email_enabled)
 VALUES (1, true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Who the daily email goes to. NULL/empty = every community manager (see
+-- get_accountability_digest_recipients() below); set = exactly these.
+-- The actual addresses are set directly in the live database, never here -
+-- this repo is public, and the pre-commit PII check rejects real member
+-- emails in tracked files. Clear it back to NULL to widen to every
+-- community manager again.
+ALTER TABLE public.accountability_settings ADD COLUMN IF NOT EXISTS recipient_emails TEXT[];
+
 ALTER TABLE public.accountability_list ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accountability_checkins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accountability_settings ENABLE ROW LEVEL SECURITY;
@@ -122,9 +130,10 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_accountability_due(INTEGER) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_accountability_due(INTEGER) FROM PUBLIC, anon;
 
--- Who the daily email goes to: every community manager. Falls back to the
--- founder if nobody holds that role yet, so the email always lands
--- somewhere real rather than silently going nowhere.
+-- Who the daily email goes to: accountability_settings.recipient_emails if
+-- set, otherwise every community manager. Falls back to the founder if
+-- nobody holds that role yet, so the email always lands somewhere real
+-- rather than silently going nowhere.
 CREATE OR REPLACE FUNCTION public.get_accountability_digest_recipients()
 RETURNS TABLE (email TEXT)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE
@@ -133,6 +142,12 @@ BEGIN
   IF auth.role() = 'authenticated' AND NOT public.is_community_manager(auth.uid()) THEN
     RAISE EXCEPTION 'Only admins and community managers can view this.';
   END IF;
+  IF EXISTS (SELECT 1 FROM public.accountability_settings s WHERE s.id = 1 AND cardinality(s.recipient_emails) > 0) THEN
+    RETURN QUERY
+    SELECT DISTINCT lower(r) FROM public.accountability_settings s, unnest(s.recipient_emails) AS r WHERE s.id = 1;
+    RETURN;
+  END IF;
+
   RETURN QUERY
   SELECT lower(p.email) FROM public.profiles p WHERE p.role = 'community_manager' AND p.email IS NOT NULL
   UNION
