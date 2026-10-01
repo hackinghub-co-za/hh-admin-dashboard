@@ -209,87 +209,57 @@ p {
   line-height: 1.6;
 }
 
-/* Buttons */
+/* Buttons - Duolingo-inspired pressable anatomy, app-wide (admin and member
+   alike, as of the admin-side rollout). A solid bottom edge that shrinks and
+   drops the button into the space it left on click, instead of the old
+   gradient + hover-lift look. */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
+  padding: 13px 24px;
   font-family: var(--font-sans);
-  font-size: 0.9rem;
-  font-weight: 500;
-  border-radius: var(--border-radius-sm);
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 100%);
-  color: var(--accent-ink);
-  font-weight: 600;
-  box-shadow: 0 4px 15px rgba(var(--accent-rgb), 0.3);
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.5);
-}
-
-.btn-secondary {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-}
-
-.btn-secondary:hover {
-  background: rgba(var(--overlay-rgb), 0.08);
-  border-color: var(--text-secondary);
-}
-
-/* Duolingo-inspired pressable buttons - member portal only. Scoped under
-   .member-portal (set on <main> in App.jsx only when MemberPortal is the
-   one mounted) so AdminDashboard's identical .btn classes are untouched.
-   The "press" reads through a solid bottom edge that shrinks and drops the
-   button into the space it left, instead of the app's usual hover-lift. */
-.member-portal .btn {
-  border-radius: var(--border-radius-lg);
+  font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  font-size: 0.82rem;
-  padding: 13px 24px;
+  border-radius: var(--border-radius-lg);
+  border: none;
+  cursor: pointer;
   transition: transform 0.08s ease, border-bottom-width 0.08s ease, filter 0.15s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
-.member-portal .btn-primary {
+.btn-primary {
   background: var(--accent-cyan);
+  color: var(--accent-ink);
   border-bottom: 5px solid var(--accent-purple);
   box-shadow: none;
 }
 
-.member-portal .btn-primary:hover {
+.btn-primary:hover {
   transform: none;
   box-shadow: none;
   filter: brightness(1.05);
 }
 
-.member-portal .btn-primary:active {
+.btn-primary:active {
   border-bottom-width: 2px;
   transform: translateY(3px) scale(0.97);
   filter: none;
 }
 
-.member-portal .btn-secondary {
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   border: 2px solid var(--border-color);
   border-bottom: 4px solid var(--border-color);
 }
 
-.member-portal .btn-secondary:hover {
+.btn-secondary:hover {
   border-color: var(--text-secondary);
 }
 
-.member-portal .btn-secondary:active {
+.btn-secondary:active {
   border-bottom-width: 2px;
   transform: translateY(2px) scale(0.97);
 }

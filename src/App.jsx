@@ -495,10 +495,11 @@ export default function App() {
 
       {/* Main Panel View Area */}
       {/* member-portal only applies when MemberPortal is actually mounted
-          (never for staff viewing their own admin tools) - it scopes the
-          Duolingo-inspired button/streak overrides in src/index.css to the
-          member side without touching AdminDashboard's identical .btn/.badge
-          classes. */}
+          (never for staff viewing their own admin tools). The pressable
+          .btn treatment in src/index.css went app-wide, so this no longer
+          scopes buttons - it's left in place to scope member-only
+          components (DailyQuestionModal's .duo-choice/.duo-continue) that
+          have no admin-side equivalent. */}
       <main className={`main-content${showStaffDashboard ? '' : ' member-portal'}`}>
         {/* Dynamic Dashboard views */}
         {showStaffDashboard ? (
