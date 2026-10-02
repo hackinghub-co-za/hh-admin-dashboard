@@ -1,5 +1,7 @@
-import { X, Trophy, Award, CheckCircle2, Target, Flame, CalendarClock, Timer, CalendarCheck, Briefcase, Gift } from 'lucide-react';
+import { useState } from 'react';
+import { X, Trophy, Award, CheckCircle2, Target, Flame, CalendarClock, Timer, CalendarCheck, Briefcase, Gift, Flag } from 'lucide-react';
 import { HUB_SCORE_TIERS } from '../lib/hubScoreTiers';
+import { formatDate } from '../lib/dateFormat';
 
 // Tier thresholds/rewards now live in src/lib/hubScoreTiers.js (shared with
 // the Leaderboard section and the admin Claims tab) - the RPC is still the
@@ -18,8 +20,9 @@ const CATEGORY_ROWS = [
   { key: 'job', icon: Briefcase, label: 'Job Landed', unit: (c) => (c.landed ? 'Yes' : 'Not yet') },
 ];
 
-export default function HubScoreModal({ hubScore, claims = [], onClaim, onClose }) {
+export default function HubScoreModal({ hubScore, claims = [], onClaim, reviewRequest, onRequestReview, onClose }) {
   const { totalPoints, currentTier, nextTier, pointsToNextTier, categories } = hubScore;
+  const [reviewNote, setReviewNote] = useState('');
 
   // Which ladder segment the member is currently progressing through, for
   // the progress bar - the floor they've already cleared and the ceiling
@@ -127,6 +130,37 @@ export default function HubScoreModal({ hubScore, claims = [], onClaim, onClose 
               </div>
             );
           })}
+        </div>
+
+        {/* Points Review Request - low-key by design, this isn't a primary
+            action. If the member already has a Pending request, show its
+            status instead of the form so they can't spam duplicates (also
+            enforced server-side by a partial unique index). */}
+        <div style={{ marginBottom: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+          {reviewRequest && reviewRequest.status === 'Pending' ? (
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              <Flag size={12} style={{ verticalAlign: '-1px', marginRight: '4px' }} />
+              Review requested {formatDate(reviewRequest.requestedAt)} - we'll take a look.
+            </p>
+          ) : (
+            <details>
+              <summary style={{ fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                Think something's off with your score? Request a review
+              </summary>
+              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <textarea
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                  placeholder="What looks wrong? (optional)"
+                  rows={2}
+                  style={{ fontSize: '0.8rem', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'inherit', resize: 'vertical' }}
+                />
+                <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 14px', alignSelf: 'flex-start' }} onClick={() => onRequestReview?.(reviewNote)}>
+                  Request a Review
+                </button>
+              </div>
+            </details>
+          )}
         </div>
 
         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '10px' }}>How your score breaks down</div>

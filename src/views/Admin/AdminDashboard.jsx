@@ -52,7 +52,7 @@ import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown,
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, updateEventRecording, fetchEventAgenda, updateEventAgenda, uploadEventImage } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
-import { fetchAllHubScoreClaims, updateHubScoreClaimStatus } from '../../lib/hubScoreData';
+import { fetchAllHubScoreClaims, updateHubScoreClaimStatus, fetchAllHubScoreReviewRequests, updateHubScoreReviewRequestStatus } from '../../lib/hubScoreData';
 import { HUB_SCORE_TIERS } from '../../lib/hubScoreTiers';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
@@ -1697,6 +1697,43 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       } catch (err) {
         setHubScoreClaimsError(friendlyErrorMessage(err));
         setHubScoreClaims(prevClaims);
+      }
+    }
+  };
+
+  // Hub Score Points Review Requests - see
+  // supabase/096_hub_score_review_requests.sql. A flagging mechanism, not
+  // an automated fix - resolving one here does not touch the member's real
+  // score; the admin fixes the actual source data (Cert Calendar, Room
+  // Logs, etc.) by hand elsewhere, then marks the request Resolved.
+  const [hubScoreReviewRequests, setHubScoreReviewRequests] = useState(isMockSession ? [
+    { id: 1, memberEmail: 'demo.member1@example.com', note: 'My TryHackMe rooms look way lower than what I actually logged.', status: 'Pending', requestedAt: '2026-09-29T10:00:00Z', reviewedBy: '', reviewedAt: null, adminNote: '' },
+  ] : []);
+  const [loadingHubScoreReviewRequests, setLoadingHubScoreReviewRequests] = useState(!isMockSession);
+  const [hubScoreReviewRequestsError, setHubScoreReviewRequestsError] = useState(null);
+  const [resolveHubScoreReviewNoteDraft, setResolveHubScoreReviewNoteDraft] = useState({});
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchAllHubScoreReviewRequests()
+      .then((data) => !cancelled && setHubScoreReviewRequests(data))
+      .catch((err) => !cancelled && setHubScoreReviewRequestsError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingHubScoreReviewRequests(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleUpdateHubScoreReviewRequestStatus = async (request, status, adminNote) => {
+    const prevRequests = hubScoreReviewRequests;
+    setHubScoreReviewRequests(hubScoreReviewRequests.map((r) => (
+      r.id === request.id ? { ...r, status, adminNote: adminNote ?? r.adminNote, reviewedBy: user?.email, reviewedAt: new Date().toISOString() } : r
+    )));
+    if (!isMockSession) {
+      try {
+        await updateHubScoreReviewRequestStatus(request.id, status, adminNote, user?.email);
+      } catch (err) {
+        setHubScoreReviewRequestsError(friendlyErrorMessage(err));
+        setHubScoreReviewRequests(prevRequests);
       }
     }
   };
@@ -6355,6 +6392,8 @@ Pick new people to present next Sunday`;
       const pendingClaims = hubScoreClaims.filter((c) => c.status === 'Pending');
       const reviewedClaims = hubScoreClaims.filter((c) => c.status !== 'Pending');
       const rewardForTier = (tierName) => HUB_SCORE_TIERS.find((t) => t.name === tierName)?.reward || '';
+      const pendingReviewRequests = hubScoreReviewRequests.filter((r) => r.status === 'Pending');
+      const reviewedRequests = hubScoreReviewRequests.filter((r) => r.status !== 'Pending');
 
       return (
         <div>
@@ -6437,6 +6476,71 @@ Pick new people to present next Sunday`;
                             </button>
                           )}
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Points Review Requests (096_hub_score_review_requests.sql)
+                  - resolving/dismissing here never touches the member's
+                  real score; fix the actual source data (Cert Calendar,
+                  Room Logs, etc.) elsewhere, then mark this resolved. */}
+              <div className="glass-card" style={{ marginTop: '24px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0 }}>Points Review Requests</h3>
+                  <span className="badge badge-warning">{pendingReviewRequests.length}</span>
+                </div>
+                {hubScoreReviewRequestsError && (
+                  <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{hubScoreReviewRequestsError}</p>
+                )}
+                {!isMockSession && loadingHubScoreReviewRequests ? (
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading...</p>
+                ) : pendingReviewRequests.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Nothing waiting on review.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {pendingReviewRequests.map((request) => (
+                      <div key={request.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{request.status}</span>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{nameForClaimEmail(request.memberEmail)}</h4>
+                          </div>
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{request.memberEmail} · {formatDate(request.requestedAt)}</p>
+                          {request.note && <p style={{ fontSize: '0.82rem' }}>&quot;{request.note}&quot;</p>}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 14px' }} onClick={() => handleUpdateHubScoreReviewRequestStatus(request, 'Resolved', resolveHubScoreReviewNoteDraft[request.id])}>
+                              Mark Resolved
+                            </button>
+                            <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 14px' }} onClick={() => handleUpdateHubScoreReviewRequestStatus(request, 'Dismissed', resolveHubScoreReviewNoteDraft[request.id])}>
+                              Dismiss
+                            </button>
+                          </div>
+                          <input
+                            className="form-input"
+                            placeholder="What did you find/fix? (optional)"
+                            style={{ fontSize: '0.78rem', padding: '6px 10px', width: '220px' }}
+                            value={resolveHubScoreReviewNoteDraft[request.id] || ''}
+                            onChange={(e) => setResolveHubScoreReviewNoteDraft({ ...resolveHubScoreReviewNoteDraft, [request.id]: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {reviewedRequests.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+                    {reviewedRequests.map((request) => (
+                      <div key={request.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '0.85rem' }}>
+                          <strong>{nameForClaimEmail(request.memberEmail)}</strong>
+                          <span style={{ color: 'var(--text-muted)' }}> · {formatDate(request.requestedAt)}{request.adminNote ? ` · "${request.adminNote}"` : ''}</span>
+                          {request.reviewedBy && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}> · reviewed by {nameForClaimEmail(request.reviewedBy)}</span>}
+                        </div>
+                        <span className={`badge ${request.status === 'Resolved' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.65rem' }}>{request.status}</span>
                       </div>
                     ))}
                   </div>

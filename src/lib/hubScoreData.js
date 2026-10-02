@@ -125,3 +125,70 @@ export async function updateHubScoreClaimStatus(claimId, status, note, reviewerE
   const { error } = await supabase.from('hub_score_tier_claims').update(update).eq('id', claimId);
   if (error) throw error;
 }
+
+// Points Review Requests (supabase/096_hub_score_review_requests.sql) - a
+// flagging mechanism, not an automated fix: a member reports their score
+// looks wrong, an admin manually corrects the real source data and marks
+// the request resolved.
+
+/** The caller's own current review request, if any (null if none, or the
+ * last one was already Resolved/Dismissed - fetch only returns the most
+ * recent row so a resolved request doesn't linger forever as "your
+ * request"). */
+export async function fetchMyHubScoreReviewRequest() {
+  const { data, error } = await supabase
+    .from('hub_score_review_requests')
+    .select('id, status, note, requested_at, reviewed_at, admin_note')
+    .order('requested_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const row = (data || [])[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    status: row.status,
+    note: row.note || '',
+    requestedAt: row.requested_at,
+    reviewedAt: row.reviewed_at,
+    adminNote: row.admin_note || '',
+  };
+}
+
+/** Asks for a human look at the caller's own score. Blocked server-side
+ * (unique partial index) if they already have a Pending request. */
+export async function requestHubScorePointsReview({ memberEmail, note }) {
+  const { data, error } = await supabase
+    .from('hub_score_review_requests')
+    .insert({ member_email: memberEmail.toLowerCase(), note: note || null })
+    .select()
+    .single();
+  if (error) throw error;
+  return { id: data.id, status: data.status, note: data.note || '', requestedAt: data.requested_at };
+}
+
+/** Admin: every review request, most recent first. */
+export async function fetchAllHubScoreReviewRequests() {
+  const { data, error } = await supabase
+    .from('hub_score_review_requests')
+    .select('id, member_email, note, status, requested_at, reviewed_by, reviewed_at, admin_note')
+    .order('requested_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    id: row.id,
+    memberEmail: row.member_email,
+    note: row.note || '',
+    status: row.status,
+    requestedAt: row.requested_at,
+    reviewedBy: row.reviewed_by || '',
+    reviewedAt: row.reviewed_at,
+    adminNote: row.admin_note || '',
+  }));
+}
+
+/** Admin-only: Resolve/Dismiss, with an optional note on what was found. */
+export async function updateHubScoreReviewRequestStatus(requestId, status, adminNote, reviewerEmail) {
+  const update = { status, reviewed_at: new Date().toISOString(), reviewed_by: reviewerEmail || null };
+  if (adminNote !== undefined) update.admin_note = adminNote || null;
+  const { error } = await supabase.from('hub_score_review_requests').update(update).eq('id', requestId);
+  if (error) throw error;
+}

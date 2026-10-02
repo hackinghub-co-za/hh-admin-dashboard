@@ -23,6 +23,18 @@ export const RELEASE_NOTES = [
           },
         ],
       },
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🚩',
+            title: 'Request a Hub Score review',
+            body: "Think your score looks off? Open your Hub Score card and you'll find a quiet \"Request a review\" link - add a note on what looks wrong and it goes straight to the team to check and fix by hand.",
+            where: 'Dashboard → Hub Score',
+          },
+        ],
+      },
     ],
   },
   {

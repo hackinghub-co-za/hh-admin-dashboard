@@ -45,7 +45,7 @@ import { fetchMyRoadmapSubtasks, toggleMyRoadmapSubtask } from '../../lib/roadma
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin, fetchMyLoginStreakSummary, fetchMyLoginHistory, fetchTopLoginStreak } from '../../lib/loginStreakData';
 import LoginStreakModal from '../../components/LoginStreakModal';
-import { fetchMyHubScore, fetchHubScoreLeaderboard, fetchMyHubScoreClaims, claimHubScoreTier } from '../../lib/hubScoreData';
+import { fetchMyHubScore, fetchHubScoreLeaderboard, fetchMyHubScoreClaims, claimHubScoreTier, fetchMyHubScoreReviewRequest, requestHubScorePointsReview } from '../../lib/hubScoreData';
 import HubScoreModal from '../../components/HubScoreModal';
 import { fetchMyBreakStatus, startMyBreak } from '../../lib/breakData';
 import TakeABreakModal from '../../components/TakeABreakModal';
@@ -2086,13 +2086,31 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [hubScore, setHubScore] = useState(isMockSession ? MOCK_HUB_SCORE : null);
   const [hubScoreClaims, setHubScoreClaims] = useState(isMockSession ? MOCK_HUB_SCORE_CLAIMS : []);
   const [showHubScoreModal, setShowHubScoreModal] = useState(false);
+  // Points Review Requests (096_hub_score_review_requests.sql) - the
+  // caller's own most recent request, if any; rides along in the same
+  // round trip since HubScoreModal needs it the moment it opens.
+  const [hubScoreReviewRequest, setHubScoreReviewRequest] = useState(null);
 
   useEffect(() => {
     if (isMockSession) return;
-    Promise.all([fetchMyHubScore(), fetchMyHubScoreClaims()])
-      .then(([score, claims]) => { setHubScore(score); setHubScoreClaims(claims); })
+    Promise.all([fetchMyHubScore(), fetchMyHubScoreClaims(), fetchMyHubScoreReviewRequest()])
+      .then(([score, claims, reviewRequest]) => { setHubScore(score); setHubScoreClaims(claims); setHubScoreReviewRequest(reviewRequest); })
       .catch((err) => console.error('Could not load Hub Score:', err));
   }, [isMockSession]);
+
+  // Asking for a human look at the score - the form hides itself once a
+  // Pending request exists, so a failed duplicate attempt (also blocked
+  // server-side) should be unreachable in normal use.
+  const handleRequestHubScoreReview = async (note) => {
+    try {
+      const saved = isMockSession
+        ? { id: 'mock-review', status: 'Pending', note: note || '', requestedAt: new Date().toISOString() }
+        : await requestHubScorePointsReview({ memberEmail: user?.email, note });
+      setHubScoreReviewRequest(saved);
+    } catch (err) {
+      console.error('Could not request a Hub Score review:', err);
+    }
+  };
 
   // Claiming a tier's reward - optimistic insert, rolled back on error
   // (e.g. the server-side eligibility trigger rejecting a stale claim).
@@ -6349,6 +6367,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               hubScore={hubScore}
               claims={hubScoreClaims}
               onClaim={handleClaimHubScoreTier}
+              reviewRequest={hubScoreReviewRequest}
+              onRequestReview={handleRequestHubScoreReview}
               onClose={() => setShowHubScoreModal(false)}
             />
           )}

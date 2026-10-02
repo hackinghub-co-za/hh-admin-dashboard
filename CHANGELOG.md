@@ -38,6 +38,15 @@ saved in their browser's `localStorage`.
   visible to admins/community managers on the Members tab and the
   Accountability Check-ins roster, so a paused member missing from a list
   is never a mystery.
+- **Hub Score Points Review Requests** — a low-key "Think something's off
+  with your score? Request a review" link on the Hub Score modal lets a
+  member flag that their score looks wrong (certs/rooms/etc. source data
+  can be entered incorrectly). This is a flagging mechanism, not an
+  automated recompute - an admin manually fixes whatever's actually wrong
+  in the real source table (Cert Calendar, Room Logs, etc.) and marks the
+  request Resolved or Dismissed from a new section on the existing Hub
+  Score Claims admin tab. One open request per member at a time
+  (`096_hub_score_review_requests.sql`).
 
 ### Added
 - **Accountability Check-ins** — a new admin tab, also open to community
