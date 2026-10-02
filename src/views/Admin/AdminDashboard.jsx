@@ -6761,6 +6761,80 @@ Pick new people to present next Sunday`;
         'Active Members': w.activeMembers,
       }));
 
+      // Roadmap & Engagement - all four derived purely from allRoadmapItems/
+      // memberProfiles, already fetched for the Roadmaps/Members tabs. No new
+      // RPC needed; this is the same data, just reduced a different way.
+
+      // Most completed roadmap items - ranked by ITEM (which real items get
+      // finished most, e.g. AZ-900 vs Security+), not by member. A member
+      // leaderboard is a different question this doesn't answer.
+      const completedItemCounts = {};
+      allRoadmapItems.forEach((item) => {
+        if (!item.completedAt) return;
+        const key = item.title;
+        if (!completedItemCounts[key]) completedItemCounts[key] = { title: item.title, phase: item.phase, category: item.category, count: 0 };
+        completedItemCounts[key].count += 1;
+      });
+      const mostCompletedItems = Object.values(completedItemCounts).sort((a, b) => b.count - a.count).slice(0, 8);
+      const maxCompletedItemCount = mostCompletedItems[0]?.count || 1;
+
+      // Average time to a member's FIRST completed roadmap item, from their
+      // real join date (COALESCE(manual_start_date, onboarded_at), same
+      // precedence used everywhere else in this app) to the earliest
+      // completed_at across all their items.
+      const firstCompletionByMember = {};
+      allRoadmapItems.forEach((item) => {
+        if (!item.completedAt) return;
+        const email = (item.memberEmail || '').toLowerCase();
+        if (!email) return;
+        if (!firstCompletionByMember[email] || new Date(item.completedAt) < new Date(firstCompletionByMember[email])) {
+          firstCompletionByMember[email] = item.completedAt;
+        }
+      });
+      const daysToFirstItemList = Object.entries(firstCompletionByMember)
+        .map(([email, completedAt]) => {
+          const profile = memberProfiles[email];
+          const joinDateStr = profile?.manualStartDate || profile?.onboardedAt;
+          if (!joinDateStr) return null;
+          const days = (new Date(completedAt) - new Date(joinDateStr)) / 86400000;
+          return days >= 0 ? days : null;
+        })
+        .filter((d) => d !== null);
+      const avgDaysToFirstItem = daysToFirstItemList.length
+        ? daysToFirstItemList.reduce((a, b) => a + b, 0) / daysToFirstItemList.length
+        : null;
+
+      // Track popularity - roadmap_track is coach-assigned, not self-picked,
+      // so this is "what the team has placed people into," not a stated
+      // preference. Left members excluded, same convention as every other
+      // roster-wide breakdown on this tab.
+      const trackCounts = {};
+      Object.values(memberProfiles).forEach((profile) => {
+        if (profile.status === 'Left') return;
+        const track = profile.roadmapTrack && profile.roadmapTrack !== 'Not Assigned' ? profile.roadmapTrack : 'Not Assigned';
+        trackCounts[track] = (trackCounts[track] || 0) + 1;
+      });
+      const trackBuckets = Object.entries(trackCounts).sort((a, b) => b[1] - a[1]);
+
+      // Average days spent per phase, from each item's own created_at to its
+      // completed_at - a rough proxy (created_at is when the item was
+      // assigned, not necessarily when work started), but the only signal
+      // available without a separate "started" event.
+      const phaseDurationTotals = {};
+      allRoadmapItems.forEach((item) => {
+        if (!item.completedAt || !item.createdAt) return;
+        const days = (new Date(item.completedAt) - new Date(item.createdAt)) / 86400000;
+        if (days < 0) return;
+        if (!phaseDurationTotals[item.phase]) phaseDurationTotals[item.phase] = [];
+        phaseDurationTotals[item.phase].push(days);
+      });
+      const avgPhaseDurations = ROADMAP_PHASES
+        .filter((phase) => phaseDurationTotals[phase]?.length)
+        .map((phase) => ({
+          phase,
+          avgDays: phaseDurationTotals[phase].reduce((a, b) => a + b, 0) / phaseDurationTotals[phase].length,
+        }));
+
       // Exam Readiness nudge - members with a real, upcoming, still-Pending
       // exam (within EXAM_NUDGE_WINDOW_DAYS) whose readiness score is under
       // EXAM_NUDGE_THRESHOLD_PCT. Only certs with a defined readiness
@@ -6964,6 +7038,86 @@ Pick new people to present next Sunday`;
               </div>
             </>
           )}
+
+          <div style={{ marginTop: '40px', marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '1.3rem', marginBottom: '6px' }}>Roadmap &amp; Engagement</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Computed from the same roadmap/member data already loaded for the Roadmaps and Members tabs - no new tracking.</p>
+          </div>
+
+          <div className="dashboard-grid" style={{ marginBottom: '20px' }}>
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Avg. Time to First Completed Item</span>
+                <Milestone size={20} color="var(--accent-cyan)" />
+              </div>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{avgDaysToFirstItem !== null ? `${avgDaysToFirstItem.toFixed(1)}d` : '—'}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>From real join date to the first roadmap item completed</div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Items Completed Tracked</span>
+                <Trophy size={20} color="var(--accent-purple)" />
+              </div>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '8px' }}>{Object.values(completedItemCounts).reduce((sum, i) => sum + i.count, 0)}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total roadmap item completions, across every member, all-time</div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>Most Subscribed Track</span>
+                <Compass size={20} color="var(--warning)" />
+              </div>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>{trackBuckets[0]?.[0] || '—'}</h2>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{trackBuckets[0] ? `${trackBuckets[0][1]} member${trackBuckets[0][1] === 1 ? '' : 's'}` : 'No members assigned yet'}</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '4px', fontSize: '1rem' }}>Most Completed Roadmap Items</h3>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Ranked by how many members have finished each one - which real items (AZ-900, Security+, etc.) actually get completed most.</p>
+              {mostCompletedItems.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {mostCompletedItems.map((item, i) => (
+                    <div key={item.title}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '5px', gap: '8px' }}>
+                        <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', flexShrink: 0 }}>#{i + 1}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                          <span className="badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', fontSize: '0.58rem', flexShrink: 0 }}>{item.phase}</span>
+                        </span>
+                        <strong style={{ color: 'var(--accent-cyan)', flexShrink: 0 }}>{item.count}</strong>
+                      </div>
+                      <div style={{ width: '100%', height: '7px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.round((item.count / maxCompletedItemCount) * 100)}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px' }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No completed roadmap items yet.</p>
+              )}
+            </div>
+
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>Track Popularity</h3>
+              {trackBuckets.length ? renderBreakdownBars(trackBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
+              {avgPhaseDurations.length > 0 && (
+                <>
+                  <h3 style={{ margin: '24px 0 16px 0', fontSize: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>Avg. Days per Phase</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {avgPhaseDurations.map(({ phase, avgDays }) => (
+                      <div key={phase} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                        <span>{phase}</span>
+                        <strong style={{ color: 'var(--accent-cyan)' }}>{avgDays.toFixed(1)}d</strong>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
           <div style={{ marginTop: '40px', marginBottom: '20px' }}>
             <h2 style={{ fontSize: '1.3rem', marginBottom: '6px' }}>Exam Readiness Nudge</h2>

@@ -3,6 +3,7 @@ import { X, MessageSquare, Briefcase, FileText, History, Lightbulb, Building2, C
 import { generateInterviewQuestions, fetchMyInterviewPrepSessions } from '../lib/interviewPrepData';
 import { logMyInterview, submitMyInterviewReview, fetchMyInterviews } from '../lib/memberInterviewsData';
 import { ROADMAP_TRACKS } from '../lib/memberOptions';
+import { logPortalEvent } from '../lib/portalEventsData';
 
 // Gemma-powered interview question generator - paste a job description +
 // CV text, get back tailored questions (supabase/056_interview_prep.sql +
@@ -177,6 +178,7 @@ export default function InterviewPrepModal({ onClose, roadmapTrack }) {
       setQuestions(qs);
       setPhase('result');
       setHistory((prev) => [{ id: `temp-${Date.now()}`, jobDescription: jobDescription.trim(), questions: qs, createdAt: new Date().toISOString() }, ...prev]);
+      logPortalEvent('interview_prep_used', { domain: activeInterview?.interviewDomain || null }).catch(() => {});
     } catch (err) {
       setErrorMsg(err.message || 'Could not generate questions - try again.');
       setPhase('input');

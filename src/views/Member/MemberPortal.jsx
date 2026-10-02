@@ -5033,7 +5033,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                 {ROADMAP_ITEM_DESCRIPTIONS[item.title] && (
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setCoreFoundationInfoTitle(item.title); }}
+                                    onClick={(e) => { e.stopPropagation(); setCoreFoundationInfoTitle(item.title); logPortalEvent('roadmap_item_opened', { title: item.title, source: 'info_modal' }).catch(() => {}); }}
                                     style={{ display: 'block', background: 'none', border: 'none', padding: 0, marginTop: '2px', font: 'inherit', fontSize: '0.76rem', color: 'var(--accent-cyan)', textDecoration: 'underline', textUnderlineOffset: '2px', cursor: 'pointer', textAlign: 'left' }}
                                   >
                                     {ROADMAP_ITEM_DESCRIPTIONS[item.title]}
@@ -5184,6 +5184,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                                           if (item.title === 'CySA+') setShowCySAPlusGuide(true);
                                           else if (item.title === 'Terraform Associate') setShowTerraformGuide(true);
                                           else setShowSC200Guide(true);
+                                          logPortalEvent('roadmap_item_opened', { title: item.title, source: 'guide_link' }).catch(() => {});
                                         }}
                                         className="btn btn-secondary"
                                         style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
@@ -5698,7 +5699,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 // accent color.
                 <button
                   type="button"
-                  onClick={() => setShowHubScoreModal(true)}
+                  onClick={() => { setShowHubScoreModal(true); logPortalEvent('leaderboard_viewed', { type: 'hub_score' }).catch(() => {}); }}
                   title={`Hub Score: ${hubScore.totalPoints} points (${hubScore.currentTier}) - click for your full breakdown`}
                   style={{
                     display: 'flex',
@@ -7016,7 +7017,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     </div>
                   </div>
                   {isSafeUrl(job.link) ? (
-                    <a href={job.link} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
+                    <a
+                      href={job.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.85rem' }}
+                      onClick={() => logPortalEvent('job_board_clicked', { title: job.title, company: job.company }).catch(() => {})}
+                    >
                       <Briefcase size={14} /> Apply
                     </a>
                   ) : (
@@ -7308,7 +7316,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   {IN_APP_ARTICLE_RESOURCES[res.title] ? (
                     <button
                       className="btn btn-secondary"
-                      onClick={IN_APP_ARTICLE_RESOURCES[res.title]}
+                      onClick={(e) => { IN_APP_ARTICLE_RESOURCES[res.title](e); logPortalEvent('resource_opened', { title: res.title, category: res.category }).catch(() => {}); }}
                       style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                     >
                       <BookOpen size={14} /> Read Guide
@@ -7320,6 +7328,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       rel="noreferrer"
                       className="btn btn-secondary"
                       style={{ justifyContent: 'center', fontSize: '0.85rem' }}
+                      onClick={() => logPortalEvent('resource_opened', { title: res.title, category: res.category }).catch(() => {})}
                     >
                       <ExternalLink size={14} /> Open Resource
                     </a>

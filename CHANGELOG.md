@@ -47,6 +47,20 @@ saved in their browser's `localStorage`.
   request Resolved or Dismissed from a new section on the existing Hub
   Score Claims admin tab. One open request per member at a time
   (`096_hub_score_review_requests.sql`).
+- **Roadmap &amp; Engagement on Insights** — a new section on the admin
+  Insights tab: Most Completed Roadmap Items (ranked by item - which real
+  items, like AZ-900 or Security+, get finished most, not which member
+  finishes the most), Avg. Time to First Completed Item, Track Popularity,
+  and Avg. Days per Phase. All four are computed client-side from
+  `roadmap_items`/`member_profiles` data the Roadmaps and Members tabs
+  already load - no new migration, no new tracking.
+- **Five new portal usage events** — `roadmap_item_opened`,
+  `resource_opened`, `job_board_clicked`, `leaderboard_viewed` (Hub
+  Score), and `interview_prep_used` logged via the existing
+  `log_my_portal_event()` RPC (`050_portal_events.sql`), same curated,
+  narrow-list philosophy as the events already logged - not a blanket
+  clickstream. Lays the groundwork for a future feature-adoption /
+  content-engagement view once a few weeks of data accumulate.
 
 ### Added
 - **Accountability Check-ins** — a new admin tab, also open to community

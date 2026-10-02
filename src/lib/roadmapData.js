@@ -21,6 +21,7 @@ function mapRow(row) {
     // updatedAt, which moves on any edit. null while not completed.
     completedAt: row.completed_at || null,
     sortOrder: row.sort_order || 0,
+    createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
     // Projects-only proof-of-work fields - always present on the row, but
     // only ever meaningful when phase === 'Projects'. See
@@ -132,7 +133,7 @@ export async function setRoadmapFoundationsApproval(email, approved) {
 export async function fetchAllRoadmapItems() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at');
+    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, created_at, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at');
   if (error) throw error;
   return (data || []).map(mapRow);
 }
