@@ -47,6 +47,8 @@ import { recordDailyLogin, fetchMyLoginStreakSummary, fetchMyLoginHistory, fetch
 import LoginStreakModal from '../../components/LoginStreakModal';
 import { fetchMyHubScore, fetchHubScoreLeaderboard, fetchMyHubScoreClaims, claimHubScoreTier } from '../../lib/hubScoreData';
 import HubScoreModal from '../../components/HubScoreModal';
+import { fetchMyBreakStatus, startMyBreak } from '../../lib/breakData';
+import TakeABreakModal from '../../components/TakeABreakModal';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchMyJourneyOverrides, setJourneyOverride, clearJourneyOverride } from '../../lib/journeyOverridesData';
@@ -92,6 +94,7 @@ import {
   MapPin,
   Users,
   Trophy,
+  Coffee,
   Target,
   Briefcase,
   Building2,
@@ -2122,6 +2125,47 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .finally(() => !cancelled && setLoadingHubScoreLeaderboard(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
+
+  // Take a Break (095_take_a_break.sql) - fixed-duration, auto-resuming.
+  // Fetched once per session load like myStartDate; no polling needed
+  // since break_until only ever changes when the member themselves starts
+  // a new break in this same session.
+  const [breakUntil, setBreakUntil] = useState(null);
+  const [showTakeABreakModal, setShowTakeABreakModal] = useState(false);
+  const [startingBreak, setStartingBreak] = useState(false);
+  const [breakError, setBreakError] = useState(null);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchMyBreakStatus()
+      .then(({ breakUntil }) => setBreakUntil(breakUntil))
+      .catch((err) => console.error('Could not load break status:', err));
+  }, [isMockSession]);
+
+  // SAST calendar day as YYYY-MM-DD so the comparison matches the server's
+  // own "today" everywhere else in this feature - lexicographic string
+  // comparison works fine for ISO dates.
+  const todaySast = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+  const isOnBreak = !!breakUntil && breakUntil >= todaySast;
+
+  const handleStartBreak = async (days) => {
+    setStartingBreak(true);
+    setBreakError(null);
+    try {
+      if (isMockSession) {
+        const until = new Date(Date.now() + days * 86400000).toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+        setBreakUntil(until);
+      } else {
+        const until = await startMyBreak(days);
+        setBreakUntil(until);
+      }
+      setShowTakeABreakModal(false);
+    } catch (err) {
+      setBreakError(friendlyMemberErrorMessage(err));
+    } finally {
+      setStartingBreak(false);
+    }
+  };
 
   // Portal usage analytics (050_portal_events.sql) - session_start once per
   // load here, tab_view on every tab change below. Fire-and-forget, never
@@ -5578,7 +5622,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       const daysSinceRoadmapTouch = roadmapLastTouchedAt
         ? Math.floor((new Date() - new Date(roadmapLastTouchedAt)) / (1000 * 60 * 60 * 24))
         : null;
-      const roadmapIsStale = !roadmapExcluded && roadmapItems.length > 0 && daysSinceRoadmapTouch !== null && daysSinceRoadmapTouch >= ROADMAP_STALE_AFTER_DAYS;
+      const roadmapIsStale = !roadmapExcluded && !isOnBreak && roadmapItems.length > 0 && daysSinceRoadmapTouch !== null && daysSinceRoadmapTouch >= ROADMAP_STALE_AFTER_DAYS;
 
       return (
         <div>
@@ -5592,6 +5636,42 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
               <ThemeToggle />
+              {isOnBreak ? (
+                // No early-end action by design (fixed-duration/auto-resume)
+                // - this is a status pill, not a button.
+                <div
+                  title={`On a break until ${formatDate(breakUntil)} - resumes automatically`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px',
+                    borderRadius: 'var(--border-radius-lg)', background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)', boxShadow: 'var(--glass-shadow)', flexShrink: 0,
+                  }}
+                >
+                  <Coffee size={20} color="var(--accent-cyan)" />
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                    On a break until {formatDate(breakUntil)}
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowTakeABreakModal(true)}
+                  title="Take a break - pause check-ins, nudges, your streak and competition pace checks"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px',
+                    borderRadius: 'var(--border-radius-lg)', background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)', borderBottom: '4px solid rgba(var(--accent-rgb), 0.35)',
+                    boxShadow: 'var(--glass-shadow)', flexShrink: 0, cursor: 'pointer', font: 'inherit', color: 'inherit',
+                    transition: 'transform 0.08s ease, border-bottom-width 0.08s ease',
+                  }}
+                  onMouseDown={(e) => { e.currentTarget.style.borderBottomWidth = '2px'; e.currentTarget.style.transform = 'translateY(2px)'; }}
+                  onMouseUp={(e) => { e.currentTarget.style.borderBottomWidth = '4px'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderBottomWidth = '4px'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  <Coffee size={20} color="var(--accent-cyan)" />
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>Take a Break</div>
+                </button>
+              )}
               {hubScore && (
                 // Composite "how much have I actually built here" metric -
                 // always shown once loaded, even at 0 points/Newcomer,
@@ -6270,6 +6350,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               claims={hubScoreClaims}
               onClaim={handleClaimHubScoreTier}
               onClose={() => setShowHubScoreModal(false)}
+            />
+          )}
+
+          {showTakeABreakModal && (
+            <TakeABreakModal
+              submitting={startingBreak}
+              error={breakError}
+              onStart={handleStartBreak}
+              onClose={() => setShowTakeABreakModal(false)}
             />
           )}
 

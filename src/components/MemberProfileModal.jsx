@@ -223,6 +223,9 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
                 : isLapsed ? `Lapsed · ${daysSinceLastPayment}d since last payment`
                 : 'Active'}
             </span>
+            {profile?.breakUntil && new Date(profile.breakUntil) >= new Date(new Date().toDateString()) && (
+              <span className="badge badge-warning">On a break until {formatDate(profile.breakUntil)}</span>
+            )}
           </div>
           <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{member.member}</h2>
           <p style={{ color: 'var(--accent-cyan)', fontSize: '0.9rem', marginTop: '6px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>

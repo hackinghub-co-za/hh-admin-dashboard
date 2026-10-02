@@ -18,7 +18,26 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
-## 2026.10.01
+## 2026.10.02
+
+### Added
+- **Take a Break** — a Dashboard button for a member to self-start a
+  fixed-length break (3/7/14 days, member's choice) that auto-resumes on
+  its own - no "I'm back" button, no early-end. Opens with burnout-
+  awareness content (a linked article, in-app rest/recovery tips) before
+  the member confirms. While on a break: Accountability Check-ins never
+  shows them "Due" and excludes them from the daily digest email; the
+  Dashboard's stale-roadmap banner and the roadmap-reminder email both
+  skip them; the login streak freezes exactly where it stood and resumes
+  (not resets) the moment the break ends; and the TryHackMe competition's
+  Monday pace-elimination sweep exempts them for that week. Modeled as two
+  new `member_profiles` columns (`break_started_at`, `break_until`), not
+  `status` - deliberately kept separate from the access/offboarding
+  lifecycle field so a break can never affect login access
+  (`095_take_a_break.sql`). Light "On a break until X" indicators are
+  visible to admins/community managers on the Members tab and the
+  Accountability Check-ins roster, so a paused member missing from a list
+  is never a mystery.
 
 ### Added
 - **Accountability Check-ins** — a new admin tab, also open to community

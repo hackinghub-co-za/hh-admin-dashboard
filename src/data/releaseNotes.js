@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.02',
+    date: '2026-10-02',
+    headline: 'Take a Break - it\'s okay to pause.',
+    intro: "Burnout is real in this field. There's now a Take a Break button right on your Dashboard - pick 3, 7, or 14 days, and your accountability check-ins, roadmap nudges, login streak, and competition pace checks all pause with you. It resumes on its own, no need to remember to switch anything back on.",
+    groups: [
+      {
+        label: 'Community',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '☕',
+            title: 'Take a Break',
+            body: "Pick a fixed length - 3, 7, or 14 days - and everything that might nag you while you're away pauses with you: Accountability Check-ins won't flag you as due, the Roadmap nudge goes quiet, your login streak freezes instead of resetting, and the TryHackMe competition's weekly pace check skips you. It just resumes on its own on the date you picked - no button to remember to click when you're back. The button also links a real article on cybersecurity burnout and a few rest/recovery tips, in case that's useful.",
+            where: 'Dashboard',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.01',
     date: '2026-10-01',
     headline: 'Hub Score - one number for everything you\'ve built here, a real leaderboard, and real rewards.',

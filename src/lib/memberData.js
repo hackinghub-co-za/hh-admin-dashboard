@@ -54,6 +54,10 @@ export async function fetchMemberProfiles() {
       // on the member's next login after a gap).
       loginStreak: row.login_streak || 0,
       lastLoginDate: row.last_login_date || '',
+      // Take a Break (095_take_a_break.sql) - member-started, admin
+      // view-only; never written by upsertMemberProfile() below.
+      breakStartedAt: row.break_started_at || '',
+      breakUntil: row.break_until || '',
     };
   });
   return byEmail;

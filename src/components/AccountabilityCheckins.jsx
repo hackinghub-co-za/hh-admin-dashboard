@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UserCheck, Plus, Clock, Users, Mail, ChevronDown, X, Search, Trash2 } from 'lucide-react';
+import { formatDate } from '../lib/dateFormat';
 import {
   syncNewJoinerAccountability,
   fetchAccountabilityRoster,
@@ -28,6 +29,10 @@ const sastDay = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Afri
 const daysBetweenDays = (fromDay, toDay) => Math.round((new Date(`${toDay}T00:00:00Z`) - new Date(`${fromDay}T00:00:00Z`)) / 86400000);
 
 const daysAgo = (iso) => daysBetweenDays(sastDay(iso), sastDay(Date.now()));
+// Take a Break (095_take_a_break.sql) - module-scope so the Date.now() call
+// stays out of the component's render body (React Compiler purity rule),
+// same reasoning as daysAgo() above.
+const isBreakActive = (breakUntil) => !!breakUntil && breakUntil >= sastDay(Date.now());
 
 function lastCheckinLabel(iso) {
   if (!iso) return 'Never checked in';
@@ -154,7 +159,9 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
     const member = rosterByEmail[entry.memberEmail];
     const history = checkinsByEmail[entry.memberEmail] || [];
     const lastCheckinAt = history[0]?.loggedAt || null;
-    const due = !lastCheckinAt || daysAgo(lastCheckinAt) >= DUE_AFTER_DAYS;
+    const breakUntil = member?.breakUntil || null;
+    const onBreak = isBreakActive(breakUntil);
+    const due = !onBreak && (!lastCheckinAt || daysAgo(lastCheckinAt) >= DUE_AFTER_DAYS);
     return {
       email: entry.memberEmail,
       name: member?.fullName || entry.memberEmail,
@@ -163,6 +170,8 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
       history,
       lastCheckinAt,
       due,
+      breakUntil,
+      onBreak,
       assignedTo: entry.assignedTo || null,
       isNewJoiner: !!entry.isNewJoiner,
     };
@@ -433,6 +442,7 @@ export default function AccountabilityCheckins({ isMockSession, user }) {
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.9rem' }}>
                         {t.name}
                         {t.isNewJoiner && <span className="badge badge-warning" style={{ fontSize: '0.58rem' }}>New joiner</span>}
+                        {t.onBreak && <span className="badge badge-warning" style={{ fontSize: '0.58rem' }}>On a break until {formatDate(t.breakUntil)}</span>}
                       </span>
                       <span style={{ display: 'block', fontSize: '0.75rem', color: t.due ? 'var(--warning)' : 'var(--text-muted)' }}>
                         {t.specialty ? `${t.specialty} · ` : ''}{lastCheckinLabel(t.lastCheckinAt)}{t.assignedTo ? ` · Assigned to ${assigneeLabel(t.assignedTo)}` : ''}

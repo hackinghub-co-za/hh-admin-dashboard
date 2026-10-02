@@ -17,6 +17,7 @@ export async function fetchAccountabilityRoster() {
     fullName: row.full_name || row.email,
     specialty: row.specialty && row.specialty !== 'Not Set' ? row.specialty : (row.roadmap_track || null),
     headshotUrl: row.headshot_url || null,
+    breakUntil: row.break_until || null,
   }));
 }
 
