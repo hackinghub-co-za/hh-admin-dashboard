@@ -59,8 +59,14 @@ saved in their browser's `localStorage`.
   Score), and `interview_prep_used` logged via the existing
   `log_my_portal_event()` RPC (`050_portal_events.sql`), same curated,
   narrow-list philosophy as the events already logged - not a blanket
-  clickstream. Lays the groundwork for a future feature-adoption /
-  content-engagement view once a few weeks of data accumulate.
+  clickstream.
+- **Feature Adoption chart + roadmap open-to-complete funnel** — a new
+  Insights card charts the five events above (% of Monthly Active Members
+  who've triggered each one), and the Most Completed Roadmap Items card
+  now shows "opened" counts alongside "completed" counts per item. Two
+  new admin-only aggregate RPCs (`097_portal_event_charts.sql`) - both
+  show empty states until the new events have some real history behind
+  them, since they only started logging today.
 
 ### Added
 - **Accountability Check-ins** — a new admin tab, also open to community

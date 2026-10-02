@@ -48,3 +48,20 @@ export async function fetchMobileBlockCount(days = 7) {
   if (error) throw error;
   return data;
 }
+
+// Charts for the five newer events (roadmap_item_opened, resource_opened,
+// job_board_clicked, leaderboard_viewed, interview_prep_used) - see
+// supabase/097_portal_event_charts.sql. Both return empty until those
+// events have some real history behind them.
+
+export async function fetchRoadmapItemOpenCounts(days = 90) {
+  const { data, error } = await supabase.rpc('get_roadmap_item_open_counts', { p_days: days });
+  if (error) throw error;
+  return (data || []).map((row) => ({ title: row.title, openCount: row.open_count }));
+}
+
+export async function fetchFeatureAdoptionCounts(days = 30) {
+  const { data, error } = await supabase.rpc('get_feature_adoption_counts', { p_days: days });
+  if (error) throw error;
+  return (data || []).map((row) => ({ eventType: row.event_type, memberCount: row.member_count }));
+}

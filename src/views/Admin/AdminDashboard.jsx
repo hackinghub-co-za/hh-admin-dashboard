@@ -62,7 +62,7 @@ import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog, fetchAllOne
 import { hasStoredCalendarSyncToken, fetchCalendarSyncedMeetings } from '../../lib/calendarSyncData';
 import { supabase } from '../../lib/supabase';
 import { fetchCurrentCompetition, fetchPastCompetitions, startNewCompetition, fetchCompetitionStandings, removeMemberFromCompetition } from '../../lib/competitionData';
-import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend, fetchMobileBlockCount } from '../../lib/portalEventsData';
+import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeeklyTrend, fetchMobileBlockCount, fetchRoadmapItemOpenCounts, fetchFeatureAdoptionCounts } from '../../lib/portalEventsData';
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
 import { fetchTeamMembers, setMemberRole } from '../../lib/teamData';
@@ -888,6 +888,11 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [portalTabEngagement, setPortalTabEngagement] = useState([]);
   const [portalWeeklyTrend, setPortalWeeklyTrend] = useState([]);
   const [mobileBlockCount7d, setMobileBlockCount7d] = useState(null);
+  // The five newer events (097_portal_event_charts.sql) - both empty until
+  // those events have some real history; same loading/error state as the
+  // rest of Portal Usage, fetched in the same round trip.
+  const [roadmapItemOpenCounts, setRoadmapItemOpenCounts] = useState([]);
+  const [featureAdoptionCounts, setFeatureAdoptionCounts] = useState([]);
   const [loadingPortalAnalytics, setLoadingPortalAnalytics] = useState(!isMockSession);
   const [portalAnalyticsError, setPortalAnalyticsError] = useState(null);
 
@@ -900,14 +905,18 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       fetchPortalTabEngagement(30),
       fetchPortalWeeklyTrend(8),
       fetchMobileBlockCount(7),
+      fetchRoadmapItemOpenCounts(90),
+      fetchFeatureAdoptionCounts(30),
     ])
-      .then(([active7d, active30d, tabEngagement, weeklyTrend, mobileBlocks7d]) => {
+      .then(([active7d, active30d, tabEngagement, weeklyTrend, mobileBlocks7d, itemOpenCounts, adoptionCounts]) => {
         if (cancelled) return;
         setPortalActiveMembers7d(active7d);
         setPortalActiveMembers30d(active30d);
         setPortalTabEngagement(tabEngagement);
         setPortalWeeklyTrend(weeklyTrend);
         setMobileBlockCount7d(mobileBlocks7d);
+        setRoadmapItemOpenCounts(itemOpenCounts);
+        setFeatureAdoptionCounts(adoptionCounts);
       })
       .catch((err) => !cancelled && setPortalAnalyticsError(friendlyErrorMessage(err)))
       .finally(() => !cancelled && setLoadingPortalAnalytics(false));
@@ -6778,6 +6787,25 @@ Pick new people to present next Sunday`;
       const mostCompletedItems = Object.values(completedItemCounts).sort((a, b) => b.count - a.count).slice(0, 8);
       const maxCompletedItemCount = mostCompletedItems[0]?.count || 1;
 
+      // Opened-vs-completed funnel per item - roadmapItemOpenCounts comes
+      // from the real roadmap_item_opened event (097_portal_event_charts.sql),
+      // not client-loaded like completedItemCounts, so it's looked up by
+      // title rather than merged in.
+      const openCountByTitle = Object.fromEntries(roadmapItemOpenCounts.map((r) => [r.title, r.openCount]));
+
+      const FEATURE_ADOPTION_LABELS = {
+        roadmap_item_opened: 'Roadmap Items Opened',
+        resource_opened: 'Resources Opened',
+        job_board_clicked: 'Job Board Clicks',
+        leaderboard_viewed: 'Hub Score / Leaderboard Views',
+        interview_prep_used: 'Interview Prep Used',
+      };
+      const featureAdoptionRows = featureAdoptionCounts.map((r) => ({
+        label: FEATURE_ADOPTION_LABELS[r.eventType] || r.eventType,
+        memberCount: r.memberCount,
+        pct: portalActiveMembers30d ? Math.round((r.memberCount / portalActiveMembers30d) * 100) : 0,
+      }));
+
       // Average time to a member's FIRST completed roadmap item, from their
       // real join date (COALESCE(manual_start_date, onboarded_at), same
       // precedence used everywhere else in this app) to the earliest
@@ -7087,7 +7115,12 @@ Pick new people to present next Sunday`;
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
                           <span className="badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', fontSize: '0.58rem', flexShrink: 0 }}>{item.phase}</span>
                         </span>
-                        <strong style={{ color: 'var(--accent-cyan)', flexShrink: 0 }}>{item.count}</strong>
+                        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                          {openCountByTitle[item.title] !== undefined && (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{openCountByTitle[item.title]} opened ·</span>
+                          )}
+                          <strong style={{ color: 'var(--accent-cyan)' }}>{item.count} completed</strong>
+                        </span>
                       </div>
                       <div style={{ width: '100%', height: '7px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{ width: `${Math.round((item.count / maxCompletedItemCount) * 100)}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '4px' }}></div>
@@ -7117,6 +7150,29 @@ Pick new people to present next Sunday`;
                 </>
               )}
             </div>
+          </div>
+
+          <div className="glass-card" style={{ marginTop: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Feature Adoption (last 30 days)</h3>
+              <span className="badge badge-warning" style={{ fontSize: '0.58rem' }}>New</span>
+            </div>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '18px' }}>% of Monthly Active Members who triggered each event at least once. Just started logging today - check back in a few weeks.</p>
+            {featureAdoptionRows.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {featureAdoptionRows.map(({ label, memberCount, pct }) => (
+                  <div key={label} style={{ display: 'grid', gridTemplateColumns: '200px 1fr 90px', alignItems: 'center', gap: '14px' }}>
+                    <span style={{ fontSize: '0.82rem' }}>{label}</span>
+                    <div style={{ height: '8px', borderRadius: '4px', background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))' }}></div>
+                    </div>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, textAlign: 'right' }}>{memberCount} ({pct}%)</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No activity logged yet - these events only started being tracked today.</p>
+            )}
           </div>
 
           <div style={{ marginTop: '40px', marginBottom: '20px' }}>
