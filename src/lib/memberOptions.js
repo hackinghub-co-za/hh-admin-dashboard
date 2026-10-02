@@ -225,6 +225,7 @@ export const ROADMAP_ITEM_LINKS = {
   'KCNA': 'https://training.linuxfoundation.org/certification/kubernetes-cloud-native-associate/',
   'KCSA': 'https://training.linuxfoundation.org/certification/kubernetes-and-cloud-native-security-associate-kcsa/',
   'AZ-400': 'https://learn.microsoft.com/en-us/credentials/certifications/devops-engineer-expert/',
+  'CDP': 'https://practical-devsecops.com/certified-devsecops-professional/',
   // 'Python (or any programming language)' is deliberately open-ended (see
   // its defaultDetail in SPECIALIZATION_CATALOGS.DevSecOps) - no single
   // canonical link fits, so it's left without one.
@@ -298,6 +299,7 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   'KCNA': 'Kubernetes & Cloud Native Fundamentals',
   'KCSA': 'Kubernetes Security Fundamentals',
   'AZ-400': 'DevOps Engineering on Azure',
+  'CDP': 'Hands-On DevSecOps Capstone Certification',
   'Python (or any programming language)': 'Optional - Scripting & Automation',
   // Specialization - IAM
   'SC-300': 'Identity & Access Administration',
@@ -491,6 +493,10 @@ export const ROADMAP_ITEM_INFO = {
   'AZ-400': {
     teaches: "How to design and implement DevOps practices on Azure end to end - CI/CD pipelines, infrastructure as code, dependency management, and application monitoring.",
     journey: "This is an Expert-level cert that ties the whole DevSecOps track together on Microsoft's platform specifically - the natural \"capstone\" alongside AZ-104, once the fundamentals are solid.",
+  },
+  'CDP': {
+    teaches: "The full practical DevSecOps skill set in one six-hour, hands-on exam (80% pass mark, no multiple choice) - building secure CI/CD pipelines, running SCA/SAST/DAST tooling, and securing Infrastructure as Code under real exam conditions.",
+    journey: "This is the track's real capstone - vendor-neutral, unlike AZ-400 or SC-500, and a direct test of whether you can actually DO DevSecOps end to end rather than describe it. Most people take it last, once every other cert on this track is behind them.",
   },
   'Python (or any programming language)': {
     teaches: "Enough scripting ability to automate repetitive tasks, parse logs, or write a small security tool - Python is the most common choice in this field, but the underlying skill (not the specific language) is what matters.",
@@ -775,6 +781,7 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'AZ-104', defaultDetail: '' },
       { title: 'AZ-400', defaultDetail: '' },
       { title: 'SC-500', defaultDetail: '' },
+      { title: 'CDP', defaultDetail: '' },
       { title: 'Python (or any programming language)', defaultDetail: 'Optional' },
     ],
   },
