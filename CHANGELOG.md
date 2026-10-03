@@ -18,6 +18,22 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.03
+
+### Added
+- **Org Chart** (admin, founder-only) — a new sidebar tab for managing
+  real staff structure: name, job title, department, who reports to whom,
+  employment type, and monthly compensation. Staff don't need a portal
+  login to be listed (no FK to member accounts, email is optional free
+  text). Renders as an expandable/collapsible hierarchy tree rather than a
+  flat list. A departed staff member is archived (soft-removed from the
+  tree), not deleted — anyone who reported to them simply falls to the
+  top level, same "don't erase people" convention used elsewhere in this
+  app. Strictly founder-only in both directions: RLS rejects a community
+  manager or mentor outright on reads and writes, same whole-table
+  admin-only shape as `member_profiles`' own compensation field.
+  (`098_org_chart.sql`)
+
 ## 2026.10.02
 
 ### Added

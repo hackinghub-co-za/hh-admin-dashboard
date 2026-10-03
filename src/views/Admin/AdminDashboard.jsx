@@ -66,6 +66,8 @@ import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeek
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
 import { fetchTeamMembers, setMemberRole } from '../../lib/teamData';
+import { fetchOrgChartMembers, addOrgChartMember, updateOrgChartMember, archiveOrgChartMember } from '../../lib/orgChartData';
+import AddOrgChartMemberModal from '../../components/AddOrgChartMemberModal';
 import {
   Calendar,
   Users,
@@ -100,6 +102,10 @@ import {
   Pencil,
   CheckSquare,
   Square,
+  Network,
+  ChevronDown,
+  ChevronRight,
+  Archive,
   Handshake,
   ListChecks,
   X,
@@ -3001,6 +3007,76 @@ Pick new people to present next Sunday`;
       setTeamError(friendlyErrorMessage(err));
     }
   };
+
+  // Org Chart (supabase/098_org_chart.sql) - founder-only, both here and
+  // server-side (is_admin(auth.uid())-only RLS on org_chart_members - a
+  // community_manager or mentor gets nothing, not even a read). Deliberately
+  // separate from profiles.role/Team & Roles above - a staff member here
+  // doesn't need a portal account at all.
+  const [orgChartMembers, setOrgChartMembers] = useState([]);
+  const [loadingOrgChart, setLoadingOrgChart] = useState(!isMockSession);
+  const [orgChartError, setOrgChartError] = useState(null);
+  const [expandedOrgChartIds, setExpandedOrgChartIds] = useState({});
+  const [showAddOrgChartModal, setShowAddOrgChartModal] = useState(false);
+  const [editingOrgChartMember, setEditingOrgChartMember] = useState(null);
+
+  const loadOrgChartMembers = () => {
+    if (isMockSession) return;
+    fetchOrgChartMembers()
+      .then(setOrgChartMembers)
+      .catch((err) => setOrgChartError(friendlyErrorMessage(err)))
+      .finally(() => setLoadingOrgChart(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'orgchart' && isFounder) loadOrgChartMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isFounder, isMockSession, dataRefreshKey]);
+
+  const handleSaveOrgChartMember = async (form) => {
+    setOrgChartError(null);
+    if (isMockSession) {
+      if (editingOrgChartMember) {
+        setOrgChartMembers((prev) => prev.map((m) => (m.id === editingOrgChartMember.id ? { ...m, ...form, id: m.id } : m)));
+      } else {
+        // Numeric id (not a "mock-N" string) so it survives the modal's
+        // Number(form.reportsToId) cast on the next member added under
+        // this one - matches the real BIGSERIAL id shape from Postgres.
+        setOrgChartMembers((prev) => [...prev, { ...form, id: prev.length + 1, status: 'Active' }]);
+      }
+      setShowAddOrgChartModal(false);
+      setEditingOrgChartMember(null);
+      return;
+    }
+    try {
+      if (editingOrgChartMember) {
+        await updateOrgChartMember(editingOrgChartMember.id, form);
+      } else {
+        await addOrgChartMember(form, user?.email);
+      }
+      setShowAddOrgChartModal(false);
+      setEditingOrgChartMember(null);
+      loadOrgChartMembers();
+    } catch (err) {
+      setOrgChartError(friendlyErrorMessage(err));
+    }
+  };
+
+  const handleArchiveOrgChartMember = async (member) => {
+    setOrgChartError(null);
+    if (isMockSession) {
+      setOrgChartMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, status: 'Inactive' } : m)));
+      return;
+    }
+    try {
+      await archiveOrgChartMember(member.id);
+      loadOrgChartMembers();
+    } catch (err) {
+      setOrgChartError(friendlyErrorMessage(err));
+    }
+  };
+
+  const toggleOrgChartExpanded = (id) => setExpandedOrgChartIds((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Mentor Mentees (080_mentor_mentees.sql) - which members a mentor can
   // actually see/manage. The real access boundary is RLS
@@ -8562,6 +8638,132 @@ Pick new people to present next Sunday`;
                 );
               })}
             </div>
+          )}
+        </div>
+      );
+    }
+
+    case 'orgchart': {
+      if (!isFounder) {
+        return (
+          <div>
+            <p style={{ color: 'var(--text-muted)' }}>Only the founder can view the org chart.</p>
+          </div>
+        );
+      }
+
+      const activeOrgChartMembers = orgChartMembers.filter((m) => m.status !== 'Inactive');
+      const childrenByParent = {};
+      activeOrgChartMembers.forEach((m) => {
+        const key = m.reportsToId || 'root';
+        (childrenByParent[key] = childrenByParent[key] || []).push(m);
+      });
+      const orgChartRoots = childrenByParent['root'] || [];
+
+      const formatComp = (amount) =>
+        amount == null ? '—' : `R${Number(amount).toLocaleString('en-ZA', { minimumFractionDigits: 0 })}/mo`;
+
+      const renderOrgChartNode = (member, depth) => {
+        const children = childrenByParent[member.id] || [];
+        const isExpanded = expandedOrgChartIds[member.id] !== false; // default expanded
+        return (
+          <div key={member.id} style={{ marginLeft: depth * 28 }}>
+            <div
+              className="glass-card"
+              style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                gap: '12px', padding: '12px 16px', marginBottom: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                {children.length > 0 && (
+                  <button
+                    onClick={() => toggleOrgChartExpanded(member.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', flexShrink: 0 }}
+                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                  >
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{member.fullName}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    {member.jobTitle}{member.department ? ` · ${member.department}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+                {member.employmentType && (
+                  <span className="badge badge-warning" style={{ fontSize: '0.68rem' }}>{member.employmentType}</span>
+                )}
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-cyan)', minWidth: '90px', textAlign: 'right' }}>
+                  {formatComp(member.monthlyCompensation)}
+                </span>
+                <button
+                  onClick={() => { setEditingOrgChartMember(member); setShowAddOrgChartModal(true); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
+                  aria-label="Edit"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  onClick={() => handleArchiveOrgChartMember(member)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'flex' }}
+                  aria-label="Archive"
+                  title="Mark as departed"
+                >
+                  <Archive size={14} />
+                </button>
+              </div>
+            </div>
+            {isExpanded && children.map((child) => renderOrgChartNode(child, depth + 1))}
+          </div>
+        );
+      };
+
+      return (
+        <div>
+          <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Network size={28} color="var(--accent-cyan)" /> Org Chart
+              </h1>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                Real staff, structure, and compensation - founder-only, never visible to community managers or mentors.
+              </p>
+            </div>
+            <button className="btn btn-primary" onClick={() => { setEditingOrgChartMember(null); setShowAddOrgChartModal(true); }}>
+              <UserPlus size={14} /> Add Staff Member
+            </button>
+          </div>
+
+          {isMockSession && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '20px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              You're using Mock Admin — changes here are local only and will be lost on your next login.
+            </div>
+          )}
+          {orgChartError && (
+            <div style={{ padding: '12px 16px', marginBottom: '20px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
+              {orgChartError}
+            </div>
+          )}
+
+          {!isMockSession && loadingOrgChart ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading...</p>
+          ) : orgChartRoots.length === 0 ? (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No staff added yet.</p>
+          ) : (
+            <div>{orgChartRoots.map((rootMember) => renderOrgChartNode(rootMember, 0))}</div>
+          )}
+
+          {showAddOrgChartModal && (
+            <AddOrgChartMemberModal
+              allMembers={activeOrgChartMembers}
+              editingMember={editingOrgChartMember}
+              onSave={handleSaveOrgChartMember}
+              onClose={() => { setShowAddOrgChartModal(false); setEditingOrgChartMember(null); }}
+            />
           )}
         </div>
       );
