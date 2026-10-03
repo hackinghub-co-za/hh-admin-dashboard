@@ -522,7 +522,7 @@ export default function App() {
 
       {/* Gemma - member-only floating assistant, not shown during onboarding/
           offboarding takeovers (this only renders once those gates have passed) */}
-      {!showStaffDashboard && <GemmaWidget user={user} isMockSession={isMockSession} />}
+      {!showStaffDashboard && <GemmaWidget user={user} isMockSession={isMockSession} activeTab={activeTab} setActiveTab={setActiveTab} />}
     </div>
   );
 }

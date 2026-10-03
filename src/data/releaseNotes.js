@@ -8,9 +8,33 @@ export const RELEASE_NOTES = [
   {
     version: '2026.10.03',
     date: '2026-10-03',
-    headline: 'Labs - hands-on practice for your track, starting with GRC.',
-    intro: "There's a new Labs tab. Hub Labs are our own scenario labs that run right inside the portal: you get a brief, a pack of realistic (and slightly messy) evidence from a fictional South African company, and the tasks a junior analyst would actually be handed. The first three are GRC labs. Curated labs are the best external labs we've found for each track; do them on their own platform and send us your proof.",
+    headline: 'Labs for hands-on practice, and a brand new Gemma.',
+    intro: "There's a new Labs tab. Hub Labs are our own scenario labs that run right inside the portal: you get a brief, a pack of realistic (and slightly messy) evidence from a fictional South African company, and the tasks a junior analyst would actually be handed. The first three are GRC labs. Curated labs are the best external labs we've found for each track; do them on their own platform and send us your proof. Gemma also got a full rebuild: a new look, a bit more attitude, and she can finally see your actual progress.",
     groups: [
+      {
+        label: 'Gemma',
+        color: '#a78bfa',
+        items: [
+          {
+            icon: '💬',
+            title: 'A new Gemma, who actually knows you',
+            body: "Gemma now sees your roadmap, Hub Score, streak, exam dates and labs, so \"how am I doing?\" gets a real answer instead of a guess. She has a new face, a lot more attitude, replies with proper formatting, and can open the right page for you. You can start new chats, keep earlier ones, or open her on a full page.",
+            where: 'Gemma (bottom right, or the sidebar)',
+          },
+          {
+            icon: '🧠',
+            title: 'Hints, explanations and quizzes',
+            body: "Stuck on a lab task? Ask Gemma for a hint (three per lab). She points you at the evidence but never gives the answer, because she doesn't have it. After you submit she can explain why an answer was right or wrong. Ask her to quiz you for five practice questions on your current roadmap item.",
+            where: 'Labs · Gemma',
+          },
+          {
+            icon: '📝',
+            title: "Gemma's weekly note",
+            body: "Once a week she'll leave a short note on your Dashboard: one thing you're doing well and the one thing to do next. If you ever tell her you're overwhelmed, she'll point you to Take a Break and can ask someone from the team to check in. Your chats are private: the team only sees replies you rate down and chats you send to a person.",
+            where: 'Dashboard',
+          },
+        ],
+      },
       {
         label: 'Growth',
         color: '#5ee37a',

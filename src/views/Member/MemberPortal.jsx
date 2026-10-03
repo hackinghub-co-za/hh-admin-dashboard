@@ -50,6 +50,8 @@ import HubScoreModal from '../../components/HubScoreModal';
 import { fetchMyBreakStatus, startMyBreak } from '../../lib/breakData';
 import TakeABreakModal from '../../components/TakeABreakModal';
 import MemberLabs from '../../components/MemberLabs';
+import GemmaChat from '../../components/gemma/GemmaChat';
+import GemmaWeeklyNote from '../../components/gemma/GemmaWeeklyNote';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchMyJourneyOverrides, setJourneyOverride, clearJourneyOverride } from '../../lib/journeyOverridesData';
@@ -3056,6 +3058,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showCvReview, setShowCvReview] = useState(false);
   const [showInterviewPrep, setShowInterviewPrep] = useState(false);
 
+  // Gemma's reply buttons ask for a modal by name (components/gemma/gemmaActions.js).
+  useEffect(() => {
+    const onOpen = (e) => {
+      if (e.detail === 'hub_score') setShowHubScoreModal(true);
+      else if (e.detail === 'take_a_break' && !isOnBreak) setShowTakeABreakModal(true);
+      else if (e.detail === 'cv_review') setShowCvReview(true);
+      else if (e.detail === 'interview_prep' && !isMockSession) setShowInterviewPrep(true);
+    };
+    window.addEventListener('gemma:open', onOpen);
+    return () => window.removeEventListener('gemma:open', onOpen);
+  }, [isOnBreak, isMockSession]);
+
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
@@ -5793,6 +5807,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             />
           )}
 
+          <GemmaWeeklyNote isMockSession={isMockSession} setActiveTab={setActiveTab} />
+
           {roadmapIsStale && !roadmapNudgeDismissed && (
             <div
               style={{
@@ -7173,6 +7189,17 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             </div>
           )}
+        </div>
+      );
+
+    case 'gemma':
+      return (
+        <div>
+          <div style={{ marginBottom: '20px' }}>
+            <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Gemma</h1>
+            <p>Your cyber bestie. She knows your roadmap, Hub Score, streak and exam dates, and she's not here to flatter you.</p>
+          </div>
+          <GemmaChat user={user} isMockSession={isMockSession} activeTab="gemma" setActiveTab={setActiveTab} variant="page" />
         </div>
       );
 

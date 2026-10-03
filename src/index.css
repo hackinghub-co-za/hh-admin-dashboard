@@ -425,3 +425,103 @@ p {
 .markdown-body hr { border: none; border-top: 1px solid var(--border-color); margin: 1.6em 0; }
 .markdown-body table { border-collapse: collapse; width: 100%; margin: 0 0 1em; font-size: 0.9em; }
 .markdown-body th, .markdown-body td { border: 1px solid var(--border-color); padding: 6px 10px; text-align: left; }
+
+/* ===================== Gemma (src/components/gemma) ===================== */
+/* Keeps page content clear of the floating Gemma launcher. */
+.main-content.member-portal { padding-bottom: 104px; }
+
+.gemma-launcher {
+  position: fixed; bottom: 24px; right: 24px; z-index: 900;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 6px; border-radius: 999px; cursor: pointer;
+  background: var(--bg-primary); color: var(--text-primary);
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), 0 0 18px rgba(var(--accent-rgb), 0.15);
+  font-family: var(--font-sans); font-weight: 700; font-size: 0.88rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.gemma-launcher:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(var(--accent-rgb), 0.25); }
+.gemma-launcher:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+.gemma-launcher[data-pill='true'] { padding-right: 18px; }
+
+.gemma-panel {
+  position: fixed; bottom: 92px; right: 24px; z-index: 900;
+  width: 440px; max-width: calc(100vw - 48px);
+  height: 640px; max-height: calc(100vh - 120px);
+  border-radius: 18px; overflow: hidden;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  background: var(--bg-primary);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+}
+
+.gemma-shell { display: flex; height: 100%; min-height: 0; color: var(--text-primary); }
+.gemma-shell-page { height: calc(100vh - 140px); min-height: 560px; border: 1px solid var(--border-color); border-radius: 18px; overflow: hidden; background: var(--bg-secondary); }
+.gemma-side { width: 250px; flex-shrink: 0; border-right: 1px solid var(--border-color); overflow-y: auto; padding: 14px 10px; }
+.gemma-main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.gemma-shell-page .gemma-main { max-width: 860px; margin: 0 auto; width: 100%; }
+.gemma-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border-color); }
+.gemma-icon-btn { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; border: 1px solid transparent; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.gemma-icon-btn:hover, .gemma-icon-btn[data-on='true'] { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color); }
+
+.gemma-history { display: flex; flex-direction: column; gap: 2px; }
+.gemma-history-item { display: flex; align-items: center; gap: 6px; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary); }
+.gemma-history-item > button:first-child, button.gemma-history-item { flex: 1; min-width: 0; text-align: left; background: none; border: none; color: inherit; padding: 7px 10px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; font: inherit; }
+.gemma-history-item[data-active='true'] { background: rgba(var(--accent-rgb), 0.1); color: var(--accent-cyan); font-weight: 600; }
+.gemma-history-item:hover { background: var(--bg-tertiary); }
+.gemma-history-del { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 6px; opacity: 0; }
+.gemma-history-item:hover .gemma-history-del, .gemma-history-del:focus-visible { opacity: 1; }
+.gemma-history-pop { position: absolute; top: 66px; left: 12px; right: 12px; z-index: 2; max-height: 60%; overflow-y: auto; padding: 8px; border-radius: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); }
+
+.gemma-scroll { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.gemma-user { align-self: flex-end; max-width: 85%; background: var(--accent-cyan); color: var(--accent-ink); padding: 9px 13px; border-radius: 14px 14px 4px 14px; font-size: 0.86rem; font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gemma-row { display: flex; gap: 10px; align-items: flex-start; }
+.gemma-bubble { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px 14px 14px 14px; padding: 11px 14px; font-size: 0.87rem; display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow-wrap: anywhere; }
+.gemma-md { line-height: 1.55; }
+.gemma-md > * { margin: 0; }
+.gemma-md > * + * { margin-top: 8px; }
+.gemma-md ul, .gemma-md ol { padding-left: 18px; }
+.gemma-md li + li { margin-top: 3px; }
+.gemma-md strong { color: var(--text-primary); }
+.gemma-md code { font-family: var(--font-mono); font-size: 0.85em; background: var(--bg-secondary); padding: 1px 5px; border-radius: 4px; }
+.gemma-md a { color: var(--accent-cyan); }
+.gemma-typing { display: flex; gap: 4px; padding: 4px 0; }
+.gemma-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); animation: gemma-bounce 1s infinite ease-in-out; }
+.gemma-typing i:nth-child(2) { animation-delay: 0.15s; }
+.gemma-typing i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes gemma-bounce { 0%, 80%, 100% { opacity: 0.35; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .gemma-typing i { animation: none; } .gemma-launcher { transition: none; } }
+
+.gemma-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.gemma-action { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 700; font-family: var(--font-sans); color: var(--accent-cyan); background: transparent; border: 1px solid rgba(var(--accent-rgb), 0.5); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.gemma-action:hover { background: rgba(var(--accent-rgb), 0.1); }
+.gemma-action-quiet { color: var(--text-secondary); border-color: var(--border-color); }
+.gemma-care { border-top: 1px dashed var(--border-color); padding-top: 10px; font-size: 0.82rem; display: flex; flex-direction: column; gap: 8px; }
+.gemma-care p { display: flex; gap: 6px; align-items: flex-start; }
+.gemma-sources { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-muted); display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.gemma-sources i { font-style: normal; border: 1px solid var(--border-color); border-radius: 999px; padding: 1px 8px; color: var(--text-secondary); }
+.gemma-tools { display: flex; gap: 2px; }
+.gemma-tools button { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; background: none; border: none; color: var(--text-muted); cursor: pointer; }
+.gemma-tools button:hover, .gemma-tools button[data-on='true'] { color: var(--accent-cyan); background: var(--bg-tertiary); }
+
+.gemma-prompt { display: flex; align-items: center; gap: 10px; text-align: left; font-family: var(--font-sans); font-size: 0.85rem; color: var(--text-primary); background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+.gemma-prompt svg { color: var(--accent-cyan); flex-shrink: 0; }
+.gemma-prompt:hover { border-color: rgba(var(--accent-rgb), 0.5); }
+.gemma-context { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 999px; padding: 4px 10px; }
+.gemma-context svg { color: var(--accent-cyan); }
+.gemma-note { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), 0.35); background: rgba(var(--accent-rgb), 0.06); font-size: 0.85rem; }
+.gemma-note span { color: var(--text-secondary); }
+.gemma-note-when { font-family: var(--font-mono); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+
+.gemma-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border-color); align-items: flex-end; }
+.gemma-input textarea { flex: 1; resize: none; font-size: 0.86rem; max-height: 140px; font-family: var(--font-sans); }
+.gemma-input .btn { padding: 10px 14px; }
+.gemma-foot { font-size: 0.68rem; color: var(--text-muted); text-align: center; padding: 0 14px 10px; line-height: 1.4; }
+.gemma-link { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--accent-cyan); font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0; font-family: var(--font-sans); }
+.gemma-option { display: flex; align-items: center; gap: 8px; text-align: left; font-family: var(--font-sans); font-size: 0.86rem; color: var(--text-primary); background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+.gemma-option[data-state='open']:hover { border-color: rgba(var(--accent-rgb), 0.5); }
+.gemma-option[data-state='right'] { border-color: var(--success); background: rgba(var(--success-rgb), 0.1); }
+.gemma-option[data-state='wrong'] { border-color: var(--danger); background: rgba(var(--danger-rgb), 0.08); }
+.gemma-option[data-state='done'] { opacity: 0.6; cursor: default; }
+.gemma-hintbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(var(--accent-rgb), 0.25); background: rgba(var(--accent-rgb), 0.06); font-size: 0.8rem; }
+.gemma-hint { border-left: 3px solid var(--accent-cyan); background: var(--bg-tertiary); border-radius: 0 8px 8px 0; padding: 10px 12px; font-size: 0.85rem; display: flex; gap: 10px; align-items: flex-start; }
+@media (max-width: 900px) { .gemma-side { display: none; } }

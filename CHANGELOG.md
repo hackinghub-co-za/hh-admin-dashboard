@@ -21,6 +21,34 @@ saved in their browser's `localStorage`.
 ## 2026.10.03
 
 ### Added
+- **Gemma, rebuilt** (`100_gemma_upgrade.sql`, `gemma-chat`, new
+  `gemma-tools`). New face (an illustrated avatar replacing the stock robot),
+  an "Ask Gemma" pill that shrinks to her face after a member's first
+  week, a wider panel, markdown replies, streamed replies, reply tags
+  (buttons that open a tab or modal from a fixed list, "Based on" sources,
+  topic), thumbs up/down with an optional note, separate conversations
+  with a history list, and a full-page Gemma tab. Her voice is now a
+  sassy Joburg girlie that switches the sass off for anything heavy.
+  - **Knows the member:** every reply gets a server-built snapshot
+    (`_gemma_member_snapshot`: roadmap by phase, last/next items, Hub
+    Score and tier, streak and breaks, next exam, labs, study time, room
+    logs, recent quizzes). The exact money-owed figure is no longer sent;
+    she only learns "has an outstanding balance".
+  - **Knowledge base:** the FAQ moved out of the function into
+    `gemma_knowledge`, editable in the new admin Gemma tab.
+  - **Lab help:** up to 3 hints per lab (only material on the member's
+    screen, never answer keys; closes on submit) and up to 5 explanations
+    after submitting.
+  - **Weekly note** on the Dashboard and a badge on her button, generated
+    once a week per member.
+  - **Quiz mode**, and a wellbeing path: if a member sounds overwhelmed
+    she points to Take a Break and offers "Talk to a person", which
+    adds them to Accountability Check-ins and flags the chat to staff.
+  - **Admin/CM Gemma tab:** admins see counts, topics, rated-down replies
+    and can edit the knowledge base; community managers see only the
+    talk-to-a-person requests. There is still no screen that browses all
+    conversations; the member notice says exactly that.
+  - Retries on transient Gemini 429/5xx.
 - **Labs** (member tab) and **Lab Reviews** (admin + community manager
   tab). Two kinds of lab: *curated* (an external lab; the member submits
   a proof link, staff approve it) and *Hub Labs* (scenario labs that run

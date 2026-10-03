@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, FileText, CheckCircle2, XCircle, Lock, Send, Clock, FlaskConical } from 'lucide-react';
 import { saveLabProgress, submitLabAttempt, fetchLabDebrief } from '../lib/labsData';
+import { fetchMyLabHelp } from '../lib/gemmaData';
+import GemmaLabHelp from './gemma/GemmaLabHelp';
 import { logPortalEvent } from '../lib/portalEventsData';
 import { friendlyMemberErrorMessage } from '../lib/errorMessages';
 import { RISK_SCALE, riskRating } from '../data/labs';
@@ -259,6 +261,7 @@ export default function LabPlayer({ lab, content, attempt, isMockSession, onBack
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [debrief, setDebrief] = useState(null);
+  const [gemmaHelp, setGemmaHelp] = useState([]);
   const saveTimer = useRef(null);
   const pendingAnswers = useRef(null);
   const hasStarted = useRef(!!attempt);
@@ -279,6 +282,11 @@ export default function LabPlayer({ lab, content, attempt, isMockSession, onBack
       .then(setDebrief)
       .catch((err) => setError(friendlyMemberErrorMessage(err)));
   }, [isSubmitted, isMockSession, lab.id, attempt?.submittedAt]);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    fetchMyLabHelp(lab.slug).then(setGemmaHelp).catch(() => {});
+  }, [lab.slug, isMockSession]);
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
@@ -449,6 +457,17 @@ export default function LabPlayer({ lab, content, attempt, isMockSession, onBack
                 </div>
                 <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>{task.prompt}</p>
                 <TaskInput task={task} value={answers[task.key]} disabled={disabled} onChange={(v) => updateAnswer(task.key, v)} />
+                {task.type !== 'rubric' && (!isSubmitted || debrief || isMockSession) && (
+                  <GemmaLabHelp
+                    labSlug={lab.slug}
+                    content={content}
+                    task={task}
+                    mode={isSubmitted ? 'explain' : 'hint'}
+                    help={gemmaHelp}
+                    onHelpAdded={(h) => setGemmaHelp((prev) => [...prev, h])}
+                    isMockSession={isMockSession}
+                  />
+                )}
                 {isSubmitted && debrief && <TaskDebrief task={task} given={answers[task.key]} debrief={debrief[task.key]} />}
               </div>
             );
