@@ -7,6 +7,7 @@ import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SalesPipelineBoard from '../../components/SalesPipelineBoard';
 import AccountabilityCheckins from '../../components/AccountabilityCheckins';
+import LabReviews from '../../components/LabReviews';
 // Anonymized fixture data for Mock Admin only - same shape and aggregate
 // realism (amounts, dates, plan mix) as the real historical PayFast export,
 // but with every real member/email swapped for a fake "Demo Member N"
@@ -103,6 +104,7 @@ import {
   CheckSquare,
   Square,
   Network,
+  FlaskConical,
   ChevronDown,
   ChevronRight,
   Archive,
@@ -3143,9 +3145,10 @@ Pick new people to present next Sunday`;
         const ROLE_LANDING = {
           community_manager: {
             greeting: 'Community Manager',
-            blurb: "You've got Matchmaker, Room Logs, Meetups & Events, Job Board, Cert Calendar, and Community Content - competitions, accountability, and what the community sees when they open the app.",
+            blurb: "You've got Matchmaker, Room Logs, Lab Reviews, Meetups & Events, Job Board, Cert Calendar, and Community Content - competitions, accountability, and what the community sees when they open the app.",
             links: [
               { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },
+              { id: 'labreviews', label: 'Lab Reviews', icon: FlaskConical },
               { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
               { id: 'meetups', label: 'Meetups & Events', icon: Calendar },
               { id: 'jobs', label: 'Job Board', icon: Briefcase },
@@ -4682,6 +4685,9 @@ Pick new people to present next Sunday`;
 
     case 'accountability':
       return <AccountabilityCheckins isMockSession={isMockSession} user={user} />;
+
+    case 'labreviews':
+      return <LabReviews isMockSession={isMockSession} user={user} />;
 
     case 'roadmaps': {
       const roadmapSelected = roadmapMemberEmail

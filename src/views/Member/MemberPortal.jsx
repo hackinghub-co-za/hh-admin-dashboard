@@ -49,6 +49,7 @@ import { fetchMyHubScore, fetchHubScoreLeaderboard, fetchMyHubScoreClaims, claim
 import HubScoreModal from '../../components/HubScoreModal';
 import { fetchMyBreakStatus, startMyBreak } from '../../lib/breakData';
 import TakeABreakModal from '../../components/TakeABreakModal';
+import MemberLabs from '../../components/MemberLabs';
 import { logPortalEvent } from '../../lib/portalEventsData';
 import { fetchMyStartDate } from '../../lib/startDateData';
 import { fetchMyJourneyOverrides, setJourneyOverride, clearJourneyOverride } from '../../lib/journeyOverridesData';
@@ -7174,6 +7175,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           )}
         </div>
       );
+
+    case 'labs':
+      return <MemberLabs isMockSession={isMockSession} roadmapTrack={roadmapTrack} />;
 
     case 'resources':
       return (

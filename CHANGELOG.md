@@ -21,6 +21,24 @@ saved in their browser's `localStorage`.
 ## 2026.10.03
 
 ### Added
+- **Labs** (member tab) and **Lab Reviews** (admin + community manager
+  tab). Two kinds of lab: *curated* (an external lab; the member submits
+  a proof link, staff approve it) and *Hub Labs* (scenario labs that run
+  in the portal: brief, evidence pack, tasks). Hub Lab objective tasks
+  (single choice, multi-select with wrong picks cancelling right ones,
+  matching, 5×5 risk scoring within an accepted range) are graded
+  server-side by `submit_lab_attempt()` against `lab_answer_keys`, which
+  members can never read; model answers unlock only after submission via
+  `get_lab_debrief()`. Written tasks are scored by staff against a 0–2
+  rubric. A sent-back attempt keeps its first objective answers and
+  grades, so only the written work can change on resubmission. Lab
+  prompts live in `src/data/labs/*.js`; answers live only in the
+  database. Staff can add curated labs and publish/unpublish any lab.
+  Labs are deliberately not connected to Hub Score. Three GRC Hub Labs
+  ship published: *Build a Risk Register: Kasi Kredit*, *Breach or Not?
+  Mzansi Learn* (POPIA s22) and *POPIA Gap Analysis: Ikhaya Health
+  Clinics*. New portal events: `lab_opened`, `lab_started`,
+  `lab_submitted`. (`099_labs.sql`)
 - **Org Chart** (admin, founder-only) — a new sidebar tab for managing
   real staff structure: name, job title, department, who reports to whom,
   employment type, and monthly compensation. Staff don't need a portal

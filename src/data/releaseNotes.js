@@ -6,6 +6,32 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.03',
+    date: '2026-10-03',
+    headline: 'Labs - hands-on practice for your track, starting with GRC.',
+    intro: "There's a new Labs tab. Hub Labs are our own scenario labs that run right inside the portal: you get a brief, a pack of realistic (and slightly messy) evidence from a fictional South African company, and the tasks a junior analyst would actually be handed. The first three are GRC labs. Curated labs are the best external labs we've found for each track; do them on their own platform and send us your proof.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🧪',
+            title: 'Hub Labs: three GRC labs to start',
+            body: "Build a risk register for a micro-lender, decide which of four incidents must be reported under POPIA section 22, and run a POPIA gap analysis on a group of private clinics. Your progress saves as you go. When you submit, the objective tasks are marked straight away and the model answers unlock; your written work goes to the team for a rubric review and feedback.",
+            where: 'Labs',
+          },
+          {
+            icon: '🔗',
+            title: 'Curated labs',
+            body: "External labs picked by the team for each track. Open the lab, finish it on its own platform, then submit a link that proves it (a completion certificate, badge or profile page). The team checks it and marks it approved.",
+            where: 'Labs',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.02',
     date: '2026-10-02',
     headline: 'Take a Break - it\'s okay to pause.',
