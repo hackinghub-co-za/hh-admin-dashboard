@@ -20,6 +20,28 @@ saved in their browser's `localStorage`.
 
 ## 2026.10.04
 
+### Added
+- **Resource steps and completion** - a resource can carry up to 20 ordered
+  steps, each with an optional link, and members can mark a step or the whole
+  resource completed (private to them; "Hide completed" and an "N of M
+  completed" counter on the Resources tab). Ticking the last step completes
+  the resource, un-ticking a step un-completes it, completing the resource
+  ticks every step, and un-completing it alone leaves the steps. Writes only
+  go through `set_my_resource_progress()` (SECURITY DEFINER; validates the
+  step id and membership), so the rules can't drift; members can read only
+  their own `resource_progress` rows. The Add Resource form takes optional
+  steps (one per line, `Title | link`). Logs a `resource_completed` portal
+  event. (`resources.steps`, `resource_progress` in `026_resources.sql`)
+- **AZ-900 resources** (Cert Prep) - an in-app *AZ-900 Study Guide*
+  (price ~R700, 1-4 weeks, playlist, practice, Microsoft Learn) plus three
+  step-by-step cards: Microsoft Learn Learning Paths (the three exam domains
+  with their weightings, and the guided-projects path), Exam Prep Checklist
+  (study guide, Exam Readiness Zone, free Practice Assessment, exam sandbox)
+  and Hands-on Azure Practice. The existing YES x Microsoft voucher card
+  gained steps. Every link was opened and checked against Microsoft's
+  own pages (skills measured as of 20 July 2026). No third-party video
+  course on purpose - the popular ones pre-date that exam update.
+
 ### Changed
 - **Breakdowns folded into Resources** - the member Breakdowns tab is gone;
   the same archive and reader now live under Resources > Weekly Breakdowns

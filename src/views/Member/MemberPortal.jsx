@@ -14,6 +14,7 @@ import SecurityPlusGuideModal from '../../components/SecurityPlusGuideModal';
 import CySAPlusGuideModal from '../../components/CySAPlusGuideModal';
 import TerraformAssociateGuideModal from '../../components/TerraformAssociateGuideModal';
 import SC200GuideModal from '../../components/SC200GuideModal';
+import AZ900GuideModal from '../../components/AZ900GuideModal';
 import PodcastsGuideModal from '../../components/PodcastsGuideModal';
 import SoftSkillsGuideModal from '../../components/SoftSkillsGuideModal';
 import InterviewPlaybookGuideModal from '../../components/InterviewPlaybookGuideModal';
@@ -36,7 +37,9 @@ import { fetchCertCalendar, addCertCalendarEntry, updateMyCertCalendarEntry } fr
 import { requestCertPerk } from '../../lib/certPerkRequestData';
 import { fetchMyExamReadiness, updateExamReadinessChecklist, logPracticeTestScore, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchJobBoard, addJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
-import { fetchResources, addResource } from '../../lib/resourcesData';
+import { fetchResources, addResource, fetchMyResourceProgress, setResourceProgress } from '../../lib/resourcesData';
+import { applyProgress, parseStepLines } from '../../lib/resourceHelpers';
+import ResourceProgress from '../../components/ResourceProgress';
 import { fetchMyJobApplications, addJobApplication, updateJobApplication, deleteJobApplication } from '../../lib/jobApplicationsData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
 import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
@@ -704,6 +707,19 @@ const MOCK_EXAM_READINESS = [
 ];
 
 const MOCK_RESOURCES = [
+  { id: 13, category: 'Cert Prep', title: 'AZ-900 Study Guide', format: 'Guide', description: 'What it costs (around R700), how long to study (1 to 4 weeks), and the resources members actually use - official certification page, a video playlist, free practice questions, and Microsoft Learn.', link: '', steps: [] },
+  { id: 12, category: 'Cert Prep', title: 'AZ-900: Exam Prep Checklist', format: 'Guide', description: "The exam-side of the plan: read what is actually measured, watch Microsoft's exam-readiness videos, then test yourself with the free Practice Assessment and the exam sandbox before you book.", link: 'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900', steps: [
+    { id: 'ep1', title: 'Read the official study guide and its skills-measured outline', link: 'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900' },
+    { id: 'ep2', title: 'Watch the Exam Readiness Zone videos', link: 'https://learn.microsoft.com/en-us/shows/exam-readiness-zone/' },
+    { id: 'ep3', title: 'Take the free Practice Assessment and note your weak domains', link: 'https://learn.microsoft.com/en-us/credentials/certifications/exams/az-900/practice/assessment?assessment-type=practice&assessmentId=23' },
+    { id: 'ep6', title: 'Try the exam sandbox so the exam interface is familiar', link: 'https://aka.ms/examdemo' },
+  ] },
+  { id: 11, category: 'Cert Prep', title: 'AZ-900: Microsoft Learn Learning Paths', format: 'Course', description: "Microsoft's own free, self-paced training for Azure Fundamentals - four short paths that cover the three exam domains and finish with hands-on guided projects.", link: 'https://learn.microsoft.com/en-us/credentials/certifications/azure-fundamentals/', steps: [
+    { id: 'lp1', title: 'Part 1: Describe cloud concepts (25-30% of the exam)', link: 'https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/' },
+    { id: 'lp2', title: 'Part 2: Describe Azure architecture and services (35-40%)', link: 'https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/' },
+    { id: 'lp3', title: 'Part 3: Describe Azure management and governance (30-35%)', link: 'https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/' },
+    { id: 'lp4', title: 'Part 4: Apply Azure skills in guided projects (hands-on)', link: 'https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/' },
+  ] },
   { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
   { id: 3, category: 'LinkedIn Strategy', title: 'The Hacking Hub LinkedIn Playbook', format: 'Guide', description: 'Photo, banner, headline, About section, posting cadence, and what to avoid - the full checklist for a LinkedIn profile that actually gets you noticed.', link: '' },
@@ -3655,6 +3671,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showCySAPlusGuide, setShowCySAPlusGuide] = useState(false);
   const [showTerraformGuide, setShowTerraformGuide] = useState(false);
   const [showSC200Guide, setShowSC200Guide] = useState(false);
+  const [showAZ900Guide, setShowAZ900Guide] = useState(false);
   const [showPodcastsGuide, setShowPodcastsGuide] = useState(false);
   const [showKodeKloudGuide, setShowKodeKloudGuide] = useState(false);
   const [showSoftSkillsGuide, setShowSoftSkillsGuide] = useState(false);
@@ -3667,6 +3684,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'CompTIA CySA+ Study Guide': () => setShowCySAPlusGuide(true),
     'Terraform Associate Study Guide': () => setShowTerraformGuide(true),
     'SC-200 Study Guide': () => setShowSC200Guide(true),
+    'AZ-900 Study Guide': () => setShowAZ900Guide(true),
     'Recommended Podcasts': () => setShowPodcastsGuide(true),
     'KodeKloud': () => setShowKodeKloudGuide(true),
     'Soft Skills Playlist': () => setShowSoftSkillsGuide(true),
@@ -3692,11 +3710,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [resources, setResources] = useState(isMockSession ? MOCK_RESOURCES : []);
   const [loadingResources, setLoadingResources] = useState(!isMockSession);
   const [resourcesError, setResourcesError] = useState(null);
+  // The member's own completion state: { [resourceId]: { completed, steps: [stepId] } }.
+  const [resourceProgress, setProgressByResource] = useState({});
+  const [hideCompletedResources, setHideCompletedResources] = useState(false);
   const [showAddResourceForm, setShowAddResourceForm] = useState(false);
   const [addingResource, setAddingResource] = useState(false);
   const [addResourceError, setAddResourceError] = useState(null);
   const [newResourceForm, setNewResourceForm] = useState({
-    category: 'Cert Prep', title: '', format: '', description: '', link: '',
+    category: 'Cert Prep', title: '', format: '', description: '', link: '', stepsText: '',
   });
 
   useEffect(() => {
@@ -3708,6 +3729,35 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .finally(() => !cancelled && setLoadingResources(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyResourceProgress()
+      .then((data) => !cancelled && setProgressByResource(data))
+      .catch((err) => !cancelled && setResourcesError(friendlyMemberErrorMessage(err)));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
+  // Ticks a step (stepId) or the whole resource (stepId null). The screen
+  // updates instantly using the same rules the database applies, then settles
+  // on whatever the database says; a failure puts it back.
+  const handleResourceProgress = async (res, stepId, done) => {
+    const previous = resourceProgress;
+    const next = applyProgress(previous[res.id], { ...res, steps: res.steps || [] }, stepId, done);
+    setProgressByResource({ ...previous, [res.id]: next });
+    if (next.completed && !previous[res.id]?.completed) {
+      logPortalEvent('resource_completed', { title: res.title, category: res.category }).catch(() => {});
+    }
+    if (isMockSession) return;
+    try {
+      const saved = await setResourceProgress(res.id, stepId, done);
+      setProgressByResource((prev) => ({ ...prev, [res.id]: saved }));
+    } catch (err) {
+      setProgressByResource(previous);
+      setResourcesError(friendlyMemberErrorMessage(err));
+    }
+  };
 
   const handleAddResource = async (e) => {
     e.preventDefault();
@@ -3723,6 +3773,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           format: newResourceForm.format.trim(),
           description: newResourceForm.description.trim(),
           link: newResourceForm.link.trim(),
+          steps: parseStepLines(newResourceForm.stepsText),
         };
         setResources((prev) => [mockResource, ...prev]);
       } else {
@@ -3732,11 +3783,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           format: newResourceForm.format.trim(),
           description: newResourceForm.description.trim(),
           link: newResourceForm.link.trim(),
+          steps: parseStepLines(newResourceForm.stepsText),
           createdBy: user?.email,
         });
         setResources(await fetchResources());
       }
-      setNewResourceForm({ category: 'Cert Prep', title: '', format: '', description: '', link: '' });
+      setNewResourceForm({ category: 'Cert Prep', title: '', format: '', description: '', link: '', stepsText: '' });
       setShowAddResourceForm(false);
     } catch (err) {
       setAddResourceError(friendlyMemberErrorMessage(err));
@@ -3745,9 +3797,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  const filteredResources = resourceCategoryFilter === 'All'
+  const inCategory = resourceCategoryFilter === 'All'
     ? resources
     : resources.filter(r => r.category === resourceCategoryFilter);
+  const completedResourceCount = inCategory.filter((r) => resourceProgress[r.id]?.completed).length;
+  const filteredResources = hideCompletedResources
+    ? inCategory.filter((r) => !resourceProgress[r.id]?.completed)
+    : inCategory;
 
   // Personal Job Application Tracker (075_job_application_tracker.sql) -
   // private to this member, same "no real session under Mock Member" split
@@ -7345,7 +7401,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
             {RESOURCE_CATEGORIES.map((cat) => (
               <button
                 key={cat}
@@ -7358,15 +7414,27 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             ))}
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '20px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{completedResourceCount} of {inCategory.length} completed</span>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={hideCompletedResources} onChange={(e) => setHideCompletedResources(e.target.checked)} />
+              Hide completed
+            </label>
+          </div>
+
           {loadingResources && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>Loading resources...</p>}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
             {filteredResources.map((res) => {
               const Icon = RESOURCE_ICON[res.category] || FileText;
+              const resComplete = !!resourceProgress[res.id]?.completed;
               return (
-                <div key={res.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div key={res.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', ...(resComplete ? { borderColor: 'var(--success)' } : {}) }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{res.category}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{res.category}</span>
+                      {resComplete && <span className="badge" style={{ fontSize: '0.65rem', color: 'var(--success)', background: 'transparent', border: '1px solid var(--success)' }}>Completed</span>}
+                    </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                       <Icon size={13} /> {res.format}
                     </span>
@@ -7375,6 +7443,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <VendorLogo title={res.title} /> {res.title}
                   </h4>
                   <ExpandableText text={res.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1 }} />
+                  <ResourceProgress resource={res} progress={resourceProgress[res.id]} onToggle={(stepId, done) => handleResourceProgress(res, stepId, done)} />
                   {IN_APP_ARTICLE_RESOURCES[res.title] ? (
                     <button
                       className="btn btn-secondary"
@@ -7478,6 +7547,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       value={newResourceForm.description}
                       onChange={(e) => setNewResourceForm({ ...newResourceForm, description: e.target.value })}
                     />
+                  </div>
+
+                  <div>
+                    <label htmlFor="new-resource-steps" style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Steps (optional)</label>
+                    <textarea
+                      id="new-resource-steps"
+                      className="form-input"
+                      rows={4}
+                      style={{ resize: 'vertical' }}
+                      placeholder={'One step per line, with an optional link:\nWatch the intro | https://...\nDo the lab'}
+                      value={newResourceForm.stepsText}
+                      onChange={(e) => setNewResourceForm({ ...newResourceForm, stepsText: e.target.value })}
+                    />
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Members can tick each step off as they go (up to 20).</p>
                   </div>
 
                   {addResourceError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addResourceError}</p>}
@@ -7602,6 +7685,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           {showCySAPlusGuide && <CySAPlusGuideModal onClose={() => setShowCySAPlusGuide(false)} />}
           {showTerraformGuide && <TerraformAssociateGuideModal onClose={() => setShowTerraformGuide(false)} />}
           {showSC200Guide && <SC200GuideModal onClose={() => setShowSC200Guide(false)} />}
+          {showAZ900Guide && <AZ900GuideModal onClose={() => setShowAZ900Guide(false)} />}
           {showPodcastsGuide && <PodcastsGuideModal onClose={() => setShowPodcastsGuide(false)} />}
           {showSoftSkillsGuide && <SoftSkillsGuideModal onClose={() => setShowSoftSkillsGuide(false)} />}
           {showInterviewPlaybookGuide && (

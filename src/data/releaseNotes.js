@@ -8,13 +8,25 @@ export const RELEASE_NOTES = [
   {
     version: '2026.10.04',
     date: '2026-10-04',
-    headline: 'Weekly Breakdowns now live inside Resources.',
-    intro: "We tidied the menu: the Breakdowns tab has moved into Resources, so everything you read and learn from sits in one place.",
+    headline: 'Track your progress in Resources, plus AZ-900 prep.',
+    intro: "Resources now remembers what you've finished, there's a full AZ-900 (Azure Fundamentals) prep pack, and the Breakdowns tab has moved into Resources so everything you read and learn from sits in one place.",
     groups: [
       {
         label: 'Learning',
         color: '#5ee37a',
         items: [
+          {
+            icon: '✅',
+            title: 'Mark resources as completed',
+            body: "Every resource now has a Mark as completed button, and many have steps you can tick off one by one (each with its own link). Tick every step and the resource completes itself. Your progress is private to you, and you can hide completed ones to see what's left.",
+            where: 'Resources',
+          },
+          {
+            icon: '☁️',
+            title: 'AZ-900 prep pack',
+            body: "An AZ-900 study guide (price, how long to study, playlist, practice questions), Microsoft's learning paths broken into steps, an exam prep checklist, and a hands-on Azure practice list. All free, all from Microsoft's own material. The YES x Microsoft free-voucher card now has steps too.",
+            where: 'Resources · Cert Prep',
+          },
           {
             icon: '🛡️',
             title: 'Breakdowns are now in Resources',
