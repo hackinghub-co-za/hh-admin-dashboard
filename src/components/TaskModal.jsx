@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { X, Plus, Trash2, Lock } from 'lucide-react';
 import { TASK_STATUSES, TASK_PRIORITIES } from '../lib/tasksData';
 import { parseLabels } from '../lib/taskHelpers';
+import TaskComments from './TaskComments';
 
 const labelStyle = { display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' };
 
 // Create/edit dialog for the staff task board. `task` is null for a new
 // task (with `defaults` carrying the column it was opened from).
-export default function TaskModal({ task, defaults, assignees, isAdmin, saving, error, onSave, onDelete, onClose }) {
+export default function TaskModal({ task, defaults, assignees, isAdmin, myEmail, isMockSession, saving, error, onSave, onDelete, onClose, onCommentCountChange }) {
   const [form, setForm] = useState(() => (task
     ? { ...task, labelsText: task.labels.join(', '), checklist: task.checklist.map((c) => ({ ...c })) }
     : { title: '', description: '', status: defaults.status, priority: 'Medium', assigneeEmail: defaults.assigneeEmail || '', dueDate: '', labelsText: '', checklist: [], adminOnly: false }));
@@ -106,6 +107,10 @@ export default function TaskModal({ task, defaults, assignees, isAdmin, saving, 
             </div>
           </div>
         </div>
+
+        {task && (
+          <TaskComments taskId={task.id} assignees={assignees} myEmail={myEmail} isAdmin={isAdmin} isMockSession={isMockSession} onCountChange={onCommentCountChange} />
+        )}
 
         {isAdmin && (
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.85rem', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', cursor: 'pointer' }}>

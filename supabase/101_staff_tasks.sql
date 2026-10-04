@@ -142,3 +142,153 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_task_assignees() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_task_assignees() FROM PUBLIC, anon;
+
+-- =========================================================================
+-- COMMENTS + ASSIGNMENT / COMMENT NOTIFICATIONS
+-- =========================================================================
+-- Comments live on a card and are visible to exactly the people who can see
+-- the task (the policies below just ask staff_tasks, so an admin_only task's
+-- thread is invisible to community managers with no extra rule).
+CREATE TABLE IF NOT EXISTS public.staff_task_comments (
+  id BIGSERIAL PRIMARY KEY,
+  task_id BIGINT NOT NULL REFERENCES public.staff_tasks(id) ON DELETE CASCADE,
+  author_email TEXT NOT NULL,
+  body TEXT NOT NULL CHECK (length(trim(body)) BETWEEN 1 AND 2000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_staff_task_comments_task ON public.staff_task_comments(task_id, created_at);
+
+ALTER TABLE public.staff_task_comments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "staff read comments on visible tasks" ON public.staff_task_comments;
+CREATE POLICY "staff read comments on visible tasks" ON public.staff_task_comments
+  FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.staff_tasks t WHERE t.id = task_id));
+
+DROP POLICY IF EXISTS "staff comment as themselves on visible tasks" ON public.staff_task_comments;
+CREATE POLICY "staff comment as themselves on visible tasks" ON public.staff_task_comments
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    author_email = lower(auth.jwt() ->> 'email')
+    AND EXISTS (SELECT 1 FROM public.staff_tasks t WHERE t.id = task_id)
+  );
+
+-- Delete your own comment; the founder can delete any. No UPDATE policy -
+-- comments aren't editable, so a thread can't be quietly rewritten.
+DROP POLICY IF EXISTS "staff delete own comments, admins any" ON public.staff_task_comments;
+CREATE POLICY "staff delete own comments, admins any" ON public.staff_task_comments
+  FOR DELETE TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.staff_tasks t WHERE t.id = task_id)
+    AND (author_email = lower(auth.jwt() ->> 'email') OR public.is_admin(auth.uid()))
+  );
+
+-- Task notifications reuse the admin bell (061_admin_notifications.sql).
+-- That table was one shared founder feed; recipient_email makes a row
+-- private to one person (NULL keeps the old "every admin" meaning), and
+-- task_id lets a click open the card (cascade: deleting a task clears its
+-- alerts).
+ALTER TABLE public.admin_notifications
+  ADD COLUMN IF NOT EXISTS recipient_email TEXT,
+  ADD COLUMN IF NOT EXISTS task_id BIGINT REFERENCES public.staff_tasks(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_recipient ON public.admin_notifications (lower(recipient_email), created_at DESC) WHERE recipient_email IS NOT NULL;
+
+-- Founders see the shared feed plus anything addressed to them - never a
+-- colleague's task alerts. Community managers see only what's addressed to
+-- them (is_community_manager is inclusive of admins; harmless, same rule).
+DROP POLICY IF EXISTS "admins manage admin notifications" ON public.admin_notifications;
+CREATE POLICY "admins manage admin notifications"
+  ON public.admin_notifications FOR ALL
+  USING (public.is_admin(auth.uid()) AND (recipient_email IS NULL OR lower(recipient_email) = lower(auth.jwt() ->> 'email')));
+
+DROP POLICY IF EXISTS "staff read and clear their own task notifications" ON public.admin_notifications;
+CREATE POLICY "staff read and clear their own task notifications"
+  ON public.admin_notifications FOR ALL TO authenticated
+  USING (public.is_community_manager(auth.uid()) AND recipient_email IS NOT NULL AND lower(recipient_email) = lower(auth.jwt() ->> 'email'));
+
+CREATE OR REPLACE FUNCTION public.staff_actor_name()
+RETURNS TEXT
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+  SELECT COALESCE(
+    (SELECT NULLIF(trim(p.full_name), '') FROM public.profiles p WHERE lower(p.email) = lower(auth.jwt() ->> 'email')),
+    split_part(lower(auth.jwt() ->> 'email'), '@', 1),
+    'Someone'
+  );
+$$;
+REVOKE EXECUTE ON FUNCTION public.staff_actor_name() FROM PUBLIC, anon, authenticated;
+
+-- "X assigned you a task". Skipped when you assign yourself.
+CREATE OR REPLACE FUNCTION public.staff_tasks_notify_assignment()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_actor TEXT := lower(auth.jwt() ->> 'email');
+  v_name TEXT := public.staff_actor_name();
+BEGIN
+  IF NEW.assignee_email IS NULL OR NEW.assignee_email = COALESCE(v_actor, '') THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE' AND NEW.assignee_email IS NOT DISTINCT FROM OLD.assignee_email THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO public.admin_notifications (type, member_email, member_name, message, recipient_email, task_id)
+  VALUES ('task_assigned', COALESCE(v_actor, ''), v_name, v_name || ' assigned you "' || NEW.title || '"', NEW.assignee_email, NEW.id);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS staff_tasks_notify_assignment ON public.staff_tasks;
+CREATE TRIGGER staff_tasks_notify_assignment
+  AFTER INSERT OR UPDATE OF assignee_email ON public.staff_tasks
+  FOR EACH ROW EXECUTE FUNCTION public.staff_tasks_notify_assignment();
+
+-- A new comment tells everyone on the card: the assignee, whoever created
+-- it and anyone who commented before - except the commenter. Recipients are
+-- re-checked against current roles (and admin-only tasks only ever notify
+-- admins). A still-unread comment alert for the same card is refreshed
+-- instead of stacking, so one busy thread is one bell entry.
+CREATE OR REPLACE FUNCTION public.staff_task_comments_notify()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_task public.staff_tasks%ROWTYPE;
+  v_name TEXT := public.staff_actor_name();
+  v_msg TEXT;
+  v_to TEXT;
+BEGIN
+  SELECT * INTO v_task FROM public.staff_tasks WHERE id = NEW.task_id;
+  IF NOT FOUND THEN RETURN NEW; END IF;
+
+  v_msg := v_name || ' commented on "' || v_task.title || '": ' || left(regexp_replace(NEW.body, '\s+', ' ', 'g'), 80)
+           || CASE WHEN length(NEW.body) > 80 THEN '...' ELSE '' END;
+
+  FOR v_to IN
+    SELECT DISTINCT r.email FROM (
+      SELECT lower(v_task.assignee_email) AS email
+      UNION SELECT lower(v_task.created_by)
+      UNION SELECT lower(c.author_email) FROM public.staff_task_comments c WHERE c.task_id = NEW.task_id
+    ) r
+    JOIN public.profiles p ON lower(p.email) = r.email
+    WHERE r.email IS NOT NULL AND r.email <> '' AND r.email <> lower(NEW.author_email)
+      AND p.role IN ('admin', 'community_manager')
+      AND (NOT v_task.admin_only OR p.role = 'admin')
+  LOOP
+    UPDATE public.admin_notifications
+    SET message = v_msg, member_email = lower(NEW.author_email), member_name = v_name, created_at = now()
+    WHERE recipient_email = v_to AND task_id = NEW.task_id AND type = 'task_comment' AND read_at IS NULL;
+    IF NOT FOUND THEN
+      INSERT INTO public.admin_notifications (type, member_email, member_name, message, recipient_email, task_id)
+      VALUES ('task_comment', lower(NEW.author_email), v_name, v_msg, v_to, NEW.task_id);
+    END IF;
+  END LOOP;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS staff_task_comments_notify ON public.staff_task_comments;
+CREATE TRIGGER staff_task_comments_notify
+  AFTER INSERT ON public.staff_task_comments
+  FOR EACH ROW EXECUTE FUNCTION public.staff_task_comments_notify();

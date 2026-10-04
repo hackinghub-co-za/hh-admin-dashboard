@@ -7,7 +7,7 @@ import { supabase } from './supabase';
 export const TASK_STATUSES = ['Backlog', 'To Do', 'In Progress', 'In Review', 'Done'];
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
 
-const COLUMNS = 'id, title, description, status, priority, assignee_email, due_date, labels, checklist, admin_only, sort_order, created_by, created_at, updated_at, completed_at';
+const COLUMNS = 'id, title, description, status, priority, assignee_email, due_date, labels, checklist, admin_only, sort_order, created_by, created_at, updated_at, completed_at, staff_task_comments(count)';
 
 function mapRow(row) {
   return {
@@ -26,6 +26,7 @@ function mapRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
+    commentCount: row.staff_task_comments?.[0]?.count || 0,
   };
 }
 
@@ -84,4 +85,32 @@ export async function fetchTaskAssignees() {
   const { data, error } = await supabase.rpc('get_task_assignees');
   if (error) throw error;
   return (data || []).map((a) => ({ email: a.email, fullName: a.full_name || '', role: a.role }));
+}
+
+/** Oldest first - reads like a conversation. */
+export async function fetchTaskComments(taskId) {
+  const { data, error } = await supabase
+    .from('staff_task_comments')
+    .select('id, task_id, author_email, body, created_at')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((c) => ({ id: c.id, taskId: c.task_id, authorEmail: c.author_email, body: c.body, createdAt: c.created_at }));
+}
+
+/** The author is always the signed-in staff member (RLS rejects anything else). */
+export async function addTaskComment(taskId, body, authorEmail) {
+  const { data, error } = await supabase
+    .from('staff_task_comments')
+    .insert({ task_id: taskId, body: body.trim(), author_email: authorEmail.toLowerCase() })
+    .select('id, task_id, author_email, body, created_at')
+    .single();
+  if (error) throw error;
+  return { id: data.id, taskId: data.task_id, authorEmail: data.author_email, body: data.body, createdAt: data.created_at };
+}
+
+export async function deleteTaskComment(id) {
+  const { error } = await supabase.from('staff_task_comments').delete().eq('id', id);
+  if (error) throw error;
 }

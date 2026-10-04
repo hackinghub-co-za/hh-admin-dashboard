@@ -1,7 +1,16 @@
-import { useState } from 'react';
-import { X, UserPlus, Briefcase, Building2, Users, Banknote, Mail, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, UserPlus, UserCheck, Briefcase, Building2, Users, Banknote, Mail, FileText } from 'lucide-react';
+
+import { fetchTaskAssignees } from '../lib/tasksData';
 
 const EMPLOYMENT_TYPES = ['Full-Time', 'Part-Time', 'Contractor', 'Volunteer'];
+
+const ROLE_TITLE = { admin: 'Founder', community_manager: 'Community Manager' };
+const MOCK_TEAM = [
+  { email: 'founder@example.com', fullName: 'You (Founder)', role: 'admin' },
+  { email: 'thandiwe@example.com', fullName: 'Thandiwe Nkosi', role: 'community_manager' },
+  { email: 'blessing@example.com', fullName: 'Blessing Mahlangu', role: 'community_manager' },
+];
 
 const emptyForm = {
   fullName: '', email: '', jobTitle: '', department: '',
@@ -25,7 +34,7 @@ function getDescendantIds(memberId, allMembers) {
   return ids;
 }
 
-export default function AddOrgChartMemberModal({ allMembers, editingMember, onSave, onClose }) {
+export default function AddOrgChartMemberModal({ allMembers, editingMember, isMockSession, onSave, onClose }) {
   const [form, setForm] = useState(
     editingMember
       ? {
@@ -37,6 +46,36 @@ export default function AddOrgChartMemberModal({ allMembers, editingMember, onSa
       : emptyForm
   );
   const [error, setError] = useState(null);
+  // The portal's own founder and community managers, so they can be added
+  // with one pick instead of retyping a name and email that already exist.
+  const [team, setTeam] = useState(() => (isMockSession ? MOCK_TEAM : []));
+  const [picked, setPicked] = useState('');
+
+  useEffect(() => {
+    if (isMockSession || editingMember) return undefined;
+    let cancelled = false;
+    fetchTaskAssignees().then((people) => { if (!cancelled) setTeam(people); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession, editingMember]);
+
+  const chartEmails = new Set(allMembers.map((m) => (m.email || '').toLowerCase()).filter(Boolean));
+
+  const pickTeamMember = (email) => {
+    setPicked(email);
+    const person = team.find((t) => t.email === email);
+    if (!person) return;
+    // Fill what the portal already knows; anything typed afterwards still
+    // wins. A community manager defaults to reporting to the founder if
+    // the founder is already on the chart.
+    const founderOnChart = allMembers.find((m) => team.some((t) => t.role === 'admin' && t.email === (m.email || '').toLowerCase()));
+    setForm((prev) => ({
+      ...prev,
+      fullName: person.fullName || person.email.split('@')[0],
+      email: person.email,
+      jobTitle: prev.jobTitle || ROLE_TITLE[person.role] || '',
+      reportsToId: prev.reportsToId || (person.role !== 'admin' && founderOnChart ? founderOnChart.id : ''),
+    }));
+  };
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
@@ -77,6 +116,22 @@ export default function AddOrgChartMemberModal({ allMembers, editingMember, onSa
           {error && (
             <div style={{ padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--danger-rgb), 0.1)', border: '1px solid rgba(var(--danger-rgb), 0.2)', color: 'var(--danger)', fontSize: '0.85rem' }}>
               {error}
+            </div>
+          )}
+
+          {!editingMember && team.length > 0 && (
+            <div>
+              <label htmlFor="org-pick-team" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                <UserCheck size={13} /> Pick from the team
+              </label>
+              <select id="org-pick-team" className="form-input" value={picked} onChange={(e) => pickTeamMember(e.target.value)}>
+                <option value="">Someone else (type their details below)</option>
+                {team.map((t) => (
+                  <option key={t.email} value={t.email} disabled={chartEmails.has(t.email)}>
+                    {t.fullName || t.email} - {ROLE_TITLE[t.role] || t.role}{chartEmails.has(t.email) ? ' (already on the chart)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

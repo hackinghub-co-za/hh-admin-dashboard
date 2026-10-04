@@ -172,14 +172,21 @@ function relativeTime(isoDate) {
   return `${days}d ago`;
 }
 
-// Admin-only notification bell (supabase/061_admin_notifications.sql) -
-// starts with one event, a member completing a roadmap item. A real
+// Staff notification bell (supabase/061_admin_notifications.sql) - the
+// founder gets members completing roadmap items; every staff member gets
+// their own task alerts (assigned to you, new comment - 101_staff_tasks.sql),
+// and clicking one of those opens the card. A real
 // click-triggered dropdown, not a hover tooltip like TooltipButton above,
 // so it's a separate component - but portals into document.body for the
 // same reason TooltipButton's tooltip does: the nav list's overflowY:
 // 'auto' would otherwise clip it at the sidebar's edge.
-function NotificationBell({ isMockSession, hoveredId, onHover, onLeave }) {
-  const [notifications, setNotifications] = useState([]);
+const MOCK_NOTIFICATIONS = [
+  { id: -1, type: 'task_assigned', message: 'Thandiwe Nkosi assigned you "Follow up with the three Ready to Join prospects"', taskId: 1, readAt: null, createdAt: new Date(Date.now() - 12 * 60000).toISOString() },
+  { id: -2, type: 'roadmap_completed', message: 'Sanele Khumalo completed "Finish Security+ module 3"', taskId: null, readAt: null, createdAt: new Date(Date.now() - 3 * 3600000).toISOString() },
+];
+
+function NotificationBell({ isMockSession, hoveredId, onHover, onLeave, onOpenTask }) {
+  const [notifications, setNotifications] = useState(() => (isMockSession ? MOCK_NOTIFICATIONS : []));
   const [open, setOpen] = useState(false);
   const buttonRef = useRef(null);
   const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
@@ -190,8 +197,13 @@ function NotificationBell({ isMockSession, hoveredId, onHover, onLeave }) {
     fetchAdminNotifications().then(setNotifications).catch(() => {});
   };
 
+  // Checked on mount and then once a minute, so a freshly assigned task
+  // lights the badge without a reload.
   useEffect(() => {
     loadNotifications();
+    if (isMockSession) return undefined;
+    const timer = setInterval(loadNotifications, 60000);
+    return () => clearInterval(timer);
   }, [isMockSession]);
 
   const handleToggleOpen = () => {
@@ -202,9 +214,14 @@ function NotificationBell({ isMockSession, hoveredId, onHover, onLeave }) {
   };
 
   const handleNotificationClick = (n) => {
-    if (n.readAt) return;
-    setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
-    if (!isMockSession) markNotificationRead(n.id).catch(() => {});
+    if (!n.readAt) {
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
+      if (!isMockSession && n.id > 0) markNotificationRead(n.id).catch(() => {});
+    }
+    if (n.taskId && onOpenTask) {
+      setOpen(false);
+      onOpenTask(n.taskId);
+    }
   };
 
   const handleMarkAllRead = () => {
@@ -295,11 +312,7 @@ function NotificationBell({ isMockSession, hoveredId, onHover, onLeave }) {
                 )}
               </div>
               <div style={{ overflowY: 'auto' }}>
-                {isMockSession ? (
-                  <p style={{ padding: '20px 14px', fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
-                    Not available under Mock Admin - no real session to read notifications from.
-                  </p>
-                ) : notifications.length === 0 ? (
+                {notifications.length === 0 ? (
                   <p style={{ padding: '20px 14px', fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
                     No notifications yet.
                   </p>
@@ -312,11 +325,11 @@ function NotificationBell({ isMockSession, hoveredId, onHover, onLeave }) {
                         padding: '12px 14px',
                         borderBottom: '1px solid var(--border-color)',
                         background: n.readAt ? 'transparent' : 'rgba(var(--accent-rgb), 0.04)',
-                        cursor: n.readAt ? 'default' : 'pointer',
+                        cursor: n.readAt && !n.taskId ? 'default' : 'pointer',
                       }}
                     >
                       <p style={{ fontSize: '0.83rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{relativeTime(n.createdAt)}</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{relativeTime(n.createdAt)}{n.taskId ? ' · Open task' : ''}</span>
                     </div>
                   ))
                 )}
@@ -355,7 +368,7 @@ const ROLE_LABELS = {
   member: 'Member',
 };
 
-export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, roadmapExcluded, isMockSession, staffViewActive, onToggleStaffView }) {
+export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onReplayIntro, restrictToOnboarding, roadmapExcluded, isMockSession, staffViewActive, onToggleStaffView, onOpenTask }) {
   const role = user?.role || 'member';
   const isAdmin = role === 'admin';
   // isStaff/isAdmin stay the account's real, permanent role - used for the
@@ -675,12 +688,15 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
           onClick={openReleaseNotes}
         />
 
-        {isAdmin && (
+        {/* Founders and community managers - the two roles that can be
+            assigned tasks. Mentors have no alerts to receive. */}
+        {(isAdmin || role === 'community_manager') && (
           <NotificationBell
             isMockSession={isMockSession}
             hoveredId={hoveredId}
             onHover={setHoveredId}
             onLeave={() => setHoveredId(null)}
+            onOpenTask={onOpenTask}
           />
         )}
 

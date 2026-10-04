@@ -10,6 +10,7 @@ import AccountabilityCheckins from '../../components/AccountabilityCheckins';
 import LabReviews from '../../components/LabReviews';
 import GemmaAdmin from '../../components/GemmaAdmin';
 import TaskBoard from '../../components/TaskBoard';
+import MyOpenTasks from '../../components/MyOpenTasks';
 // Anonymized fixture data for Mock Admin only - same shape and aggregate
 // realism (amounts, dates, plan mix) as the real historical PayFast export,
 // but with every real member/email swapped for a fake "Demo Member N"
@@ -153,7 +154,7 @@ const EXPENSE_CATEGORY_COLORS = {
   Other: 'var(--text-muted)',
 };
 
-export default function AdminDashboard({ activeTab, setActiveTab, providerToken, isMockSession, user }) {
+export default function AdminDashboard({ activeTab, setActiveTab, providerToken, isMockSession, user, taskFocus, onTaskFocusConsumed, onOpenTask, onOpenMyTasks }) {
   // Scoped team roles (supabase/067_permission_scopes.sql) - this component
   // now renders for community_manager and mentor sign-ins too, not just the
   // founder. isFounder gates the one thing that's still admin-exclusive
@@ -3227,6 +3228,8 @@ Pick new people to present next Sunday`;
 
             {role === 'community_manager' && (
               <>
+                <MyOpenTasks isMockSession={isMockSession} user={user} onOpenTask={onOpenTask} onOpenBoard={onOpenMyTasks} />
+
                 {/* Needs your attention - only the 3 categories a CM can
                     actually act on (approve/review), not every count on the
                     tiles below. Swaps to a calm "all caught up" state
@@ -3419,6 +3422,8 @@ Pick new people to present next Sunday`;
               </button>
             )}
           </div>
+
+          <MyOpenTasks isMockSession={isMockSession} user={user} onOpenTask={onOpenTask} onOpenBoard={onOpenMyTasks} />
 
           {/* Key Metrics Grid */}
           <div className="dashboard-grid">
@@ -4692,7 +4697,7 @@ Pick new people to present next Sunday`;
       return <LabReviews isMockSession={isMockSession} user={user} />;
 
     case 'tasks':
-      return <TaskBoard isMockSession={isMockSession} user={user} isAdmin={isFounder} />;
+      return <TaskBoard isMockSession={isMockSession} user={user} isAdmin={isFounder} focus={taskFocus} onFocusConsumed={onTaskFocusConsumed} />;
 
     case 'gemmaadmin':
       return <GemmaAdmin isMockSession={isMockSession} user={user} isAdmin={isFounder} />;
@@ -8775,6 +8780,7 @@ Pick new people to present next Sunday`;
             <AddOrgChartMemberModal
               allMembers={activeOrgChartMembers}
               editingMember={editingOrgChartMember}
+              isMockSession={isMockSession}
               onSave={handleSaveOrgChartMember}
               onClose={() => { setShowAddOrgChartModal(false); setEditingOrgChartMember(null); }}
             />

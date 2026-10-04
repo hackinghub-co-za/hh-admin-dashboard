@@ -35,6 +35,27 @@ saved in their browser's `localStorage`.
   be an admin or community manager, and an admins-only task can only go
   to an admin. A trigger keeps `completed_at`/`updated_at` correct.
   Mentors have no access. (`101_staff_tasks.sql`)
+- **Task notifications** - the sidebar bell now shows community managers
+  too, not just the founder, and gains per-person alerts: "X assigned you a
+  task" (never for self-assignment) and "X commented on ..." (to the
+  assignee, the creator and earlier commenters, not the commenter). A
+  still-unread comment alert on the same card is refreshed instead of
+  stacking. Clicking one opens the card. The bell re-checks every minute.
+  `admin_notifications` gained `recipient_email` / `task_id`; its RLS now
+  limits each person to the shared founder feed plus their own alerts.
+- **Task comments** - a conversation thread on each card (post with the
+  button or Ctrl/Cmd+Enter; delete your own, the founder can delete any;
+  not editable). Visibility follows the task, so an admins-only task's
+  thread is hidden from community managers. Cards show a comment count.
+  (`staff_task_comments` in `101_staff_tasks.sql`)
+- **My open tasks** tile at the top of the founder's Admin Overview and the
+  community manager landing page: your unfinished tasks, overdue first,
+  with a link into the board pre-filtered to you.
+- **Org Chart: pick from the team** - adding a staff member now offers the
+  founder and every community manager in a dropdown that fills in name and
+  email (and suggests Founder / Community Manager as the title, reporting
+  to the founder if they're on the chart). People already on the chart are
+  greyed out.
 
 ## 2026.10.03
 

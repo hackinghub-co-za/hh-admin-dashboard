@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { DndContext, closestCorners, PointerSensor, KeyboardSensor, useSensor, useSensors, DragOverlay, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Search, Lock, CalendarDays, CheckSquare, Pencil, X } from 'lucide-react';
+import { Plus, Search, Lock, CalendarDays, CheckSquare, MessageSquare, Pencil, X } from 'lucide-react';
 import TaskModal from './TaskModal';
 import { TASK_STATUSES, TASK_PRIORITIES, fetchTasks, fetchTaskAssignees, createTask, updateTask, deleteTask, moveTasks } from '../lib/tasksData';
-import { addDaysSast, dueState, formatDueShort, isRecentlyDone, personName, initialsOf, PRIORITY_COLOR, STATUS_COLOR } from '../lib/taskHelpers';
+import { makeMockTasks } from '../lib/taskMock';
+import { dueState, formatDueShort, isRecentlyDone, personName, initialsOf, PRIORITY_COLOR, STATUS_COLOR } from '../lib/taskHelpers';
 import { friendlyErrorMessage } from '../lib/errorMessages';
 
 // Staff task tracker (supabase/101_staff_tasks.sql). Same drag-and-drop
@@ -14,16 +15,6 @@ import { friendlyErrorMessage } from '../lib/errorMessages';
 // (filtered or old-Done) cards never end up tied with visible ones.
 
 const DUE_COLOR = { overdue: 'var(--danger)', today: 'var(--warning)', soon: 'var(--warning)', later: 'var(--text-muted)' };
-
-const makeMockTasks = (myEmail) => [
-  { id: 1, title: 'Follow up with the three Ready to Join prospects', description: '', status: 'To Do', priority: 'High', assigneeEmail: myEmail, dueDate: addDaysSast(1), labels: ['Sales'], checklist: [{ text: 'Call Blessing', done: true }, { text: 'Send payment link', done: false }, { text: 'Log outcome', done: false }], adminOnly: false, sortOrder: 0, completedAt: null },
-  { id: 2, title: 'Plan the November meetup', description: 'Venue, speaker, RSVP link.', status: 'In Progress', priority: 'Medium', assigneeEmail: 'thandiwe@example.com', dueDate: addDaysSast(9), labels: ['Events'], checklist: [{ text: 'Shortlist venues', done: true }, { text: 'Confirm speaker', done: false }], adminOnly: false, sortOrder: 0, completedAt: null },
-  { id: 3, title: 'Approve pending room logs', description: '', status: 'To Do', priority: 'Urgent', assigneeEmail: 'blessing@example.com', dueDate: addDaysSast(-2), labels: ['Competition'], checklist: [], adminOnly: false, sortOrder: 1, completedAt: null },
-  { id: 4, title: 'Review Q4 staff compensation', description: 'Compare against the org chart.', status: 'Backlog', priority: 'Medium', assigneeEmail: myEmail, dueDate: '', labels: ['Finance'], checklist: [], adminOnly: true, sortOrder: 0, completedAt: null },
-  { id: 5, title: 'Write the weekly breakdown', description: '', status: 'In Review', priority: 'Medium', assigneeEmail: 'thandiwe@example.com', dueDate: addDaysSast(0), labels: ['Content'], checklist: [], adminOnly: false, sortOrder: 0, completedAt: null },
-  { id: 6, title: 'Add curated labs for SOC', description: '', status: 'Backlog', priority: 'Low', assigneeEmail: '', dueDate: '', labels: ['Labs', 'Content'], checklist: [], adminOnly: false, sortOrder: 1, completedAt: null },
-  { id: 7, title: 'Publish GRC labs announcement', description: '', status: 'Done', priority: 'Medium', assigneeEmail: myEmail, dueDate: '', labels: ['Labs'], checklist: [], adminOnly: false, sortOrder: 0, completedAt: new Date().toISOString() },
-].map((t) => ({ createdBy: myEmail, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...t }));
 
 function TaskCard({ task, assignees, onOpen }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
@@ -59,6 +50,7 @@ function TaskCard({ task, assignees, onOpen }) {
           </span>
         )}
         {task.checklist.length > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><CheckSquare size={11} /> {checkDone}/{task.checklist.length}</span>}
+        {task.commentCount > 0 && <span title={`${task.commentCount} comment${task.commentCount === 1 ? '' : 's'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><MessageSquare size={11} /> {task.commentCount}</span>}
         {task.adminOnly && <span title="Admins only" style={{ display: 'inline-flex', alignItems: 'center' }}><Lock size={11} /></span>}
         <span style={{ flex: 1 }} />
         {owner && (
@@ -96,7 +88,9 @@ function Column({ status, tasks, olderCount, showOlder, onToggleOlder, assignees
   );
 }
 
-export default function TaskBoard({ isMockSession, user, isAdmin }) {
+// `focus` ({ taskId?, assignee? }) comes from the notification bell and the
+// Dashboard's "My open tasks" tile: open that card and/or pre-filter to mine.
+export default function TaskBoard({ isMockSession, user, isAdmin, focus, onFocusConsumed }) {
   const myEmail = (user?.email || 'you@example.com').toLowerCase();
   const [tasks, setTasks] = useState(() => (isMockSession ? makeMockTasks(myEmail) : []));
   const [assignees, setAssignees] = useState(isMockSession ? [
@@ -122,6 +116,21 @@ export default function TaskBoard({ isMockSession, user, isAdmin }) {
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
   }, [isMockSession]);
+
+  // Apply a focus request once, as soon as the tasks are loaded - done as a
+  // render-time state adjustment (not an effect) so there's no extra paint
+  // of the unfiltered board. The parent is told afterwards so a stale
+  // request can't re-open the card the next time this tab mounts.
+  const [handledFocus, setHandledFocus] = useState(null);
+  if (focus && focus !== handledFocus && !loading) {
+    setHandledFocus(focus);
+    if (focus.assignee) setFilters((f) => ({ ...f, assignee: focus.assignee }));
+    const target = focus.taskId ? tasks.find((t) => t.id === focus.taskId) : null;
+    if (target) { setModalError(null); setModal({ task: target, defaults: null }); }
+  }
+  useEffect(() => { if (handledFocus) onFocusConsumed?.(); }, [handledFocus, onFocusConsumed]);
+
+  const handleCommentCount = (taskId, count) => setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, commentCount: count } : t)));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -313,6 +322,9 @@ export default function TaskBoard({ isMockSession, user, isAdmin }) {
           defaults={modal.defaults}
           assignees={assignees}
           isAdmin={isAdmin}
+          myEmail={myEmail}
+          isMockSession={isMockSession}
+          onCommentCountChange={handleCommentCount}
           saving={saving}
           error={modalError}
           onSave={handleSave}

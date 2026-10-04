@@ -1,8 +1,10 @@
-// Admin notification bell (supabase/061_admin_notifications.sql) - starts
-// with one event, a member completing a roadmap item. Read-only from the
-// client's side except marking read - the only insert path is
-// toggle_my_roadmap_item()'s SECURITY DEFINER body, never a direct write
-// from here. Only called for real (non-mock) admin sessions.
+// Staff notification bell (supabase/061_admin_notifications.sql) - the
+// founder's feed of members completing roadmap items, plus per-person task
+// alerts (101_staff_tasks.sql: assigned to you, new comment) that community
+// managers get too. RLS decides whose rows come back. Read-only from the
+// client's side except marking read - rows are only ever created by
+// SECURITY DEFINER code on the database side (toggle_my_roadmap_item() and
+// the task triggers), never a direct write from here. Only called for real (non-mock) admin sessions.
 
 import { supabase } from './supabase';
 
@@ -13,6 +15,7 @@ function mapRow(row) {
     memberEmail: row.member_email,
     memberName: row.member_name || '',
     message: row.message,
+    taskId: row.task_id || null,
     readAt: row.read_at,
     createdAt: row.created_at,
   };
@@ -23,7 +26,7 @@ function mapRow(row) {
 export async function fetchAdminNotifications() {
   const { data, error } = await supabase
     .from('admin_notifications')
-    .select('id, type, member_email, member_name, message, read_at, created_at')
+    .select('id, type, member_email, member_name, message, task_id, read_at, created_at')
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw error;

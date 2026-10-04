@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabase';
 import Sidebar from './components/Sidebar';
 import Login from './views/Login';
@@ -40,6 +40,13 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [providerToken, setProviderToken] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  // A request to land on the Tasks board with a card open and/or filtered to
+  // the signed-in person's tasks (from the notification bell or the
+  // Dashboard's "My open tasks" tile). TaskBoard clears it once applied.
+  const [taskFocus, setTaskFocus] = useState(null);
+  const openTask = (taskId) => { setTaskFocus({ taskId, assignee: null }); setActiveTab('tasks'); };
+  const openMyTasks = () => { setTaskFocus({ taskId: null, assignee: 'me' }); setActiveTab('tasks'); };
+  const clearTaskFocus = useCallback(() => setTaskFocus(null), []);
   const [loading, setLoading] = useState(true);
   // True only for the Mock Admin/Member dev bypass, which has no real Supabase
   // session - `providerToken` alone isn't reliable for this since Supabase only
@@ -491,6 +498,7 @@ export default function App() {
         isMockSession={isMockSession}
         staffViewActive={staffViewActive}
         onToggleStaffView={isStaff ? handleToggleStaffView : undefined}
+        onOpenTask={openTask}
       />
 
       {/* Main Panel View Area */}
@@ -503,7 +511,7 @@ export default function App() {
       <main className={`main-content${showStaffDashboard ? '' : ' member-portal'}`}>
         {/* Dynamic Dashboard views */}
         {showStaffDashboard ? (
-          <AdminDashboard activeTab={activeTab} setActiveTab={setActiveTab} providerToken={providerToken} isMockSession={isMockSession} user={user} />
+          <AdminDashboard activeTab={activeTab} setActiveTab={setActiveTab} providerToken={providerToken} isMockSession={isMockSession} user={user} taskFocus={taskFocus} onTaskFocusConsumed={clearTaskFocus} onOpenTask={openTask} onOpenMyTasks={openMyTasks} />
         ) : (
           <MemberPortal
             activeTab={activeTab}
