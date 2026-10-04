@@ -37,8 +37,13 @@ saved in their browser's `localStorage`.
   step-by-step cards: Microsoft Learn Learning Paths (the three exam domains
   with their weightings, and the guided-projects path), Exam Prep Checklist
   (study guide, Exam Readiness Zone, free Practice Assessment, exam sandbox)
-  and Hands-on Azure Practice. The existing YES x Microsoft voucher card
-  gained steps. Every link was opened and checked against Microsoft's
+  and Hands-on Azure Practice, plus two lab cards: *Official Microsoft Labs*
+  (the five exercises Microsoft publishes at
+  github.com/MicrosoftLearning/AZ-900-Microsoft-Azure-Fundamentals) and
+  *Microsoft Guided Projects* (the eight Learn guided projects). Microsoft
+  retired its free Learn sandboxes (its own FAQ), so all of these need an
+  Azure subscription - the free 30-day trial works - and the cards say so.
+  The existing YES x Microsoft voucher card gained steps. Every link was opened and checked against Microsoft's
   own pages (skills measured as of 20 July 2026). No third-party video
   course on purpose - the popular ones pre-date that exam update.
 

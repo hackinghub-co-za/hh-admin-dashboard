@@ -662,6 +662,65 @@ SET steps = '[
 ]'::jsonb
 WHERE title = 'AZ-900: Hands-on Azure Practice';
 
+-- Microsoft's official free lab exercises for AZ-900, published from
+-- github.com/MicrosoftLearning/AZ-900-Microsoft-Azure-Fundamentals (the five
+-- exercises under Instructions/Labs, each checked to have a live published
+-- page). NOTE: Microsoft retired the free Learn sandboxes (their own FAQ:
+-- "Sandboxes are no longer available"), so every hands-on exercise now needs
+-- an Azure subscription - the free 30-day trial counts. Said plainly in the
+-- descriptions so nobody expects a no-signup lab.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'AZ-900: Official Microsoft Labs',
+  'Labs',
+  'The five lab exercises Microsoft publishes for AZ-900 - 15 to 20 minutes each. Microsoft has retired its free Learn sandboxes, so these need an Azure subscription (the free 30-day trial works). Delete what you create afterwards.',
+  'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/',
+  NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900: Official Microsoft Labs');
+
+UPDATE public.resources
+SET steps = '[
+  {"id":"ol1","title":"Create an Azure resource (15 min) - watch a resource group fill up","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/02-exercise-create-azure-resource.html"},
+  {"id":"ol2","title":"Create a virtual machine and configure it as a web host (20 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/03-exercise-create-azure-virtual-machine.html"},
+  {"id":"ol3","title":"Create a storage blob and share a file (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/05-exercise-create-storage-blob.html"},
+  {"id":"ol4","title":"Estimate workload costs with the Pricing calculator (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/06-exercise-estimate-workload-costs-use-pricing-calculator.html"},
+  {"id":"ol5","title":"Configure resource locks (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/08-exercise-configure-resource-lock.html"}
+]'::jsonb
+WHERE title = 'AZ-900: Official Microsoft Labs';
+
+-- The eight step-by-step guided projects from Microsoft Learn (Part 4 of the
+-- Introduction to Cloud Infrastructure series). Optional - Microsoft says
+-- "complete as many or as few as you like" - but they are the closest thing
+-- to real portfolio-style practice for the exam topics.
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT
+  'Cert Prep',
+  'AZ-900: Microsoft Guided Projects',
+  'Labs',
+  'Eight end-to-end guided projects from Microsoft Learn - host a static site, apply tags and locks, set up least-privilege access, share files securely, add cost guardrails, monitor service health, and more. Pick as many as you like; they need an Azure subscription (the free 30-day trial works).',
+  'https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/',
+  NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900: Microsoft Guided Projects');
+
+UPDATE public.resources
+SET steps = '[
+  {"id":"gp1","title":"Deploy a static website with Azure Blob Storage","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-deploy-static-website-blob-storage/"},
+  {"id":"gp2","title":"Organize and protect resources with tags and locks","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-organize-resources-tags-locks/"},
+  {"id":"gp3","title":"Build a simple website endpoint with Azure Functions","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-build-basic-website-endpoint-with-functions/"},
+  {"id":"gp4","title":"Set up new employee access (Entra ID and RBAC)","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-new-employee-access/"},
+  {"id":"gp5","title":"Share files securely (SAS tokens and access policies)","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-share-files-securely/"},
+  {"id":"gp6","title":"Set up cost guardrails in Azure","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-cost-guardrails/"},
+  {"id":"gp7","title":"Monitor Azure with Service Health and Activity Log alerts","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-monitor-service-health-activity-alerts/"},
+  {"id":"gp8","title":"Manage Azure resources with Cloud Shell and the Azure CLI","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-manage-resources-cloud-shell-cli/"}
+]'::jsonb
+WHERE title = 'AZ-900: Microsoft Guided Projects';
+
+-- The Hands-on card's own text should be upfront about the same thing.
+UPDATE public.resources
+SET description = 'Reading about Azure only goes so far - build a few small things in your own Azure account so the exam''s services and terms mean something. Microsoft has retired its free Learn sandboxes, so use the free 30-day trial. Set a budget alert first so there are no surprise charges, and delete what you create when you are done.'
+WHERE title = 'AZ-900: Hands-on Azure Practice';
+
 -- The existing YES x Microsoft card (above) already describes the voucher
 -- route in its text; give it the same steps so a member can track it.
 UPDATE public.resources

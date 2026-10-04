@@ -25,6 +25,12 @@ const SECTIONS = [
     href: 'https://learn.microsoft.com/en-us/credentials/certifications/exams/az-900/practice/assessment?assessment-type=practice&assessmentId=23',
   },
   {
+    heading: 'Hands-on Labs',
+    body: "Microsoft publishes five official lab exercises for AZ-900 (15 to 20 minutes each), plus eight guided projects on Microsoft Learn. Heads up: Microsoft has retired its free Learn sandboxes, so these need an Azure subscription - the free 30-day trial works.",
+    linkLabel: 'Official AZ-900 Labs (Microsoft)',
+    href: 'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/',
+  },
+  {
     heading: 'Microsoft Learn',
     body: "Microsoft's own free training and study guide - honestly the best resource for this one.",
     linkLabel: 'Microsoft Learn - AZ-900 Study Guide',

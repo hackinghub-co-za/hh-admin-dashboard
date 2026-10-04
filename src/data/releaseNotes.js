@@ -24,7 +24,7 @@ export const RELEASE_NOTES = [
           {
             icon: '☁️',
             title: 'AZ-900 prep pack',
-            body: "An AZ-900 study guide (price, how long to study, playlist, practice questions), Microsoft's learning paths broken into steps, an exam prep checklist, and a hands-on Azure practice list. All free, all from Microsoft's own material. The YES x Microsoft free-voucher card now has steps too.",
+            body: "An AZ-900 study guide (price, how long to study, playlist, practice questions), Microsoft's learning paths broken into steps, an exam prep checklist, and Microsoft's own hands-on labs and guided projects. The material is free and comes straight from Microsoft; the hands-on labs need an Azure account (Microsoft retired its no-signup sandboxes, but the free 30-day trial works). The YES x Microsoft free-voucher card now has steps too.",
             where: 'Resources · Cert Prep',
           },
           {

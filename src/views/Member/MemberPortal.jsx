@@ -707,6 +707,14 @@ const MOCK_EXAM_READINESS = [
 ];
 
 const MOCK_RESOURCES = [
+  { id: 15, category: 'Cert Prep', title: 'AZ-900: Microsoft Guided Projects', format: 'Labs', description: 'Eight end-to-end guided projects from Microsoft Learn. They need an Azure subscription (the free 30-day trial works).', link: 'https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/', steps: [
+    { id: 'gp1', title: 'Deploy a static website with Azure Blob Storage', link: 'https://learn.microsoft.com/en-us/training/modules/guided-project-deploy-static-website-blob-storage/' },
+    { id: 'gp2', title: 'Organize and protect resources with tags and locks', link: 'https://learn.microsoft.com/en-us/training/modules/guided-project-organize-resources-tags-locks/' },
+  ] },
+  { id: 14, category: 'Cert Prep', title: 'AZ-900: Official Microsoft Labs', format: 'Labs', description: 'The five lab exercises Microsoft publishes for AZ-900 - 15 to 20 minutes each. They need an Azure subscription (the free 30-day trial works).', link: 'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/', steps: [
+    { id: 'ol1', title: 'Create an Azure resource (15 min)', link: 'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/02-exercise-create-azure-resource.html' },
+    { id: 'ol4', title: 'Estimate workload costs with the Pricing calculator (15 min)', link: 'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/06-exercise-estimate-workload-costs-use-pricing-calculator.html' },
+  ] },
   { id: 13, category: 'Cert Prep', title: 'AZ-900 Study Guide', format: 'Guide', description: 'What it costs (around R700), how long to study (1 to 4 weeks), and the resources members actually use - official certification page, a video playlist, free practice questions, and Microsoft Learn.', link: '', steps: [] },
   { id: 12, category: 'Cert Prep', title: 'AZ-900: Exam Prep Checklist', format: 'Guide', description: "The exam-side of the plan: read what is actually measured, watch Microsoft's exam-readiness videos, then test yourself with the free Practice Assessment and the exam sandbox before you book.", link: 'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900', steps: [
     { id: 'ep1', title: 'Read the official study guide and its skills-measured outline', link: 'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900' },
