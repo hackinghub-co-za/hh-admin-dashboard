@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.04',
+    date: '2026-10-04',
+    headline: 'Weekly Breakdowns now live inside Resources.',
+    intro: "We tidied the menu: the Breakdowns tab has moved into Resources, so everything you read and learn from sits in one place.",
+    groups: [
+      {
+        label: 'Learning',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🛡️',
+            title: 'Breakdowns are now in Resources',
+            body: "Open Resources and choose Weekly Breakdowns at the top. Same Friday incident write-ups, same full archive, nothing lost. The sidebar has one less tab to scroll past.",
+            where: 'Resources · Weekly Breakdowns',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.03',
     date: '2026-10-03',
     headline: 'Labs for hands-on practice, and a brand new Gemma.',

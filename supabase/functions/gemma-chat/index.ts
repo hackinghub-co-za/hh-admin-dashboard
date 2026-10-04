@@ -22,7 +22,7 @@ const HISTORY_WINDOW = 12;
 const META_MARKER = '<<meta';
 const TAB_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', roadmap: 'My Roadmap', matchmaker: 'Matchmaker', members: 'Members', meetings: '1on1 Meetings',
-  events: 'Events', jobs: 'Job Board', resources: 'Resources', labs: 'Labs', breakdowns: 'Breakdowns', certs: 'Cert Calendar',
+  events: 'Events', jobs: 'Job Board', resources: 'Resources', labs: 'Labs', certs: 'Cert Calendar',
   competitions: 'Competitions', reviews: 'Reviews', billing: 'My Subscription', gemma: 'Gemma (full page)',
 };
 

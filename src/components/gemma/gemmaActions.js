@@ -12,7 +12,7 @@ export const GEMMA_ACTIONS = {
   competitions: { label: 'Open Competitions', tab: 'competitions' },
   meetings: { label: 'Book a 1on1', tab: 'meetings' },
   matchmaker: { label: 'Open Matchmaker', tab: 'matchmaker' },
-  breakdowns: { label: 'Read Breakdowns', tab: 'breakdowns' },
+  breakdowns: { label: 'Read Breakdowns', tab: 'resources', open: 'breakdowns' },
   billing: { label: 'My Subscription', tab: 'billing' },
   hub_score: { label: 'Open Hub Score', tab: 'dashboard', open: 'hub_score' },
   take_a_break: { label: 'Take a Break', tab: 'dashboard', open: 'take_a_break' },
@@ -39,7 +39,7 @@ export const SOURCE_LABELS = {
 
 export const TAB_LABELS = {
   dashboard: 'Dashboard', roadmap: 'My Roadmap', matchmaker: 'Matchmaker', members: 'Members', meetings: '1on1 Meetings',
-  events: 'Events', jobs: 'Job Board', resources: 'Resources', labs: 'Labs', breakdowns: 'Breakdowns', certs: 'Cert Calendar',
+  events: 'Events', jobs: 'Job Board', resources: 'Resources', labs: 'Labs', certs: 'Cert Calendar',
   competitions: 'Competitions', reviews: 'Reviews', billing: 'My Subscription', gemma: 'Gemma',
 };
 

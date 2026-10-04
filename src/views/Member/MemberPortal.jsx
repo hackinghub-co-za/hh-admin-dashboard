@@ -67,7 +67,7 @@ import MonthlyRecapModal from '../../components/MonthlyRecapModal';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { fetchSentBreakdowns } from '../../lib/breakdownsData';
-import { renderMarkdown } from '../../lib/renderMarkdown';
+import BreakdownsPanel from '../../components/BreakdownsPanel';
 import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATION_SUBTASKS, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
@@ -2509,6 +2509,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [loadingBreakdowns, setLoadingBreakdowns] = useState(!isMockSession);
   const [breakdownsError, setBreakdownsError] = useState(null);
   const [openBreakdownId, setOpenBreakdownId] = useState(null);
+  // Resources has two views: the library (default) and the weekly Breakdowns,
+  // which used to be a tab of their own.
+  const [resourcesView, setResourcesView] = useState('library');
+  const showBreakdowns = resourcesView === 'breakdowns';
+  const switchResourcesView = (view) => {
+    setResourcesView(view);
+    if (view === 'breakdowns') logPortalEvent('breakdowns_opened', {}).catch(() => {});
+  };
 
   useEffect(() => {
     if (isMockSession) return;
@@ -3063,7 +3071,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     const onOpen = (e) => {
       if (e.detail === 'hub_score') setShowHubScoreModal(true);
       else if (e.detail === 'take_a_break' && !isOnBreak) setShowTakeABreakModal(true);
-      else if (e.detail === 'cv_review') setShowCvReview(true);
+      else if (e.detail === 'cv_review') { setResourcesView('library'); setShowCvReview(true); }
+      else if (e.detail === 'breakdowns') setResourcesView('breakdowns');
       else if (e.detail === 'interview_prep' && !isMockSession) setShowInterviewPrep(true);
     };
     window.addEventListener('gemma:open', onOpen);
@@ -7218,13 +7227,35 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Library size={28} color="var(--accent-cyan)" /> Resources
               </h1>
-              <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, CV templates, and LinkedIn strategy.</p>
-              {resourcesError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{resourcesError}</p>}
+              <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, CV templates, LinkedIn strategy, and a weekly breakdown of a real security incident.</p>
+              {resourcesError && !showBreakdowns && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{resourcesError}</p>}
             </div>
-            <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddResourceForm(true)}>
-              <Library size={16} /> Add Resource
+            {!showBreakdowns && (
+              <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddResourceForm(true)}>
+                <Library size={16} /> Add Resource
+              </button>
+            )}
+          </div>
+
+          <div role="tablist" aria-label="Resources sections" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            <button role="tab" aria-selected={!showBreakdowns} className={`btn ${!showBreakdowns ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: '0.85rem', padding: '8px 16px' }} onClick={() => switchResourcesView('library')}>
+              <Library size={14} /> Library
+            </button>
+            <button role="tab" aria-selected={showBreakdowns} className={`btn ${showBreakdowns ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: '0.85rem', padding: '8px 16px' }} onClick={() => switchResourcesView('breakdowns')}>
+              <ShieldAlert size={14} /> Weekly Breakdowns
             </button>
           </div>
+
+          {showBreakdowns ? (
+            <BreakdownsPanel
+              breakdowns={breakdowns}
+              loading={!isMockSession && loadingBreakdowns}
+              error={breakdownsError}
+              openId={openBreakdownId}
+              onOpen={setOpenBreakdownId}
+            />
+          ) : (
+            <>
 
           <div
             className="glass-card"
@@ -7375,6 +7406,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {!loadingResources && filteredResources.length === 0 && (
             <p style={{ color: 'var(--text-muted)' }}>No resources here yet — be the first to add one.</p>
+          )}
+            </>
           )}
 
           {showAddResourceForm && (
@@ -9195,86 +9228,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
         </div>
       );
-
-    case 'breakdowns': {
-      const sorted = [...breakdowns].sort((a, b) => new Date(b.sendDate) - new Date(a.sendDate));
-      const latest = sorted[0] || null;
-      const open = openBreakdownId ? sorted.find((b) => b.id === openBreakdownId) : latest;
-      const diffColor = { Easy: 'var(--success)', Medium: 'var(--warning)', Hard: 'var(--danger)' };
-      return (
-        <div>
-          <div style={{ marginBottom: '28px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <ShieldAlert size={28} color="var(--accent-cyan)" /> Breakdowns
-            </h1>
-            <p>A technical breakdown of one real security incident, every week — how the attack worked, what the SOC saw (or missed), and a detection exercise to try. Sent Friday mornings; every edition is kept here.</p>
-            {breakdownsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{breakdownsError}</p>}
-          </div>
-
-          {!isMockSession && loadingBreakdowns ? (
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading breakdowns...</p>
-          ) : sorted.length === 0 ? (
-            <div className="glass-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
-              <ShieldAlert size={40} color="var(--text-muted)" style={{ marginBottom: '16px' }} />
-              <p style={{ color: 'var(--text-muted)' }}>No breakdowns yet — the first one lands this Friday.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 260px) 1fr', gap: '24px', alignItems: 'start' }} className="breakdowns-grid">
-              {/* Archive list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {sorted.map((b) => {
-                  const isOpen = open && open.id === b.id;
-                  return (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => setOpenBreakdownId(b.id)}
-                      className="glass-card"
-                      style={{
-                        textAlign: 'left', cursor: 'pointer', border: isOpen ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
-                        background: isOpen ? 'rgba(var(--accent-rgb), 0.06)' : undefined, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px',
-                      }}
-                    >
-                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{b.title}</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        {formatDate(b.sendDate)}{b.difficulty ? ` · ${b.difficulty}` : ''}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Selected breakdown */}
-              {open && (
-                <div className="glass-card" style={{ padding: '28px 30px', minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                    {open.difficulty && (
-                      <span className="badge" style={{ fontSize: '0.62rem', color: diffColor[open.difficulty], background: 'transparent', border: `1px solid ${diffColor[open.difficulty]}` }}>{open.difficulty}</span>
-                    )}
-                    {open.sourceLabel && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{open.sourceLabel}</span>}
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>{formatDate(open.sendDate)}</span>
-                  </div>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '12px' }}>{open.title}</h2>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: '20px', borderLeft: '3px solid var(--accent-cyan)', paddingLeft: '14px' }}>{open.blurb}</p>
-
-                  {isSafeUrl(open.fullUrl) && (
-                    <a href={open.fullUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ marginBottom: '22px', fontSize: '0.82rem' }}>
-                      <ExternalLink size={14} /> Full illustrated breakdown
-                    </a>
-                  )}
-
-                  <div
-                    className="markdown-body"
-                    style={{ fontSize: '0.92rem', lineHeight: 1.68, color: 'var(--text-primary)' }}
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(open.bodyMd) }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      );
-    }
 
     default:
       return (

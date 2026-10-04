@@ -20,6 +20,16 @@ saved in their browser's `localStorage`.
 
 ## 2026.10.04
 
+### Changed
+- **Breakdowns folded into Resources** - the member Breakdowns tab is gone;
+  the same archive and reader now live under Resources > Weekly Breakdowns
+  (new `BreakdownsPanel` component). Usage was steady (about 20 members a
+  week) so it moved rather than being removed. Gemma's "Read Breakdowns"
+  button opens it there. Opening the view logs a `breakdowns_opened` portal
+  event (the old tab logged `tab_view` with tab `breakdowns`, which no
+  longer fires). Admin-side Breakdowns authoring and the Friday email are
+  unchanged. No schema change.
+
 ### Added
 - **Tasks** (admin + community manager tab) - a shared kanban board for the
   team: Backlog, To Do, In Progress, In Review, Done. Cards carry a
