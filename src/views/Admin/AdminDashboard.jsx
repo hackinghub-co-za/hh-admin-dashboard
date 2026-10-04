@@ -11,6 +11,7 @@ import LabReviews from '../../components/LabReviews';
 import GemmaAdmin from '../../components/GemmaAdmin';
 import TaskBoard from '../../components/TaskBoard';
 import MyOpenTasks from '../../components/MyOpenTasks';
+import PathwayStaffNote from '../../components/PathwayStaffNote';
 // Anonymized fixture data for Mock Admin only - same shape and aggregate
 // realism (amounts, dates, plan mix) as the real historical PayFast export,
 // but with every real member/email swapped for a fake "Demo Member N"
@@ -5007,6 +5008,9 @@ Pick new people to present next Sunday`;
                                 <span className={`badge ${coreFoundationsMet ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.62rem' }}>
                                   {coreFoundationsDone}/{CORE_FOUNDATIONS_CATALOG.length} Foundation Certs
                                 </span>
+                              )}
+                              {g.phase === 'Core Foundations' && roadmapSelected?.email && (
+                                <PathwayStaffNote email={roadmapSelected.email} isMockSession={isMockSession} />
                               )}
                               {g.phase === 'Specialization' && (
                                 <span

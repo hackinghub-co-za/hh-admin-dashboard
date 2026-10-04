@@ -8,13 +8,19 @@ export const RELEASE_NOTES = [
   {
     version: '2026.10.04',
     date: '2026-10-04',
-    headline: 'Track your progress in Resources, plus AZ-900 prep.',
-    intro: "Resources now remembers what you've finished, there's a full AZ-900 (Azure Fundamentals) prep pack, and the Breakdowns tab has moved into Resources so everything you read and learn from sits in one place.",
+    headline: 'A new look for Core Foundations, plus progress tracking in Resources.',
+    intro: "Core Foundations on My Roadmap is now a pathway: labs every week, short certificate sprints on top, and a plan you can rearrange. Resources now remembers what you've finished, there's a full AZ-900 (Azure Fundamentals) prep pack, and the Breakdowns tab has moved into Resources so everything you read and learn from sits in one place.",
     groups: [
       {
         label: 'Learning',
         color: '#5ee37a',
         items: [
+          {
+            icon: '🛣️',
+            title: 'Your Core Foundations pathway',
+            body: "My Roadmap now shows this week's work in two lanes: a lab you're working through and, some weeks, a two-week certificate sprint on top. Drag the blocks to change the order or move a sprint, pick how many hours a week you have, and see when you'll hit Minimum met and the Specialization unlock. Anything you've already finished stays out of the way. At 2, 4 and 5 items done you'll book a 1-on-1 with your coach before carrying on.",
+            where: 'My Roadmap · Core Foundations',
+          },
           {
             icon: '✅',
             title: 'Mark resources as completed',

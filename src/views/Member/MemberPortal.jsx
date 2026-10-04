@@ -29,6 +29,7 @@ import SurveyBanner from '../../components/SurveyBanner';
 import { isPasskeySupported } from '../../lib/passkeyData';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
 import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
+import CorePathway from '../../components/CorePathway';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMyAgeAndGender } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
@@ -753,6 +754,12 @@ const MOCK_ROADMAP_ITEMS = [
   { id: 3, phase: 'Core Foundations', category: 'Certifications', title: 'CompTIA Security+', detail: '', dueDate: '2026-08-28', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 13, phase: 'Core Foundations', category: 'Certifications', title: 'AZ-900', detail: '', completed: true, sortOrder: 35, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 14, phase: 'Core Foundations', category: 'Certifications', title: 'AI-901', detail: '', completed: true, sortOrder: 36, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  // Real members always carry all eight catalog items (auto-assigned), so the
+  // demo does too - these three are still to do, which gives the pathway's
+  // lanes something to schedule under Mock Member.
+  { id: 31, phase: 'Core Foundations', category: 'Certifications', title: 'TryHackMe Pre-Security', detail: '', completed: false, sortOrder: 37, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 32, phase: 'Core Foundations', category: 'Certifications', title: 'TryHackMe Cyber 101', detail: '', completed: false, sortOrder: 38, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 33, phase: 'Core Foundations', category: 'Certifications', title: 'SC-900', detail: '', completed: false, sortOrder: 39, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 4, phase: 'Core Foundations', category: 'Networking', title: 'Get to 1000 LinkedIn connections', detail: '307/1000', completed: false, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 5, phase: 'Core Foundations', category: 'Networking', title: 'Add banner and fix headshot', detail: '', completed: true, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 7, phase: 'Core Foundations', category: 'Networking', title: 'Attend events/webinars', detail: '', completed: false, sortOrder: 40, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
@@ -2016,6 +2023,27 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     if (allDone !== item.completed) {
       handleToggleMyRoadmapItem(item, { silent: true });
     }
+  };
+
+  // "Your Cert Calendar says you passed this" on the pathway - ticks every
+  // remaining subtask in one go, then completes the item the same way the
+  // last manual tick would (so Hub Score and the unlock chime still fire).
+  const handleCompleteRoadmapItemFully = async (item) => {
+    const catalog = CORE_FOUNDATION_SUBTASKS[item.title];
+    if (!catalog || item.completed) return;
+    const current = roadmapSubtasks[item.title] || new Set();
+    const missing = catalog.filter((st) => !current.has(st.key));
+    setRoadmapSubtasks((prev) => ({ ...prev, [item.title]: new Set(catalog.map((st) => st.key)) }));
+    if (!isMockSession) {
+      try {
+        await Promise.all(missing.map((st) => toggleMyRoadmapSubtask(item.title, st.key, true)));
+      } catch (err) {
+        setRoadmapSubtasks((prev) => ({ ...prev, [item.title]: current }));
+        setRoadmapError(friendlyMemberErrorMessage(err));
+        return;
+      }
+    }
+    handleToggleMyRoadmapItem(item, { silent: true });
   };
 
   // Lets a member self-report progress (a number or percentage) and a due
@@ -5011,7 +5039,26 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                    {g.categories.map((c) => (
+                    {g.categories.map((c) => (g.phase === 'Core Foundations' && c.category === 'Certifications') ? (
+                      // The new pathway look replaces the old Certifications checklist.
+                      // Everything else in Core Foundations (Networking etc.) keeps its list.
+                      <div key={c.category} style={{ gridColumn: '1 / -1' }}>
+                        <CorePathway
+                          catalogItems={c.items.filter((i) => catalogTitles.has(i.title))}
+                          subtasks={roadmapSubtasks}
+                          passedCertTitles={certCalendar
+                            .filter((e) => e.result === 'Passed' && (e.memberEmail || '').toLowerCase() === myEmailLower)
+                            .map((e) => ({ 'Security+': 'CompTIA Security+' }[matchExamReadinessCert(e.cert)] || matchExamReadinessCert(e.cert)))
+                            .filter(Boolean)}
+                          isMockSession={isMockSession}
+                          busyKey={subtaskBusyKey}
+                          onToggleSubtask={handleToggleSubtask}
+                          onCompleteItem={handleCompleteRoadmapItemFully}
+                          onOpenInfo={(title) => { setCoreFoundationInfoTitle(title); logPortalEvent('roadmap_item_opened', { title, source: 'pathway' }).catch(() => {}); }}
+                          onBookMeeting={() => { setActiveTab('meetings'); logPortalEvent('pathway_checkpoint_book_clicked', {}).catch(() => {}); }}
+                        />
+                      </div>
+                    ) : (
                       <div key={c.category}>
                         <div style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px' }}>{c.category}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

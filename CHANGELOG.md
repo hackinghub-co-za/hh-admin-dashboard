@@ -21,6 +21,25 @@ saved in their browser's `localStorage`.
 ## 2026.10.04
 
 ### Added
+- **Core Foundations Pathway** - the Certifications checklist on My Roadmap
+  is replaced by a two-lane pathway (`CorePathway.jsx`): this week's lab and
+  any certificate sprint with their subtask checklists, a rearrangeable lane
+  view (drag or arrows; lab items swap order, AZ-900/SC-900 sprints move to
+  any free week ahead, one sprint at a time), a weekly-hours setting, and
+  projected Minimum met (4) and Specialization unlock (5, unchanged) weeks.
+  Scheduling is a pure, tested model (`src/lib/pathway.js`). Completed items
+  never enter the lanes and part-done items are shortened by their ticked
+  subtasks, so existing members only see what's left. A banner offers
+  "Mark it done" where the Cert Calendar shows a pass that isn't ticked.
+  Checkpoints: at 2, 4 and 5 items the member must book a 1-on-1; new ticks
+  lock until they either declare it booked or a logged/synced session falls
+  after the day the checkpoint was reached. Checkpoints already passed when
+  a member first opens the pathway are recorded as cleared, so nobody is
+  stopped retroactively. Staff see each member's pathway week, pace, own vs
+  recommended order and how each checkpoint cleared on the Roadmaps tab
+  (`PathwayStaffNote.jsx`); self-declared bookings are flagged for follow-up.
+  Completion still flows through `roadmap_items`/subtasks, so Hub Score and
+  approvals are unchanged. (`102_core_pathway.sql`)
 - **Prices and Free tags on Core Foundations items** - the item info modal
   (`CoreFoundationInfoModal`) gets a *What It Costs* section for each of the
   eight catalog items, and Cisco's pathway and Immersive Labs carry a green
