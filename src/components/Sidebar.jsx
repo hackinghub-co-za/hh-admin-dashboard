@@ -16,6 +16,7 @@ import {
   Network,
   FlaskConical,
   MessageCircleHeart,
+  ListTodo,
   Briefcase,
   ShoppingBag,
   Library,
@@ -417,6 +418,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
   const menuItems = viewRole === 'admin'
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'tasks', label: 'Tasks', icon: ListTodo },
         { id: 'members', label: 'Members', icon: Contact },
         { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
@@ -441,6 +443,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
     : viewRole === 'community_manager'
     ? [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'tasks', label: 'Tasks', icon: ListTodo },
         { id: 'accountability', label: 'Accountability Check-ins', icon: UserCheck },
         { id: 'matchmaker', label: 'Matchmaker', icon: Handshake },
         { id: 'roomlogs', label: 'Room Logs', icon: ListChecks },

@@ -18,6 +18,24 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.04
+
+### Added
+- **Tasks** (admin + community manager tab) - a shared kanban board for the
+  team: Backlog, To Do, In Progress, In Review, Done. Cards carry a
+  priority, assignee, due date (overdue and due-soon highlighting),
+  labels, a checklist and a description. Drag cards between and within
+  columns (pointer or keyboard); a drag saves in one `move_staff_tasks()`
+  call. Filters for search, assignee ("Assigned to me" included),
+  priority and label. Done tasks drop off the board after 14 days
+  (still in the database; a toggle shows them). A task can be marked
+  *Admins only*: community managers can't see, edit or move it, enforced
+  by RLS (the community-manager policy is "not admin_only", since
+  `is_community_manager()` also returns true for admins). Assignees must
+  be an admin or community manager, and an admins-only task can only go
+  to an admin. A trigger keeps `completed_at`/`updated_at` correct.
+  Mentors have no access. (`101_staff_tasks.sql`)
+
 ## 2026.10.03
 
 ### Added

@@ -9,6 +9,7 @@ import SalesPipelineBoard from '../../components/SalesPipelineBoard';
 import AccountabilityCheckins from '../../components/AccountabilityCheckins';
 import LabReviews from '../../components/LabReviews';
 import GemmaAdmin from '../../components/GemmaAdmin';
+import TaskBoard from '../../components/TaskBoard';
 // Anonymized fixture data for Mock Admin only - same shape and aggregate
 // realism (amounts, dates, plan mix) as the real historical PayFast export,
 // but with every real member/email swapped for a fake "Demo Member N"
@@ -4689,6 +4690,9 @@ Pick new people to present next Sunday`;
 
     case 'labreviews':
       return <LabReviews isMockSession={isMockSession} user={user} />;
+
+    case 'tasks':
+      return <TaskBoard isMockSession={isMockSession} user={user} isAdmin={isFounder} />;
 
     case 'gemmaadmin':
       return <GemmaAdmin isMockSession={isMockSession} user={user} isAdmin={isFounder} />;
