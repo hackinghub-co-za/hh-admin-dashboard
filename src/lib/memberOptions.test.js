@@ -6,6 +6,8 @@ import {
   SPECIALIZATION_CATALOGS,
   PROJECT_CATALOGS,
   CERT_CATALOG_BY_VENDOR,
+  CORE_FOUNDATIONS_CATALOG,
+  CORE_FOUNDATION_PRICING,
 } from './memberOptions';
 
 describe('matchExamReadinessCert', () => {
@@ -107,5 +109,27 @@ describe('CERT_CATALOG_BY_VENDOR', () => {
   it('has no duplicate vendor name', () => {
     const vendors = CERT_CATALOG_BY_VENDOR.map((g) => g.vendor);
     expect(new Set(vendors).size).toBe(vendors.length);
+  });
+});
+
+describe('CORE_FOUNDATION_PRICING', () => {
+  it('has a price and a note for every Core Foundations catalog item', () => {
+    CORE_FOUNDATIONS_CATALOG.forEach(({ title }) => {
+      const entry = CORE_FOUNDATION_PRICING[title];
+      expect(entry, `${title} has no pricing`).toBeTruthy();
+      expect(entry.price).toBeTruthy();
+      expect(entry.note).toBeTruthy();
+      expect(typeof entry.free).toBe('boolean');
+    });
+  });
+
+  it('tags exactly Cisco and Immersive Labs as free', () => {
+    const free = Object.entries(CORE_FOUNDATION_PRICING).filter(([, v]) => v.free).map(([k]) => k).sort();
+    expect(free).toEqual(['CISCO Junior Cyber Pathway', 'Immersive Labs']);
+  });
+
+  it('only prices real catalog items', () => {
+    const titles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
+    Object.keys(CORE_FOUNDATION_PRICING).forEach((k) => expect(titles.has(k)).toBe(true));
   });
 });

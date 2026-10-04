@@ -1,5 +1,5 @@
-import { X, BookOpen, Compass, ExternalLink } from 'lucide-react';
-import { ROADMAP_ITEM_DESCRIPTIONS, ROADMAP_ITEM_INFO, ROADMAP_ITEM_LINKS } from '../lib/memberOptions';
+import { X, BookOpen, Compass, ExternalLink, Wallet } from 'lucide-react';
+import { ROADMAP_ITEM_DESCRIPTIONS, ROADMAP_ITEM_INFO, ROADMAP_ITEM_LINKS, CORE_FOUNDATION_PRICING } from '../lib/memberOptions';
 
 // What a roadmap item actually teaches, and why it's on the roadmap at all -
 // real, tailored copy per item (ROADMAP_ITEM_INFO), not a generic template.
@@ -11,6 +11,8 @@ export default function CoreFoundationInfoModal({ title, onOpenResource, onClose
   const info = ROADMAP_ITEM_INFO[title];
   if (!info) return null;
   const tagline = ROADMAP_ITEM_DESCRIPTIONS[title];
+  // Only Core Foundations items have a price on file; other phases skip the Cost section.
+  const pricing = CORE_FOUNDATION_PRICING[title];
   const hasResource = !!ROADMAP_ITEM_LINKS[title] || title === 'CompTIA Security+';
 
   return (
@@ -31,7 +33,10 @@ export default function CoreFoundationInfoModal({ title, onOpenResource, onClose
           <X size={18} />
         </button>
 
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '4px', paddingRight: '40px' }}>{title}</h2>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '4px', paddingRight: '40px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {title}
+          {pricing?.free && <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>Free</span>}
+        </h2>
         {tagline && <p style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600, marginBottom: '24px' }}>{tagline}</p>}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -50,6 +55,17 @@ export default function CoreFoundationInfoModal({ title, onOpenResource, onClose
             </div>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{info.journey}</p>
           </div>
+
+          {pricing && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <Wallet size={16} color="var(--accent-cyan)" />
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>What It Costs</h4>
+              </div>
+              <p style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 4px', color: pricing.free ? 'var(--success)' : 'var(--text-primary)' }}>{pricing.price}</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{pricing.note}</p>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', borderTop: '1px solid var(--border-color)', paddingTop: '18px', marginTop: '24px', flexWrap: 'wrap' }}>

@@ -21,6 +21,16 @@ saved in their browser's `localStorage`.
 ## 2026.10.04
 
 ### Added
+- **Prices and Free tags on Core Foundations items** - the item info modal
+  (`CoreFoundationInfoModal`) gets a *What It Costs* section for each of the
+  eight catalog items, and Cisco's pathway and Immersive Labs carry a green
+  Free tag by their name. Figures live in `CORE_FOUNDATION_PRICING`
+  (`memberOptions.js`), with a test that every catalog item has one. The
+  Microsoft exams use the founder's "around R700" for AZ-900 and assume the
+  same for SC-900 and AI-901, because Microsoft sets exam prices by country
+  and publishes no rand figure. TryHackMe uses the founder's R1,200 a year
+  (TryHackMe's public price looks higher, to confirm). Security+ uses the
+  in-app guide's R5,412.
 - **Resource steps and completion** - a resource can carry up to 20 ordered
   steps, each with an optional link, and members can mark a step or the whole
   resource completed (private to them; "Hide completed" and an "N of M

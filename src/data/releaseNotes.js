@@ -22,6 +22,12 @@ export const RELEASE_NOTES = [
             where: 'Resources',
           },
           {
+            icon: '💰',
+            title: 'See what every Core Foundations item costs',
+            body: "Open any Core Foundations item on My Roadmap and you'll now find a What It Costs section. Cisco's pathway and Immersive Labs carry a green Free tag. The rest show their price up front, including which exams can be free through a YES x Microsoft voucher.",
+            where: 'My Roadmap · Core Foundations',
+          },
+          {
             icon: '☁️',
             title: 'AZ-900 prep pack',
             body: "An AZ-900 study guide (price, how long to study, playlist, practice questions), Microsoft's learning paths broken into steps, an exam prep checklist, and Microsoft's own hands-on labs and guided projects. The material is free and comes straight from Microsoft; the hands-on labs need an Azure account (Microsoft retired its no-signup sandboxes, but the free 30-day trial works). The YES x Microsoft free-voucher card now has steps too.",

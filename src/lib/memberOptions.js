@@ -94,6 +94,28 @@ export const CORE_FOUNDATIONS_CATALOG = [
 ];
 export const CORE_FOUNDATIONS_MIN_REQUIRED = 4;
 
+// What each Core Foundations item costs a member, shown in the item's info
+// modal (CoreFoundationInfoModal.jsx) so nobody finds out at the checkout.
+// Keyed by the exact catalog title above. `free` drives the green "Free"
+// tag. Sources: Cisco NetAcad and Immersive Labs' Cyber Million are free
+// (see their Resources cards); TryHackMe's free tier only covers the first
+// rooms of each path, and the subscription figure is the founder's; the
+// Security+ price is the in-app study guide's. Microsoft sets exam prices
+// by country and publishes no fixed rand figure, so AZ-900 uses the
+// founder's "around R700" and the other two Fundamentals exams are assumed
+// to sit at the same level - confirm at booking. The YES x Microsoft
+// voucher programme (a Resources card) can make the Microsoft exams free.
+export const CORE_FOUNDATION_PRICING = {
+  'CISCO Junior Cyber Pathway': { price: 'Free', free: true, note: "Cisco's Networking Academy courses cost nothing to take." },
+  'Immersive Labs': { price: 'Free', free: true, note: 'The Cyber Million collections are free to use.' },
+  'TryHackMe Pre-Security': { price: 'About R1,200 a year', free: false, note: 'A TryHackMe Premium subscription, which also covers Cyber 101. The first rooms are free.' },
+  'TryHackMe Cyber 101': { price: 'About R1,200 a year', free: false, note: 'The same TryHackMe Premium subscription as Pre-Security. The first rooms are free.' },
+  'AZ-900': { price: 'About R700', free: false, note: 'The exam fee. Free if you claim a YES x Microsoft voucher while they last.' },
+  'AI-901': { price: 'About R700', free: false, note: 'The exam fee, at the same level as the other Microsoft Fundamentals exams. Microsoft sets the exact price by country.' },
+  'SC-900': { price: 'About R700', free: false, note: 'The exam fee, at the same level as AZ-900. Free if you claim a YES x Microsoft voucher while they last.' },
+  'CompTIA Security+': { price: 'R5,412', free: false, note: 'The exam fee.' },
+};
+
 // Subtasks that break each Core Foundations Certifications item into the
 // real, tickable steps toward completing it - the exam domains for a cert,
 // the courses inside a learning pathway, the modules inside a TryHackMe
