@@ -20,6 +20,27 @@ saved in their browser's `localStorage`.
 
 ## 2026.10.04
 
+### Changed
+- **The pathway view now covers every Specialization track, and members can
+  switch back.** `CorePathway` became `RoadmapPathway`, driven by a config
+  (`pathway.js` for Core Foundations, `trackPathway.js` for each track built
+  from `SPECIALIZATION_CATALOGS`): the same two lanes, drag/arrow
+  rearranging, hours-a-week setting, "already done" strip and milestones
+  (Projects unlock at half the track, Track complete at all of it). Track
+  choices are saved per track in `member_pathways.track_prefs`
+  (`save_my_track_pathway()`, `102_core_pathway.sql`); the track clock starts
+  the first time a member opens the roadmap on that track. A **New view /
+  Classic view** switch at the top of My Roadmap flips the whole roadmap
+  between the lanes and the original checklist; it is remembered per browser
+  and logs `roadmap_view_switched`. The Core Foundations checkpoint 1-on-1
+  rule applies in both views, and the tick handler itself refuses new ticks
+  while a checkpoint is open, so switching views can't skip it. Specialization
+  has no required meetings. Per-item hours for tracks are planning estimates
+  in one table (`trackPathway.js`); only CySA+, SC-200 and Terraform come
+  from the study guides. Projects and Advanced keep their classic review
+  flow. Mock Member now counts as staff-approved so the track view can be
+  demoed.
+
 ### Fixed
 - **Study timer logged unlimited sessions.** When the clock hit 00:00 it stayed
   there, so pressing Start again immediately "finished" another full session,

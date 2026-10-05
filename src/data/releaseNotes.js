@@ -17,9 +17,9 @@ export const RELEASE_NOTES = [
         items: [
           {
             icon: '🛣️',
-            title: 'Your Core Foundations pathway',
-            body: "My Roadmap now shows this week's work in two lanes: a lab you're working through and, some weeks, a two-week certificate sprint on top. Drag the blocks to change the order or move a sprint, pick how many hours a week you have, and see when you'll hit Minimum met and the Specialization unlock. Anything you've already finished stays out of the way. At 2, 4 and 5 items done you'll book a 1-on-1 with your coach before carrying on.",
-            where: 'My Roadmap · Core Foundations',
+            title: 'Your roadmap, as a pathway',
+            body: "My Roadmap now shows this week's work in two lanes: a lab you're working through and, some weeks, a certificate sprint on top. It works for Core Foundations and for your Specialization track. Drag the blocks to change the order or move a sprint, pick how many hours a week you have, and see when you'll hit each milestone. Anything you've already finished stays out of the way. Prefer the old checklist? The Classic view switch at the top of the page brings it back. At 2, 4 and 5 Core Foundations items you'll book a 1-on-1 with your coach before carrying on.",
+            where: 'My Roadmap',
           },
           {
             icon: '✅',

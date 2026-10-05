@@ -29,7 +29,8 @@ import SurveyBanner from '../../components/SurveyBanner';
 import { isPasskeySupported } from '../../lib/passkeyData';
 import SpecializationUnlockedModal from '../../components/SpecializationUnlockedModal';
 import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
-import CorePathway from '../../components/CorePathway';
+import RoadmapPathway from '../../components/RoadmapPathway';
+import { buildTrackConfig } from '../../lib/trackPathway';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMyAgeAndGender } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
@@ -1833,13 +1834,26 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // the plan itself (title/detail/phase/category) is admin-authored.
   const [roadmapTrack, setRoadmapTrack] = useState(isMockSession ? MOCK_ROADMAP_TRACK : null);
   const [roadmapItems, setRoadmapItems] = useState(isMockSession ? MOCK_ROADMAP_ITEMS : []);
-  const [roadmapFoundationsApproved, setRoadmapFoundationsApproved] = useState(false);
+  const [roadmapFoundationsApproved, setRoadmapFoundationsApproved] = useState(isMockSession);
   const [loadingRoadmap, setLoadingRoadmap] = useState(!isMockSession);
   const [roadmapError, setRoadmapError] = useState(null);
   // Ticked Core Foundations subtasks (088_roadmap_subtasks.sql), shaped
   // { [itemTitle]: Set(subtaskKey) }. Drives each item's progress bar and
   // auto-completes the item once every subtask is ticked.
   const [roadmapSubtasks, setRoadmapSubtasks] = useState(isMockSession ? MOCK_ROADMAP_SUBTASKS : {});
+  // 'pathway' is the lane view; 'classic' is the original checklist. Remembered per browser.
+  const [roadmapView, setRoadmapView] = useState(() => {
+    try { return localStorage.getItem('hh_roadmap_view') === 'classic' ? 'classic' : 'pathway'; } catch { return 'pathway'; }
+  });
+  const chooseRoadmapView = (view) => {
+    setRoadmapView(view);
+    try { localStorage.setItem('hh_roadmap_view', view); } catch { /* storage unavailable: the choice just won't be remembered */ }
+    logPortalEvent('roadmap_view_switched', { view }).catch(() => {});
+  };
+  // The Core Foundations checkpoint (2, 4 or 5 items) a member is stopped at, if any.
+  // Reported by RoadmapPathway in either view, so the classic checklist can't be used to skip the 1-on-1.
+  const [coreGateAt, setCoreGateAt] = useState(null);
+  const [roadmapNotice, setRoadmapNotice] = useState(null);
   // Which Core Foundations items have their subtask dropdown expanded.
   const [expandedSubtaskItems, setExpandedSubtaskItems] = useState({});
   const [subtaskBusyKey, setSubtaskBusyKey] = useState(null);
@@ -1998,6 +2012,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     if (!catalog) return;
     const current = roadmapSubtasks[item.title] || new Set();
     const willComplete = !current.has(subtaskKey);
+    if (willComplete && coreGateAt) {
+      // A notice, not roadmapError: that one replaces the whole roadmap with "couldn't load".
+      setRoadmapNotice('You have a checkpoint 1-on-1 to book before you tick off more. Book it above, then carry on.');
+      setTimeout(() => setRoadmapNotice(null), 6000);
+      return;
+    }
     const nextSet = new Set(current);
     if (willComplete) nextSet.add(subtaskKey); else nextSet.delete(subtaskKey);
     setRoadmapSubtasks((prev) => ({ ...prev, [item.title]: nextSet }));
@@ -5030,6 +5050,23 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </div>
           ) : (
             <div className="glass-card">
+              {roadmapNotice && (
+                <p role="status" style={{ fontSize: '0.84rem', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.08)', border: '1px solid rgba(var(--warning-rgb), 0.3)', borderRadius: 'var(--border-radius-sm)', padding: '8px 12px', margin: '0 0 12px' }}>{roadmapNotice}</p>
+              )}
+              <div role="group" aria-label="Roadmap view" style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginBottom: '14px' }}>
+                {[['pathway', 'New view'], ['classic', 'Classic view']].map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={roadmapView === key}
+                    onClick={() => chooseRoadmapView(key)}
+                    className={`btn ${roadmapView === key ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: '0.74rem', padding: '6px 12px' }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
                 <div style={{ flex: 1, height: '10px', background: 'var(--bg-tertiary)', borderRadius: '5px', overflow: 'hidden' }}>
                   <div style={{ width: `${roadmapProgressPercent}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-purple))', borderRadius: '5px', transition: 'width 0.4s ease' }}></div>
@@ -5047,28 +5084,59 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </span>
                     )}
                   </div>
+                  {(() => {
+                    const pathwayItemProps = {
+                      subtasks: roadmapSubtasks,
+                      isMockSession,
+                      busyKey: subtaskBusyKey,
+                      onToggleSubtask: handleToggleSubtask,
+                      onToggleItem: handleToggleMyRoadmapItem,
+                      onOpenInfo: (title) => { setCoreFoundationInfoTitle(title); logPortalEvent('roadmap_item_opened', { title, source: 'pathway' }).catch(() => {}); },
+                    };
+                    const trackPathwayOn = roadmapView === 'pathway' && g.phase === 'Specialization' && !!buildTrackConfig(roadmapTrack);
+                    const trackItems = g.categories.flatMap((c) => c.items).filter((i) => specializationCatalogTitles.has(i.title));
+                    // On the track pathway, only items the catalog doesn't cover keep their classic rows.
+                    const categoriesToList = trackPathwayOn
+                      ? g.categories.map((c) => ({ ...c, items: c.items.filter((i) => !specializationCatalogTitles.has(i.title)) })).filter((c) => c.items.length)
+                      : g.categories;
+                    return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                    {g.categories.map((c) => (g.phase === 'Core Foundations' && c.category === 'Certifications') ? (
+                    {trackPathwayOn && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <RoadmapPathway mode="track" track={roadmapTrack} catalogItems={trackItems} {...pathwayItemProps} />
+                      </div>
+                    )}
+                    {categoriesToList.map((c) => (g.phase === 'Core Foundations' && c.category === 'Certifications' && roadmapView === 'pathway') ? (
                       // The new pathway look replaces the old Certifications checklist.
                       // Everything else in Core Foundations (Networking etc.) keeps its list.
                       <div key={c.category} style={{ gridColumn: '1 / -1' }}>
-                        <CorePathway
+                        <RoadmapPathway
+                          mode="core"
                           catalogItems={c.items.filter((i) => catalogTitles.has(i.title))}
-                          subtasks={roadmapSubtasks}
                           passedCertTitles={certCalendar
                             .filter((e) => e.result === 'Passed' && (e.memberEmail || '').toLowerCase() === myEmailLower)
                             .map((e) => ({ 'Security+': 'CompTIA Security+' }[matchExamReadinessCert(e.cert)] || matchExamReadinessCert(e.cert)))
                             .filter(Boolean)}
-                          isMockSession={isMockSession}
-                          busyKey={subtaskBusyKey}
-                          onToggleSubtask={handleToggleSubtask}
                           onCompleteItem={handleCompleteRoadmapItemFully}
-                          onOpenInfo={(title) => { setCoreFoundationInfoTitle(title); logPortalEvent('roadmap_item_opened', { title, source: 'pathway' }).catch(() => {}); }}
                           onBookMeeting={() => { setActiveTab('meetings'); logPortalEvent('pathway_checkpoint_book_clicked', {}).catch(() => {}); }}
+                          onGateChange={setCoreGateAt}
+                          {...pathwayItemProps}
                         />
                       </div>
                     ) : (
                       <div key={c.category}>
+                        {g.phase === 'Core Foundations' && c.category === 'Certifications' && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <RoadmapPathway
+                              mode="core"
+                              view="gateOnly"
+                              catalogItems={c.items.filter((i) => catalogTitles.has(i.title))}
+                              isMockSession={isMockSession}
+                              onBookMeeting={() => { setActiveTab('meetings'); logPortalEvent('pathway_checkpoint_book_clicked', {}).catch(() => {}); }}
+                              onGateChange={setCoreGateAt}
+                            />
+                          </div>
+                        )}
                         <div style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '10px' }}>{c.category}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {c.items.map((item) => {
@@ -5402,6 +5470,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </div>
                     ))}
                   </div>
+                    );
+                  })()}
                 </div>
               ))}
 

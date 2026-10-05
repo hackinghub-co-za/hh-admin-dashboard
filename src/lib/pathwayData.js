@@ -16,11 +16,30 @@ export async function fetchMyPathway() {
     certStarts: data.cert_starts || {},
     checkpoints: data.checkpoints || {},
     meetingDates: data.meeting_dates || [],
+    // The member's current Specialization track and their lane choices for each track they've been on.
+    track: data.track || null,
+    trackPrefs: Object.fromEntries(Object.entries(data.track_prefs || {}).map(([name, p]) => [name, {
+      startedOn: p.started_on,
+      weeklyHours: p.weekly_hours,
+      labOrder: p.lab_order || [],
+      certStarts: p.cert_starts || {},
+    }])),
   };
 }
 
 export async function saveMyPathway({ labOrder, certStarts, weeklyHours }) {
   const { error } = await supabase.rpc('save_my_pathway', {
+    p_lab_order: labOrder,
+    p_cert_starts: certStarts,
+    p_weekly_hours: weeklyHours,
+  });
+  if (error) throw error;
+}
+
+/** Saves lane choices for the member's current Specialization track. */
+export async function saveMyTrackPathway(track, { labOrder, certStarts, weeklyHours }) {
+  const { error } = await supabase.rpc('save_my_track_pathway', {
+    p_track: track,
     p_lab_order: labOrder,
     p_cert_starts: certStarts,
     p_weekly_hours: weeklyHours,

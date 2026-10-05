@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Route, CalendarCheck, CheckSquare, Square, ChevronLeft, ChevronRight, RotateCcw, Info, Lock } from 'lucide-react';
-import { CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATION_SUBTASKS, CORE_FOUNDATION_PRICING, CORE_FOUNDATIONS_MIN_REQUIRED, SPECIALIZATION_UNLOCK_MIN } from '../lib/memberOptions';
+import { CORE_FOUNDATION_SUBTASKS, CORE_FOUNDATION_PRICING } from '../lib/memberOptions';
 import {
   buildPathway, checkCertMove, pathwayAdvice, pathwayWeek, itemFraction, activeCheckpoint, checkpointReachedDates,
-  WEEKLY_HOURS_OPTIONS, DEFAULT_WEEKLY_HOURS, LAB_ITEMS,
+  WEEKLY_HOURS_OPTIONS, DEFAULT_WEEKLY_HOURS, CORE_CONFIG,
 } from '../lib/pathway';
-import { fetchMyPathway, saveMyPathway, bookMyPathwayCheckpoint } from '../lib/pathwayData';
+import { buildTrackConfig } from '../lib/trackPathway';
+import { fetchMyPathway, saveMyPathway, saveMyTrackPathway, bookMyPathwayCheckpoint } from '../lib/pathwayData';
 import { friendlyMemberErrorMessage } from '../lib/errorMessages';
 
 const BLUE = '59, 130, 246';
@@ -17,11 +18,13 @@ const span = (a, b) => (a === b ? `week ${a}` : `weeks ${a}–${b}`);
 
 // Mock Member starts two weeks in, so the view opens on a realistic week 3.
 // Like get_my_pathway(), checkpoints already passed count as cleared.
-function mockPathway(today, doneCount) {
+function mockPathway(today, doneCount, track) {
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 14);
   const checkpoints = Object.fromEntries([2, 4, 5].filter((n) => n <= doneCount).map((n) => [n, { how: 'prior', on: today }]));
-  return { startedOn: d.toISOString().slice(0, 10), weeklyHours: DEFAULT_WEEKLY_HOURS, labOrder: [], certStarts: {}, checkpoints, meetingDates: [] };
+  const startedOn = d.toISOString().slice(0, 10);
+  const trackPrefs = track ? { [track]: { startedOn, weeklyHours: DEFAULT_WEEKLY_HOURS, labOrder: [], certStarts: {} } } : {};
+  return { startedOn, weeklyHours: DEFAULT_WEEKLY_HOURS, labOrder: [], certStarts: {}, checkpoints, meetingDates: [], track: track || null, trackPrefs };
 }
 
 function PriceTag({ title }) {
@@ -32,9 +35,20 @@ function PriceTag({ title }) {
     : <span style={{ fontSize: '0.68rem', fontWeight: 600, color: TONE.cert.fg, background: `rgba(${BLUE}, 0.12)`, border: `1px solid rgba(${BLUE}, 0.28)`, borderRadius: '999px', padding: '1px 8px', whiteSpace: 'nowrap' }}>{p.price}</span>;
 }
 
-function Checklist({ item, doneKeys, locked, busyKey, onToggle }) {
+function Checklist({ item, doneKeys, locked, busyKey, onToggle, onToggleItem }) {
   if (!item) return null;
   const catalog = CORE_FOUNDATION_SUBTASKS[item.title] || [];
+  if (!catalog.length) {
+    // Specialization items have no subtasks: one tick marks the whole item.
+    const blocked = locked && !item.completed;
+    return (
+      <button type="button" disabled={blocked} onClick={() => onToggleItem(item)}
+        style={{ display: 'flex', alignItems: 'center', gap: '9px', width: '100%', background: 'none', border: 'none', padding: '5px 4px', font: 'inherit', textAlign: 'left', cursor: blocked ? 'default' : 'pointer', opacity: blocked ? 0.55 : 1 }}>
+        {item.completed ? <CheckSquare size={16} color="var(--success)" style={{ flexShrink: 0 }} /> : <Square size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />}
+        <span style={{ fontSize: '0.82rem', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.completed ? 'Done' : 'Mark as done'}</span>
+      </button>
+    );
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
       {catalog.map((st) => {
@@ -63,21 +77,18 @@ const laneBox = (rgb) => ({ background: 'var(--bg-tertiary)', border: `1px solid
 const smallLabel = { fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' };
 
 /**
- * The Core Foundations pathway on My Roadmap: this week's work in two lanes,
- * a rearrangeable 2-lane plan, the checkpoint 1-on-1 gate, and everything
- * already done. Completion itself still flows through the parent's subtask
- * toggle, so Hub Score, the unlock and staff views keep working unchanged.
+ * The pathway on My Roadmap: this week's work in two lanes, a rearrangeable
+ * 2-lane plan, and everything already done. `mode="core"` is Core Foundations
+ * (with the checkpoint 1-on-1 gate); `mode="track"` is the member's
+ * Specialization track. Completion itself still flows through the parent's
+ * toggles, so Hub Score, the unlocks and staff views keep working unchanged.
  */
-export default function CorePathway({ catalogItems, subtasks, passedCertTitles, isMockSession, busyKey, onToggleSubtask, onCompleteItem, onOpenInfo, onBookMeeting }) {
+export default function RoadmapPathway(props) {
+  const { mode = 'core', track = null, catalogItems, isMockSession } = props;
+  const isTrack = mode === 'track';
   const [today] = useState(todaySast);
-  const [pathway, setPathway] = useState(() => (isMockSession ? mockPathway(today, catalogItems.filter((i) => i.completed).length) : null));
+  const [pathway, setPathway] = useState(() => (isMockSession ? mockPathway(today, catalogItems.filter((i) => i.completed).length, track) : null));
   const [loadError, setLoadError] = useState(null);
-  const [msg, setMsg] = useState({ text: '', warn: false });
-  const [saving, setSaving] = useState(false);
-  const [booking, setBooking] = useState(false);
-  const gridRef = useRef(null);
-  const dragRef = useRef(null);
-  const [dragDx, setDragDx] = useState({ title: null, dx: 0 });
 
   useEffect(() => {
     if (isMockSession) return undefined;
@@ -88,31 +99,55 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
     return () => { cancelled = true; };
   }, [isMockSession]);
 
-  if (loadError) return <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{loadError}</p>;
-  if (!pathway) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading your pathway...</p>;
+  const config = isTrack ? buildTrackConfig(track) : CORE_CONFIG;
+  if (loadError) return props.view === 'gateOnly' ? null : <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{loadError}</p>;
+  if (!config) return null;
+  if (!pathway) return props.view === 'gateOnly' ? null : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading your pathway...</p>;
+  return <PathwayBody {...props} isTrack={isTrack} today={today} pathway={pathway} setPathway={setPathway} config={config} />;
+}
+
+function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view, onGateChange, catalogItems, subtasks = {}, passedCertTitles, isMockSession, busyKey, onToggleSubtask, onToggleItem, onCompleteItem, onOpenInfo, onBookMeeting }) {
+  const [msg, setMsg] = useState({ text: '', warn: false });
+  const [saving, setSaving] = useState(false);
+  const [booking, setBooking] = useState(false);
+  const gridRef = useRef(null);
+  const dragRef = useRef(null);
+  const [dragDx, setDragDx] = useState({ title: null, dx: 0 });
+
+  // Core Foundations keeps its choices on the pathway row; a track keeps them per track.
+  const trackPrefs = pathway.trackPrefs?.[track] || { startedOn: today, weeklyHours: DEFAULT_WEEKLY_HOURS, labOrder: [], certStarts: {} };
+  const source = isTrack ? trackPrefs : pathway;
 
   const byTitle = Object.fromEntries(catalogItems.map((i) => [i.title, i]));
   // Only items actually on this member's roadmap get scheduled.
-  const status = Object.fromEntries(CORE_FOUNDATIONS_CATALOG.filter(({ title }) => byTitle[title]).map(({ title }) => {
+  const status = Object.fromEntries(config.catalogTitles.filter((title) => byTitle[title]).map((title) => {
     const item = byTitle[title];
     return [title, { completed: !!item.completed, fraction: itemFraction(title, !!item.completed, subtasks[title]) }];
   }));
-  const prefs = { labOrder: pathway.labOrder, certStarts: pathway.certStarts, weeklyHours: pathway.weeklyHours };
-  const now = pathwayWeek(pathway.startedOn, today);
-  const plan = buildPathway(status, prefs, now);
+  const prefs = { labOrder: source.labOrder, certStarts: source.certStarts, weeklyHours: source.weeklyHours };
+  const now = pathwayWeek(source.startedOn, today);
+  const plan = buildPathway(status, prefs, now, config);
   const advice = pathwayAdvice(plan);
-  const gate = activeCheckpoint({ doneCount: plan.doneCount, cleared: pathway.checkpoints, reachedDates: checkpointReachedDates(catalogItems), meetingDates: pathway.meetingDates });
+  // Only Core Foundations asks for checkpoint 1-on-1s.
+  const gate = isTrack ? null : activeCheckpoint({ doneCount: plan.doneCount, cleared: pathway.checkpoints, reachedDates: checkpointReachedDates(catalogItems), meetingDates: pathway.meetingDates });
   const unclaimedPasses = (passedCertTitles || []).filter((t) => byTitle[t] && !byTitle[t].completed);
+  // Tell the parent when a checkpoint is open, so the classic view locks too.
+  const gateAt = gate ? gate.at : null;
+  useEffect(() => { onGateChange?.(gateAt); }, [gateAt, onGateChange]);
 
   // Persist a rearrangement. The screen updates first; a failed save puts it back.
   const applyPrefs = async (next, note) => {
     const previous = pathway;
-    setPathway({ ...pathway, ...next });
+    const merged = { labOrder: source.labOrder, certStarts: source.certStarts, weeklyHours: source.weeklyHours, ...next };
+    setPathway(isTrack
+      ? { ...pathway, trackPrefs: { ...pathway.trackPrefs, [track]: { ...trackPrefs, ...merged } } }
+      : { ...pathway, ...merged });
     setMsg({ text: note, warn: false });
     if (isMockSession) return;
     setSaving(true);
     try {
-      await saveMyPathway({ labOrder: next.labOrder ?? pathway.labOrder, certStarts: next.certStarts ?? pathway.certStarts, weeklyHours: next.weeklyHours ?? pathway.weeklyHours });
+      if (isTrack) await saveMyTrackPathway(track, merged);
+      else await saveMyPathway(merged);
     } catch (err) {
       setPathway(previous);
       setMsg({ text: friendlyMemberErrorMessage(err), warn: true });
@@ -211,32 +246,7 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
   const fmtH = (h) => (Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`);
   const delta = (week) => (week === null ? 'Done' : `Week ${week}`);
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ ...smallLabel, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}><Route size={13} /> Your pathway</div>
-          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '4px 0 0' }}>
-            Week {now}{lab ? ` · ${shortName(lab.title)}` : ''}{cert ? ` and ${cert.title}` : ''}
-          </h4>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <label htmlFor="pathway-hours" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Hours a week</label>
-          <select
-            id="pathway-hours"
-            className="form-input"
-            style={{ width: 'auto', padding: '5px 8px', fontSize: '0.8rem' }}
-            value={pathway.weeklyHours}
-            onChange={(e) => applyPrefs({ weeklyHours: Number(e.target.value), certStarts: currentCertStarts() }, `Planning for ${e.target.value} hours a week.`)}
-          >
-            {WEEKLY_HOURS_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Checkpoint gate */}
-      {gate && (
+  const gateBanner = gate && (
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--warning-rgb), 0.08)', border: '1px solid rgba(var(--warning-rgb), 0.35)' }}>
           <Lock size={20} color="var(--warning)" style={{ flexShrink: 0 }} />
           <div style={{ flex: '1 1 260px' }}>
@@ -248,7 +258,36 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
             <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '8px 14px' }} disabled={booking} onClick={handleBooked}>{booking ? 'Saving...' : "I've booked it"}</button>
           </div>
         </div>
-      )}
+  );
+
+  // Classic view: only the checkpoint banner, so the 1-on-1 rule can't be skipped by switching views.
+  if (view === 'gateOnly') return gateBanner || null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ ...smallLabel, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}><Route size={13} /> {isTrack ? `Your ${track} pathway` : 'Your pathway'}</div>
+          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '4px 0 0' }}>
+            Week {now}{lab ? ` · ${shortName(lab.title)}` : ''}{cert ? ` and ${cert.title}` : ''}
+          </h4>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label htmlFor={`pathway-hours-${isTrack ? 'track' : 'core'}`} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Hours a week</label>
+          <select
+            id={`pathway-hours-${isTrack ? 'track' : 'core'}`}
+            className="form-input"
+            style={{ width: 'auto', padding: '5px 8px', fontSize: '0.8rem' }}
+            value={source.weeklyHours}
+            onChange={(e) => applyPrefs({ weeklyHours: Number(e.target.value), certStarts: currentCertStarts() }, `Planning for ${e.target.value} hours a week.`)}
+          >
+            {WEEKLY_HOURS_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {gateBanner}
 
       {/* Cert Calendar says passed but the item isn't ticked */}
       {unclaimedPasses.map((t) => (
@@ -259,7 +298,7 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
       ))}
 
       {plan.labs.length + plan.certs.length === 0 ? (
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Every item on the pathway is done. {plan.afterUnlock.length ? 'The rest of the catalog is below, and none of it blocks anything.' : ''}</p>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Every item on this pathway is done.{plan.afterUnlock.length ? ' The rest of the catalog is below, and none of it blocks anything.' : ''}</p>
       ) : (
         <>
           {/* This week */}
@@ -276,9 +315,9 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
                 <>
                   <button type="button" onClick={() => onOpenInfo(lab.title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{lab.title}</button>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>On track to finish in week {lab.end}</span>
-                  <Checklist item={byTitle[lab.title]} doneKeys={subtasks[lab.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} />
+                  <Checklist item={byTitle[lab.title]} doneKeys={subtasks[lab.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
                 </>
-              ) : <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>All three lab items are done.</span>}
+              ) : <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>{Object.keys(config.labs).length ? 'All the lab items are done.' : 'This track has no lab items.'}</span>}
             </div>
             <div style={laneBox(TONE.cert.rgb)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}><span style={smallLabel}>Certificate sprint</span>{(cert || nextCert) && <PriceTag title={(cert || nextCert).title} />}</div>
@@ -286,11 +325,11 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
                 <>
                   <button type="button" onClick={() => onOpenInfo(cert.title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{cert.title} · week {now - cert.start + 1} of {cert.len}</button>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Aim to sit the exam by the end of week {cert.end}, and log it on the Cert Calendar.</span>
-                  <Checklist item={byTitle[cert.title]} doneKeys={subtasks[cert.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} />
+                  <Checklist item={byTitle[cert.title]} doneKeys={subtasks[cert.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
                 </>
               ) : (
                 <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                  {nextCert ? `No sprint this week. ${nextCert.title} starts in week ${nextCert.start}.` : 'Both Microsoft certificates are done.'}
+                  {nextCert ? `No sprint this week. ${nextCert.title} starts in week ${nextCert.start}.` : Object.keys(config.certs).length ? 'All the certificates are done.' : 'This track has no certificates.'}
                 </span>
               )}
             </div>
@@ -354,14 +393,12 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-              <div style={{ padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
-                <div style={smallLabel}>Minimum met, {CORE_FOUNDATIONS_MIN_REQUIRED} of 8</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>{delta(plan.minMetWeek)}</div>
-              </div>
-              <div style={{ padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
-                <div style={smallLabel}>Specialization unlock, {SPECIALIZATION_UNLOCK_MIN} of 8</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>{delta(plan.unlockWeek)}</div>
-              </div>
+              {plan.milestones.map((m) => (
+                <div key={m.label} style={{ padding: '10px 12px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+                  <div style={smallLabel}>{m.label}, {m.at} of {config.catalogTitles.length}</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>{delta(m.week)}</div>
+                </div>
+              ))}
             </div>
             {msg.text && <p role="status" style={{ fontSize: '0.8rem', margin: 0, color: msg.warn ? 'var(--warning)' : 'var(--accent-cyan)' }}>{msg.text}</p>}
             {advice.map((a) => (
@@ -386,16 +423,16 @@ export default function CorePathway({ catalogItems, subtasks, passedCertTitles, 
       {/* Everything, tickable in any order */}
       <details>
         <summary style={{ cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-          All your Core Foundations items {plan.afterUnlock.length > 0 ? `(including ${plan.afterUnlock.map(shortName).join(', ')}, which come after the unlock)` : ''}
+          {isTrack ? `All your ${track} items` : 'All your Core Foundations items'} {plan.afterUnlock.length > 0 ? `(including ${plan.afterUnlock.map(shortName).join(', ')}, which come after the unlock)` : ''}
         </summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '10px', marginTop: '10px' }}>
-          {CORE_FOUNDATIONS_CATALOG.map(({ title }) => byTitle[title] && (
-            <div key={title} style={{ ...laneBox(LAB_ITEMS.includes(title) ? TONE.labs.rgb : TONE.cert.rgb), gap: '4px' }}>
+          {config.catalogTitles.map((title) => byTitle[title] && (
+            <div key={title} style={{ ...laneBox(title in config.labs ? TONE.labs.rgb : TONE.cert.rgb), gap: '4px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
                 <button type="button" onClick={() => onOpenInfo(title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>{title}</button>
                 {byTitle[title].completed ? <span className="badge badge-success" style={{ fontSize: '0.64rem' }}>Done</span> : <PriceTag title={title} />}
               </div>
-              <Checklist item={byTitle[title]} doneKeys={subtasks[title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} />
+              <Checklist item={byTitle[title]} doneKeys={subtasks[title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
             </div>
           ))}
         </div>
