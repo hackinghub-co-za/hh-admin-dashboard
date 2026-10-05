@@ -21,6 +21,10 @@ saved in their browser's `localStorage`.
 ## 2026.10.04
 
 ### Added
+- **Training & Certifications expense category** - a new option in the admin
+  Expenses form, with its own colour in the stacked monthly chart and legend
+  (exam fees, courses, learning subscriptions). Added to the category CHECK in
+  `037_expenses.sql`.
 - **Core Foundations Pathway** - the Certifications checklist on My Roadmap
   is replaced by a two-lane pathway (`CorePathway.jsx`): this week's lab and
   any certificate sprint with their subtask checklists, a rearrangeable lane

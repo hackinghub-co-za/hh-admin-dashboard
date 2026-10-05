@@ -152,6 +152,7 @@ const EXPENSE_CATEGORY_COLORS = {
   Marketing: 'var(--warning)',
   'Hosting / Infrastructure': 'var(--info)',
   Events: '#f472b6',
+  'Training & Certifications': '#a78bfa',
   Other: 'var(--text-muted)',
 };
 
@@ -1515,7 +1516,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
 
-  const EXPENSE_CATEGORIES = ['Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other'];
+  const EXPENSE_CATEGORIES = ['Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Training & Certifications', 'Other'];
   const [newExpense, setNewExpense] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
 
   const handleAddExpense = async (e) => {

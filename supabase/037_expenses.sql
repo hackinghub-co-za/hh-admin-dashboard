@@ -12,7 +12,7 @@
 
 CREATE TABLE IF NOT EXISTS public.expenses (
   id BIGSERIAL PRIMARY KEY,
-  category TEXT NOT NULL CHECK (category IN ('Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other')),
+  category TEXT NOT NULL CHECK (category IN ('Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Training & Certifications', 'Other')),
   description TEXT NOT NULL,
   amount NUMERIC NOT NULL,
   expense_date DATE NOT NULL,
@@ -36,4 +36,8 @@ UPDATE public.expenses SET category = 'Staff' WHERE category = 'Coach / Mentor P
 
 ALTER TABLE public.expenses DROP CONSTRAINT IF EXISTS expenses_category_check;
 ALTER TABLE public.expenses ADD CONSTRAINT expenses_category_check
-  CHECK (category IN ('Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Other'));
+  CHECK (category IN ('Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Training & Certifications', 'Other'));
+
+-- 'Training & Certifications' added (exam fees, courses, subscriptions bought
+-- for learning). The two CHECKs above list the full set, so a database that
+-- ran this file earlier picks it up from the DROP/ADD just above on re-run.
