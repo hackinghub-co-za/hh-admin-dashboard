@@ -3386,6 +3386,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // timer actually offered).
   const handleCompleteStudySession = useCallback(async () => {
     setStudyRunning(false);
+    // Put the clock back at full length. It used to stay at 00:00, so the
+    // next Start saw "no time left" and logged another full session at once.
+    setStudySecondsLeft(studyDurationMinutes * 60);
     setJustCompletedStudySession(true);
     setTimeout(() => setJustCompletedStudySession(false), 3000);
     if (isMockSession) {
@@ -3403,19 +3406,25 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   }, [isMockSession, studyDurationMinutes, studyCert, user?.email]);
 
+  // The remaining seconds are mirrored in a ref so the one-second tick can
+  // finish the session itself, exactly once, when it reaches zero. (It used
+  // to call the completion from inside a state updater, and left the clock
+  // at 00:00 afterwards, so every further Start logged another session.)
+  const studySecondsRef = useRef(studySecondsLeft);
+  useEffect(() => { studySecondsRef.current = studySecondsLeft; }, [studySecondsLeft]);
   useEffect(() => {
     if (!studyRunning) return undefined;
-    studyIntervalRef.current = setInterval(() => {
-      setStudySecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(studyIntervalRef.current);
-          handleCompleteStudySession();
-          return 0;
-        }
-        return s - 1;
-      });
+    const id = setInterval(() => {
+      const next = Math.max(0, studySecondsRef.current - 1);
+      studySecondsRef.current = next;
+      setStudySecondsLeft(next);
+      if (next === 0) {
+        clearInterval(id);
+        handleCompleteStudySession();
+      }
     }, 1000);
-    return () => clearInterval(studyIntervalRef.current);
+    studyIntervalRef.current = id;
+    return () => clearInterval(id);
   }, [studyRunning, handleCompleteStudySession]);
 
   const handleStudyTimerReset = () => {
@@ -8565,7 +8574,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button
                         className="btn btn-primary"
-                        onClick={() => setStudyRunning((r) => !r)}
+                        onClick={() => { if (!studyRunning && studySecondsLeft <= 0) setStudySecondsLeft(studyDurationMinutes * 60); setStudyRunning((r) => !r); }}
                         style={{ justifyContent: 'center' }}
                       >
                         {studyRunning ? <><Pause size={14} /> Pause</> : <><PlayCircle size={14} /> Start</>}

@@ -186,6 +186,18 @@ BEGIN
     RAISE EXCEPTION 'Join Study Hours before logging a session.';
   END IF;
 
+  -- A session needs its full length to have passed since the previous one
+  -- was logged (30 seconds of slack). Without this the timer could be
+  -- restarted at 00:00 and log a fresh session instantly, every click, and
+  -- anyone calling this RPC directly could do the same.
+  IF EXISTS (
+    SELECT 1 FROM public.study_sessions
+    WHERE member_email = v_email
+      AND logged_at > now() - make_interval(secs => p_planned_minutes * 60 - 30)
+  ) THEN
+    RAISE EXCEPTION 'That session is too soon after your last one. Let the timer run its full length.';
+  END IF;
+
   INSERT INTO public.study_sessions (member_email, cert, planned_minutes)
   VALUES (v_email, p_cert, p_planned_minutes);
 

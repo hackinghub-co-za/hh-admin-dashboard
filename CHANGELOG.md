@@ -20,6 +20,17 @@ saved in their browser's `localStorage`.
 
 ## 2026.10.04
 
+### Fixed
+- **Study timer logged unlimited sessions.** When the clock hit 00:00 it stayed
+  there, so pressing Start again immediately "finished" another full session,
+  every click. The timer now resets to the full length on completion and
+  finishes from its own tick instead of from inside a state updater. The
+  server also now refuses a session logged sooner than its own length after the
+  previous one (`log_study_session()` in `081_study_sessions.sql`), so the RPC
+  can't be hammered directly either. Before the fix, 6 sessions from 3 members
+  were logged faster than their length (210 minutes); that history was left
+  as is.
+
 ### Added
 - **Training & Certifications expense category** - a new option in the admin
   Expenses form, with its own colour in the stacked monthly chart and legend
