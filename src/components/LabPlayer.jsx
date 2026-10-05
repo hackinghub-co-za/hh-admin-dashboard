@@ -27,6 +27,14 @@ export function EvidenceBlock({ block }) {
           {block.text}
         </blockquote>
       );
+    case 'code':
+      // Configs, pipelines, logs and queries: shown verbatim, scrolls sideways instead of wrapping.
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+          {block.title && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{block.title}</span>}
+          <pre style={{ margin: 0, padding: '12px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', overflowX: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.76rem', lineHeight: 1.55, whiteSpace: 'pre', tabSize: 2 }}><code>{block.text}</code></pre>
+        </div>
+      );
     case 'list':
       return (
         <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.86rem', lineHeight: 1.55 }}>

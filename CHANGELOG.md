@@ -18,6 +18,52 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.05
+
+### Added
+- **12 new Hub Labs - DevSecOps, Network Security, AI Security and Cloud
+  Security (Azure), three each.** Same shape as the three GRC Hub Labs: an
+  evidence pack a member analyses in the portal (five auto-graded tasks,
+  100 points) plus a final practical task done on the member's own machine
+  or a free tier, submitted as written proof and reviewed by staff with a
+  rubric. No lab infrastructure is hosted by Hacking Hub - every practical
+  task says so explicitly, uses only fake data/secrets, and tells the
+  member to work in a disposable environment (their own repo, a free Azure
+  trial with a budget alert, a throwaway VM or container) and to never test
+  a system they don't own or have permission to test.
+  - **DevSecOps**: a GitHub Actions workflow with a leaked key and
+    `pull_request_target` misuse (then scan/fix a throwaway repo);
+    Terraform with a public bucket, open SSH and plaintext secrets (then
+    Checkov/tfsec before and after); a Dockerfile and image scan where the
+    highest CVE severity isn't the right one to fix first (then build,
+    harden and rescan).
+  - **Network Security**: a firewall rulebase with a cancelling Any/Any
+    rule and internet-facing RDP (then build and test an nftables/iptables
+    ruleset); a Wireshark-style packet capture with clear-text FTP,
+    beaconing, DNS tunnelling and ARP spoofing (then capture and decode
+    real traffic); segmenting a flat office network into zones with a
+    rule matrix (then a diagram and matrix of their own).
+  - **AI Security**: triaging seven chatbot transcripts against the OWASP
+    Top 10 for LLM Applications (then red-team a locally-run model); RAG
+    permission leakage at an HR assistant (then a threat model plus a
+    working per-user retrieval filter); an unverified pickle model and an
+    unfair fraud-score flag rate (then a risk register plus a safe,
+    sandboxed pickle demonstration).
+  - **Cloud Security (Azure)**: an access review with permanent Owners, a
+    guest Contributor and no MFA anywhere (then grant least-privilege
+    access in the member's own tenant); a storage account and NSG with
+    public blobs, TLS 1.0 and open RDP/SQL (then harden a real storage
+    account and show before/after); reconstructing an attacker's steps
+    from the Azure activity log and picking the right KQL (then run real
+    queries in Microsoft's free Log Analytics demo workspace).
+  - `EvidenceBlock` gained a `code` block type for configs, logs, Terraform
+    and KQL (monospace, horizontal scroll, no wrapping). A new test,
+    `src/data/labs/labContent.test.js`, cross-checks every content file's
+    task/option/item ids against the SQL answer keys and confirms every
+    content file is seeded and every seeded slug has content - 123 checks.
+    Content in `src/data/labs/*.js`; answers, model answers and rubrics
+    appended to `099_labs.sql` (never shipped to the client).
+
 ## 2026.10.04
 
 ### Changed

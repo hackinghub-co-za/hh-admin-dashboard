@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.05',
+    date: '2026-10-05',
+    headline: '12 new Hub Labs: DevSecOps, Network Security, AI Security and Cloud Security.',
+    intro: "The Labs tab now has three Hub Labs for four more tracks, on top of the three GRC labs. Each one is a real-feeling evidence pack to analyse in the portal, plus a final hands-on task you do yourself and submit for feedback. Nothing is hosted for you - you work on your own machine or a free tier, with made-up data throughout.",
+    groups: [
+      {
+        label: 'Growth',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🧪',
+            title: 'Hub Labs: DevSecOps, Network Security, AI Security and Cloud Security',
+            body: "Twelve new labs, three per track. Review a leaking CI/CD pipeline and harden it yourself. Read a packet capture for a clinic that thinks something is wrong with its network, then capture and decode your own traffic. Red-team a chatbot against real prompt-injection tricks, or find who can see what in an HR assistant's documents. Review Azure access and storage settings for a small exporter, then fix them in your own free-tier subscription. Every lab ends with a short written task you submit for a staff review - your progress saves as you go, and the objective tasks are marked the moment you submit.",
+            where: 'Labs',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.04',
     date: '2026-10-04',
     headline: 'A new look for Core Foundations, plus progress tracking in Resources.',
