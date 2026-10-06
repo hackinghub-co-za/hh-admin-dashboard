@@ -3987,7 +3987,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [payfastLoadingTier, setPayfastLoadingTier] = useState(null);
   const [payfastError, setPayfastError] = useState(null);
 
-  const handlePayfastPay = async (planName, amount, isSubscription = true) => {
+  // cycles is PayFast's own "stop billing after N payments" field - 0 (the
+  // default) means indefinite, billed until the member cancels. Only
+  // Permanent Access passes a real number here (tier.cycles = 8), so it's
+  // the one tier that pays itself off and stops.
+  const handlePayfastPay = async (planName, amount, isSubscription = true, cycles = 0) => {
     setPayfastLoadingTier(planName);
     setPayfastError(null);
     try {
@@ -3996,6 +4000,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         amount: amount,
         subscriptionType: isSubscription ? 1 : 0,
         frequency: 3, // monthly
+        cycles,
       });
       window.location.href = checkoutUrl;
     } catch (err) {
@@ -4089,9 +4094,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     {
       rank: 2,
       name: 'Monthly Operative',
-      priceDisplay: 'R 600.00',
+      priceDisplay: 'R 500.00',
       period: '/ month',
-      amount: 600,
+      amount: 500,
       badgeClass: 'badge-success',
       badgeText: 'MONTHLY OPERATIVE',
       borderStyle: '1px solid var(--accent-cyan)',
@@ -4108,13 +4113,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       rank: 3,
       name: 'Permanent Access',
       priceDisplay: 'R 1,000.00',
-      period: '/ 6 months',
+      period: '/ month for 8 months',
       amount: 1000,
+      // PayFast cycle cap - the checkout actually stops billing after this
+      // many monthly payments (R1,000 x 8 = R8,000 total), unlike every
+      // other tier here, which bills indefinitely until the member cancels.
+      // Passed through handlePayfastPay -> createPayfastCheckoutUrl -> the
+      // payfast-checkout Edge Function's `cycles` field - PayFast itself
+      // stops the subscription, nothing in this app has to.
+      cycles: 8,
       badgeClass: 'badge-success',
       badgeStyle: { background: 'rgba(192, 132, 252, 0.2)', color: 'var(--accent-purple)' },
       btnStyle: { background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))' },
       badgeText: 'PERMANENT ACCESS',
       benefits: [
+        'R8,000 total - billing stops automatically after 8 months',
         'Everything in Monthly Operative',
         'Lifetime community access',
         'All future programme updates',
@@ -9434,7 +9447,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                         className="btn btn-primary"
                         style={{ width: '100%', justifyContent: 'center', ...(tier.btnStyle || {}) }}
                         disabled={payfastLoadingTier === tier.name}
-                        onClick={() => handlePayfastPay(tier.name, tier.amount)}
+                        onClick={() => handlePayfastPay(tier.name, tier.amount, true, tier.cycles)}
                       >
                         {payfastLoadingTier === tier.name ? 'Redirecting to PayFast...' : <>Upgrade to {tier.name} <ExternalLink size={14} /></>}
                       </button>

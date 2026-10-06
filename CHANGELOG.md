@@ -18,6 +18,28 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.06
+
+### Changed
+- **Membership pricing** - Monthly Operative dropped from R600 to R500/month.
+  Permanent Access changes from "R1,000 every 6 months" (R6,000 total) to
+  R1,000/month for 8 months (R8,000 total), billing itself off automatically.
+  This exposed a real gap: the checkout never actually capped Permanent
+  Access's billing at 6 cycles - PayFast's `cycles` field was never passed
+  by the client, so it defaulted to 0 (bill indefinitely until the member
+  cancels) for every tier, Permanent Access included. `handlePayfastPay`
+  now takes and forwards a `cycles` argument, and only Permanent Access
+  sets one (`tier.cycles = 8`); every other tier is unchanged (still
+  indefinite monthly billing). The server-side amount allowlist in
+  `payfast-checkout` (`VALID_MEMBERSHIP_AMOUNTS`, the one place a
+  membership amount is ever actually trusted) was updated from
+  `{200, 600, 1000}` to `{200, 500, 1000}` and redeployed - without this the
+  new R500 checkout would have been rejected as "not a real membership
+  price." Verified end-to-end against the live function with a throwaway
+  account: R600 now rejected, R500 accepted, Permanent Access's checkout
+  URL carries `cycles=8`/`frequency=3`/`amount=1000.00`, and the unrelated
+  tiers (Basic Access R200, a bogus amount) behave exactly as before.
+
 ## 2026.10.05
 
 ### Added

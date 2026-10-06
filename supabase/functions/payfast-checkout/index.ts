@@ -55,7 +55,7 @@ function pfEncode(value: string): string {
 // that trusted total - so merch is already safe end-to-end without this.
 // Membership has no such downstream check at all, which is what makes
 // this the one place an amount for it is ever actually decided.
-const VALID_MEMBERSHIP_AMOUNTS = new Set([200, 600, 1000]);
+const VALID_MEMBERSHIP_AMOUNTS = new Set([200, 500, 1000]);
 
 function generateSignature(data: Record<string, string>, passphrase: string): string {
   const parts: string[] = [];
