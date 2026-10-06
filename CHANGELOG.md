@@ -20,6 +20,29 @@ saved in their browser's `localStorage`.
 
 ## 2026.10.06
 
+### Added
+- **Admin alert email when a member starts a break, and a way to see who's
+  on one.** New `take-a-break-alert-email` Edge Function fires once,
+  fire-and-forget, right after `start_my_break()` succeeds client-side
+  (`notifyBreakStarted()` in `breakData.js`, called from
+  `handleStartBreak`) - same "client posts an Edge Function after its own
+  successful mutation" shape as `cert-perk-request-email`, not a DB
+  trigger (nothing else in this project fires an email that way). It
+  re-reads `break_started_at`/`break_until` straight off the caller's own
+  `member_profiles` row with the service-role client rather than trusting
+  anything the client claims, and fails closed (no email) if there's no
+  active break on record. Emails `siya@hackinghub.co.za` with the member's
+  name, how many days, and the return date. On the admin side, the Members
+  tab now has an "On a break (N)" toggle next to the status filter row
+  (orthogonal to it - a member on break is still Active-status) and every
+  member card shows an "On a break until [date]" badge when applicable, in
+  both the grid and By Domain views (they share one card renderer).
+  Verified against the live deployed function with a throwaway account:
+  the alert correctly refuses to send with no active break, a real
+  `start_my_break(7)` call followed by the alert sends
+  (`{"sent":true}`), and `member_profiles.break_until` matches what the
+  admin-side badge/filter reads.
+
 ### Changed
 - **Membership pricing** - Monthly Operative dropped from R600 to R500/month.
   Permanent Access changes from "R1,000 every 6 months" (R6,000 total) to

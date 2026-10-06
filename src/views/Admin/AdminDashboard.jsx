@@ -128,6 +128,7 @@ import {
   IdCard,
   ClipboardList,
   Compass,
+  Coffee,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -1004,6 +1005,10 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const [selectedMemberEmail, setSelectedMemberEmail] = useState(null);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [memberStatusFilter, setMemberStatusFilter] = useState('all');
+  // Orthogonal to memberStatusFilter (a member on break is still Active-
+  // status), so this is its own toggle rather than folded into that
+  // mutually-exclusive row - see memberRoster's onBreak (095_take_a_break.sql).
+  const [memberOnBreakFilter, setMemberOnBreakFilter] = useState(false);
   // Member Sheet column sort - null key means the default (name, A-Z).
   // Clicking the same column again flips direction; clicking a different
   // one starts that column fresh at ascending.
@@ -2845,11 +2850,16 @@ Pick new people to present next Sunday`;
         : profile?.status === 'Active (Permanent)'
         ? 'Active'
         : (daysSinceLastPayment !== null && daysSinceLastPayment > LAPSED_AFTER_DAYS) ? 'Lapsed' : 'Active';
+      // Same comparison MemberProfileModal.jsx already uses for its own
+      // break badge (095_take_a_break.sql) - break_until is inclusive, so
+      // >= today's midnight still counts as on break.
+      const onBreak = !!profile?.breakUntil && new Date(profile.breakUntil) >= new Date(new Date().toDateString());
       return {
         ...m,
         monthsInHH: m.firstPaymentDate ? Math.max(0, Math.round((today - new Date(m.firstPaymentDate)) / (1000 * 60 * 60 * 24 * 30))) : 0,
         profile,
         status,
+        onBreak,
         // Whichever is more recent of three sources: the on-demand live
         // Calendar sync, the daily automated Calendar sync (see
         // autoSyncedMeetingDatesByEmail above), and a manually-logged
@@ -2874,13 +2884,15 @@ Pick new people to present next Sunday`;
   const filteredMemberRoster = memberRoster.filter(m =>
     (m.member.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
       m.email.toLowerCase().includes(memberSearchQuery.toLowerCase())) &&
-    (memberStatusFilter === 'all' || m.status === memberStatusFilter)
+    (memberStatusFilter === 'all' || m.status === memberStatusFilter) &&
+    (!memberOnBreakFilter || m.onBreak)
   );
 
   const memberStatusCounts = memberRoster.reduce((acc, m) => {
     acc[m.status] = (acc[m.status] || 0) + 1;
     return acc;
   }, {});
+  const membersOnBreakCount = memberRoster.filter(m => m.onBreak).length;
 
   // Onboarding checklist progress, keyed by lowercased email - feeds the
   // "New Members Onboarding" queue on the Members tab below.
@@ -4058,6 +4070,11 @@ Pick new people to present next Sunday`;
               {m.profile?.employmentStatus && m.profile.employmentStatus !== 'Not Set' && (
                 <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{m.profile.employmentStatus}</span>
               )}
+              {m.onBreak && (
+                <span className="badge badge-warning" style={{ fontSize: '0.65rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Coffee size={10} /> On a break until {formatDate(m.profile.breakUntil)}
+                </span>
+              )}
             </div>
 
             {(m.profile?.location || m.profile?.linkedin || m.profile?.phone || m.lastMeetingDate || (m.profile?.employmentStatus === 'Employed' && m.profile?.jobTitle)) && (
@@ -4552,6 +4569,17 @@ Pick new people to present next Sunday`;
                   {status === 'all' ? 'All' : status} ({status === 'all' ? memberRoster.length : (memberStatusCounts[status] || 0)})
                 </button>
               ))}
+              {/* Orthogonal to the status row above - a member on break is
+                  still Active, so this is its own toggle, not another pill
+                  in that mutually-exclusive group. */}
+              <button
+                onClick={() => setMemberOnBreakFilter((v) => !v)}
+                className={`btn ${memberOnBreakFilter ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                title="Members currently on a Take a Break pause"
+              >
+                <Coffee size={14} /> On a break ({membersOnBreakCount})
+              </button>
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>

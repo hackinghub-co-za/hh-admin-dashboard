@@ -52,7 +52,7 @@ import { recordDailyLogin, fetchMyLoginStreakSummary, fetchMyLoginHistory, fetch
 import LoginStreakModal from '../../components/LoginStreakModal';
 import { fetchMyHubScore, fetchHubScoreLeaderboard, fetchMyHubScoreClaims, claimHubScoreTier, fetchMyHubScoreReviewRequest, requestHubScorePointsReview } from '../../lib/hubScoreData';
 import HubScoreModal from '../../components/HubScoreModal';
-import { fetchMyBreakStatus, startMyBreak } from '../../lib/breakData';
+import { fetchMyBreakStatus, startMyBreak, notifyBreakStarted } from '../../lib/breakData';
 import TakeABreakModal from '../../components/TakeABreakModal';
 import MemberLabs from '../../components/MemberLabs';
 import GemmaChat from '../../components/gemma/GemmaChat';
@@ -2251,6 +2251,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       } else {
         const until = await startMyBreak(days);
         setBreakUntil(until);
+        // Best-effort - the admin email failing should never undo or block
+        // the member's own break, which has already succeeded above.
+        notifyBreakStarted().catch((err) => console.error('Could not send break alert email:', err));
       }
       setShowTakeABreakModal(false);
     } catch (err) {

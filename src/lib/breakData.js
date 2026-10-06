@@ -21,3 +21,18 @@ export async function startMyBreak(days) {
   if (error) throw error;
   return data;
 }
+
+/** Fires the admin alert email for the break the caller just started
+ * (take-a-break-alert-email) - same "client POSTs an Edge Function right
+ * after its own successful mutation" shape as requestCertPerk
+ * (certPerkRequestData.js). The function re-reads break_started_at/
+ * break_until off the caller's own row itself rather than trusting
+ * anything passed here, so this call takes no arguments. Call sites treat
+ * this as best-effort (catch and ignore) - a failed admin notification
+ * should never undo or block the member's own break. */
+export async function notifyBreakStarted() {
+  const { data, error } = await supabase.functions.invoke('take-a-break-alert-email');
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
