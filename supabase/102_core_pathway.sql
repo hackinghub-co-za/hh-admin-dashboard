@@ -274,3 +274,99 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.save_my_track_pathway(TEXT, TEXT[], JSONB, INTEGER) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.save_my_track_pathway(TEXT, TEXT[], JSONB, INTEGER) FROM PUBLIC, anon;
+
+-- The checkpoint (2, 4 or 5 items) the member is currently stopped at, or
+-- NULL if none - a server-side mirror of activeCheckpoint()/
+-- checkpointReachedDates() in src/lib/pathway.js. Needed because
+-- toggle_my_roadmap_item() (028_roadmap.sql) is a public RPC a member can
+-- call directly (devtools, a raw fetch with their own JWT, an old cached
+-- client) - the "lock new ticks until booked or a real session is logged"
+-- rule this file's header comment promises was, until now, enforced only
+-- by RoadmapPathway.jsx/MemberPortal.jsx disabling the tick button, which
+-- is a UI nicety, not a lock. Mirrors the client's two clear-paths exactly:
+-- a self-declared "booked" (or "prior") entry in checkpoints, or a real
+-- 1-on-1/synced meeting dated on or after the day the checkpoint count was
+-- actually reached.
+CREATE OR REPLACE FUNCTION public._core_pathway_active_checkpoint(p_email TEXT)
+RETURNS INTEGER
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_done INTEGER;
+  v_checkpoints JSONB;
+  v_meeting_dates DATE[];
+  v_completed_dates DATE[];
+  v_cp INTEGER;
+  v_reached DATE;
+BEGIN
+  v_done := public._core_foundations_done(p_email);
+
+  SELECT checkpoints INTO v_checkpoints FROM public.member_pathways WHERE member_email = p_email;
+  v_checkpoints := COALESCE(v_checkpoints, '{}'::jsonb);
+
+  SELECT array_agg(d ORDER BY d) INTO v_meeting_dates FROM (
+    SELECT session_date AS d FROM public.one_on_one_logs WHERE member_email = p_email
+    UNION SELECT meeting_date FROM public.calendar_synced_meetings WHERE member_email = p_email
+  ) x;
+
+  -- Same catalog/ordering basis as checkpointReachedDates() client-side:
+  -- the Nth completed item (by completed_at) is "when checkpoint N was
+  -- reached" - array index 1 = the 1st done, 2 = the 2nd, etc.
+  SELECT array_agg(completed_at::date ORDER BY completed_at) INTO v_completed_dates
+  FROM public.roadmap_items
+  WHERE member_email = p_email AND phase = 'Core Foundations' AND completed
+    AND title IN ('CISCO Junior Cyber Pathway', 'Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
+                  'AZ-900', 'AI-901', 'SC-900', 'CompTIA Security+');
+
+  FOREACH v_cp IN ARRAY ARRAY[2, 4, 5] LOOP
+    IF v_done < v_cp THEN RETURN NULL; END IF;
+    IF v_checkpoints ? v_cp::text THEN CONTINUE; END IF;
+    v_reached := v_completed_dates[v_cp];
+    IF v_reached IS NOT NULL AND v_meeting_dates IS NOT NULL
+       AND EXISTS (SELECT 1 FROM unnest(v_meeting_dates) d WHERE d >= v_reached) THEN
+      CONTINUE;
+    END IF;
+    RETURN v_cp;
+  END LOOP;
+  RETURN NULL;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public._core_pathway_active_checkpoint(TEXT) FROM PUBLIC, anon, authenticated;
+
+-- Re-defines toggle_my_roadmap_item() (028_roadmap.sql) to add the
+-- checkpoint lock above on top of its existing Projects-phase guard. Only
+-- ever blocks a false -> true transition on one of the 8 Core Foundations
+-- catalog items; un-ticking, every other phase, and an already-completed
+-- item (no-op re-saves from the admin's own direct table edit elsewhere)
+-- are all untouched.
+CREATE OR REPLACE FUNCTION public.toggle_my_roadmap_item(p_item_id BIGINT, p_completed BOOLEAN)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_phase TEXT;
+  v_title TEXT;
+  v_was_completed BOOLEAN;
+BEGIN
+  SELECT phase, title, completed INTO v_phase, v_title, v_was_completed FROM public.roadmap_items
+  WHERE id = p_item_id AND member_email = v_email;
+
+  IF v_phase = 'Projects' THEN
+    RAISE EXCEPTION 'Projects are marked done by an admin, after you submit proof - see submit_my_project_proof().';
+  END IF;
+
+  IF p_completed AND NOT v_was_completed AND v_phase = 'Core Foundations'
+     AND v_title IN ('CISCO Junior Cyber Pathway', 'Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
+                     'AZ-900', 'AI-901', 'SC-900', 'CompTIA Security+')
+     AND public._core_pathway_active_checkpoint(v_email) IS NOT NULL THEN
+    RAISE EXCEPTION 'Book your checkpoint 1-on-1 before ticking off more Core Foundations items.';
+  END IF;
+
+  UPDATE public.roadmap_items
+  SET completed = p_completed, updated_at = timezone('utc'::text, now())
+  WHERE id = p_item_id AND member_email = v_email;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.toggle_my_roadmap_item(BIGINT, BOOLEAN) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.toggle_my_roadmap_item(BIGINT, BOOLEAN) FROM PUBLIC, anon;
