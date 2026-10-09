@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { FlaskConical, ExternalLink, Clock, Send, X } from 'lucide-react';
 import { fetchLabs, fetchMyLabAttempts, submitCuratedLabProof } from '../lib/labsData';
 import { HUB_LAB_CONTENT } from '../data/labs';
@@ -6,6 +6,10 @@ import { friendlyMemberErrorMessage } from '../lib/errorMessages';
 import { isSafeUrl } from '../lib/safeUrl';
 import { logPortalEvent } from '../lib/portalEventsData';
 import LabPlayer from './LabPlayer';
+
+const CareerSimulator = lazy(() => import('./sim/CareerSimulator'));
+// Preview only: shown in the dev server and to Mock Member until server-side grading ships.
+const SIM_PREVIEW = import.meta.env.DEV;
 import { STATUS_BADGE, isTaskAnswered } from '../lib/labHelpers';
 
 const MOCK_LABS = [
@@ -72,7 +76,8 @@ function CuratedProofForm({ lab, attempt, isMockSession, onSubmitted, onCancel }
   );
 }
 
-export default function MemberLabs({ isMockSession, roadmapTrack }) {
+export default function MemberLabs({ isMockSession, roadmapTrack, userEmail }) {
+  const simEnabled = isMockSession || SIM_PREVIEW;
   const [labs, setLabs] = useState(isMockSession ? MOCK_LABS : []);
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(!isMockSession);
@@ -82,6 +87,7 @@ export default function MemberLabs({ isMockSession, roadmapTrack }) {
   const [kindFilter, setKindFilter] = useState('all');
   const [openLabId, setOpenLabId] = useState(null);
   const [proofFormLabId, setProofFormLabId] = useState(null);
+  const [simOpen, setSimOpen] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -96,6 +102,14 @@ export default function MemberLabs({ isMockSession, roadmapTrack }) {
 
   const attemptFor = (labId) => attempts.find((a) => a.labId === labId) || null;
   const upsertAttempt = (next) => setAttempts((prev) => [...prev.filter((a) => a.labId !== next.labId), next]);
+
+  if (simOpen) {
+    return (
+      <Suspense fallback={<p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading simulator...</p>}>
+        <CareerSimulator email={userEmail} onExit={() => setSimOpen(false)} />
+      </Suspense>
+    );
+  }
 
   const openLab = labs.find((l) => l.id === openLabId);
   if (openLab && HUB_LAB_CONTENT[openLab.slug]) {
@@ -136,6 +150,17 @@ export default function MemberLabs({ isMockSession, roadmapTrack }) {
           </p>
         )}
       </div>
+
+      {simEnabled && (
+        <div className="glass-card" style={{ marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', justifyContent: 'space-between', borderColor: 'var(--border-glow)' }}>
+          <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+            <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>Hub Lab · Preview</span>
+            <h3 style={{ fontSize: '1.05rem', margin: '8px 0 4px' }}>Cyber Career Simulator</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>Play four roles in a row: SOC analyst, DevSecOps engineer, penetration tester and CISO. Your early choices follow you into later acts.</p>
+          </div>
+          <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '9px 18px' }} onClick={() => setSimOpen(true)}>Open simulator</button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
         {trackChips.map((t) => (

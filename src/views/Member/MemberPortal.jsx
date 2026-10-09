@@ -7419,7 +7419,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       );
 
     case 'labs':
-      return <MemberLabs isMockSession={isMockSession} roadmapTrack={roadmapTrack} />;
+      return <MemberLabs isMockSession={isMockSession} roadmapTrack={roadmapTrack} userEmail={user?.email} />;
 
     case 'resources':
       return (

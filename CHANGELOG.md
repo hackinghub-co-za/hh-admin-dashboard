@@ -18,6 +18,18 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.09
+
+### Added
+- **Cyber Career Simulator (preview) in the Labs tab.** A four-act game: SOC
+  analyst, DevSecOps engineer, penetration tester, then CISO. Choices in
+  early acts set consequence flags that change later acts. Preview only: the
+  card shows in the dev server and for Mock Member, not to real members in a
+  production build. Grading uses a local answer-key module and progress saves
+  in the browser; the server-side version (answer keys and career tables in
+  Supabase) is not built yet, so there is no migration in this batch. Pure
+  rules live in `src/lib/simEngine.js` with tests.
+
 ## 2026.10.06
 
 ### Added
