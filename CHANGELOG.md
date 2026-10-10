@@ -32,6 +32,9 @@ saved in their browser's `localStorage`.
   Gemma no longer offers a "Read Breakdowns" button (`gemma-chat` and
   `gemma-tools` redeployed). The Community Manager dashboard no longer counts
   draft breakdowns; its Community Content tile now shows broadcasts.
+- **My Journey So Far and Remember Your Why on the Dashboard.** Both now live
+  at the top of My Roadmap (the journey recap already had its full story
+  there; the Dashboard's compact tile was a duplicate that linked to it).
 - **AI CV & LinkedIn Review card on Resources.** The same review is still in
   1on1 Meetings, and Gemma's "Review my CV" button now goes there.
 

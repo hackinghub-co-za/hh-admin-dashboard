@@ -27,6 +27,12 @@ export const RELEASE_NOTES = [
             body: "You can still get an instant Gemma review of your CV or LinkedIn from the CV & LinkedIn Review card in 1on1 Meetings, or ask Gemma to take you there.",
             where: '1on1 Meetings',
           },
+          {
+            icon: '🧭',
+            title: 'My Journey So Far and Remember Your Why moved to My Roadmap',
+            body: "Your journey recap and your Why now sit together at the top of My Roadmap, so your progress and your reason for it are in one place. The Dashboard is a little lighter.",
+            where: 'My Roadmap',
+          },
         ],
       },
     ],

@@ -2355,9 +2355,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
-  // Whether the expanded "My Journey So Far" storyline is open on My
-  // Roadmap - clicking the compact Dashboard tile jumps to My Roadmap and
-  // flips this true so the story is immediately visible, no extra click.
+  // Whether the expanded "My Journey So Far" storyline is open on My Roadmap.
   const [journeyStoryExpanded, setJourneyStoryExpanded] = useState(false);
 
   // Matchmaker - opt-in pool + the member's own randomly-assigned group(s).
@@ -4167,8 +4165,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     );
   }
 
-  // "My Journey So Far" - shared between the compact Dashboard tile and the
-  // expanded storyline on My Roadmap (clicking the tile jumps there). Built
+  // "My Journey So Far" - the recap and storyline shown on My Roadmap. Built
   // entirely from data already tracked for real elsewhere in the portal.
   // Deliberately doesn't include a LinkedIn-post count - the roadmap's
   // "Post once a week" networking item is free-text self-reported progress,
@@ -4870,11 +4867,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </p>
           </div>
 
-          {/* My Journey So Far, expanded - same recap as the Dashboard
-              tile, plus the full chronological story below it. Opens
-              already expanded when the Dashboard tile was clicked to get
-              here (journeyStoryExpanded); otherwise starts collapsed to
-              this stat row and expands on demand. */}
+          {/* My Journey So Far - the stat recap plus the full chronological
+              story, which starts collapsed to the stat row and expands on
+              demand (journeyStoryExpanded). Lives here rather than on the
+              Dashboard, next to "Remember your why" below. */}
           {(() => {
             const story = computeJourneyStory();
             const stats = [
@@ -5010,6 +5006,33 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             );
           })()}
+
+          {/* Remember your why - a quiet reflection, not a nag: only shows
+              once a member has actually filled in Your Why (Edit Profile),
+              never a prompt to go add one. */}
+          {(myDirectoryEntry?.whyReasons?.length > 0 || myDirectoryEntry?.whyStory) && (
+            <div className="glass-card" style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-start', gap: '12px', background: 'rgba(var(--accent-rgb), 0.04)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
+              <Compass size={18} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '6px' }}>Remember your why</div>
+                {myDirectoryEntry.whyReasons?.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: myDirectoryEntry.whyStory ? '8px' : 0 }}>
+                    {myDirectoryEntry.whyReasons.map((reason) => {
+                      const preset = WHY_REASONS.find((w) => w.label === reason);
+                      return (
+                        <span key={reason} style={{ fontSize: '0.78rem', fontWeight: 600, padding: '4px 11px', borderRadius: '999px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+                          {preset ? `${preset.emoji} ${preset.label}` : reason}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {myDirectoryEntry.whyStory && (
+                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>"{myDirectoryEntry.whyStory}"</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {!isMockSession && loadingRoadmap ? (
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Loading your roadmap...</p>
@@ -6012,86 +6035,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               >
                 <X size={16} />
               </button>
-            </div>
-          )}
-
-          {/* My Journey So Far - a compact recap (computeJourneyStory,
-              defined above the tab router) that expands into a full
-              storyline on My Roadmap when clicked - see the card there for
-              the chronological timeline and what's deliberately left out
-              and why. */}
-          {(() => {
-            const story = computeJourneyStory();
-            const stats = [
-              { icon: Clock, value: story.journeyDurationLabel, label: 'At Hacking Hub' },
-              { icon: Award, value: story.certsCompletedCount, label: `Cert${story.certsCompletedCount === 1 ? '' : 's'} Completed` },
-              { icon: Target, value: story.roomsCompletedCount, label: `Room${story.roomsCompletedCount === 1 ? '' : 's'} Completed` },
-              { icon: CalendarDays, value: story.eventsJoinedCount, label: `Event${story.eventsJoinedCount === 1 ? '' : 's'} Joined` },
-              { icon: Briefcase, value: story.interviewsHadCount, label: `Interview${story.interviewsHadCount === 1 ? '' : 's'} Had` },
-            ];
-
-            return (
-              <div
-                className="glass-card"
-                onClick={() => { setActiveTab('roadmap'); setJourneyStoryExpanded(true); }}
-                style={{ marginBottom: '32px', cursor: 'pointer' }}
-                title="Click to see your full journey"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <TrendingUp size={18} color="var(--accent-cyan)" />
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>My Journey So Far</h3>
-                  </div>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
-                    See full story <ArrowRight size={13} />
-                  </span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px' }}>
-                  {stats.map(({ icon: StatIcon, value, label }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(var(--accent-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <StatIcon size={17} color="var(--accent-cyan)" />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{label}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {story.hasLandedJob && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '18px', paddingTop: '18px', borderTop: '1px solid var(--border-color)', fontSize: '0.88rem', color: 'var(--success)' }}>
-                    <Trophy size={16} /> You landed a job while at Hacking Hub — congrats! 🎉
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Remember your why - a quiet reflection, not a nag: only shows
-              once a member has actually filled in Your Why (Edit Profile),
-              never a prompt to go add one. */}
-          {(myDirectoryEntry?.whyReasons?.length > 0 || myDirectoryEntry?.whyStory) && (
-            <div className="glass-card" style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-start', gap: '12px', background: 'rgba(var(--accent-rgb), 0.04)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
-              <Compass size={18} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '6px' }}>Remember your why</div>
-                {myDirectoryEntry.whyReasons?.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: myDirectoryEntry.whyStory ? '8px' : 0 }}>
-                    {myDirectoryEntry.whyReasons.map((reason) => {
-                      const preset = WHY_REASONS.find((w) => w.label === reason);
-                      return (
-                        <span key={reason} style={{ fontSize: '0.78rem', fontWeight: 600, padding: '4px 11px', borderRadius: '999px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
-                          {preset ? `${preset.emoji} ${preset.label}` : reason}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                {myDirectoryEntry.whyStory && (
-                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>"{myDirectoryEntry.whyStory}"</p>
-                )}
-              </div>
             </div>
           )}
 
