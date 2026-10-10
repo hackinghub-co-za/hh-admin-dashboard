@@ -53,7 +53,6 @@ import {
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
 } from '../../lib/communityContentData';
 import { fetchAllSuggestedContent, addSuggestedContent, updateSuggestedContent, deleteSuggestedContent } from '../../lib/suggestedContentData';
-import { fetchAllBreakdowns, createBreakdown, updateBreakdown, approveBreakdown, unapproveBreakdown, deleteBreakdown } from '../../lib/breakdownsData';
 import { fetchCommunityEvents, approveCommunityEvent, deleteCommunityEvent, createCommunityEvent, updateCommunityEvent, updateEventRecording, fetchEventAgenda, updateEventAgenda, uploadEventImage } from '../../lib/eventsData';
 import { fetchJobBoard, addJobListing, deleteJobListing, notifyJobRecommendationMatches } from '../../lib/jobBoardData';
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
@@ -123,7 +122,6 @@ import {
   Smartphone,
   UserCog,
   ShieldCheck,
-  ShieldAlert,
   ImagePlus,
   IdCard,
   ClipboardList,
@@ -1954,90 +1952,6 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
   };
 
-  // Weekly incident breakdowns (068_weekly_breakdowns.sql). Admins and
-  // Community Managers draft one per week; either role approves it; the
-  // Friday cron sends it. The next Friday's date, for the "send date" default.
-  const nextFridayISO = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7 || 7));
-    return d.toISOString().slice(0, 10);
-  })();
-  const emptyBreakdownForm = { title: '', sourceLabel: '', difficulty: 'Medium', blurb: '', bodyMd: '', fullUrl: '', sendDate: nextFridayISO };
-  const [breakdowns, setBreakdowns] = useState([]);
-  const [loadingBreakdowns, setLoadingBreakdowns] = useState(!isMockSession);
-  const [breakdownsError, setBreakdownsError] = useState(null);
-  const [breakdownForm, setBreakdownForm] = useState(emptyBreakdownForm);
-  const [editingBreakdownId, setEditingBreakdownId] = useState(null);
-  const [showBreakdownForm, setShowBreakdownForm] = useState(false);
-  const [savingBreakdown, setSavingBreakdown] = useState(false);
-
-  useEffect(() => {
-    if (isMockSession) return;
-    let cancelled = false;
-    fetchAllBreakdowns()
-      .then((data) => !cancelled && setBreakdowns(data))
-      .catch((err) => !cancelled && setBreakdownsError(friendlyErrorMessage(err)))
-      .finally(() => !cancelled && setLoadingBreakdowns(false));
-    return () => { cancelled = true; };
-  }, [isMockSession, dataRefreshKey]);
-
-  const resetBreakdownForm = () => {
-    setBreakdownForm(emptyBreakdownForm);
-    setEditingBreakdownId(null);
-    setShowBreakdownForm(false);
-  };
-
-  const startEditBreakdown = (b) => {
-    setEditingBreakdownId(b.id);
-    setBreakdownForm({ title: b.title, sourceLabel: b.sourceLabel, difficulty: b.difficulty || 'Medium', blurb: b.blurb, bodyMd: b.bodyMd, fullUrl: b.fullUrl, sendDate: b.sendDate });
-    setShowBreakdownForm(true);
-  };
-
-  const handleSaveBreakdown = async (e) => {
-    e.preventDefault();
-    if (isMockSession) { setBreakdownsError('Not available under Mock Admin — sign in for real.'); return; }
-    if (!breakdownForm.title.trim() || !breakdownForm.blurb.trim() || !breakdownForm.bodyMd.trim() || !breakdownForm.sendDate) return;
-    setSavingBreakdown(true);
-    setBreakdownsError(null);
-    try {
-      if (editingBreakdownId) {
-        await updateBreakdown(editingBreakdownId, breakdownForm);
-      } else {
-        await createBreakdown({ ...breakdownForm, createdBy: user?.email });
-      }
-      setBreakdowns(await fetchAllBreakdowns());
-      resetBreakdownForm();
-    } catch (err) {
-      setBreakdownsError(friendlyErrorMessage(err));
-    } finally {
-      setSavingBreakdown(false);
-    }
-  };
-
-  const handleBreakdownApproval = async (b, approve) => {
-    if (isMockSession) return;
-    setBreakdownsError(null);
-    try {
-      if (approve) await approveBreakdown(b.id);
-      else await unapproveBreakdown(b.id);
-      setBreakdowns(await fetchAllBreakdowns());
-    } catch (err) {
-      setBreakdownsError(friendlyErrorMessage(err));
-    }
-  };
-
-  const handleDeleteBreakdown = async (b) => {
-    if (isMockSession) return;
-    if (!window.confirm(`Delete the "${b.title}" breakdown? This can't be undone.`)) return;
-    setBreakdowns(breakdowns.filter((x) => x.id !== b.id));
-    try {
-      await deleteBreakdown(b.id);
-    } catch (err) {
-      setBreakdownsError(friendlyErrorMessage(err));
-      setBreakdowns(await fetchAllBreakdowns());
-    }
-  };
-
   const [wins, setWins] = useState(isMockSession ? [
     { id: 1, member: 'Philisiwe N.', achievement: 'earned SC-900: Security, Compliance & Identity Fundamentals', achievedDate: '2026-08-20', linkedinUrl: '', active: true },
   ] : []);
@@ -3188,12 +3102,11 @@ Pick new people to present next Sunday`;
 
         // Community Manager-only: real counts pulled from data already
         // fetched elsewhere in this component (roomLogs, communityEvents,
-        // breakdowns, groups, jobListings, certs - no new fetches added) -
+        // groups, jobListings, certs - no new fetches added) -
         // turns the plain row of nav-shortcut buttons below into tiles
         // actually worth glancing at, and surfaces what needs action today
         // instead of making a CM click into every tab to find out.
         const cmPendingRoomLogs = role === 'community_manager' ? roomLogs.filter((l) => l.status === 'Pending').length : 0;
-        const cmDraftBreakdowns = role === 'community_manager' ? breakdowns.filter((b) => b.status === 'Draft').length : 0;
         const cmActiveGroups = role === 'community_manager' ? groups.filter((g) => g.status === 'Active').length : 0;
         const cmCertsDueSoon = role === 'community_manager' ? certs.filter((c) => {
           if (c.result !== 'Pending') return false;
@@ -3201,14 +3114,14 @@ Pick new people to present next Sunday`;
           return diffDays >= 0 && diffDays <= 7;
         }).length : 0;
         const cmPendingEvents = role === 'community_manager' ? pendingCommunityEvents.length : 0;
-        const cmNeedsAttentionTotal = cmPendingRoomLogs + cmPendingEvents + cmDraftBreakdowns;
+        const cmNeedsAttentionTotal = cmPendingRoomLogs + cmPendingEvents;
         const cmTiles = role === 'community_manager' ? [
           { id: 'roomlogs', label: 'Room Logs', icon: ListChecks, value: cmPendingRoomLogs, caption: 'pending review', highlight: cmPendingRoomLogs > 0 },
           { id: 'matchmaker', label: 'Matchmaker', icon: Handshake, value: cmActiveGroups, caption: 'active groups', highlight: false },
           { id: 'meetups', label: 'Meetups & Events', icon: Calendar, value: liveCommunityEvents.length, caption: 'upcoming, approved', highlight: false },
           { id: 'jobs', label: 'Job Board', icon: Briefcase, value: jobListings.length, caption: 'live listings', highlight: false },
           { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap, value: cmCertsDueSoon, caption: 'exams due in 7 days', highlight: cmCertsDueSoon > 0 },
-          { id: 'community-content', label: 'Community Content', icon: Megaphone, value: cmDraftBreakdowns, caption: 'breakdowns in Draft', highlight: cmDraftBreakdowns > 0 },
+          { id: 'community-content', label: 'Community Content', icon: Megaphone, value: broadcasts.length, caption: 'community broadcasts', highlight: false },
         ] : [];
 
         return (
@@ -3266,7 +3179,6 @@ Pick new people to present next Sunday`;
                           {[
                             cmPendingRoomLogs > 0 && `${cmPendingRoomLogs} room log${cmPendingRoomLogs === 1 ? '' : 's'} to review`,
                             cmPendingEvents > 0 && `${cmPendingEvents} event${cmPendingEvents === 1 ? '' : 's'} awaiting approval`,
-                            cmDraftBreakdowns > 0 && `${cmDraftBreakdowns} breakdown${cmDraftBreakdowns === 1 ? '' : 's'} in Draft`,
                           ].filter(Boolean).join(' · ')}
                         </div>
                       </div>
@@ -3276,9 +3188,6 @@ Pick new people to present next Sunday`;
                         )}
                         {cmPendingEvents > 0 && (
                           <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.78rem' }} onClick={() => setActiveTab('meetups')}>Review Events</button>
-                        )}
-                        {cmDraftBreakdowns > 0 && (
-                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.78rem' }} onClick={() => setActiveTab('community-content')}>Review Breakdowns</button>
                         )}
                       </div>
                     </div>
@@ -3290,7 +3199,7 @@ Pick new people to present next Sunday`;
                       <CheckCircle size={20} color="var(--success)" style={{ flexShrink: 0 }} />
                       <div>
                         <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>You're all caught up</div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>No pending room logs, event approvals, or draft breakdowns right now.</div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>No pending room logs or event approvals right now.</div>
                       </div>
                     </div>
                   )}
@@ -3331,7 +3240,6 @@ Pick new people to present next Sunday`;
                           data={[
                             { name: 'Room Logs', pending: cmPendingRoomLogs },
                             { name: 'Events', pending: cmPendingEvents },
-                            { name: 'Breakdowns', pending: cmDraftBreakdowns },
                           ]}
                           margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
                         >
@@ -7375,104 +7283,6 @@ Pick new people to present next Sunday`;
               You're using Mock Admin — changes here are local only and will be lost on your next login.
             </div>
           )}
-
-          {/* Weekly Breakdowns - the SOC track's Friday send. Draft here,
-              approve here (founder OR Community Manager), the cron sends it. */}
-          <div className="glass-card" style={{ marginBottom: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldAlert size={18} color="var(--accent-cyan)" /> Weekly Breakdowns
-              </h3>
-              {!showBreakdownForm && (
-                <button className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '8px 14px' }} onClick={() => { setBreakdownForm(emptyBreakdownForm); setEditingBreakdownId(null); setShowBreakdownForm(true); }}>
-                  <Plus size={14} /> New Breakdown
-                </button>
-              )}
-            </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Drafts sit here until a Community Manager or the founder approves one. Friday 08:00 SAST the approved edition emails every active member and posts as a broadcast. If nothing's approved, the founder gets an alert and nothing goes out.
-            </p>
-            {breakdownsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>{breakdownsError}</p>}
-
-            {showBreakdownForm && (
-              <form onSubmit={handleSaveBreakdown} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', marginBottom: '18px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--accent-cyan)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '10px' }}>
-                  <input className="form-input" placeholder="Title, e.g. Scattered Spider" value={breakdownForm.title} onChange={(e) => setBreakdownForm({ ...breakdownForm, title: e.target.value })} required />
-                  <input className="form-input" placeholder="Source, e.g. CISA AA23-320A" value={breakdownForm.sourceLabel} onChange={(e) => setBreakdownForm({ ...breakdownForm, sourceLabel: e.target.value })} />
-                  <select className="form-input" value={breakdownForm.difficulty} onChange={(e) => setBreakdownForm({ ...breakdownForm, difficulty: e.target.value })}>
-                    <option>Easy</option><option>Medium</option><option>Hard</option>
-                  </select>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Send date (a Friday)</label>
-                    <input type="date" className="form-input" value={breakdownForm.sendDate} onChange={(e) => setBreakdownForm({ ...breakdownForm, sendDate: e.target.value })} required />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Full illustrated version URL (optional)</label>
-                    <input type="url" className="form-input" placeholder="https://..." value={breakdownForm.fullUrl} onChange={(e) => setBreakdownForm({ ...breakdownForm, fullUrl: e.target.value })} />
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Blurb — the email body + the broadcast (2–3 sentences)</label>
-                  <textarea className="form-input" rows={3} value={breakdownForm.blurb} onChange={(e) => setBreakdownForm({ ...breakdownForm, blurb: e.target.value })} required />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Full breakdown — Markdown, shown on the Breakdowns tab</label>
-                  <textarea className="form-input" rows={12} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }} value={breakdownForm.bodyMd} onChange={(e) => setBreakdownForm({ ...breakdownForm, bodyMd: e.target.value })} required />
-                </div>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn btn-secondary" style={{ fontSize: '0.82rem' }} onClick={resetBreakdownForm}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" style={{ fontSize: '0.82rem' }} disabled={savingBreakdown}>
-                    {savingBreakdown ? 'Saving...' : editingBreakdownId ? 'Save Draft' : 'Create Draft'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {isMockSession ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Not available under Mock Admin — this reads real breakdowns from Supabase.</p>
-            ) : loadingBreakdowns ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading...</p>
-            ) : breakdowns.length === 0 ? (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No breakdowns yet — create the first draft.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {breakdowns.map((b) => {
-                  const statusStyle = { Draft: 'badge-warning', Approved: 'badge-success', Sent: 'badge-info' }[b.status] || 'badge-warning';
-                  return (
-                    <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>{b.title}</div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                          {formatDate(b.sendDate)}{b.sourceLabel ? ` · ${b.sourceLabel}` : ''}
-                          {b.status === 'Approved' && b.approvedBy ? ` · approved by ${b.approvedBy}` : ''}
-                          {b.status === 'Sent' && b.recipientCount != null ? ` · sent to ${b.recipientCount}` : ''}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                        <span className={`badge ${statusStyle}`} style={{ fontSize: '0.62rem' }}>{b.status}</span>
-                        {b.status === 'Draft' && (
-                          <>
-                            <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => handleBreakdownApproval(b, true)}>
-                              <CheckCircle size={13} /> Approve
-                            </button>
-                            <button onClick={() => startEditBreakdown(b)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex' }} aria-label="Edit breakdown"><Pencil size={14} /></button>
-                            <button onClick={() => handleDeleteBreakdown(b)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete breakdown"><Trash2 size={14} /></button>
-                          </>
-                        )}
-                        {b.status === 'Approved' && (
-                          <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => handleBreakdownApproval(b, false)}>
-                            Pull back to Draft
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
 
           {/* Community Broadcast */}
           <div className="glass-card" style={{ marginBottom: '28px' }}>

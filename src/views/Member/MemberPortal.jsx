@@ -71,8 +71,6 @@ import DailyQuestionModal from '../../components/DailyQuestionModal';
 import MonthlyRecapModal from '../../components/MonthlyRecapModal';
 import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { fetchSentBreakdowns } from '../../lib/breakdownsData';
-import BreakdownsPanel from '../../components/BreakdownsPanel';
 import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATION_SUBTASKS, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
@@ -90,7 +88,6 @@ import {
   TrendingUp,
   Video,
   ShieldCheck,
-  ShieldAlert,
   ExternalLink,
   Megaphone,
   Award,
@@ -795,21 +792,6 @@ const todayISODate = () => new Date().toISOString().split('T')[0];
 
 const MOCK_ROOM_LOGS = [
   { id: 1, memberEmail: 'member@hackinghub.co.za', logDate: '2026-08-16', roomCount: 2, status: 'Approved', reviewedBy: 'siya@hackinghub.co.za', adminNote: '' },
-];
-
-const MOCK_BREAKDOWNS = [
-  {
-    id: 2, title: 'Scattered Spider', sourceLabel: 'CISA AA23-320A', difficulty: 'Medium',
-    blurb: "In 2023 this group walked into MGM and Caesars without a single exploit — a LinkedIn search and a ten-minute call to the IT help desk. The mirror image of a cloud breach: your SOC absolutely can catch this one, and the whole game is identity signals.",
-    bodyMd: '## The one-liner\n\nScattered Spider is a financially-motivated group known for talking their way past the IT help desk. In September 2023 they hit two of the largest casino operators in the world within days of each other.\n\n## What the SOC sees\n\nBecause there is no malware on the way in, detection lives almost entirely in **identity telemetry** — a password reset, then a new MFA method minutes later, then a sign-in from a hosting-provider ASN — and **unexpected software**, like a remote-access tool running off the allowlist.\n\n## This week\'s challenge\n\nWrite a detection for a remote-access tool executing where it is not approved. Post your query in the thread.',
-    fullUrl: '', sendDate: '2026-09-05', status: 'Sent', approvedBy: 'siya@hackinghub.co.za', sentAt: '2026-09-05T06:00:00Z', recipientCount: 92,
-  },
-  {
-    id: 1, title: 'Capital One, 2019', sourceLabel: 'DOJ court record', difficulty: 'Medium',
-    blurb: "A web application firewall handed an attacker the keys to roughly 100 million customer records — and nobody at the bank noticed for four months. The cleanest lesson in SSRF, cloud instance metadata, and why a SOC in the cloud lives or dies by CloudTrail.",
-    bodyMd: '## The one-liner\n\nA misconfigured ModSecurity WAF on an EC2 instance was tricked into server-side request forgery, pointed at the instance metadata service, and used to steal the temporary IAM credentials attached to that firewall\'s role.\n\n## Three takeaways\n\n1. **IMDSv2 is not optional.** One instance setting removes this entire class of attack.\n2. **An instance role is a blast radius.** Scope every role to the job it does.\n3. **Your SOC\'s job in the cloud is CloudTrail.** The control plane logged every step.',
-    fullUrl: '', sendDate: '2026-08-29', status: 'Sent', approvedBy: 'siya@hackinghub.co.za', sentAt: '2026-08-29T06:00:00Z', recipientCount: 90,
-  },
 ];
 
 const MOCK_LEADERBOARD = [
@@ -2578,31 +2560,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
-  // Weekly incident breakdowns (068_weekly_breakdowns.sql) - the SOC track's
-  // Friday send, archived here. RLS only ever returns Sent editions.
-  const [breakdowns, setBreakdowns] = useState(isMockSession ? MOCK_BREAKDOWNS : []);
-  const [loadingBreakdowns, setLoadingBreakdowns] = useState(!isMockSession);
-  const [breakdownsError, setBreakdownsError] = useState(null);
-  const [openBreakdownId, setOpenBreakdownId] = useState(null);
-  // Resources has two views: the library (default) and the weekly Breakdowns,
-  // which used to be a tab of their own.
-  const [resourcesView, setResourcesView] = useState('library');
-  const showBreakdowns = resourcesView === 'breakdowns';
-  const switchResourcesView = (view) => {
-    setResourcesView(view);
-    if (view === 'breakdowns') logPortalEvent('breakdowns_opened', {}).catch(() => {});
-  };
-
-  useEffect(() => {
-    if (isMockSession) return;
-    let cancelled = false;
-    fetchSentBreakdowns()
-      .then((data) => !cancelled && setBreakdowns(data))
-      .catch((err) => !cancelled && setBreakdownsError(friendlyMemberErrorMessage(err)))
-      .finally(() => !cancelled && setLoadingBreakdowns(false));
-    return () => { cancelled = true; };
-  }, [isMockSession]);
-
   const todaysRoomLog = roomLogs.find((l) => l.logDate === todayISODate());
   // Weekday/weekend cap (031_daily_room_logs.sql) - 3 on weekdays, 2 on
   // Sat/Sun, enforced server-side either way; this just keeps the
@@ -3146,8 +3103,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     const onOpen = (e) => {
       if (e.detail === 'hub_score') setShowHubScoreModal(true);
       else if (e.detail === 'take_a_break' && !isOnBreak) setShowTakeABreakModal(true);
-      else if (e.detail === 'cv_review') { setResourcesView('library'); setShowCvReview(true); }
-      else if (e.detail === 'breakdowns') setResourcesView('breakdowns');
+      else if (e.detail === 'cv_review') setShowCvReview(true);
       else if (e.detail === 'interview_prep' && !isMockSession) setShowInterviewPrep(true);
     };
     window.addEventListener('gemma:open', onOpen);
@@ -7433,58 +7389,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Library size={28} color="var(--accent-cyan)" /> Resources
               </h1>
-              <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, CV templates, LinkedIn strategy, and a weekly breakdown of a real security incident.</p>
-              {resourcesError && !showBreakdowns && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{resourcesError}</p>}
+              <p>Everything to help you pass certs, plan your career, and land the role — cert prep, role roadmaps, podcasts, books, interview playbooks, CV templates, and LinkedIn strategy.</p>
+              {resourcesError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '8px' }}>{resourcesError}</p>}
             </div>
-            {!showBreakdowns && (
-              <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddResourceForm(true)}>
-                <Library size={16} /> Add Resource
-              </button>
-            )}
-          </div>
-
-          <div role="tablist" aria-label="Resources sections" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
-            <button role="tab" aria-selected={!showBreakdowns} className={`btn ${!showBreakdowns ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: '0.85rem', padding: '8px 16px' }} onClick={() => switchResourcesView('library')}>
-              <Library size={14} /> Library
-            </button>
-            <button role="tab" aria-selected={showBreakdowns} className={`btn ${showBreakdowns ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: '0.85rem', padding: '8px 16px' }} onClick={() => switchResourcesView('breakdowns')}>
-              <ShieldAlert size={14} /> Weekly Breakdowns
+            <button className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowAddResourceForm(true)}>
+              <Library size={16} /> Add Resource
             </button>
           </div>
 
-          {showBreakdowns ? (
-            <BreakdownsPanel
-              breakdowns={breakdowns}
-              loading={!isMockSession && loadingBreakdowns}
-              error={breakdownsError}
-              openId={openBreakdownId}
-              onOpen={setOpenBreakdownId}
-            />
-          ) : (
-            <>
-
-          <div
-            className="glass-card"
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', padding: '20px 24px', marginBottom: '24px', border: '1px solid var(--accent-cyan)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <Sparkles size={24} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
-              <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '2px' }}>AI CV &amp; LinkedIn Review</h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Paste your CV or LinkedIn text - Gemma reviews it like a hiring manager would.</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-              onClick={() => setShowCvReview(true)}
-              disabled={isMockSession}
-              title={isMockSession ? 'Sign in with a real account to use this' : undefined}
-            >
-              <Sparkles size={15} /> Get Reviewed
-            </button>
-          </div>
 
           <div className="glass-card" style={{ marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
@@ -7625,8 +7537,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {!loadingResources && filteredResources.length === 0 && (
             <p style={{ color: 'var(--text-muted)' }}>No resources here yet — be the first to add one.</p>
-          )}
-            </>
           )}
 
           {showAddResourceForm && (
@@ -7846,9 +7756,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             />
           )}
           {showKodeKloudGuide && <KodeKloudGuideModal onClose={() => setShowKodeKloudGuide(false)} />}
-          {showCvReview && !isMockSession && (
-            <CvReviewModal onClose={() => setShowCvReview(false)} />
-          )}
         </div>
       );
 

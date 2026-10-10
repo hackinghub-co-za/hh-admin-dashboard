@@ -1,7 +1,6 @@
-// Markdown -> sanitised HTML, for the small amount of member-facing content
-// that's authored as markdown rather than typed into structured fields -
-// today that's only weekly_breakdowns.body_md (068_weekly_breakdowns.sql),
-// written by admins and Community Managers.
+// Markdown -> sanitised HTML, for the small amount of content that's
+// authored or generated as markdown rather than typed into structured
+// fields - today that's Gemma's chat replies.
 //
 // marked does the parse; DOMPurify strips anything dangerous before it ever
 // reaches dangerouslySetInnerHTML. The author is a trusted staff account,

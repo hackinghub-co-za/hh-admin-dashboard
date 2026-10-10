@@ -6,6 +6,32 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.10',
+    date: '2026-10-10',
+    headline: 'Weekly Breakdowns and the Resources AI review are retiring.',
+    intro: "We're simplifying Resources so it's easier to find what you need.",
+    groups: [
+      {
+        label: 'Heads Up',
+        color: '#94a3b8',
+        items: [
+          {
+            icon: '📦',
+            title: 'Weekly Breakdowns have ended',
+            body: "The Friday incident write-ups and their emails have stopped, and the archive in Resources is gone. Everything else in Resources is unchanged.",
+            where: 'Resources',
+          },
+          {
+            icon: '📄',
+            title: 'The AI CV & LinkedIn review card has left Resources',
+            body: "You can still get an instant Gemma review of your CV or LinkedIn from the CV & LinkedIn Review card in 1on1 Meetings, or ask Gemma to take you there.",
+            where: '1on1 Meetings',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.05',
     date: '2026-10-05',
     headline: '12 new Hub Labs: DevSecOps, Network Security, AI Security and Cloud Security.',

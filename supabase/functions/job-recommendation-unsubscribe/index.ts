@@ -2,7 +2,7 @@
 //
 // Deploy with: supabase functions deploy job-recommendation-unsubscribe --no-verify-jwt
 // (--no-verify-jwt is required - a plain link clicked from an email client
-// with no Supabase session. Same reason as breakdown-unsubscribe.)
+// with no Supabase session. Same reason as the other unsubscribe links.)
 // Requires the same secret as job-recommendation-email's link-signing:
 //   supabase secrets set UNSUBSCRIBE_TOKEN_SECRET=<a long random string you make up>
 //

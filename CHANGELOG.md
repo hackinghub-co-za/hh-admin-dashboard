@@ -18,6 +18,23 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.10
+
+### Removed
+- **Weekly Breakdowns, entirely.** The member Resources tab view, the admin
+  Community Content section, the `weekly-breakdown-email`, `breakdown-nudge`
+  and `breakdown-unsubscribe` Edge Functions, both cron jobs
+  (`weekly-breakdown-friday`, `breakdown-nudge-wednesday`), the
+  `weekly_breakdowns` table with its approval functions, and
+  `member_profiles.breakdown_email_opted_out` are all gone
+  (`105_remove_weekly_breakdowns.sql`, irreversible: the one archived edition
+  was deleted with it). `068`/`069` stay as history and must not be re-run.
+  Gemma no longer offers a "Read Breakdowns" button (`gemma-chat` and
+  `gemma-tools` redeployed). The Community Manager dashboard no longer counts
+  draft breakdowns; its Community Content tile now shows broadcasts.
+- **AI CV & LinkedIn Review card on Resources.** The same review is still in
+  1on1 Meetings, and Gemma's "Review my CV" button now goes there.
+
 ## 2026.10.09
 
 ### Added

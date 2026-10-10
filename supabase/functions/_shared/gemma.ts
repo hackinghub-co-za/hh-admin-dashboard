@@ -166,7 +166,7 @@ export function sastWeekStart(): string {
 // modal; anything else the model returns is dropped.
 export const ACTION_KEYS = [
   'dashboard', 'roadmap', 'labs', 'certs', 'events', 'jobs', 'resources', 'competitions', 'meetings',
-  'matchmaker', 'breakdowns', 'billing', 'hub_score', 'take_a_break', 'cv_review', 'interview_prep', 'log_rooms', 'quiz',
+  'matchmaker', 'billing', 'hub_score', 'take_a_break', 'cv_review', 'interview_prep', 'log_rooms', 'quiz',
 ];
 export const SOURCE_KEYS = ['roadmap', 'hub_score', 'streak', 'certs', 'labs', 'study', 'tryhackme', 'quizzes', 'knowledge'];
 export const TOPIC_KEYS = [

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { renderMarkdown } from './renderMarkdown';
 
-// weekly_breakdowns.body_md is admin/Community-Manager-authored, but
-// "trusted" isn't "un-sanitised" (see the file's own header comment) - a
-// compromised staff account shouldn't be able to run script in every
-// member's browser. These tests exist to catch a regression in that
-// sanitization, not just the markdown rendering itself.
+// Model- and staff-authored markdown still shouldn't be trusted as safe
+// HTML (see the file's own header comment) - a compromised source
+// shouldn't be able to run script in a member's browser. These tests exist
+// to catch a regression in that sanitization, not just the markdown
+// rendering itself.
 describe('renderMarkdown', () => {
   it('renders basic markdown to HTML', () => {
     const html = renderMarkdown('## Heading\n\nSome **bold** text.');
