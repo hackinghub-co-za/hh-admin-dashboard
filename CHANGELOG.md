@@ -20,6 +20,17 @@ saved in their browser's `localStorage`.
 
 ## 2026.10.10
 
+### Changed
+- **Membership pricing: Basic Access and Monthly Operative retired, Permanent
+  Access is now R10,000 as R1,000 x 10 months.** My Subscription only offers
+  Permanent Access and the Elite Operative application. The two retired tiers
+  stay defined in `ALL_TIERS` (flagged `legacy`) so a member who already pays
+  on one still sees it as their current plan, and they stay in
+  `MEMBERSHIP_TIERS` for admin records and finance reports. The PayFast cycle
+  cap is now 10 payments, and `payfast-checkout`'s amount allowlist is just
+  R1,000 (live-verified: R1,000 gets `cycles=10`; R200, R500 and R600 are
+  rejected). Existing PayFast subscriptions are untouched.
+
 ### Removed
 - **Weekly Breakdowns, entirely.** The member Resources tab view, the admin
   Community Content section, the `weekly-breakdown-email`, `breakdown-nudge`

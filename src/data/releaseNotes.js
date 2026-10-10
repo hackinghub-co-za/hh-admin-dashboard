@@ -28,6 +28,12 @@ export const RELEASE_NOTES = [
             where: '1on1 Meetings',
           },
           {
+            icon: '💳',
+            title: 'Membership plans have changed',
+            body: "New members now join on Permanent Access: R1,000 a month for 10 months (R10,000 in total), and billing stops by itself after the tenth payment. Basic Access and Monthly Operative are no longer on offer. If you already pay on one of them, nothing changes for you.",
+            where: 'My Subscription',
+          },
+          {
             icon: '🧭',
             title: 'My Journey So Far and Remember Your Why moved to My Roadmap',
             body: "Your journey recap and your Why now sit together at the top of My Roadmap, so your progress and your reason for it are in one place. The Dashboard is a little lighter.",

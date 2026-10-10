@@ -4032,11 +4032,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const roadmapCompletedCount = roadmapItems.filter(i => i.completed).length;
   const roadmapProgressPercent = roadmapItems.length ? Math.round((roadmapCompletedCount / roadmapItems.length) * 100) : 0;
 
-  // Membership Tier Definitions
+  // Membership Tier Definitions. `legacy` tiers are no longer sold: they stay
+  // in this list only so a member who already pays on one still sees it as
+  // their current plan (matchedTier below) - they never appear as an option
+  // to anyone else.
   const ALL_TIERS = [
     {
       rank: 1,
       name: 'Basic Access',
+      legacy: true,
       priceDisplay: 'R 200.00',
       period: '/ month',
       amount: 200,
@@ -4051,6 +4055,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     {
       rank: 2,
       name: 'Monthly Operative',
+      legacy: true,
       priceDisplay: 'R 500.00',
       period: '/ month',
       amount: 500,
@@ -4070,22 +4075,27 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       rank: 3,
       name: 'Permanent Access',
       priceDisplay: 'R 1,000.00',
-      period: '/ month for 8 months',
+      period: '/ month for 10 months',
       amount: 1000,
       // PayFast cycle cap - the checkout actually stops billing after this
-      // many monthly payments (R1,000 x 8 = R8,000 total), unlike every
-      // other tier here, which bills indefinitely until the member cancels.
+      // many monthly payments (R1,000 x 10 = R10,000 total), unlike the
+      // legacy tiers here, which bill indefinitely until the member cancels.
       // Passed through handlePayfastPay -> createPayfastCheckoutUrl -> the
       // payfast-checkout Edge Function's `cycles` field - PayFast itself
       // stops the subscription, nothing in this app has to.
-      cycles: 8,
+      cycles: 10,
       badgeClass: 'badge-success',
       badgeStyle: { background: 'rgba(192, 132, 252, 0.2)', color: 'var(--accent-purple)' },
       btnStyle: { background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))' },
       badgeText: 'PERMANENT ACCESS',
       benefits: [
-        'R8,000 total - billing stops automatically after 8 months',
-        'Everything in Monthly Operative',
+        'R10,000 total - billing stops automatically after 10 months',
+        'Community Discord access',
+        'Daily Accountability programme',
+        '1-on-1 strategy & coaching sessions',
+        'CV review & mock interview prep',
+        'Private member channels & labs',
+        'CompTIA exam discounts',
         'Lifetime community access',
         'All future programme updates',
         'Priority support & coaching',
@@ -4112,9 +4122,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   ];
 
   // Current active plan, derived from the member's own most recent completed
-  // payment (myLastPayment) - falls back to Basic Access/rank 1 only when
-  // there's no payment on record yet, or the plan name doesn't match one of
-  // the 4 defined tiers (e.g. a one-off 'Custom Plan' or 'Maintenance Fee').
+  // payment (myLastPayment) - falls back to rank 1 (no current plan shown)
+  // only when there's no payment on record yet, or the plan name doesn't
+  // match one of the defined tiers (e.g. a one-off 'Custom Plan' or 'Maintenance Fee').
   // A PayFast-sourced row stores item_name verbatim (payfast-webhook's
   // params.get('item_name')), and handlePayfastPay below always sends that
   // as `Hacking Hub - ${tier.name}` - so myLastPayment.plan carries that
@@ -4127,7 +4137,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const normalizedPlan = myLastPayment?.plan?.replace(/^Hacking Hub - /, '');
   const matchedTier = normalizedPlan ? ALL_TIERS.find(t => t.name === normalizedPlan) : null;
   const currentPlanRank = matchedTier?.rank || 1;
-  const upgradeTiers = ALL_TIERS.filter(t => t.rank >= currentPlanRank);
+  const upgradeTiers = ALL_TIERS.filter(t => t.rank >= currentPlanRank && (!t.legacy || t === matchedTier));
 
   // Only these plans actually renew on a cycle - matches the exact same list
   // the admin Finance dashboard uses for "Next 5 Upcoming Renewals", so a

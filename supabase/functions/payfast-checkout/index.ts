@@ -40,8 +40,9 @@ function pfEncode(value: string): string {
 }
 
 // Real, fixed membership prices - matches ALL_TIERS in MemberPortal.jsx
-// (Basic Access R200, Monthly Operative R600, Permanent Access R1000;
-// Elite Operative is "Apply Only", never paid through this flow at all).
+// (Permanent Access R1000 x 10 monthly payments is the only tier sold;
+// Basic Access and Monthly Operative were retired, and Elite Operative is
+// "Apply Only", never paid through this flow at all).
 // Without this, `amount` below came straight from the client with only a
 // `> 0` check - any signed-in Google account (is_member_allowed() gates
 // the React UI, not this function - a valid Supabase session exists the
@@ -55,7 +56,7 @@ function pfEncode(value: string): string {
 // that trusted total - so merch is already safe end-to-end without this.
 // Membership has no such downstream check at all, which is what makes
 // this the one place an amount for it is ever actually decided.
-const VALID_MEMBERSHIP_AMOUNTS = new Set([200, 500, 1000]);
+const VALID_MEMBERSHIP_AMOUNTS = new Set([1000]);
 
 function generateSignature(data: Record<string, string>, passphrase: string): string {
   const parts: string[] = [];
