@@ -5401,7 +5401,7 @@ Pick new people to present next Sunday`;
                 <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.01)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                   <div style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{group.activityType}</span>
-                    {group.memberEmails.map(nameForEmail).join(', ')}
+                    {group.title ? <strong>{group.title}</strong> : group.memberEmails.map(nameForEmail).join(', ')}
                     {group.recordingUrl && (
                       <a href={group.recordingUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
                         <ExternalLink size={11} /> Recording

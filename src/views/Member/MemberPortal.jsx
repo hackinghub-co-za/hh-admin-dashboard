@@ -5745,9 +5745,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           </span>
                         )}
                       </div>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                        {group.memberEmails.map(nameForEmail).join(', ')}
-                      </p>
+                      {group.title && <h5 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px' }}>{group.title}</h5>}
+                      {(() => {
+                        const names = group.memberEmails.map(nameForEmail).filter((n) => !n.includes('@'));
+                        return names.length > 0 && (
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>{names.join(', ')}</p>
+                        );
+                      })()}
                       {(isSafeUrl(group.recordingUrl) || isSafeUrl(group.notesUrl)) && (
                         <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '14px' }}>
                           {isSafeUrl(group.recordingUrl) && (

@@ -16,6 +16,7 @@ function mapGroupRow(row) {
     dueDate: row.due_date,
     recordingUrl: row.recording_url,
     notesUrl: row.notes_url,
+    title: row.title || '',
   };
 }
 
@@ -42,7 +43,7 @@ export async function leaveOptinPool(email) {
 export async function fetchMyGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url')
+    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url, title')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
@@ -52,7 +53,7 @@ export async function fetchMyGroups() {
 export async function fetchAllGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url')
+    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url, title')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapGroupRow);
@@ -65,7 +66,7 @@ export async function fetchAllGroups() {
 export async function fetchShowcaseGroups() {
   const { data, error } = await supabase
     .from('matchmaker_groups')
-    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url')
+    .select('id, activity_type, member_emails, status, due_date, recording_url, notes_url, title')
     .not('recording_url', 'is', null)
     .order('created_at', { ascending: false });
   if (error) throw error;

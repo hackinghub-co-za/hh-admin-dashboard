@@ -350,3 +350,14 @@ AS $$
 $$;
 GRANT EXECUTE ON FUNCTION public.get_my_group_rating(BIGINT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_my_group_rating(BIGINT) FROM PUBLIC, anon;
+
+-- A showcase entry that isn't a peer-round group: a talk or meeting the
+-- founder records, listed beside the group presentations with its own title
+-- (title is NULL for every normal group) and a single presenter, which the
+-- original 2-4 member check ruled out. run_matchmaker_round() still only
+-- ever forms groups of 2-4, so this just stops the table rejecting a
+-- hand-added one-presenter entry.
+ALTER TABLE public.matchmaker_groups ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.matchmaker_groups DROP CONSTRAINT IF EXISTS matchmaker_groups_member_emails_check;
+ALTER TABLE public.matchmaker_groups ADD CONSTRAINT matchmaker_groups_member_emails_check
+  CHECK (array_length(member_emails, 1) BETWEEN 1 AND 4);
