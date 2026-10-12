@@ -18,6 +18,23 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.12
+
+### Added
+- **Sales Pipeline leads now arrive automatically.** Calls booked on the
+  Cal.com 15-minute link (the Permanent Access intro call) and Elite
+  Operative applications (the Google Form behind "Apply for Placement") are
+  added to the Lead column without anyone typing them in. Cal.com posts each
+  new booking to the new `cal-booking-webhook` Edge Function, which checks
+  Cal.com's HMAC signature (`CAL_WEBHOOK_SECRET`); a small Google Apps Script
+  on the form (`scripts/google-apps-script/pipeline-leads.gs`) posts each
+  application to `pipeline-lead-intake` (`PIPELINE_INTAKE_SECRET`). Both
+  call `_intake_pipeline_lead()` (`106_pipeline_lead_intake.sql`). One card
+  per email: a repeat booking or a second application adds a dated note to
+  the same card instead of a duplicate. Bookings by someone who is already a
+  current member are ignored; an Elite application from a current member is
+  kept and marked.
+
 ## 2026.10.10
 
 ### Changed
