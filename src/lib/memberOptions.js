@@ -277,6 +277,8 @@ export const ROADMAP_ITEM_LINKS = {
   'Fortinet NSE 4': 'https://training.fortinet.com/',
   'Palo Alto Networks PCNSA': 'https://www.paloaltonetworks.com/services/education/pcnsa',
   'Wireshark Certified Network Analyst (WCNA)': 'https://www.wiresharktraining.com/',
+  // AZ-104 already has an entry above (Cloud Security specialization).
+  'AZ-700': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-network-engineer-associate/',
 };
 
 // Short "what is this" line shown under every roadmap item's title (Core
@@ -369,6 +371,7 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   'Fortinet NSE 4': 'Firewall & Network Security Administration',
   'Palo Alto Networks PCNSA': 'Next-Gen Firewall Administration',
   'Wireshark Certified Network Analyst (WCNA)': 'Deep Packet Analysis Certification',
+  'AZ-700': 'Azure Networking & Network Security',
   // Projects - Network Security
   'Segment a Home/Lab Network': 'Apply Real Network Segmentation & Hardening',
   'Packet Capture Analysis Write-Up': 'Practice Real Traffic Analysis',
@@ -686,6 +689,11 @@ export const ROADMAP_ITEM_INFO = {
     teaches: "Deep, exam-based validation of packet-level traffic analysis using Wireshark - the industry-standard protocol analyzer - reading and interpreting real network behavior at the byte level.",
     journey: "Almost every serious network security investigation eventually comes down to reading packets. WCNA is the credential that proves you can actually do that, not just recognize the tool's icon.",
   },
+  // AZ-104 is shared with the Cloud Security track and keeps its entry there.
+  'AZ-700': {
+    teaches: "How to design, implement, and secure Azure networking - virtual networks, hybrid connectivity, load balancing, routing, and network security services like Azure Firewall - Microsoft's Azure Network Engineer Associate certification.",
+    journey: "Most of the networks you will protect now run partly in the cloud. After CCNA and a firewall platform, AZ-700 proves you can apply the same networking and security skills in Azure, and it builds directly on AZ-104.",
+  },
 
   // ---- Projects: Network Security ----
   'Segment a Home/Lab Network': {
@@ -846,6 +854,8 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'Fortinet NSE 4', defaultDetail: '' },
       { title: 'Palo Alto Networks PCNSA', defaultDetail: '' },
       { title: 'Wireshark Certified Network Analyst (WCNA)', defaultDetail: '' },
+      { title: 'AZ-104', defaultDetail: '' },
+      { title: 'AZ-700', defaultDetail: '' },
     ],
   },
 };

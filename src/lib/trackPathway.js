@@ -52,6 +52,7 @@ export const CERT_STUDY_WEEKS = {
   'AI-103': ASSOCIATE,
   'CompTIA SecAI+': ASSOCIATE,
   CCNA: ADVANCED,
+  'AZ-700': PROFESSIONAL,
   'Fortinet NSE 4': ASSOCIATE,
   'Palo Alto Networks PCNSA': ASSOCIATE,
   'Wireshark Certified Network Analyst (WCNA)': ASSOCIATE,
