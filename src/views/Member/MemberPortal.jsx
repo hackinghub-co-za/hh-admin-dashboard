@@ -195,7 +195,7 @@ const MENTORS = [
     badge: 'LEAD MENTOR & FOUNDER',
     badgeClass: 'badge-success',
     sideNote: 'Available Slots',
-    bio: 'Cybersecurity Strategy, Career Roadmaps, OSCP Coaching, SOC, Cloud Security, DevSecOps & Technical Code Reviews.',
+    bio: 'SOC, Cloud Security, DevSecOps.',
     primary: true,
   },
   {
@@ -229,7 +229,7 @@ const MENTORS = [
     bio: 'Red Teaming / Ethical Hacking.',
   },
 ];
-const MENTOR_CALENDAR_URL = 'https://calendar.app.google/eKVRpXkHCKKcnhYT6';
+const MENTOR_CALENDAR_URL = 'https://calendar.app.google/aZMNiPQ68w21yJg59';
 
 // Intentionally empty - the Members Directory under Mock Member now shows no
 // fake demo entries (removed per request), just whatever the mock session
@@ -5096,6 +5096,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       busyKey: subtaskBusyKey,
                       onToggleSubtask: handleToggleSubtask,
                       onToggleItem: handleToggleMyRoadmapItem,
+                      onOpenGuide: (title) => {
+                        setActiveTab('resources');
+                        if (title === 'CompTIA Security+') setShowSecurityPlusGuide(true);
+                        else if (title === 'CySA+') setShowCySAPlusGuide(true);
+                        else if (title === 'Terraform Associate') setShowTerraformGuide(true);
+                        else if (title === 'SC-200') setShowSC200Guide(true);
+                        logPortalEvent('roadmap_item_opened', { title, source: 'guide_link' }).catch(() => {});
+                      },
                       onOpenInfo: (title) => { setCoreFoundationInfoTitle(title); logPortalEvent('roadmap_item_opened', { title, source: 'pathway' }).catch(() => {}); },
                     };
                     const trackPathwayOn = roadmapView === 'pathway' && g.phase === 'Specialization' && !!buildTrackConfig(roadmapTrack);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Route, CalendarCheck, CheckSquare, Square, ChevronLeft, ChevronRight, RotateCcw, Info, Lock } from 'lucide-react';
-import { CORE_FOUNDATION_SUBTASKS, CORE_FOUNDATION_PRICING } from '../lib/memberOptions';
+import { Route, CalendarCheck, CheckSquare, Square, ChevronLeft, ChevronRight, RotateCcw, Info, Lock, ExternalLink } from 'lucide-react';
+import { CORE_FOUNDATION_SUBTASKS, CORE_FOUNDATION_PRICING, ROADMAP_ITEM_LINKS } from '../lib/memberOptions';
 import {
   buildPathway, checkCertMove, pathwayAdvice, pathwayWeek, itemFraction, activeCheckpoint, checkpointReachedDates,
   WEEKLY_HOURS_OPTIONS, DEFAULT_WEEKLY_HOURS, CORE_CONFIG,
@@ -33,6 +33,23 @@ function PriceTag({ title }) {
   return p.free
     ? <span className="badge badge-success" style={{ fontSize: '0.64rem' }}>Free</span>
     : <span style={{ fontSize: '0.68rem', fontWeight: 600, color: TONE.cert.fg, background: `rgba(${BLUE}, 0.12)`, border: `1px solid rgba(${BLUE}, 0.28)`, borderRadius: '999px', padding: '1px 8px', whiteSpace: 'nowrap' }}>{p.price}</span>;
+}
+
+// Items whose resource is an in-app guide rather than an external URL.
+const GUIDE_TITLES = new Set(['CompTIA Security+', 'CySA+', 'Terraform Associate', 'SC-200']);
+
+// The same "Open Link / Resource" action the classic view shows, so the
+// pathway view never hides where to actually study an item.
+function ResourceLink({ title, onOpenGuide }) {
+  const style = { fontSize: '0.76rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', alignSelf: 'flex-start' };
+  const url = ROADMAP_ITEM_LINKS[title];
+  if (url) {
+    return <a href={url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={style}><ExternalLink size={13} /> Open resource</a>;
+  }
+  if (GUIDE_TITLES.has(title) && onOpenGuide) {
+    return <button type="button" className="btn btn-secondary" style={style} onClick={() => onOpenGuide(title)}><ExternalLink size={13} /> Open study guide</button>;
+  }
+  return null;
 }
 
 function Checklist({ item, doneKeys, locked, busyKey, onToggle, onToggleItem }) {
@@ -106,7 +123,7 @@ export default function RoadmapPathway(props) {
   return <PathwayBody {...props} isTrack={isTrack} today={today} pathway={pathway} setPathway={setPathway} config={config} />;
 }
 
-function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view, onGateChange, catalogItems, subtasks = {}, passedCertTitles, isMockSession, busyKey, onToggleSubtask, onToggleItem, onCompleteItem, onOpenInfo, onBookMeeting }) {
+function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view, onGateChange, catalogItems, subtasks = {}, passedCertTitles, isMockSession, busyKey, onToggleSubtask, onToggleItem, onCompleteItem, onOpenInfo, onOpenGuide, onBookMeeting }) {
   const [msg, setMsg] = useState({ text: '', warn: false });
   const [saving, setSaving] = useState(false);
   const [booking, setBooking] = useState(false);
@@ -315,6 +332,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
                 <>
                   <button type="button" onClick={() => onOpenInfo(lab.title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{lab.title}</button>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>On track to finish in week {lab.end}</span>
+                  <ResourceLink title={lab.title} onOpenGuide={onOpenGuide} />
                   <Checklist item={byTitle[lab.title]} doneKeys={subtasks[lab.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
                 </>
               ) : <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>{Object.keys(config.labs).length ? 'All the lab items are done.' : 'This track has no lab items.'}</span>}
@@ -325,6 +343,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
                 <>
                   <button type="button" onClick={() => onOpenInfo(cert.title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{cert.title} · week {now - cert.start + 1} of {cert.len}</button>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Aim to sit the exam by the end of week {cert.end}, and log it on the Cert Calendar.</span>
+                  <ResourceLink title={cert.title} onOpenGuide={onOpenGuide} />
                   <Checklist item={byTitle[cert.title]} doneKeys={subtasks[cert.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
                 </>
               ) : (
@@ -432,6 +451,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
                 <button type="button" onClick={() => onOpenInfo(title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>{title}</button>
                 {byTitle[title].completed ? <span className="badge badge-success" style={{ fontSize: '0.64rem' }}>Done</span> : <PriceTag title={title} />}
               </div>
+              <ResourceLink title={title} onOpenGuide={onOpenGuide} />
               <Checklist item={byTitle[title]} doneKeys={subtasks[title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
             </div>
           ))}
