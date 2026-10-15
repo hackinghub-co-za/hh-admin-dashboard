@@ -683,31 +683,27 @@ SET steps = '[
 WHERE title = 'YES x Microsoft AI Skills Initiative';
 
 -- =========================================================================
--- PYTHON LEARNING GUIDES (2026-10-15) - a new 'Programming' category. Three
--- free beginner routes: Exercism's Python track (146 exercises in 17
--- concepts, with optional mentoring), the W3Schools Python tutorial (with an
--- in-browser editor, exercises and a quiz; no account needed) and Cisco
--- NetAcad's free Python Essentials 1 for people with no programming
--- experience. Counts are from each site's own page on the date above.
+-- PYTHON (2026-10-15) - a new 'Programming' category.
 -- =========================================================================
+-- ONE PYTHON GUIDE (2026-10-15): Exercism, W3Schools and Cisco NetAcad were
+-- three separate cards. They are now one resource, "Python Learning Guide",
+-- with a three-step checklist and an in-app guide (PythonGuideModal.jsx) that
+-- explains how to use the three together. Counts are from each site's own
+-- page on the date above. Idempotent.
 INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT 'Programming', 'Python on Exercism', 'Practice',
-  'Free, hands-on Python practice: 146 exercises grouped into 17 concepts, with automatic feedback on your code and optional personal mentoring. Learn a concept, then solve the exercises in your browser or on your own machine.',
-  'https://exercism.org/tracks/python', NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'Python on Exercism');
+SELECT 'Programming', 'Python Learning Guide', 'Guide', 'One place to learn Python from zero: Cisco NetAcad''s free Python Essentials 1 course for structure, the W3Schools tutorial for quick reading and a try-it-yourself editor, and Exercism''s Python track (146 exercises in 17 concepts, with optional mentoring) for practice. Tick the three steps off as you go, and open the guide for how to use them together.', NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'Python Learning Guide');
 
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT 'Programming', 'W3Schools Python Tutorial', 'Tutorial',
-  'A free, beginner-friendly Python tutorial from syntax and variables through functions, classes, file handling and modules. Edit and run code in the Try it Yourself editor, and check yourself with the chapter exercises and the quiz. No account needed to study.',
-  'https://www.w3schools.com/python/', NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'W3Schools Python Tutorial');
+UPDATE public.resources
+SET description = 'One place to learn Python from zero: Cisco NetAcad''s free Python Essentials 1 course for structure, the W3Schools tutorial for quick reading and a try-it-yourself editor, and Exercism''s Python track (146 exercises in 17 concepts, with optional mentoring) for practice. Tick the three steps off as you go, and open the guide for how to use them together.',
+    steps = '[
+  {"id":"py1","title":"Start Cisco NetAcad Python Essentials 1, your structured course","link":"https://www.netacad.com/courses/python-essentials-1"},
+  {"id":"py2","title":"Use the W3Schools Python tutorial for quick reading and the Try it Yourself editor","link":"https://www.w3schools.com/python/"},
+  {"id":"py3","title":"Practise each concept on Exercism''s Python track","link":"https://exercism.org/tracks/python"}
+]'::jsonb
+WHERE title = 'Python Learning Guide';
 
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT 'Programming', 'Cisco NetAcad: Python Essentials 1', 'Course',
-  'A free Cisco Networking Academy course for people with no programming experience. It covers basic syntax, data types, control flow and collections such as lists, tuples and dictionaries, taught in short lessons you can take at your own pace.',
-  'https://www.netacad.com/courses/python-essentials-1', NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'Cisco NetAcad: Python Essentials 1');
-
+DELETE FROM public.resources WHERE title IN ('Python on Exercism', 'W3Schools Python Tutorial', 'Cisco NetAcad: Python Essentials 1');
 
 -- DevSec Blueprint (2026-10-15): DevSecOps and cloud security training
 -- platform. A free account opens some expert-written walkthroughs; the full

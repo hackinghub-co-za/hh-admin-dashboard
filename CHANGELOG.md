@@ -29,9 +29,11 @@ saved in their browser's `localStorage`.
   carried over; the five retired cards were deleted (`026_resources.sql`,
   applied as individual statements). `resources.steps` may now hold up to 40
   steps (was 20), and a step may carry an optional `group` heading.
-- **Programming resources.** New `Programming` category with Python on
-  Exercism, the W3Schools Python Tutorial and Cisco NetAcad Python
-  Essentials 1. **DevSec Blueprint** added under Cyber Platforms.
+- **One Python Learning Guide.** New `Programming` category with a single
+  resource that combines Cisco NetAcad's Python Essentials 1 (the course),
+  the W3Schools Python tutorial (the reference) and Exercism's Python track
+  (the practice), as a three-step checklist plus an in-app guide
+  (`PythonGuideModal.jsx`). **DevSec Blueprint** added under Cyber Platforms.
 - **Cert Calendar: Failed Certifications section** on both the admin tab and
   the member view, below Passed / Certifications Earned. A Failed result now
   keeps the entry (the encouragement email still goes out once, on the

@@ -15,6 +15,7 @@ import CySAPlusGuideModal from '../../components/CySAPlusGuideModal';
 import TerraformAssociateGuideModal from '../../components/TerraformAssociateGuideModal';
 import SC200GuideModal from '../../components/SC200GuideModal';
 import AZ900GuideModal from '../../components/AZ900GuideModal';
+import PythonGuideModal from '../../components/PythonGuideModal';
 import MemberHoverCard from '../../components/MemberHoverCard';
 import PodcastsGuideModal from '../../components/PodcastsGuideModal';
 import SoftSkillsGuideModal from '../../components/SoftSkillsGuideModal';
@@ -740,9 +741,11 @@ const MOCK_RESOURCES = [
     { id: "ep5", group: "Get exam-ready", title: "Retake the Practice Assessment until you are comfortably above 70%", link: "" },
     { id: "ep6", group: "Get exam-ready", title: "Try the exam sandbox so the exam interface is familiar", link: "https://aka.ms/examdemo" },
   ] },
-  { id: 31, category: 'Programming', title: 'Python on Exercism', format: 'Practice', description: 'Free, hands-on Python practice: 146 exercises grouped into 17 concepts, with automatic feedback on your code and optional personal mentoring.', link: 'https://exercism.org/tracks/python' },
-  { id: 32, category: 'Programming', title: 'W3Schools Python Tutorial', format: 'Tutorial', description: 'A free, beginner-friendly Python tutorial with an in-browser editor, chapter exercises and a quiz. No account needed to study.', link: 'https://www.w3schools.com/python/' },
-  { id: 33, category: 'Programming', title: 'Cisco NetAcad: Python Essentials 1', format: 'Course', description: 'A free Cisco Networking Academy course for people with no programming experience: syntax, data types, control flow and collections.', link: 'https://www.netacad.com/courses/python-essentials-1' },
+  { id: 35, category: 'Programming', title: 'Python Learning Guide', format: 'Guide', description: 'One place to learn Python from zero: Cisco NetAcad\'s free Python Essentials 1 course for structure, the W3Schools tutorial for quick reading and a try-it-yourself editor, and Exercism\'s Python track for practice. Tick the three steps off as you go, and open the guide for how to use them together.', link: '', steps: [
+    { id: 'py1', title: 'Start Cisco NetAcad Python Essentials 1, your structured course', link: 'https://www.netacad.com/courses/python-essentials-1' },
+    { id: 'py2', title: 'Use the W3Schools Python tutorial for quick reading and the Try it Yourself editor', link: 'https://www.w3schools.com/python/' },
+    { id: 'py3', title: "Practise each concept on Exercism's Python track", link: 'https://exercism.org/tracks/python' },
+  ] },
   { id: 34, category: 'Cyber Platforms', title: 'DevSec Blueprint', format: 'Platform', description: 'A DevSecOps and cloud security training platform with a structured path (learn, build, apply, grow), guided projects and walkthroughs on real infrastructure. A free account opens some walkthroughs; full access is a paid membership.', link: 'https://devsecblueprint.com/' },
   { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
@@ -3709,6 +3712,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [showTerraformGuide, setShowTerraformGuide] = useState(false);
   const [showSC200Guide, setShowSC200Guide] = useState(false);
   const [showAZ900Guide, setShowAZ900Guide] = useState(false);
+  const [showPythonGuide, setShowPythonGuide] = useState(false);
   const [showPodcastsGuide, setShowPodcastsGuide] = useState(false);
   const [showKodeKloudGuide, setShowKodeKloudGuide] = useState(false);
   const [showSoftSkillsGuide, setShowSoftSkillsGuide] = useState(false);
@@ -3722,6 +3726,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Terraform Associate Study Guide': () => setShowTerraformGuide(true),
     'SC-200 Study Guide': () => setShowSC200Guide(true),
     'AZ-900 Study and Practice Guide': () => setShowAZ900Guide(true),
+    'Python Learning Guide': () => setShowPythonGuide(true),
     'Recommended Podcasts': () => setShowPodcastsGuide(true),
     'KodeKloud': () => setShowKodeKloudGuide(true),
     'Soft Skills Playlist': () => setShowSoftSkillsGuide(true),
@@ -7727,6 +7732,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           {showTerraformGuide && <TerraformAssociateGuideModal onClose={() => setShowTerraformGuide(false)} />}
           {showSC200Guide && <SC200GuideModal onClose={() => setShowSC200Guide(false)} />}
           {showAZ900Guide && <AZ900GuideModal onClose={() => setShowAZ900Guide(false)} />}
+          {showPythonGuide && <PythonGuideModal onClose={() => setShowPythonGuide(false)} />}
           {showPodcastsGuide && <PodcastsGuideModal onClose={() => setShowPodcastsGuide(false)} />}
           {showSoftSkillsGuide && <SoftSkillsGuideModal onClose={() => setShowSoftSkillsGuide(false)} />}
           {showInterviewPlaybookGuide && (

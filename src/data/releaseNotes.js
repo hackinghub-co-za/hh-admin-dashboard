@@ -8,7 +8,7 @@ export const RELEASE_NOTES = [
   {
     version: '2026.10.15',
     date: '2026-10-15',
-    headline: 'One AZ-900 guide, Python learning, and a clearer Cert Calendar.',
+    headline: 'One AZ-900 guide, a Python guide, and a clearer Cert Calendar.',
     intro: "Resources has a few new things to learn from, and the Cert Calendar shows people, not just names.",
     groups: [
       {
@@ -23,8 +23,8 @@ export const RELEASE_NOTES = [
           },
           {
             icon: '🐍',
-            title: 'Python learning guides',
-            body: "Exercism, the W3Schools Python tutorial and Cisco NetAcad's free Python Essentials 1 are in Resources under Programming.",
+            title: 'A Python Learning Guide',
+            body: "One guide that combines Cisco NetAcad's free Python Essentials 1, the W3Schools Python tutorial and Exercism's Python track, with a checklist. It is in Resources under Programming.",
             where: 'Resources',
           },
           {
