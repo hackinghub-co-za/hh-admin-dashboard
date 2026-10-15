@@ -14,10 +14,11 @@
 // exists here too.
 //
 // Unlike cert-pass-email, this doesn't mark anything "sent" on the
-// cert_calendar row - the founder wants a failed attempt removed from the
-// calendar entirely once this fires (deleteCertCalendarEntry, called by the
-// client right after this succeeds), so there's no row left to guard a
-// re-send against and no reason to add a column just to track it.
+// cert_calendar row. A failed attempt used to be deleted from the calendar
+// right after this fired; since 2026-10-15 it stays and moves to the
+// "Failed Certifications" section instead, so the client only calls this on
+// the transition to Failed (not on every save), which is what keeps it from
+// re-sending.
 //
 // Gemma writes every word of the email body (same Gemini prompt pattern
 // roadmap-reminder-email/gemma-chat use) - genuinely encouraging, never

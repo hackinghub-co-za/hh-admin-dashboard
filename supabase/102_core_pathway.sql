@@ -4,10 +4,10 @@
 --
 -- The new look for Core Foundations on My Roadmap: a two-lane pathway
 -- (labs always running, certificate sprints on top) that a member can
--- rearrange, with a checkpoint 1-on-1 they must book at 2, 4 and 5 items.
+-- rearrange, with a checkpoint 1-on-1 they must book at 2 and 4 items.
 --
 -- What a member has DONE still lives where it always has (roadmap_items +
--- roadmap_item_subtasks), so Hub Score, the 5-of-8 Specialization unlock
+-- roadmap_item_subtasks), so Hub Score, the 4-of-7 Specialization unlock
 -- and staff views keep working unchanged. This table only holds the
 -- member's own pathway choices and their checkpoint bookings.
 --
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.member_pathways (
   lab_order TEXT[] NOT NULL DEFAULT '{}',
   -- Pathway week each certificate sprint starts, e.g. {"AZ-900": 3, "SC-900": 9}.
   cert_starts JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(cert_starts) = 'object'),
-  -- Checkpoint (2, 4 or 5 items done) -> how it was cleared, e.g.
+  -- Checkpoint (2 or 4 items done) -> how it was cleared, e.g.
   -- {"2": {"how": "booked", "on": "2026-10-12"}, "4": {"how": "prior", "on": "2026-10-04"}}.
   checkpoints JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(checkpoints) = 'object'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -52,7 +52,7 @@ CREATE POLICY "staff read member pathways"
   ON public.member_pathways FOR SELECT TO authenticated
   USING (public.is_community_manager(auth.uid()) OR public.is_mentor(auth.uid()));
 
--- How many of the 8 Core Foundations catalog items a member has completed
+-- How many of the 7 Core Foundations catalog items a member has completed
 -- (same titles as CORE_FOUNDATIONS_CATALOG in src/lib/memberOptions.js).
 CREATE OR REPLACE FUNCTION public._core_foundations_done(p_email TEXT)
 RETURNS INTEGER
@@ -63,7 +63,7 @@ AS $$
   WHERE ri.member_email = lower(p_email)
     AND ri.phase = 'Core Foundations'
     AND ri.completed
-    AND ri.title IN ('CISCO Junior Cyber Pathway', 'Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
+    AND ri.title IN ('Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
                      'AZ-900', 'AI-901', 'SC-900', 'CompTIA Security+');
 $$;
 REVOKE EXECUTE ON FUNCTION public._core_foundations_done(TEXT) FROM PUBLIC, anon, authenticated;
@@ -93,7 +93,7 @@ BEGIN
   IF NOT FOUND THEN
     v_done := public._core_foundations_done(v_email);
     SELECT COALESCE(jsonb_object_agg(t::text, jsonb_build_object('how', 'prior', 'on', v_today)), '{}'::jsonb)
-      INTO v_prior FROM unnest(ARRAY[2, 4, 5]) t WHERE t <= v_done;
+      INTO v_prior FROM unnest(ARRAY[2, 4]) t WHERE t <= v_done;
     INSERT INTO public.member_pathways (member_email, started_on, checkpoints)
     VALUES (v_email, v_today, v_prior)
     ON CONFLICT (member_email) DO NOTHING;
@@ -315,10 +315,10 @@ BEGIN
   SELECT array_agg(completed_at::date ORDER BY completed_at) INTO v_completed_dates
   FROM public.roadmap_items
   WHERE member_email = p_email AND phase = 'Core Foundations' AND completed
-    AND title IN ('CISCO Junior Cyber Pathway', 'Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
+    AND title IN ('Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
                   'AZ-900', 'AI-901', 'SC-900', 'CompTIA Security+');
 
-  FOREACH v_cp IN ARRAY ARRAY[2, 4, 5] LOOP
+  FOREACH v_cp IN ARRAY ARRAY[2, 4] LOOP
     IF v_done < v_cp THEN RETURN NULL; END IF;
     IF v_checkpoints ? v_cp::text THEN CONTINUE; END IF;
     v_reached := v_completed_dates[v_cp];
@@ -335,7 +335,7 @@ REVOKE EXECUTE ON FUNCTION public._core_pathway_active_checkpoint(TEXT) FROM PUB
 
 -- Re-defines toggle_my_roadmap_item() (028_roadmap.sql) to add the
 -- checkpoint lock above on top of its existing Projects-phase guard. Only
--- ever blocks a false -> true transition on one of the 8 Core Foundations
+-- ever blocks a false -> true transition on one of the 7 Core Foundations
 -- catalog items; un-ticking, every other phase, and an already-completed
 -- item (no-op re-saves from the admin's own direct table edit elsewhere)
 -- are all untouched.
@@ -357,7 +357,7 @@ BEGIN
   END IF;
 
   IF p_completed AND NOT v_was_completed AND v_phase = 'Core Foundations'
-     AND v_title IN ('CISCO Junior Cyber Pathway', 'Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
+     AND v_title IN ('Immersive Labs', 'TryHackMe Pre-Security', 'TryHackMe Cyber 101',
                      'AZ-900', 'AI-901', 'SC-900', 'CompTIA Security+')
      AND public._core_pathway_active_checkpoint(v_email) IS NOT NULL THEN
     RAISE EXCEPTION 'Book your checkpoint 1-on-1 before ticking off more Core Foundations items.';
@@ -370,3 +370,13 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.toggle_my_roadmap_item(BIGINT, BOOLEAN) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.toggle_my_roadmap_item(BIGINT, BOOLEAN) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- RETIRED FROM CORE FOUNDATIONS (2026-10-14): the CISCO Junior Cyber
+-- Pathway. It is still a free course under Resources, but no longer a
+-- roadmap item. The catalog is now 7 items, the Specialization unlock is 4
+-- (SPECIALIZATION_UNLOCK_MIN) and the pathway checkpoints are 2 and 4.
+-- Idempotent: deletes nothing once the rows are gone.
+-- =========================================================================
+DELETE FROM public.roadmap_item_subtasks WHERE item_title = 'CISCO Junior Cyber Pathway';
+DELETE FROM public.roadmap_items WHERE phase = 'Core Foundations' AND title = 'CISCO Junior Cyber Pathway';

@@ -85,7 +85,7 @@ export async function reviewProjectSubmission(itemId, approved, note) {
   if (error) throw error;
 }
 
-/** Auto-assigns whichever of the standard 8 Core Foundations Certifications
+/** Auto-assigns whichever of the standard 7 Core Foundations Certifications
  * (CORE_FOUNDATIONS_CATALOG) the caller doesn't already have, but only once
  * they've actually finished the Getting Started checklist - the RPC
  * re-checks that server-side, so this is safe to call any time onboarding

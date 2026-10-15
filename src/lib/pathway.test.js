@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildPathway, checkCertMove, pathwayAdvice, pathwayWeek, itemFraction, splitHours,
-  activeCheckpoint, checkpointReachedDates, LAB_ITEMS, CERT_ITEMS,
+  activeCheckpoint, checkpointReachedDates, CHECKPOINTS, LAB_ITEMS, CERT_ITEMS,
 } from './pathway';
 import { CORE_FOUNDATIONS_CATALOG } from './memberOptions';
 
@@ -41,11 +41,11 @@ describe('buildPathway for a brand new member', () => {
     for (let i = 1; i < plan.labs.length; i++) expect(plan.labs[i].start).toBe(plan.labs[i - 1].end + 1);
     expect(plan.certs.map((c) => [c.title, c.start, c.end])).toEqual([['AZ-900', 3, 4], ['SC-900', 9, 10]]);
   });
-  it('lands the first certificate in week 4 and the unlock around week 19', () => {
+  it('lands the first certificate in week 4 and the unlock in week 13', () => {
     expect(ends(plan)['AZ-900']).toBe(4);
     expect(plan.minMetWeek).toBe(13);
-    expect(plan.unlockWeek).toBe(19);
-    expect(plan.afterUnlock).toEqual(['CISCO Junior Cyber Pathway', 'AI-901', 'CompTIA Security+']);
+    expect(plan.unlockWeek).toBe(13);
+    expect(plan.afterUnlock).toEqual(['AI-901', 'CompTIA Security+']);
   });
   it('stretches sprints at lower paces', () => {
     const slow = buildPathway(blank(), prefs({ weeklyHours: 3 }), 1);
@@ -59,11 +59,10 @@ describe('buildPathway for a member with backlog progress', () => {
     const s = blank();
     s['TryHackMe Pre-Security'] = { completed: true, fraction: 1 };
     s['AZ-900'] = { completed: true, fraction: 1 };
-    s['CISCO Junior Cyber Pathway'] = { completed: true, fraction: 1 };
     const plan = buildPathway(s, prefs(), 1);
     expect(plan.labs.map((b) => b.title)).toEqual(['Immersive Labs', 'TryHackMe Cyber 101']);
     expect(plan.certs.map((c) => c.title)).toEqual(['SC-900']);
-    expect(plan.doneCount).toBe(3);
+    expect(plan.doneCount).toBe(2);
     // Two more items reach the unlock: SC-900 and the first lab item.
     expect(plan.unlockWeek).toBe(Math.max(ends(plan)['SC-900'], ends(plan)['Immersive Labs']));
     expect(plan.afterUnlock).toEqual(['AI-901', 'CompTIA Security+']);
@@ -148,7 +147,11 @@ describe('checkpoints', () => {
     expect(activeCheckpoint({ doneCount: 2, cleared: { 2: { how: 'booked' } }, reachedDates: reached, meetingDates: [] })).toBeNull();
   });
   it('moves on to the next uncleared checkpoint', () => {
-    const cp = activeCheckpoint({ doneCount: 5, cleared: { 2: { how: 'prior' }, 4: { how: 'prior' } }, reachedDates: {}, meetingDates: [] });
-    expect(cp.at).toBe(5);
+    const cp = activeCheckpoint({ doneCount: 4, cleared: { 2: { how: 'prior' } }, reachedDates: {}, meetingDates: [] });
+    expect(cp.at).toBe(4);
+  });
+  it('has one checkpoint at the combined minimum and unlock count, and nothing after it', () => {
+    expect(CHECKPOINTS.map((c) => c.at)).toEqual([2, 4]);
+    expect(activeCheckpoint({ doneCount: 7, cleared: { 2: { how: 'prior' }, 4: { how: 'prior' } }, reachedDates: {}, meetingDates: [] })).toBeNull();
   });
 });

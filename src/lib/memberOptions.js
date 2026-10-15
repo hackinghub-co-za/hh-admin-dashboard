@@ -83,7 +83,6 @@ export const ADVANCED_UNLOCK_PERCENT = 100;
 // certs count as complete. Specialization stays fully track-specific beyond
 // this, with its own courses/certs.
 export const CORE_FOUNDATIONS_CATALOG = [
-  { title: 'CISCO Junior Cyber Pathway', defaultDetail: '6/6 courses' },
   { title: 'Immersive Labs', defaultDetail: '20 collections' },
   { title: 'TryHackMe Pre-Security', defaultDetail: '' },
   { title: 'TryHackMe Cyber 101', defaultDetail: '' },
@@ -106,7 +105,6 @@ export const CORE_FOUNDATIONS_MIN_REQUIRED = 4;
 // to sit at the same level - confirm at booking. The YES x Microsoft
 // voucher programme (a Resources card) can make the Microsoft exams free.
 export const CORE_FOUNDATION_PRICING = {
-  'CISCO Junior Cyber Pathway': { price: 'Free', free: true, note: "Cisco's Networking Academy courses cost nothing to take." },
   'Immersive Labs': { price: 'Free', free: true, note: 'The Cyber Million collections are free to use.' },
   'TryHackMe Pre-Security': { price: 'About R1,200 a year', free: false, note: 'A TryHackMe Premium subscription, which also covers Cyber 101. The first rooms are free.' },
   'TryHackMe Cyber 101': { price: 'About R1,200 a year', free: false, note: 'The same TryHackMe Premium subscription as Pre-Security. The first rooms are free.' },
@@ -136,14 +134,6 @@ export const CORE_FOUNDATION_PRICING = {
 // Human Connection Challenge (1), which is where "20 collections" in
 // CORE_FOUNDATIONS_CATALOG's defaultDetail comes from.
 export const CORE_FOUNDATION_SUBTASKS = {
-  'CISCO Junior Cyber Pathway': [
-    { key: 'cisco-1', label: 'Introduction to Cybersecurity' },
-    { key: 'cisco-2', label: 'Networking Basics' },
-    { key: 'cisco-3', label: 'Networking Devices and Initial Configuration' },
-    { key: 'cisco-4', label: 'Endpoint Security' },
-    { key: 'cisco-5', label: 'Network Defense' },
-    { key: 'cisco-6', label: 'Cyber Threat Management' },
-  ],
   'Immersive Labs': [
     { key: 'immersive-defsecops', label: 'Cyber Million: Defensive Security Operations (13 collections)' },
     { key: 'immersive-fundamentals', label: 'Cyber Million: Fundamentals (6 collections)' },
@@ -200,7 +190,6 @@ export const CORE_FOUNDATION_SUBTASKS = {
 // auto-assigned ones. Same URLs already used for these in the Resources tab
 // (supabase/026_resources.sql) rather than new ones.
 export const ROADMAP_ITEM_LINKS = {
-  'CISCO Junior Cyber Pathway': 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US',
   'Immersive Labs': 'https://www.immersivelabs.com/resources/cybermillion',
   'TryHackMe Pre-Security': 'https://tryhackme.com/paths',
   'TryHackMe Cyber 101': 'https://tryhackme.com/paths',
@@ -290,7 +279,6 @@ export const ROADMAP_ITEM_LINKS = {
 // map works cleanly here because every catalog above uses unique titles.
 export const ROADMAP_ITEM_DESCRIPTIONS = {
   // Core Foundations
-  'CISCO Junior Cyber Pathway': 'Networking & Cybersecurity Fundamentals',
   'Immersive Labs': 'Hands-on Cyber Skills Across Foundational Topics',
   'TryHackMe Pre-Security': 'Intro to Networking, Web & Security Basics',
   'TryHackMe Cyber 101': 'Practical Intro to Common Cyber Attacks & Tools',
@@ -395,10 +383,6 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
 // Specialization, and Projects item across every track.
 export const ROADMAP_ITEM_INFO = {
   // ---- Core Foundations ----
-  'CISCO Junior Cyber Pathway': {
-    teaches: "How data actually moves across a network - IP addressing, routing, switching - plus a first pass at core cybersecurity concepts, through Cisco's free, self-paced NetAcad courses.",
-    journey: "Almost every cybersecurity role assumes you already understand networking. This is the \"learn to read the map before you defend the territory\" step - usually the very first thing to work through, before certs like Security+ or SC-900 make full sense.",
-  },
   'Immersive Labs': {
     teaches: "Hands-on, browser-based labs spanning dozens of foundational topics - from basic Linux commands to intro malware analysis - no local lab setup required.",
     journey: "This is where theory turns into muscle memory. Instead of just reading about a concept, you're actually doing it in a real (safe) environment - exactly what technical interviews and real SOC/analyst work expect from you.",
@@ -671,7 +655,7 @@ export const ROADMAP_ITEM_INFO = {
   // ---- Specialization: Network Security ----
   'CCNA': {
     teaches: "Professional-level networking fundamentals - routing, switching, IP addressing, and network security basics - Cisco's own flagship associate-level certification.",
-    journey: "This is the foundational credential almost every network security role assumes you already have. Where Core Foundations' CISCO Junior Cyber Pathway gives you a first taste, CCNA is the real, industry-recognized proof you understand networking at a professional level.",
+    journey: "This is the foundational credential almost every network security role assumes you already have. Where the free Cisco Junior Cyber Pathway (see Resources) gives you a first taste, CCNA is the real, industry-recognized proof you understand networking at a professional level.",
   },
   'TryHackMe Network Fundamentals': {
     teaches: "A hands-on, guided module covering how networks actually work in practice - packet analysis, common protocols, and traffic patterns - through real TryHackMe labs.",
@@ -749,12 +733,11 @@ export const ROADMAP_ITEM_INFO = {
 };
 
 // A member only sees their Specialization section once they've completed
-// this many Core Foundations certs - a higher bar than
-// CORE_FOUNDATIONS_MIN_REQUIRED (which just marks foundations as "met"),
-// deliberately: Specialization stays hidden a little longer than the
-// minimum, so it reads as something earned rather than available from day
-// one.
-export const SPECIALIZATION_UNLOCK_MIN = 5;
+// this many Core Foundations certs. It was 5 of 8; when the CISCO Junior
+// Cyber Pathway was retired (2026-10-14, still available under Resources)
+// the catalog became 7 items and the bar dropped to 4, the same count as
+// CORE_FOUNDATIONS_MIN_REQUIRED ("foundations met").
+export const SPECIALIZATION_UNLOCK_MIN = 4;
 
 // Refer a Friend's reward, in Rand - single source of truth so the member
 // modal, the referrals list, and the admin table all show the same figure

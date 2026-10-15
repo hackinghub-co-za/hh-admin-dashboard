@@ -10,8 +10,8 @@ describe('parseStepLines', () => {
       { id: 's2', title: 'Do the lab', link: null },
     ]);
   });
-  it('caps at 20 steps and drops empty titles', () => {
-    expect(parseStepLines(Array.from({ length: 30 }, (_, i) => `Step ${i}`).join('\n'))).toHaveLength(20);
+  it('caps at 40 steps and drops empty titles', () => {
+    expect(parseStepLines(Array.from({ length: 50 }, (_, i) => `Step ${i}`).join('\n'))).toHaveLength(40);
     expect(parseStepLines('| https://x.test')).toEqual([]);
   });
 });
@@ -20,6 +20,9 @@ describe('normalizeSteps', () => {
   it('keeps well-formed steps only', () => {
     expect(normalizeSteps([{ id: 'a', title: 'A', link: null }, { title: 'no id' }, null])).toEqual([{ id: 'a', title: 'A', link: '' }]);
     expect(normalizeSteps(null)).toEqual([]);
+  });
+  it('keeps an optional group heading', () => {
+    expect(normalizeSteps([{ id: 'a', title: 'A', link: null, group: 'Learn' }])).toEqual([{ id: 'a', title: 'A', link: '', group: 'Learn' }]);
   });
 });
 

@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { CheckCircle2, Circle, ExternalLink } from 'lucide-react';
 import { isSafeUrl } from '../lib/safeUrl';
 
@@ -22,10 +23,15 @@ export default function ResourceProgress({ resource, progress, onToggle }) {
             </span>
           </summary>
           <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {steps.map((step) => {
+            {steps.map((step, index) => {
               const done = doneIds.has(step.id);
+              const showGroup = step.group && step.group !== steps[index - 1]?.group;
               return (
-                <li key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <Fragment key={step.id}>
+                {showGroup && (
+                  <li aria-hidden="true" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent-cyan)', marginTop: index === 0 ? 0 : '6px' }}>{step.group}</li>
+                )}
+                <li style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                   <input
                     type="checkbox"
                     id={`rstep-${resource.id}-${step.id}`}
@@ -45,6 +51,7 @@ export default function ResourceProgress({ resource, progress, onToggle }) {
                     </a>
                   )}
                 </li>
+                </Fragment>
               );
             })}
           </ul>

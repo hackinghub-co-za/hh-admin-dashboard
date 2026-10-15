@@ -18,6 +18,59 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.15
+
+### Added
+- **One AZ-900 Study and Practice Guide.** The six AZ-900 cards in Resources
+  (study guide, learning paths, exam prep checklist, hands-on practice,
+  official labs, guided projects) are now one resource with a single
+  31-step checklist grouped under headings, and "Read Guide" opens the full
+  plan (`AZ900GuideModal.jsx`). Steps keep their ids, so members' ticks were
+  carried over; the five retired cards were deleted (`026_resources.sql`,
+  applied as individual statements). `resources.steps` may now hold up to 40
+  steps (was 20), and a step may carry an optional `group` heading.
+- **Programming resources.** New `Programming` category with Python on
+  Exercism, the W3Schools Python Tutorial and Cisco NetAcad Python
+  Essentials 1. **DevSec Blueprint** added under Cyber Platforms.
+- **Cert Calendar: Failed Certifications section** on both the admin tab and
+  the member view, below Passed / Certifications Earned. A Failed result now
+  keeps the entry (the encouragement email still goes out once, on the
+  transition to Failed) instead of deleting it; an admin can set a failed
+  entry back to Pending for a retake.
+- **Cert Calendar: member headshot and profile on hover.** A member's headshot
+  sits next to their name on every card, and hovering (or focusing, or
+  tapping) the name shows their profile card (`MemberHoverCard.jsx`).
+
+### Changed
+- **Every Cert Calendar entry must name a member.** The admin add and edit
+  forms now pick from the member list (name and email are set together), and
+  the database requires `member_email` on new and edited rows
+  (`cert_calendar_member_email_required`, `NOT VALID` so older rows are left
+  alone). When a member has Left, their entries drop off the calendar: the
+  member read policy hides them through `_cert_owner_has_left()` and the admin
+  tab filters them out. The rows stay in the table. At the time of the change
+  that hid 5 entries belonging to members who have Left.
+
+## 2026.10.14
+
+### Removed
+- **CISCO Junior Cyber Pathway retired from Core Foundations.** It is still
+  a free course under Resources (`026_resources.sql`) but is no longer a
+  roadmap item. Removed from `CORE_FOUNDATIONS_CATALOG` and its pricing,
+  subtask, link, description and info entries in `memberOptions.js`, and
+  deleted from every member's roadmap, completed or not (83 rows, 54 subtask
+  ticks), via `102_core_pathway.sql`. `028_roadmap.sql`'s catalog seeds no
+  longer include it, so re-running it cannot bring the item back.
+
+### Changed
+- **The Core Foundations catalog is 7 items and `SPECIALIZATION_UNLOCK_MIN`
+  is now 4** (was 5 of 8). The minimum (4) and the unlock are now the same
+  count, so the pathway has one combined checkpoint at 4 items, plus the one
+  at 2; the old checkpoint at 5 is gone. Updated in `pathway.js`, in
+  `_core_pathway_active_checkpoint()` and `toggle_my_roadmap_item()` (102),
+  and in `get_members_needing_linkedin_reminder()` (059, `>= 4`). Live: the
+  five functions were re-applied individually, not by re-running 028/059.
+
 ## 2026.10.12
 
 ### Added

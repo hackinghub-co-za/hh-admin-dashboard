@@ -41,6 +41,7 @@ import { fetchAllReferrals, updateReferralStatus } from '../../lib/referralsData
 import { friendlyErrorMessage } from '../../lib/errorMessages';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail, sendCertFailEmail } from '../../lib/certCalendarData';
+import MemberHoverCard from '../../components/MemberHoverCard';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
 import { fetchMemberDirectory } from '../../lib/memberDirectoryData';
@@ -351,7 +352,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     setShowAddRoadmapItemForm(false);
   };
 
-  // Quick-fills whichever of the 8 standard Core Foundations certs (see
+  // Quick-fills whichever of the 7 standard Core Foundations certs (see
   // CORE_FOUNDATIONS_CATALOG) this member doesn't already have, rather than
   // an admin having to type each one by hand for every new roadmap.
   const [addingStandardFoundations, setAddingStandardFoundations] = useState(false);
@@ -1339,7 +1340,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // roster under Mock Admin since there's no real session to fetch from.
   // Members can also add their own entry from their own Cert Calendar view
   // (024_cert_calendar.sql) - those show up here too.
-  const [certs, setCerts] = useState(isMockSession ? [
+  const [allCerts, setCerts] = useState(isMockSession ? [
     { id: 1, member: 'Sanele Khumalo', cert: 'OSCP Penetration Tester', date: '2026-09-12', cohort: 'OSCP-26B', result: 'Pending' },
     { id: 2, member: 'Nonhlanhla Sindane', cert: 'CompTIA Security+', date: '2026-08-28', cohort: 'SecPlus-Aug', result: 'Pending' },
     { id: 3, member: 'Khody Netshifhefhe', cert: 'eLearnSecurity eCPPT', date: '2026-10-05', cohort: 'eCPPT-Intro', result: 'Pending' },
@@ -1364,13 +1365,20 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
 
   const handleAddCert = async (e) => {
     e.preventDefault();
-    if (!newCert.member || !newCert.cert || !newCert.date) return;
+    // An entry has to belong to a member's profile, so it comes off the
+    // calendar when they leave.
+    const owner = memberRoster.find((m) => m.email.toLowerCase() === (newCert.memberEmail || '').toLowerCase());
+    if (!owner || !newCert.cert || !newCert.date) {
+      setCertsError('Choose the member this exam belongs to, then add the certification and the date.');
+      return;
+    }
+    setCertsError(null);
     if (isMockSession) {
       setCerts([
         ...certs,
         {
           id: Math.max(0, ...certs.map((c) => c.id)) + 1,
-          member: newCert.member,
+          member: owner.member,
           cert: newCert.cert,
           date: newCert.date,
           cohort: newCert.cohort || 'General',
@@ -1380,7 +1388,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       ]);
     } else {
       try {
-        await addCertCalendarEntry({ member: newCert.member, cert: newCert.cert, date: newCert.date, cohort: newCert.cohort, createdBy: user?.email, memberEmail: newCert.memberEmail });
+        await addCertCalendarEntry({ member: owner.member, cert: newCert.cert, date: newCert.date, cohort: newCert.cohort, createdBy: user?.email, memberEmail: newCert.memberEmail });
         setCerts(await fetchCertCalendar());
       } catch (err) {
         setCertsError(friendlyErrorMessage(err));
@@ -1391,26 +1399,17 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   };
 
   // Sends the Gemma-written encouragement email (best-effort - a send
-  // failure shouldn't block the removal below), then removes the entry from
-  // Cert Calendar entirely - a failed attempt shouldn't keep sitting there
-  // as clutter. Call only after the row's result has already been
-  // persisted as 'Failed' in the DB - the edge function reads the live row
-  // server-side, not whatever the client thinks it should be.
-  const removeFailedCert = async (id) => {
-    if (isMockSession) {
-      setCerts((prev) => prev.filter((c) => c.id !== id));
-      return;
-    }
+  // failure shouldn't block anything). The entry stays on the calendar and
+  // moves to "Failed Certifications" at the bottom. Call only after the
+  // row's result has already been persisted as 'Failed' in the DB - the
+  // edge function reads the live row server-side, not whatever the client
+  // thinks it should be.
+  const notifyCertFailed = async (id) => {
+    if (isMockSession) return;
     try {
       await sendCertFailEmail(id);
     } catch (err) {
-      setCertsError(`Removed from the calendar, but the encouragement email failed to send: ${friendlyErrorMessage(err)}`);
-    }
-    try {
-      await deleteCertCalendarEntry(id);
-      setCerts((prev) => prev.filter((c) => c.id !== id));
-    } catch (err) {
-      setCertsError(friendlyErrorMessage(err));
+      setCertsError(`Marked as failed, but the encouragement email failed to send: ${friendlyErrorMessage(err)}`);
     }
   };
 
@@ -1418,19 +1417,6 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     const cert = certs.find((c) => c.id === id);
     const justPassed = result === 'Passed' && cert?.result !== 'Passed';
     const justFailed = result === 'Failed' && cert?.result !== 'Failed';
-
-    if (justFailed && cert) {
-      if (!isMockSession) {
-        try {
-          await updateCertCalendarResult(id, result);
-        } catch (err) {
-          setCertsError(friendlyErrorMessage(err));
-          return;
-        }
-      }
-      await removeFailedCert(id);
-      return;
-    }
 
     setCerts(certs.map(c => c.id === id ? { ...c, result } : c));
     if (!isMockSession) {
@@ -1441,6 +1427,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       }
     }
     if (justPassed && cert) announceCertWin({ ...cert, result });
+    if (justFailed && cert) await notifyCertFailed(id);
   };
 
   const [editingCertId, setEditingCertId] = useState(null);
@@ -1456,25 +1443,20 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     const justPassed = updated.result === 'Passed' && cert.result !== 'Passed';
     const justFailed = updated.result === 'Failed' && cert.result !== 'Failed';
 
-    if (justFailed) {
-      if (!isMockSession) {
-        try {
-          await updateCertCalendarEntry(cert.id, editCertForm);
-        } catch (err) {
-          setCertsError(friendlyErrorMessage(err));
-          return;
-        }
-      }
-      setEditingCertId(null);
-      await removeFailedCert(cert.id);
+    const owner = memberRoster.find((m) => m.email.toLowerCase() === (editCertForm.memberEmail || '').toLowerCase());
+    if (!owner) {
+      setCertsError('Choose the member this exam belongs to.');
       return;
     }
+    setCertsError(null);
+    const payload = { ...editCertForm, member: owner.member };
+    updated.member = owner.member;
 
     if (isMockSession) {
       setCerts(certs.map((c) => (c.id === cert.id ? updated : c)));
     } else {
       try {
-        await updateCertCalendarEntry(cert.id, editCertForm);
+        await updateCertCalendarEntry(cert.id, payload);
         setCerts(certs.map((c) => (c.id === cert.id ? updated : c)));
       } catch (err) {
         setCertsError(friendlyErrorMessage(err));
@@ -1483,6 +1465,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     }
     setEditingCertId(null);
     if (justPassed) announceCertWin(updated);
+    if (justFailed) await notifyCertFailed(cert.id);
   };
 
   const handleDeleteCert = async (cert) => {
@@ -2164,6 +2147,14 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // below, regardless of real payment history. Mock Admin has no session to
   // fetch against, so deletions there stay local-only for the session.
   const [deletedEmails, setDeletedEmails] = useState(new Set());
+
+  // Every Cert Calendar entry belongs to a member (their email), so when a
+  // member has Left, or has been deleted, their entries leave the calendar
+  // with them. The rows stay in the database; they just stop showing.
+  const certs = allCerts.filter((c) => {
+    const owner = (c.memberEmail || '').toLowerCase();
+    return !(owner && (deletedEmails.has(owner) || memberProfiles[owner]?.status === 'Left'));
+  });
 
   useEffect(() => {
     if (isMockSession) return; // loadingSavedMemberData already starts false in this case
@@ -7490,26 +7481,22 @@ Pick new people to present next Sunday`;
               <h3 style={{ marginBottom: '20px' }}>Add Member Exam</h3>
               <form onSubmit={handleAddCert} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Member Name</label>
-                  <input
-                    type="text"
+                  <label htmlFor="cert-member" style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Member</label>
+                  <select
+                    id="cert-member"
                     className="form-input"
-                    placeholder="e.g. Sanele Khumalo"
-                    value={newCert.member}
-                    onChange={(e) => setNewCert({ ...newCert, member: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Member Email (optional)</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    placeholder="e.g. sanele@gmail.com"
+                    required
                     value={newCert.memberEmail}
                     onChange={(e) => setNewCert({ ...newCert, memberEmail: e.target.value })}
-                  />
+                  >
+                    <option value="">Choose a member...</option>
+                    {memberRoster
+                      .filter((m) => m.status !== 'Left')
+                      .sort((x, y) => x.member.localeCompare(y.member))
+                      .map((m) => <option key={m.email} value={m.email}>{m.member} ({m.email})</option>)}
+                  </select>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Makes "time to first cert" on Insights exact instead of matched by name.
+                    The exam belongs to this member's profile, so it comes off the calendar when they leave.
                   </p>
                 </div>
                 <div>
@@ -7556,17 +7543,17 @@ Pick new people to present next Sunday`;
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h3>Upcoming Member Exams</h3>
-                <span className="badge badge-success">{certs.filter((c) => c.result !== 'Passed').length} Members Scheduled</span>
+                <span className="badge badge-success">{certs.filter((c) => c.result !== 'Passed' && c.result !== 'Failed').length} Members Scheduled</span>
               </div>
 
               {certsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{certsError}</p>}
               {loadingCerts && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>Loading cert calendar...</p>}
-              {!loadingCerts && certs.filter((c) => c.result !== 'Passed').length === 0 && (
+              {!loadingCerts && certs.filter((c) => c.result !== 'Passed' && c.result !== 'Failed').length === 0 && (
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No upcoming or pending exams right now.</p>
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                {certs.filter((c) => c.result !== 'Passed').map((c) => {
+                {certs.filter((c) => c.result !== 'Passed' && c.result !== 'Failed').map((c) => {
                   const targetDate = new Date(c.date);
                   const today = new Date();
                   const diffTime = targetDate - today;
@@ -7576,8 +7563,13 @@ Pick new people to present next Sunday`;
                   if (editingCertId === c.id) {
                     return (
                       <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <input className="form-input" value={editCertForm.member} onChange={(e) => setEditCertForm({ ...editCertForm, member: e.target.value })} placeholder="Member name" />
-                        <input type="email" className="form-input" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })} placeholder="Member email (optional)" />
+                        <select className="form-input" aria-label="Member" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })}>
+                          <option value="">Choose a member...</option>
+                          {memberRoster
+                            .filter((m) => m.status !== 'Left' || m.email.toLowerCase() === (editCertForm.memberEmail || '').toLowerCase())
+                            .sort((x, y) => x.member.localeCompare(y.member))
+                            .map((m) => <option key={m.email} value={m.email}>{m.member} ({m.email})</option>)}
+                        </select>
                         <input className="form-input" value={editCertForm.cert} onChange={(e) => setEditCertForm({ ...editCertForm, cert: e.target.value })} placeholder="Certification" />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                           <input type="date" className="form-input" value={editCertForm.date} onChange={(e) => setEditCertForm({ ...editCertForm, date: e.target.value })} />
@@ -7635,7 +7627,7 @@ Pick new people to present next Sunday`;
                             </button>
                           </div>
                         </div>
-                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                        <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={memberProfiles[(c.memberEmail || '').toLowerCase()]} nameStyle={{ fontSize: '1.05rem' }} /></div>
                         <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {c.cert} <Info size={14} color="var(--accent-cyan)" />
                         </div>
@@ -7678,8 +7670,13 @@ Pick new people to present next Sunday`;
                   if (editingCertId === c.id) {
                     return (
                       <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <input className="form-input" value={editCertForm.member} onChange={(e) => setEditCertForm({ ...editCertForm, member: e.target.value })} placeholder="Member name" />
-                        <input type="email" className="form-input" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })} placeholder="Member email (optional)" />
+                        <select className="form-input" aria-label="Member" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })}>
+                          <option value="">Choose a member...</option>
+                          {memberRoster
+                            .filter((m) => m.status !== 'Left' || m.email.toLowerCase() === (editCertForm.memberEmail || '').toLowerCase())
+                            .sort((x, y) => x.member.localeCompare(y.member))
+                            .map((m) => <option key={m.email} value={m.email}>{m.member} ({m.email})</option>)}
+                        </select>
                         <input className="form-input" value={editCertForm.cert} onChange={(e) => setEditCertForm({ ...editCertForm, cert: e.target.value })} placeholder="Certification" />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                           <input type="date" className="form-input" value={editCertForm.date} onChange={(e) => setEditCertForm({ ...editCertForm, date: e.target.value })} />
@@ -7729,7 +7726,7 @@ Pick new people to present next Sunday`;
                             </button>
                           </div>
                         </div>
-                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                        <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={memberProfiles[(c.memberEmail || '').toLowerCase()]} nameStyle={{ fontSize: '1.05rem' }} /></div>
                         <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {c.cert} <Info size={14} color="var(--accent-cyan)" />
                         </div>
@@ -7737,6 +7734,98 @@ Pick new people to present next Sunday`;
                       <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Passed:</span>
                         <strong style={{ color: 'var(--success)' }}>{formatDate(c.date)}</strong>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3>Failed Certifications</h3>
+                <span className="badge badge-danger">{certs.filter((c) => c.result === 'Failed').length} Failed</span>
+              </div>
+              {!loadingCerts && certs.filter((c) => c.result === 'Failed').length === 0 && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No failed exams. A failed result moves the entry here.</p>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                {certs.filter((c) => c.result === 'Failed').map((c) => {
+                  if (editingCertId === c.id) {
+                    return (
+                      <div key={c.id} style={{ padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--accent-cyan)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <select className="form-input" aria-label="Member" value={editCertForm.memberEmail} onChange={(e) => setEditCertForm({ ...editCertForm, memberEmail: e.target.value })}>
+                          <option value="">Choose a member...</option>
+                          {memberRoster
+                            .filter((m) => m.status !== 'Left' || m.email.toLowerCase() === (editCertForm.memberEmail || '').toLowerCase())
+                            .sort((x, y) => x.member.localeCompare(y.member))
+                            .map((m) => <option key={m.email} value={m.email}>{m.member} ({m.email})</option>)}
+                        </select>
+                        <input className="form-input" value={editCertForm.cert} onChange={(e) => setEditCertForm({ ...editCertForm, cert: e.target.value })} placeholder="Certification" />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <input type="date" className="form-input" value={editCertForm.date} onChange={(e) => setEditCertForm({ ...editCertForm, date: e.target.value })} />
+                          <input className="form-input" value={editCertForm.cohort} onChange={(e) => setEditCertForm({ ...editCertForm, cohort: e.target.value })} placeholder="Cohort" />
+                        </div>
+                        <select className="form-input" value={editCertForm.result} onChange={(e) => setEditCertForm({ ...editCertForm, result: e.target.value })}>
+                          <option value="Pending">Pending</option>
+                          <option value="Passed">Passed</option>
+                          <option value="Failed">Failed</option>
+                        </select>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => setEditingCertId(null)}>Cancel</button>
+                          <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '6px 12px' }} onClick={() => handleSaveCertEdit(c)}>Save</button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedCert(c)}
+                      style={{
+                        padding: '20px',
+                        borderRadius: 'var(--border-radius-md)',
+                        background: 'rgba(var(--danger-rgb), 0.04)',
+                        border: '1px solid var(--danger)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                      className="hover-glow"
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="badge badge-danger">Failed</span>
+                            <button onClick={(e) => { e.stopPropagation(); startEditCert(c); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }} aria-label="Edit entry">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteCert(c); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'flex' }} aria-label="Delete entry">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={memberProfiles[(c.memberEmail || '').toLowerCase()]} nameStyle={{ fontSize: '1.05rem' }} /></div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {c.cert} <Info size={14} color="var(--accent-cyan)" />
+                        </div>
+                      </div>
+                      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Exam date:</span>
+                        <strong style={{ color: 'var(--danger)' }}>{formatDate(c.date)}</strong>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Result</label>
+                        <select className="form-input" style={{ fontSize: '0.8rem', padding: '6px 10px' }} value="Failed" onChange={(e) => handleUpdateCertResult(c.id, e.target.value)}>
+                          <option value="Pending">Pending (retake)</option>
+                          <option value="Passed">Passed</option>
+                          <option value="Failed">Failed</option>
+                        </select>
                       </div>
                     </div>
                   );

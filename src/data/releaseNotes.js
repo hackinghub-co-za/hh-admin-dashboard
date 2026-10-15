@@ -6,6 +6,76 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.15',
+    date: '2026-10-15',
+    headline: 'One AZ-900 guide, Python learning, and a clearer Cert Calendar.',
+    intro: "Resources has a few new things to learn from, and the Cert Calendar shows people, not just names.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '📘',
+            title: 'One AZ-900 Study and Practice Guide',
+            body: "The separate AZ-900 cards are now one guide with a single checklist: Microsoft Learn paths, your own Azure account, official labs, guided projects and exam prep. Your ticks were carried over.",
+            where: 'Resources',
+          },
+          {
+            icon: '🐍',
+            title: 'Python learning guides',
+            body: "Exercism, the W3Schools Python tutorial and Cisco NetAcad's free Python Essentials 1 are in Resources under Programming.",
+            where: 'Resources',
+          },
+          {
+            icon: '🧩',
+            title: 'DevSec Blueprint',
+            body: "A DevSecOps and cloud security training platform, added under Cyber Platforms. Some walkthroughs are free with an account.",
+            where: 'Resources',
+          },
+          {
+            icon: '🗓️',
+            title: 'Headshots on the Cert Calendar',
+            body: "Each exam now shows the member's headshot next to their name. Hover over a name to see their profile.",
+            where: 'Cert Calendar',
+          },
+          {
+            icon: '📉',
+            title: 'Failed exams get their own section',
+            body: "A failed exam moves to Certifications Failed at the bottom of the Cert Calendar, so you can see it and plan the retake. Entries from members who have left no longer show.",
+            where: 'Cert Calendar',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    version: '2026.10.14',
+    date: '2026-10-14',
+    headline: 'The Cisco pathway has moved to Resources, and Specialization opens sooner.',
+    intro: "Core Foundations is now seven items, and you need fewer of them to move on.",
+    groups: [
+      {
+        label: 'Heads Up',
+        color: '#94a3b8',
+        items: [
+          {
+            icon: '📦',
+            title: 'CISCO Junior Cyber Pathway is no longer a roadmap item',
+            body: "It has come off every roadmap, including for members who had finished it. The course itself is still free and still listed under Resources if you want to take it.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '🔓',
+            title: 'Specialization now opens at 4 Core Foundations items',
+            body: "With seven items in Core Foundations, four completed items now unlock Specialization (it was five of eight). The checkpoint 1-on-1 is now at two items and four items.",
+            where: 'My Roadmap',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.10',
     date: '2026-10-10',
     headline: 'Weekly Breakdowns and the Resources AI review are retiring.',

@@ -123,9 +123,9 @@ describe('CORE_FOUNDATION_PRICING', () => {
     });
   });
 
-  it('tags exactly Cisco and Immersive Labs as free', () => {
+  it('tags exactly Immersive Labs as free', () => {
     const free = Object.entries(CORE_FOUNDATION_PRICING).filter(([, v]) => v.free).map(([k]) => k).sort();
-    expect(free).toEqual(['CISCO Junior Cyber Pathway', 'Immersive Labs']);
+    expect(free).toEqual(['Immersive Labs']);
   });
 
   it('only prices real catalog items', () => {

@@ -22,6 +22,13 @@ export async function fetchMemberProfiles() {
       location: row.location || '',
       specialty: row.specialty || 'Not Set',
       linkedin: row.linkedin || '',
+      // Shown next to a member's name on the Cert Calendar (headshot and the
+      // hover profile card).
+      headshotUrl: row.headshot_url || '',
+      about: row.about || '',
+      funFact: row.fun_fact || '',
+      yearsExperience: row.years_experience ?? null,
+      certifications: row.certifications || '',
       phone: row.phone || '',
       moneyOwed: Number(row.money_owed) || 0,
       // 076_expected_total_payment.sql - null means the auto-calculated

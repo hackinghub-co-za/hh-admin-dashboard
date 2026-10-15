@@ -2,14 +2,14 @@
 // (supabase/026_resources.sql). Kept out of resourcesData.js (which pulls in
 // the Supabase client) so they can be unit tested on their own.
 
-export const MAX_STEPS = 20;
+export const MAX_STEPS = 40;
 
 /** Cleans whatever came back from the database into [{ id, title, link }]. */
 export function normalizeSteps(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((s) => s && typeof s.id === 'string' && typeof s.title === 'string' && s.title.trim())
-    .map((s) => ({ id: s.id, title: s.title, link: typeof s.link === 'string' ? s.link : '' }));
+    .map((s) => ({ id: s.id, title: s.title, link: typeof s.link === 'string' ? s.link : '', ...(typeof s.group === 'string' && s.group ? { group: s.group } : {}) }));
 }
 
 /** "Title | https://link" per line (link optional) -> steps with stable ids. */

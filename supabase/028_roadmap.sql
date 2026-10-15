@@ -544,19 +544,20 @@ BEGIN
   FROM public.roadmap_items
   WHERE member_email = v_email;
 
-  -- The standard 8-item Core Foundations Certifications catalog - must be
+  -- The standard 7-item Core Foundations Certifications catalog (the CISCO
+  -- Junior Cyber Pathway was retired from it 2026-10-14, see
+  -- 102_core_pathway.sql; it stays available under Resources) - must be
   -- kept in sync with CORE_FOUNDATIONS_CATALOG in src/lib/memberOptions.js,
   -- the same list the admin-side "Add Standard Foundations" quick-fill
   -- draws from. Only whichever titles this member doesn't already have
   -- under Core Foundations / Certifications get inserted, so this is safe
   -- to call again for a member an admin already partly set up by hand, or
-  -- a second time for a member who already has all 8 (0 rows inserted
+  -- a second time for a member who already has all 7 (0 rows inserted
   -- either way).
   INSERT INTO public.roadmap_items (member_email, phase, category, title, detail, sort_order)
   SELECT v_email, 'Core Foundations', 'Certifications', c.title, NULLIF(c.detail, ''),
          v_next_sort + (c.ord * 10)
   FROM (VALUES
-    ('CISCO Junior Cyber Pathway', '6/6 courses', 1),
     ('Immersive Labs', '20 collections', 2),
     ('TryHackMe Pre-Security', '', 3),
     ('TryHackMe Cyber 101', '', 4),
@@ -602,7 +603,6 @@ FROM (
   HAVING count(*) >= 6
 ) AS qualifying
 CROSS JOIN (VALUES
-  ('CISCO Junior Cyber Pathway', '6/6 courses', 1),
   ('Immersive Labs', '20 collections', 2),
   ('TryHackMe Pre-Security', '', 3),
   ('TryHackMe Cyber 101', '', 4),

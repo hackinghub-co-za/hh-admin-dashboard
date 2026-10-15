@@ -55,11 +55,39 @@ ALTER TABLE public.cert_calendar
 
 ALTER TABLE public.cert_calendar ENABLE ROW LEVEL SECURITY;
 
+-- Every entry belongs to a member (member_email), so when that member leaves,
+-- their entries leave the calendar with them (2026-10-15). "Left" = no
+-- profile row that is not Left; the rows stay in the table, members just stop
+-- seeing them. SECURITY DEFINER because members cannot read member_profiles
+-- directly. Staff keep seeing every row through their own policy below.
+CREATE OR REPLACE FUNCTION public._cert_owner_has_left(p_email TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+BEGIN
+  RETURN NOT EXISTS (
+    SELECT 1 FROM public.member_profiles mp
+    WHERE mp.email = lower(p_email) AND mp.status <> 'Left'
+  );
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public._cert_owner_has_left(TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public._cert_owner_has_left(TEXT) FROM PUBLIC, anon;
+
+-- A new or edited entry has to name the member it belongs to. NOT VALID so
+-- older rows from before this rule are left alone.
+ALTER TABLE public.cert_calendar DROP CONSTRAINT IF EXISTS cert_calendar_member_email_required;
+ALTER TABLE public.cert_calendar ADD CONSTRAINT cert_calendar_member_email_required
+  CHECK (member_email IS NOT NULL AND member_email <> '') NOT VALID;
+
 DROP POLICY IF EXISTS "members read cert calendar" ON public.cert_calendar;
 CREATE POLICY "members read cert calendar"
   ON public.cert_calendar FOR SELECT
   TO authenticated
-  USING (public.is_member_allowed(auth.jwt() ->> 'email'));
+  USING (
+    public.is_member_allowed(auth.jwt() ->> 'email')
+    AND (member_email IS NULL OR NOT public._cert_owner_has_left(member_email))
+  );
 
 -- Self-service creation, same pattern as reviews/events: a member can only
 -- ever attribute a new entry to their own verified sign-in email (both as

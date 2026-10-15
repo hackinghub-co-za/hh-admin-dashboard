@@ -190,10 +190,10 @@ BEGIN
         AND ri.category = 'Certifications'
         AND ri.completed = true
         AND ri.title IN (
-          'CISCO Junior Cyber Pathway', 'Immersive Labs', 'TryHackMe Pre-Security',
+          'Immersive Labs', 'TryHackMe Pre-Security',
           'TryHackMe Cyber 101', 'AZ-900', 'AI-901', 'SC-900', 'CompTIA Security+'
         )
-    ) >= 5
+    ) >= 4
     AND NOT EXISTS (
       SELECT 1 FROM public.linkedin_weekly_posts lwp
       WHERE lwp.member_email = mp.email

@@ -37,7 +37,7 @@
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id BIGSERIAL PRIMARY KEY,
-  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills')),
+  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills', 'Programming')),
   title TEXT NOT NULL,
   format TEXT,
   description TEXT,
@@ -48,12 +48,12 @@ CREATE TABLE IF NOT EXISTS public.resources (
 );
 
 -- Widens the category CHECK for a database where this table already existed
--- before 'LinkedIn Strategy'/'Cyber Platforms'/'Soft Skills' were added -
+-- before 'LinkedIn Strategy'/'Cyber Platforms'/'Soft Skills'/'Programming' were added -
 -- the inline CHECK above only takes effect on a fresh CREATE TABLE, not an
 -- existing one.
 ALTER TABLE public.resources DROP CONSTRAINT IF EXISTS resources_category_check;
 ALTER TABLE public.resources ADD CONSTRAINT resources_category_check
-  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills'));
+  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills', 'Programming'));
 
 ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 
@@ -481,7 +481,7 @@ WHERE NOT EXISTS (
 ALTER TABLE public.resources ADD COLUMN IF NOT EXISTS steps JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE public.resources DROP CONSTRAINT IF EXISTS resources_steps_check;
 ALTER TABLE public.resources ADD CONSTRAINT resources_steps_check
-  CHECK (jsonb_typeof(steps) = 'array' AND jsonb_array_length(steps) <= 20);
+  CHECK (jsonb_typeof(steps) = 'array' AND jsonb_array_length(steps) <= 40);
 
 -- One row per thing a member has finished. step_id = '' is the resource as a
 -- whole; anything else is one of its steps. Members can read their own rows
@@ -586,140 +586,89 @@ REVOKE EXECUTE ON FUNCTION public.set_my_resource_progress(BIGINT, TEXT, BOOLEAN
 -- (same pattern as the LinkedIn Playbook above) so editing the wording here
 -- and re-running stays safe; step ids are fixed and never reused.
 
--- The in-app guide (AZ900GuideModal.jsx, same pattern as the SC-200 and
--- Security+ guides): price, study time, playlist, practice and Microsoft
--- Learn. This row just catalogs it with a teaser; "Read Guide" opens it.
+-- ONE COMBINED GUIDE (2026-10-15): the AZ-900 study guide, learning paths,
+-- exam prep checklist, hands-on practice, official labs and guided projects
+-- used to be six separate cards. They are now a single resource, "AZ-900
+-- Study and Practice Guide": its card keeps one checklist of all 31 steps
+-- (grouped by the optional "group" field on each step, with the step ids
+-- unchanged so members keep their ticks) and "Read Guide" opens the in-app
+-- guide (AZ900GuideModal.jsx) with the full plan and every link. Microsoft
+-- retired its free Learn sandboxes, so every hands-on step needs an Azure
+-- subscription; the free 30-day trial counts. Idempotent: a fresh install
+-- just creates the one row, and re-running converges it.
 INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
-  'AZ-900 Study Guide',
-  'Guide',
-  'What it costs (around R700), how long to study (1 to 4 weeks), and the resources members actually use - official certification page, a video playlist, free practice questions, and Microsoft Learn.',
-  NULL,
-  NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900 Study Guide');
+SELECT 'Cert Prep', 'AZ-900 Study and Practice Guide', 'Guide', 'One place to study for AZ-900 and practise it: the four Microsoft Learn paths, hands-on work in your own free Azure account, Microsoft''s five official labs and eight guided projects, and the exam-prep checklist with the free Practice Assessment and exam sandbox. Around R700 to sit the exam, and 1 to 4 weeks to study. Tick the steps off as you go, and open the guide for the full plan.', NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title IN ('AZ-900 Study and Practice Guide', 'AZ-900 Study Guide'));
 
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
-  'AZ-900: Microsoft Learn Learning Paths',
-  'Course',
-  'Microsoft''s own free, self-paced training for Azure Fundamentals - four short paths that cover the three exam domains and finish with hands-on guided projects. Work through them in order; each path is a few hours.',
-  'https://learn.microsoft.com/en-us/credentials/certifications/azure-fundamentals/',
-  NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900: Microsoft Learn Learning Paths');
+-- A database that already has the old "AZ-900 Study Guide" row keeps that row
+-- (and anyone's completion of it), renamed.
+UPDATE public.resources SET title = 'AZ-900 Study and Practice Guide'
+WHERE title = 'AZ-900 Study Guide'
+  AND NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900 Study and Practice Guide');
 
 UPDATE public.resources
-SET steps = '[
-  {"id":"lp1","title":"Part 1: Describe cloud concepts (25-30% of the exam)","link":"https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"},
-  {"id":"lp2","title":"Part 2: Describe Azure architecture and services (35-40%)","link":"https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"},
-  {"id":"lp3","title":"Part 3: Describe Azure management and governance (30-35%)","link":"https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"},
-  {"id":"lp4","title":"Part 4: Apply Azure skills in guided projects (hands-on)","link":"https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/"}
+SET format = 'Guide',
+    description = 'One place to study for AZ-900 and practise it: the four Microsoft Learn paths, hands-on work in your own free Azure account, Microsoft''s five official labs and eight guided projects, and the exam-prep checklist with the free Practice Assessment and exam sandbox. Around R700 to sit the exam, and 1 to 4 weeks to study. Tick the steps off as you go, and open the guide for the full plan.',
+    link = NULL,
+    steps = '[
+  {"id":"lp1","group":"Learn: Microsoft Learn paths","title":"Part 1: Describe cloud concepts (25-30% of the exam)","link":"https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"},
+  {"id":"lp2","group":"Learn: Microsoft Learn paths","title":"Part 2: Describe Azure architecture and services (35-40%)","link":"https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"},
+  {"id":"lp3","group":"Learn: Microsoft Learn paths","title":"Part 3: Describe Azure management and governance (30-35%)","link":"https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"},
+  {"id":"lp4","group":"Learn: Microsoft Learn paths","title":"Part 4: Apply Azure skills in guided projects (hands-on)","link":"https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/"},
+  {"id":"hp1","group":"Practice: your own Azure account","title":"Create a free Azure account","link":"https://azure.microsoft.com/pricing/purchase-options/azure-account"},
+  {"id":"hp2","group":"Practice: your own Azure account","title":"Set a budget alert in Cost Management so you never overspend","link":null},
+  {"id":"hp3","group":"Practice: your own Azure account","title":"Create a resource group and add a tag to it","link":null},
+  {"id":"hp4","group":"Practice: your own Azure account","title":"Create a storage account and upload a file","link":null},
+  {"id":"hp5","group":"Practice: your own Azure account","title":"Deploy a small virtual machine, then look at its networking","link":null},
+  {"id":"hp6","group":"Practice: your own Azure account","title":"Open Azure Monitor and Advisor and see what they report","link":null},
+  {"id":"hp7","group":"Practice: your own Azure account","title":"Delete the resource group to clean everything up","link":null},
+  {"id":"ol1","group":"Practice: Microsoft official labs","title":"Create an Azure resource (15 min) - watch a resource group fill up","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/02-exercise-create-azure-resource.html"},
+  {"id":"ol2","group":"Practice: Microsoft official labs","title":"Create a virtual machine and configure it as a web host (20 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/03-exercise-create-azure-virtual-machine.html"},
+  {"id":"ol3","group":"Practice: Microsoft official labs","title":"Create a storage blob and share a file (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/05-exercise-create-storage-blob.html"},
+  {"id":"ol4","group":"Practice: Microsoft official labs","title":"Estimate workload costs with the Pricing calculator (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/06-exercise-estimate-workload-costs-use-pricing-calculator.html"},
+  {"id":"ol5","group":"Practice: Microsoft official labs","title":"Configure resource locks (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/08-exercise-configure-resource-lock.html"},
+  {"id":"gp1","group":"Practice: guided projects","title":"Deploy a static website with Azure Blob Storage","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-deploy-static-website-blob-storage/"},
+  {"id":"gp2","group":"Practice: guided projects","title":"Organize and protect resources with tags and locks","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-organize-resources-tags-locks/"},
+  {"id":"gp3","group":"Practice: guided projects","title":"Build a simple website endpoint with Azure Functions","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-build-basic-website-endpoint-with-functions/"},
+  {"id":"gp4","group":"Practice: guided projects","title":"Set up new employee access (Entra ID and RBAC)","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-new-employee-access/"},
+  {"id":"gp5","group":"Practice: guided projects","title":"Share files securely (SAS tokens and access policies)","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-share-files-securely/"},
+  {"id":"gp6","group":"Practice: guided projects","title":"Set up cost guardrails in Azure","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-cost-guardrails/"},
+  {"id":"gp7","group":"Practice: guided projects","title":"Monitor Azure with Service Health and Activity Log alerts","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-monitor-service-health-activity-alerts/"},
+  {"id":"gp8","group":"Practice: guided projects","title":"Manage Azure resources with Cloud Shell and the Azure CLI","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-manage-resources-cloud-shell-cli/"},
+  {"id":"ep1","group":"Get exam-ready","title":"Read the official study guide and its skills-measured outline","link":"https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900"},
+  {"id":"ep2","group":"Get exam-ready","title":"Watch the Exam Readiness Zone videos","link":"https://learn.microsoft.com/en-us/shows/exam-readiness-zone/"},
+  {"id":"ep7","group":"Get exam-ready","title":"Watch the recommended AZ-900 video playlist","link":"https://www.youtube.com/playlist?list=PLZCHR_fccEf8zN6UB8JOK2Y6l5DVqAcyc"},
+  {"id":"ep3","group":"Get exam-ready","title":"Take the free Practice Assessment and note your weak domains","link":"https://learn.microsoft.com/en-us/credentials/certifications/exams/az-900/practice/assessment?assessment-type=practice&assessmentId=23"},
+  {"id":"ep4","group":"Get exam-ready","title":"Revisit the learning-path modules for those weak domains","link":null},
+  {"id":"ep5","group":"Get exam-ready","title":"Retake the Practice Assessment until you are comfortably above 70%","link":null},
+  {"id":"ep6","group":"Get exam-ready","title":"Try the exam sandbox so the exam interface is familiar","link":"https://aka.ms/examdemo"}
 ]'::jsonb
-WHERE title = 'AZ-900: Microsoft Learn Learning Paths';
+WHERE title = 'AZ-900 Study and Practice Guide';
 
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
-  'AZ-900: Exam Prep Checklist',
-  'Guide',
-  'The exam-side of the plan: read what is actually measured, watch Microsoft''s exam-readiness videos, then test yourself with the free Practice Assessment and the exam sandbox before you book. A score of 700 or more passes.',
-  'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900',
-  NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900: Exam Prep Checklist');
+-- Carry each member's ticked steps over from the five retired cards (step ids
+-- are unique across them), then delete those cards; ON DELETE CASCADE clears
+-- their remaining progress rows. A member's "whole resource done" mark on a
+-- retired card is not carried over, since the combined guide is bigger.
+INSERT INTO public.resource_progress (member_email, resource_id, step_id, completed_at)
+SELECT rp.member_email, g.id, rp.step_id, rp.completed_at
+FROM public.resource_progress rp
+JOIN public.resources old ON old.id = rp.resource_id
+  AND old.title IN ('AZ-900: Microsoft Learn Learning Paths', 'AZ-900: Exam Prep Checklist', 'AZ-900: Hands-on Azure Practice', 'AZ-900: Official Microsoft Labs', 'AZ-900: Microsoft Guided Projects')
+CROSS JOIN LATERAL (SELECT id FROM public.resources WHERE title = 'AZ-900 Study and Practice Guide' LIMIT 1) g
+WHERE rp.step_id <> ''
+ON CONFLICT DO NOTHING;
 
-UPDATE public.resources
-SET steps = '[
-  {"id":"ep1","title":"Read the official study guide and its skills-measured outline","link":"https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900"},
-  {"id":"ep2","title":"Watch the Exam Readiness Zone videos","link":"https://learn.microsoft.com/en-us/shows/exam-readiness-zone/"},
-  {"id":"ep7","title":"Watch the recommended AZ-900 video playlist","link":"https://www.youtube.com/playlist?list=PLZCHR_fccEf8zN6UB8JOK2Y6l5DVqAcyc"},
-  {"id":"ep3","title":"Take the free Practice Assessment and note your weak domains","link":"https://learn.microsoft.com/en-us/credentials/certifications/exams/az-900/practice/assessment?assessment-type=practice&assessmentId=23"},
-  {"id":"ep4","title":"Revisit the learning-path modules for those weak domains","link":null},
-  {"id":"ep5","title":"Retake the Practice Assessment until you are comfortably above 70%","link":null},
-  {"id":"ep6","title":"Try the exam sandbox so the exam interface is familiar","link":"https://aka.ms/examdemo"}
-]'::jsonb
-WHERE title = 'AZ-900: Exam Prep Checklist';
+DELETE FROM public.resources WHERE title IN ('AZ-900: Microsoft Learn Learning Paths', 'AZ-900: Exam Prep Checklist', 'AZ-900: Hands-on Azure Practice', 'AZ-900: Official Microsoft Labs', 'AZ-900: Microsoft Guided Projects');
 
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
-  'AZ-900: Hands-on Azure Practice',
-  'Labs',
-  'Reading about Azure only goes so far - build a few small things in a free Azure account so the exam''s services and terms mean something. Delete what you create when you are done, and set a budget alert first so there are no surprise charges.',
-  'https://azure.microsoft.com/pricing/purchase-options/azure-account',
-  NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900: Hands-on Azure Practice');
-
-UPDATE public.resources
-SET steps = '[
-  {"id":"hp1","title":"Create a free Azure account","link":"https://azure.microsoft.com/pricing/purchase-options/azure-account"},
-  {"id":"hp2","title":"Set a budget alert in Cost Management so you never overspend","link":null},
-  {"id":"hp3","title":"Create a resource group and add a tag to it","link":null},
-  {"id":"hp4","title":"Create a storage account and upload a file","link":null},
-  {"id":"hp5","title":"Deploy a small virtual machine, then look at its networking","link":null},
-  {"id":"hp6","title":"Open Azure Monitor and Advisor and see what they report","link":null},
-  {"id":"hp7","title":"Delete the resource group to clean everything up","link":null}
-]'::jsonb
-WHERE title = 'AZ-900: Hands-on Azure Practice';
-
--- Microsoft's official free lab exercises for AZ-900, published from
--- github.com/MicrosoftLearning/AZ-900-Microsoft-Azure-Fundamentals (the five
--- exercises under Instructions/Labs, each checked to have a live published
--- page). NOTE: Microsoft retired the free Learn sandboxes (their own FAQ:
--- "Sandboxes are no longer available"), so every hands-on exercise now needs
--- an Azure subscription - the free 30-day trial counts. Said plainly in the
--- descriptions so nobody expects a no-signup lab.
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
-  'AZ-900: Official Microsoft Labs',
-  'Labs',
-  'The five lab exercises Microsoft publishes for AZ-900 - 15 to 20 minutes each. Microsoft has retired its free Learn sandboxes, so these need an Azure subscription (the free 30-day trial works). Delete what you create afterwards.',
-  'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/',
-  NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900: Official Microsoft Labs');
-
-UPDATE public.resources
-SET steps = '[
-  {"id":"ol1","title":"Create an Azure resource (15 min) - watch a resource group fill up","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/02-exercise-create-azure-resource.html"},
-  {"id":"ol2","title":"Create a virtual machine and configure it as a web host (20 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/03-exercise-create-azure-virtual-machine.html"},
-  {"id":"ol3","title":"Create a storage blob and share a file (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/05-exercise-create-storage-blob.html"},
-  {"id":"ol4","title":"Estimate workload costs with the Pricing calculator (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/06-exercise-estimate-workload-costs-use-pricing-calculator.html"},
-  {"id":"ol5","title":"Configure resource locks (15 min)","link":"https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/08-exercise-configure-resource-lock.html"}
-]'::jsonb
-WHERE title = 'AZ-900: Official Microsoft Labs';
-
--- The eight step-by-step guided projects from Microsoft Learn (Part 4 of the
--- Introduction to Cloud Infrastructure series). Optional - Microsoft says
--- "complete as many or as few as you like" - but they are the closest thing
--- to real portfolio-style practice for the exam topics.
-INSERT INTO public.resources (category, title, format, description, link, created_by)
-SELECT
-  'Cert Prep',
-  'AZ-900: Microsoft Guided Projects',
-  'Labs',
-  'Eight end-to-end guided projects from Microsoft Learn - host a static site, apply tags and locks, set up least-privilege access, share files securely, add cost guardrails, monitor service health, and more. Pick as many as you like; they need an Azure subscription (the free 30-day trial works).',
-  'https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/',
-  NULL
-WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-900: Microsoft Guided Projects');
-
-UPDATE public.resources
-SET steps = '[
-  {"id":"gp1","title":"Deploy a static website with Azure Blob Storage","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-deploy-static-website-blob-storage/"},
-  {"id":"gp2","title":"Organize and protect resources with tags and locks","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-organize-resources-tags-locks/"},
-  {"id":"gp3","title":"Build a simple website endpoint with Azure Functions","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-build-basic-website-endpoint-with-functions/"},
-  {"id":"gp4","title":"Set up new employee access (Entra ID and RBAC)","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-new-employee-access/"},
-  {"id":"gp5","title":"Share files securely (SAS tokens and access policies)","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-share-files-securely/"},
-  {"id":"gp6","title":"Set up cost guardrails in Azure","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-cost-guardrails/"},
-  {"id":"gp7","title":"Monitor Azure with Service Health and Activity Log alerts","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-monitor-service-health-activity-alerts/"},
-  {"id":"gp8","title":"Manage Azure resources with Cloud Shell and the Azure CLI","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-manage-resources-cloud-shell-cli/"}
-]'::jsonb
-WHERE title = 'AZ-900: Microsoft Guided Projects';
-
--- The Hands-on card's own text should be upfront about the same thing.
-UPDATE public.resources
-SET description = 'Reading about Azure only goes so far - build a few small things in your own Azure account so the exam''s services and terms mean something. Microsoft has retired its free Learn sandboxes, so use the free 30-day trial. Set a budget alert first so there are no surprise charges, and delete what you create when you are done.'
-WHERE title = 'AZ-900: Hands-on Azure Practice';
+-- Anyone who now has every step ticked is complete.
+INSERT INTO public.resource_progress (member_email, resource_id, step_id)
+SELECT rp.member_email, r.id, ''
+FROM public.resources r
+JOIN public.resource_progress rp ON rp.resource_id = r.id AND rp.step_id <> ''
+WHERE r.title = 'AZ-900 Study and Practice Guide'
+GROUP BY rp.member_email, r.id, r.steps
+HAVING count(*) = jsonb_array_length(r.steps)
+ON CONFLICT DO NOTHING;
 
 -- The existing YES x Microsoft card (above) already describes the voucher
 -- route in its text; give it the same steps so a member can track it.
@@ -732,3 +681,39 @@ SET steps = '[
   {"id":"yes5","title":"Book and sit your exam","link":null}
 ]'::jsonb
 WHERE title = 'YES x Microsoft AI Skills Initiative';
+
+-- =========================================================================
+-- PYTHON LEARNING GUIDES (2026-10-15) - a new 'Programming' category. Three
+-- free beginner routes: Exercism's Python track (146 exercises in 17
+-- concepts, with optional mentoring), the W3Schools Python tutorial (with an
+-- in-browser editor, exercises and a quiz; no account needed) and Cisco
+-- NetAcad's free Python Essentials 1 for people with no programming
+-- experience. Counts are from each site's own page on the date above.
+-- =========================================================================
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT 'Programming', 'Python on Exercism', 'Practice',
+  'Free, hands-on Python practice: 146 exercises grouped into 17 concepts, with automatic feedback on your code and optional personal mentoring. Learn a concept, then solve the exercises in your browser or on your own machine.',
+  'https://exercism.org/tracks/python', NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'Python on Exercism');
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT 'Programming', 'W3Schools Python Tutorial', 'Tutorial',
+  'A free, beginner-friendly Python tutorial from syntax and variables through functions, classes, file handling and modules. Edit and run code in the Try it Yourself editor, and check yourself with the chapter exercises and the quiz. No account needed to study.',
+  'https://www.w3schools.com/python/', NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'W3Schools Python Tutorial');
+
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT 'Programming', 'Cisco NetAcad: Python Essentials 1', 'Course',
+  'A free Cisco Networking Academy course for people with no programming experience. It covers basic syntax, data types, control flow and collections such as lists, tuples and dictionaries, taught in short lessons you can take at your own pace.',
+  'https://www.netacad.com/courses/python-essentials-1', NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'Cisco NetAcad: Python Essentials 1');
+
+
+-- DevSec Blueprint (2026-10-15): DevSecOps and cloud security training
+-- platform. A free account opens some expert-written walkthroughs; the full
+-- platform is a paid membership (the site lists no prices).
+INSERT INTO public.resources (category, title, format, description, link, created_by)
+SELECT 'Cyber Platforms', 'DevSec Blueprint', 'Platform',
+  'A DevSecOps and cloud security training platform with a structured path (learn, build, apply, grow), guided projects and walkthroughs on real infrastructure, and a community. A free account opens some expert-written walkthroughs; full access is a paid membership.',
+  'https://devsecblueprint.com/', NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'DevSec Blueprint');

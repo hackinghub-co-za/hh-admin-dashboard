@@ -15,6 +15,7 @@ import CySAPlusGuideModal from '../../components/CySAPlusGuideModal';
 import TerraformAssociateGuideModal from '../../components/TerraformAssociateGuideModal';
 import SC200GuideModal from '../../components/SC200GuideModal';
 import AZ900GuideModal from '../../components/AZ900GuideModal';
+import MemberHoverCard from '../../components/MemberHoverCard';
 import PodcastsGuideModal from '../../components/PodcastsGuideModal';
 import SoftSkillsGuideModal from '../../components/SoftSkillsGuideModal';
 import InterviewPlaybookGuideModal from '../../components/InterviewPlaybookGuideModal';
@@ -706,27 +707,43 @@ const MOCK_EXAM_READINESS = [
 ];
 
 const MOCK_RESOURCES = [
-  { id: 15, category: 'Cert Prep', title: 'AZ-900: Microsoft Guided Projects', format: 'Labs', description: 'Eight end-to-end guided projects from Microsoft Learn. They need an Azure subscription (the free 30-day trial works).', link: 'https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/', steps: [
-    { id: 'gp1', title: 'Deploy a static website with Azure Blob Storage', link: 'https://learn.microsoft.com/en-us/training/modules/guided-project-deploy-static-website-blob-storage/' },
-    { id: 'gp2', title: 'Organize and protect resources with tags and locks', link: 'https://learn.microsoft.com/en-us/training/modules/guided-project-organize-resources-tags-locks/' },
+  { id: 13, category: 'Cert Prep', title: 'AZ-900 Study and Practice Guide', format: 'Guide', description: 'One place to study for AZ-900 and practise it: the four Microsoft Learn paths, hands-on work in your own free Azure account, Microsoft\'s five official labs and eight guided projects, and the exam-prep checklist. Around R700 to sit the exam, and 1 to 4 weeks to study.', link: '', steps: [
+    { id: "lp1", group: "Learn: Microsoft Learn paths", title: "Part 1: Describe cloud concepts (25-30% of the exam)", link: "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/" },
+    { id: "lp2", group: "Learn: Microsoft Learn paths", title: "Part 2: Describe Azure architecture and services (35-40%)", link: "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/" },
+    { id: "lp3", group: "Learn: Microsoft Learn paths", title: "Part 3: Describe Azure management and governance (30-35%)", link: "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/" },
+    { id: "lp4", group: "Learn: Microsoft Learn paths", title: "Part 4: Apply Azure skills in guided projects (hands-on)", link: "https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/" },
+    { id: "hp1", group: "Practice: your own Azure account", title: "Create a free Azure account", link: "https://azure.microsoft.com/pricing/purchase-options/azure-account" },
+    { id: "hp2", group: "Practice: your own Azure account", title: "Set a budget alert in Cost Management so you never overspend", link: "" },
+    { id: "hp3", group: "Practice: your own Azure account", title: "Create a resource group and add a tag to it", link: "" },
+    { id: "hp4", group: "Practice: your own Azure account", title: "Create a storage account and upload a file", link: "" },
+    { id: "hp5", group: "Practice: your own Azure account", title: "Deploy a small virtual machine, then look at its networking", link: "" },
+    { id: "hp6", group: "Practice: your own Azure account", title: "Open Azure Monitor and Advisor and see what they report", link: "" },
+    { id: "hp7", group: "Practice: your own Azure account", title: "Delete the resource group to clean everything up", link: "" },
+    { id: "ol1", group: "Practice: Microsoft official labs", title: "Create an Azure resource (15 min) - watch a resource group fill up", link: "https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/02-exercise-create-azure-resource.html" },
+    { id: "ol2", group: "Practice: Microsoft official labs", title: "Create a virtual machine and configure it as a web host (20 min)", link: "https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/03-exercise-create-azure-virtual-machine.html" },
+    { id: "ol3", group: "Practice: Microsoft official labs", title: "Create a storage blob and share a file (15 min)", link: "https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/05-exercise-create-storage-blob.html" },
+    { id: "ol4", group: "Practice: Microsoft official labs", title: "Estimate workload costs with the Pricing calculator (15 min)", link: "https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/06-exercise-estimate-workload-costs-use-pricing-calculator.html" },
+    { id: "ol5", group: "Practice: Microsoft official labs", title: "Configure resource locks (15 min)", link: "https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/08-exercise-configure-resource-lock.html" },
+    { id: "gp1", group: "Practice: guided projects", title: "Deploy a static website with Azure Blob Storage", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-deploy-static-website-blob-storage/" },
+    { id: "gp2", group: "Practice: guided projects", title: "Organize and protect resources with tags and locks", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-organize-resources-tags-locks/" },
+    { id: "gp3", group: "Practice: guided projects", title: "Build a simple website endpoint with Azure Functions", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-build-basic-website-endpoint-with-functions/" },
+    { id: "gp4", group: "Practice: guided projects", title: "Set up new employee access (Entra ID and RBAC)", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-new-employee-access/" },
+    { id: "gp5", group: "Practice: guided projects", title: "Share files securely (SAS tokens and access policies)", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-share-files-securely/" },
+    { id: "gp6", group: "Practice: guided projects", title: "Set up cost guardrails in Azure", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-cost-guardrails/" },
+    { id: "gp7", group: "Practice: guided projects", title: "Monitor Azure with Service Health and Activity Log alerts", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-monitor-service-health-activity-alerts/" },
+    { id: "gp8", group: "Practice: guided projects", title: "Manage Azure resources with Cloud Shell and the Azure CLI", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-manage-resources-cloud-shell-cli/" },
+    { id: "ep1", group: "Get exam-ready", title: "Read the official study guide and its skills-measured outline", link: "https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900" },
+    { id: "ep2", group: "Get exam-ready", title: "Watch the Exam Readiness Zone videos", link: "https://learn.microsoft.com/en-us/shows/exam-readiness-zone/" },
+    { id: "ep7", group: "Get exam-ready", title: "Watch the recommended AZ-900 video playlist", link: "https://www.youtube.com/playlist?list=PLZCHR_fccEf8zN6UB8JOK2Y6l5DVqAcyc" },
+    { id: "ep3", group: "Get exam-ready", title: "Take the free Practice Assessment and note your weak domains", link: "https://learn.microsoft.com/en-us/credentials/certifications/exams/az-900/practice/assessment?assessment-type=practice&assessmentId=23" },
+    { id: "ep4", group: "Get exam-ready", title: "Revisit the learning-path modules for those weak domains", link: "" },
+    { id: "ep5", group: "Get exam-ready", title: "Retake the Practice Assessment until you are comfortably above 70%", link: "" },
+    { id: "ep6", group: "Get exam-ready", title: "Try the exam sandbox so the exam interface is familiar", link: "https://aka.ms/examdemo" },
   ] },
-  { id: 14, category: 'Cert Prep', title: 'AZ-900: Official Microsoft Labs', format: 'Labs', description: 'The five lab exercises Microsoft publishes for AZ-900 - 15 to 20 minutes each. They need an Azure subscription (the free 30-day trial works).', link: 'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/', steps: [
-    { id: 'ol1', title: 'Create an Azure resource (15 min)', link: 'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/02-exercise-create-azure-resource.html' },
-    { id: 'ol4', title: 'Estimate workload costs with the Pricing calculator (15 min)', link: 'https://microsoftlearning.github.io/AZ-900-Microsoft-Azure-Fundamentals/Instructions/Labs/06-exercise-estimate-workload-costs-use-pricing-calculator.html' },
-  ] },
-  { id: 13, category: 'Cert Prep', title: 'AZ-900 Study Guide', format: 'Guide', description: 'What it costs (around R700), how long to study (1 to 4 weeks), and the resources members actually use - official certification page, a video playlist, free practice questions, and Microsoft Learn.', link: '', steps: [] },
-  { id: 12, category: 'Cert Prep', title: 'AZ-900: Exam Prep Checklist', format: 'Guide', description: "The exam-side of the plan: read what is actually measured, watch Microsoft's exam-readiness videos, then test yourself with the free Practice Assessment and the exam sandbox before you book.", link: 'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900', steps: [
-    { id: 'ep1', title: 'Read the official study guide and its skills-measured outline', link: 'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900' },
-    { id: 'ep2', title: 'Watch the Exam Readiness Zone videos', link: 'https://learn.microsoft.com/en-us/shows/exam-readiness-zone/' },
-    { id: 'ep3', title: 'Take the free Practice Assessment and note your weak domains', link: 'https://learn.microsoft.com/en-us/credentials/certifications/exams/az-900/practice/assessment?assessment-type=practice&assessmentId=23' },
-    { id: 'ep6', title: 'Try the exam sandbox so the exam interface is familiar', link: 'https://aka.ms/examdemo' },
-  ] },
-  { id: 11, category: 'Cert Prep', title: 'AZ-900: Microsoft Learn Learning Paths', format: 'Course', description: "Microsoft's own free, self-paced training for Azure Fundamentals - four short paths that cover the three exam domains and finish with hands-on guided projects.", link: 'https://learn.microsoft.com/en-us/credentials/certifications/azure-fundamentals/', steps: [
-    { id: 'lp1', title: 'Part 1: Describe cloud concepts (25-30% of the exam)', link: 'https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/' },
-    { id: 'lp2', title: 'Part 2: Describe Azure architecture and services (35-40%)', link: 'https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/' },
-    { id: 'lp3', title: 'Part 3: Describe Azure management and governance (30-35%)', link: 'https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/' },
-    { id: 'lp4', title: 'Part 4: Apply Azure skills in guided projects (hands-on)', link: 'https://learn.microsoft.com/en-us/training/paths/introduction-cloud-infrastructure-apply-azure-skills-guided-projects/' },
-  ] },
+  { id: 31, category: 'Programming', title: 'Python on Exercism', format: 'Practice', description: 'Free, hands-on Python practice: 146 exercises grouped into 17 concepts, with automatic feedback on your code and optional personal mentoring.', link: 'https://exercism.org/tracks/python' },
+  { id: 32, category: 'Programming', title: 'W3Schools Python Tutorial', format: 'Tutorial', description: 'A free, beginner-friendly Python tutorial with an in-browser editor, chapter exercises and a quiz. No account needed to study.', link: 'https://www.w3schools.com/python/' },
+  { id: 33, category: 'Programming', title: 'Cisco NetAcad: Python Essentials 1', format: 'Course', description: 'A free Cisco Networking Academy course for people with no programming experience: syntax, data types, control flow and collections.', link: 'https://www.netacad.com/courses/python-essentials-1' },
+  { id: 34, category: 'Cyber Platforms', title: 'DevSec Blueprint', format: 'Platform', description: 'A DevSecOps and cloud security training platform with a structured path (learn, build, apply, grow), guided projects and walkthroughs on real infrastructure. A free account opens some walkthroughs; full access is a paid membership.', link: 'https://devsecblueprint.com/' },
   { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
   { id: 3, category: 'LinkedIn Strategy', title: 'The Hacking Hub LinkedIn Playbook', format: 'Guide', description: 'Photo, banner, headline, About section, posting cadence, and what to avoid - the full checklist for a LinkedIn profile that actually gets you noticed.', link: '' },
@@ -748,11 +765,10 @@ const MOCK_ROADMAP_TRACK = 'Offensive Security';
 const MOCK_ROADMAP_LAST_TOUCHED = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
 const MOCK_ROADMAP_ITEMS = [
   { id: 1, phase: 'Core Foundations', category: 'Certifications', title: 'Immersive Labs', detail: '9/20 collections', dueDate: '2026-08-31', completed: true, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 2, phase: 'Core Foundations', category: 'Certifications', title: 'CISCO Junior Cyber Pathway', detail: '1/6 courses', dueDate: null, completed: true, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 3, phase: 'Core Foundations', category: 'Certifications', title: 'CompTIA Security+', detail: '', dueDate: '2026-08-28', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 13, phase: 'Core Foundations', category: 'Certifications', title: 'AZ-900', detail: '', completed: true, sortOrder: 35, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
   { id: 14, phase: 'Core Foundations', category: 'Certifications', title: 'AI-901', detail: '', completed: true, sortOrder: 36, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  // Real members always carry all eight catalog items (auto-assigned), so the
+  // Real members always carry all seven catalog items (auto-assigned), so the
   // demo does too - these three are still to do, which gives the pathway's
   // lanes something to schedule under Mock Member.
   { id: 31, phase: 'Core Foundations', category: 'Certifications', title: 'TryHackMe Pre-Security', detail: '', completed: false, sortOrder: 37, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
@@ -780,7 +796,6 @@ const MOCK_ROADMAP_ITEMS = [
 // (completed ⇒ all subtasks done); CompTIA Security+ (an incomplete mock
 // item) is left partway so the demo shows a live, in-progress checklist.
 const MOCK_ROADMAP_SUBTASKS = {
-  'CISCO Junior Cyber Pathway': new Set(['cisco-1', 'cisco-2', 'cisco-3', 'cisco-4', 'cisco-5', 'cisco-6']),
   'Immersive Labs': new Set(['immersive-defsecops', 'immersive-fundamentals', 'immersive-humanconnection']),
   'AZ-900': new Set(['az900-1', 'az900-2', 'az900-3']),
   'AI-901': new Set(['ai900-1', 'ai900-2', 'ai900-3', 'ai900-4', 'ai900-5']),
@@ -3706,13 +3721,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'CompTIA CySA+ Study Guide': () => setShowCySAPlusGuide(true),
     'Terraform Associate Study Guide': () => setShowTerraformGuide(true),
     'SC-200 Study Guide': () => setShowSC200Guide(true),
-    'AZ-900 Study Guide': () => setShowAZ900Guide(true),
+    'AZ-900 Study and Practice Guide': () => setShowAZ900Guide(true),
     'Recommended Podcasts': () => setShowPodcastsGuide(true),
     'KodeKloud': () => setShowKodeKloudGuide(true),
     'Soft Skills Playlist': () => setShowSoftSkillsGuide(true),
     'HH Interview Playbook': () => setShowInterviewPlaybookGuide(true),
   };
-  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Cyber Platforms', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Soft Skills'];
+  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Cyber Platforms', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Soft Skills', 'Programming'];
   const RESOURCE_ICON = {
     'Cert Prep': FileText,
     'Cyber Platforms': Target,
@@ -3723,6 +3738,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'CV Templates': NotebookPen,
     'LinkedIn Strategy': IdCard,
     'Soft Skills': Handshake,
+    'Programming': Code2,
   };
 
   // Real Supabase data for a real session (RLS scopes reads to signed-in,
@@ -4822,7 +4838,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         })),
       })).filter((g) => g.categories.length > 0);
 
-      // How many of the 8 standard Core Foundations certs are done, against
+      // How many of the 7 standard Core Foundations certs are done, against
       // the 4-of-8 minimum every assigned roadmap uses.
       const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
       const coreFoundationsDone = roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title) && i.completed).length;
@@ -7585,7 +7601,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       value={newResourceForm.stepsText}
                       onChange={(e) => setNewResourceForm({ ...newResourceForm, stepsText: e.target.value })}
                     />
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Members can tick each step off as they go (up to 20).</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Members can tick each step off as they go (up to 40).</p>
                   </div>
 
                   {addResourceError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addResourceError}</p>}
@@ -7815,8 +7831,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             // just sinking to the bottom of the same countdown grid -
             // certCalendar already arrives sorted soonest-first from
             // fetchCertCalendar, so both groups keep that date order.
-            const upcomingCerts = certCalendar.filter((c) => c.result !== 'Passed');
+            const upcomingCerts = certCalendar.filter((c) => c.result !== 'Passed' && c.result !== 'Failed');
             const passedCerts = certCalendar.filter((c) => c.result === 'Passed');
+            const failedCerts = certCalendar.filter((c) => c.result === 'Failed');
+            // A member's headshot and hover profile come from the same public
+            // directory card the Members Directory shows.
+            const certProfile = (c) => directory.find((m) => (m.email || '').toLowerCase() === (c.memberEmail || '').toLowerCase());
             return (
           <>
           <div className="glass-card" style={{ marginBottom: '32px' }}>
@@ -7902,7 +7922,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           </span>
                         </div>
                       </div>
-                      <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                      <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={certProfile(c)} nameStyle={{ fontSize: '1.05rem' }} /></div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <VendorLogo title={c.cert} size={18} /> {c.cert} <Info size={14} color="var(--accent-cyan)" />
                       </div>
@@ -7978,7 +7998,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           <CheckCircle2 size={12} /> Passed
                         </span>
                       </div>
-                      <h4 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '4px' }}>{c.member}</h4>
+                      <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={certProfile(c)} nameStyle={{ fontSize: '1.05rem' }} /></div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <VendorLogo title={c.cert} size={18} /> {c.cert} <Info size={14} color="var(--accent-cyan)" />
                       </div>
@@ -7986,6 +8006,51 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Passed:</span>
                       <strong style={{ color: 'var(--success)' }}>{formatDate(c.date)}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="glass-card" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3>Certifications Failed</h3>
+              <span className="badge badge-danger">{failedCerts.length} Failed</span>
+            </div>
+            {failedCerts.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No failed exams. If one is marked Failed it moves here, so you can retake it.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                {failedCerts.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => setSelectedCert(c)}
+                    style={{
+                      padding: '20px',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'rgba(var(--danger-rgb), 0.04)',
+                      border: '1px solid var(--danger)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    className="hover-glow"
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
+                        <span className="badge badge-danger">Failed</span>
+                      </div>
+                      <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={certProfile(c)} nameStyle={{ fontSize: '1.05rem' }} /></div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <VendorLogo title={c.cert} size={18} /> {c.cert} <Info size={14} color="var(--accent-cyan)" />
+                      </div>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Exam date:</span>
+                      <strong style={{ color: 'var(--danger)' }}>{formatDate(c.date)}</strong>
                     </div>
                   </div>
                 ))}

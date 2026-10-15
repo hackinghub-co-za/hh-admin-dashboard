@@ -34,8 +34,8 @@ const SUBTASK_WEIGHTS = {
 // A checkpoint 1-on-1 the member must book once they reach this many Core Foundations items.
 export const CHECKPOINTS = [
   { at: 2, title: 'Checkpoint 1-on-1', body: 'Two items done. Look back at what you enjoyed and plan the next stretch with your coach.' },
-  { at: CORE_FOUNDATIONS_MIN_REQUIRED, title: 'Minimum met: choose your track', body: 'Four items done. Book a 1-on-1 to pick your Specialization track together.' },
-  { at: SPECIALIZATION_UNLOCK_MIN, title: 'Specialization unlock', body: 'Five items done. Book a 1-on-1 so staff can approve your Foundations and open Specialization.' },
+  // The minimum and the Specialization unlock are both 4 now, so they share one checkpoint.
+  { at: SPECIALIZATION_UNLOCK_MIN, title: 'Minimum met: unlock Specialization', body: 'Four items done. Book a 1-on-1 to pick your Specialization track and have staff approve your Foundations.' },
 ];
 
 function coreAdvice(plan) {
@@ -57,7 +57,7 @@ function coreAdvice(plan) {
   return out;
 }
 
-/** Core Foundations: five items to the unlock, certificates placed at weeks 3 and 9 by default. */
+/** Core Foundations: four items to the unlock, certificates placed at weeks 3 and 9 by default. */
 export const CORE_CONFIG = {
   key: 'core',
   labs: LAB_HOURS,
