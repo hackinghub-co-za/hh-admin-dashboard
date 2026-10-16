@@ -1,3 +1,5 @@
+import { AWS_ROADMAP_LINKS, AWS_ROADMAP_DESCRIPTIONS, AWS_ROADMAP_INFO, AWS_FOUNDATION_SUBTASKS, AWS_FOUNDATION_PRICING } from './awsEquivalents';
+
 // Kept in the same vocabulary as ROADMAP_TRACKS below so a member's
 // self-described specialty badge and their coach-assigned roadmap track
 // always mean the same thing - these used to diverge (Red Team/Blue Team
@@ -2030,3 +2032,12 @@ export function groupMembersByDomain(members, getEmail, getTrack) {
 
   return { team, tracks, other };
 }
+
+// AWS equivalents of the Azure certs (awsEquivalents.js), merged into the
+// same title-keyed maps so a roadmap item shown as its AWS twin finds its
+// link, tagline, info, subtasks and price exactly like any other title.
+Object.assign(ROADMAP_ITEM_LINKS, AWS_ROADMAP_LINKS);
+Object.assign(ROADMAP_ITEM_DESCRIPTIONS, AWS_ROADMAP_DESCRIPTIONS);
+Object.assign(ROADMAP_ITEM_INFO, AWS_ROADMAP_INFO);
+Object.assign(CORE_FOUNDATION_SUBTASKS, AWS_FOUNDATION_SUBTASKS);
+Object.assign(CORE_FOUNDATION_PRICING, AWS_FOUNDATION_PRICING);

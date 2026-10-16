@@ -13,6 +13,8 @@ function mapBroadcast(row) {
     emoji: row.emoji || '',
     title: row.title,
     body: row.body,
+    // Optional "Book now" style link (044_community_content.sql).
+    linkUrl: row.link_url || '',
     sortOrder: row.sort_order || 0,
     active: row.active,
   };
@@ -48,20 +50,20 @@ export async function fetchAllCommunityBroadcasts() {
   return (data || []).map(mapBroadcast);
 }
 
-export async function addCommunityBroadcast({ emoji, title, body, sortOrder, createdBy }) {
+export async function addCommunityBroadcast({ emoji, title, body, linkUrl, sortOrder, createdBy }) {
   const { data, error } = await supabase
     .from('community_broadcasts')
-    .insert({ emoji: emoji || null, title, body, sort_order: sortOrder || 0, created_by: createdBy ? createdBy.toLowerCase() : null })
+    .insert({ emoji: emoji || null, title, body, link_url: linkUrl || null, sort_order: sortOrder || 0, created_by: createdBy ? createdBy.toLowerCase() : null })
     .select()
     .single();
   if (error) throw error;
   return mapBroadcast(data);
 }
 
-export async function updateCommunityBroadcast(id, { emoji, title, body, sortOrder, active }) {
+export async function updateCommunityBroadcast(id, { emoji, title, body, linkUrl, sortOrder, active }) {
   const { error } = await supabase
     .from('community_broadcasts')
-    .update({ emoji: emoji || null, title, body, sort_order: sortOrder || 0, active })
+    .update({ emoji: emoji || null, title, body, link_url: linkUrl || null, sort_order: sortOrder || 0, active })
     .eq('id', id);
   if (error) throw error;
 }

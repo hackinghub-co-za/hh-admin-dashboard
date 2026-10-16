@@ -706,3 +706,119 @@ WHERE mp.roadmap_track = 'SOC'
     SELECT 1 FROM public.roadmap_items ri3
     WHERE ri3.member_email = mp.email AND ri3.title = 'CISCO Cybersecurity Defense Analyst'
   );
+
+-- =========================================================================
+-- AZURE / AWS SWITCH (2026-10-16)
+-- =========================================================================
+-- Every Microsoft cloud cert on a roadmap has an AWS equivalent
+-- (src/lib/awsEquivalents.js). A member picks Azure or AWS and the roadmap
+-- shows each cert as its twin. Nothing is ever renamed here: roadmap_items
+-- keeps its canonical Azure title ("AZ-900") so every title-based rule in
+-- this file and 102_core_pathway.sql keeps working. Instead each row is
+-- stamped with the platform it is being worked on under, and the app shows
+-- an 'AWS' row as its AWS equivalent (src/lib/cloudPlatform.js).
+--
+-- Switching only restamps rows the member has NOT finished, so an AZ-900
+-- they really passed is never relabelled as an AWS cert they never sat.
+ALTER TABLE public.member_profiles ADD COLUMN IF NOT EXISTS cloud_platform TEXT NOT NULL DEFAULT 'Azure';
+ALTER TABLE public.member_profiles DROP CONSTRAINT IF EXISTS member_profiles_cloud_platform_check;
+ALTER TABLE public.member_profiles ADD CONSTRAINT member_profiles_cloud_platform_check CHECK (cloud_platform IN ('Azure', 'AWS'));
+
+ALTER TABLE public.roadmap_items ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'Azure';
+ALTER TABLE public.roadmap_items DROP CONSTRAINT IF EXISTS roadmap_items_platform_check;
+ALTER TABLE public.roadmap_items ADD CONSTRAINT roadmap_items_platform_check CHECK (platform IN ('Azure', 'AWS'));
+
+-- The Azure titles that have an AWS equivalent (keep in step with
+-- AZURE_TO_AWS in src/lib/awsEquivalents.js).
+CREATE OR REPLACE FUNCTION public._cloud_variant_titles()
+RETURNS TEXT[]
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT ARRAY['AZ-900', 'AI-901', 'SC-900', 'AZ-104', 'SC-200', 'SC-500', 'SC-100', 'SC-300',
+               'AZ-305', 'AZ-400', 'AI-103', 'AZ-700'];
+$$;
+
+-- A new row for a member on AWS starts out stamped 'AWS', whichever path
+-- added it (the member's own Core Foundations auto-assign, an admin
+-- quick-fill, or a manual add).
+CREATE OR REPLACE FUNCTION public._stamp_roadmap_item_platform()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_platform TEXT;
+BEGIN
+  IF NEW.title = ANY (public._cloud_variant_titles()) THEN
+    SELECT cloud_platform INTO v_platform FROM public.member_profiles WHERE email = NEW.member_email;
+    NEW.platform := COALESCE(v_platform, 'Azure');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS roadmap_items_stamp_platform ON public.roadmap_items;
+CREATE TRIGGER roadmap_items_stamp_platform
+  BEFORE INSERT ON public.roadmap_items
+  FOR EACH ROW EXECUTE FUNCTION public._stamp_roadmap_item_platform();
+
+CREATE OR REPLACE FUNCTION public._apply_cloud_platform(p_email TEXT, p_platform TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF p_platform NOT IN ('Azure', 'AWS') THEN
+    RAISE EXCEPTION 'Platform must be Azure or AWS.';
+  END IF;
+  INSERT INTO public.member_profiles (email, cloud_platform)
+  VALUES (lower(p_email), p_platform)
+  ON CONFLICT (email) DO UPDATE SET cloud_platform = EXCLUDED.cloud_platform;
+  UPDATE public.roadmap_items
+  SET platform = p_platform
+  WHERE member_email = lower(p_email)
+    AND NOT completed
+    AND title = ANY (public._cloud_variant_titles());
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public._apply_cloud_platform(TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_my_cloud_platform()
+RETURNS TEXT
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+  SELECT COALESCE((SELECT mp.cloud_platform FROM public.member_profiles mp WHERE mp.email = lower(auth.jwt() ->> 'email')), 'Azure');
+$$;
+GRANT EXECUTE ON FUNCTION public.get_my_cloud_platform() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_my_cloud_platform() FROM PUBLIC, anon;
+
+CREATE OR REPLACE FUNCTION public.set_my_cloud_platform(p_platform TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+BEGIN
+  IF v_email IS NULL OR NOT public.is_member_allowed(v_email) THEN
+    RAISE EXCEPTION 'Not an approved member.';
+  END IF;
+  PERFORM public._apply_cloud_platform(v_email, p_platform);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.set_my_cloud_platform(TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_my_cloud_platform(TEXT) FROM PUBLIC, anon;
+
+-- Admin: switch a member's platform for them (for example on a coaching call).
+CREATE OR REPLACE FUNCTION public.set_member_cloud_platform(p_email TEXT, p_platform TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can change a member''s cloud platform.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.member_profiles WHERE email = lower(p_email)) THEN
+    RAISE EXCEPTION 'No member profile for that email.';
+  END IF;
+  PERFORM public._apply_cloud_platform(p_email, p_platform);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.set_member_cloud_platform(TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_member_cloud_platform(TEXT, TEXT) FROM PUBLIC, anon;

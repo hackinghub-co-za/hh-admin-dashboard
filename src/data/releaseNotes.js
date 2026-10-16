@@ -6,6 +6,32 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.16',
+    date: '2026-10-16',
+    headline: 'Choose Azure or AWS, and book your Career Audit.',
+    intro: "Your roadmap can follow the cloud you want to learn, and Career Audit sessions open on 26 October.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '☁️',
+            title: 'Pick Azure or AWS',
+            body: "Every Azure cert on your roadmap now has an AWS equivalent. Press AWS at the top of My Roadmap and unfinished certs switch over. Certs you have already passed stay as they are.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '🧭',
+            title: 'Career Audit, 26 to 30 October',
+            body: "A one-hour session with Siya to plan your cyber career: goals, certifications, salary and the next three years. Use the Book now link in the Community Broadcast on your Dashboard.",
+            where: 'Dashboard',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.15',
     date: '2026-10-15',
     headline: 'One AZ-900 guide, a Python guide, and a clearer Cert Calendar.',

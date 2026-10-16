@@ -9,6 +9,7 @@ import {
   CORE_FOUNDATIONS_CATALOG,
   CORE_FOUNDATION_PRICING,
 } from './memberOptions';
+import { displayTitleFor } from './cloudPlatform';
 
 describe('matchExamReadinessCert', () => {
   it('matches each supported cert from a plain name', () => {
@@ -123,13 +124,14 @@ describe('CORE_FOUNDATION_PRICING', () => {
     });
   });
 
-  it('tags exactly Immersive Labs as free', () => {
+  it('tags exactly Immersive Labs and the free AWS Skill Builder course as free', () => {
     const free = Object.entries(CORE_FOUNDATION_PRICING).filter(([, v]) => v.free).map(([k]) => k).sort();
-    expect(free).toEqual(['Immersive Labs']);
+    expect(free).toEqual(['AWS Security Fundamentals', 'Immersive Labs']);
   });
 
-  it('only prices real catalog items', () => {
-    const titles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
+  it('only prices real catalog items or their AWS equivalents', () => {
+    const titles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => displayTitleFor(c.title, 'Azure')));
+    CORE_FOUNDATIONS_CATALOG.forEach((c) => titles.add(displayTitleFor(c.title, 'AWS')));
     Object.keys(CORE_FOUNDATION_PRICING).forEach((k) => expect(titles.has(k)).toBe(true));
   });
 });

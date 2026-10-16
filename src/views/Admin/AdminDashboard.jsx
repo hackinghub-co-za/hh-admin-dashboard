@@ -59,6 +59,8 @@ import { fetchJobBoard, addJobListing, deleteJobListing, notifyJobRecommendation
 import { fetchAllMerchOrders, updateMerchOrderStatus } from '../../lib/merchStoreData';
 import { fetchAllHubScoreClaims, updateHubScoreClaimStatus, fetchAllHubScoreReviewRequests, updateHubScoreReviewRequestStatus } from '../../lib/hubScoreData';
 import { HUB_SCORE_TIERS } from '../../lib/hubScoreTiers';
+import { setMemberCloudPlatform } from '../../lib/roadmapData';
+import { CLOUD_PLATFORMS, displayTitleFor, isCloudVariantTitle, switchItemsPlatform } from '../../lib/cloudPlatform';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
 import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
@@ -1869,7 +1871,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   ] : []);
   const [loadingBroadcasts, setLoadingBroadcasts] = useState(!isMockSession);
   const [broadcastsError, setBroadcastsError] = useState(null);
-  const [newBroadcast, setNewBroadcast] = useState({ emoji: '', title: '', body: '', sortOrder: '' });
+  const [newBroadcast, setNewBroadcast] = useState({ emoji: '', title: '', body: '', linkUrl: '', sortOrder: '' });
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1884,7 +1886,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const handleAddBroadcast = async (e) => {
     e.preventDefault();
     if (!newBroadcast.title.trim() || !newBroadcast.body.trim()) return;
-    const payload = { emoji: newBroadcast.emoji.trim(), title: newBroadcast.title.trim(), body: newBroadcast.body.trim(), sortOrder: Number(newBroadcast.sortOrder) || 0 };
+    const payload = { emoji: newBroadcast.emoji.trim(), title: newBroadcast.title.trim(), body: newBroadcast.body.trim(), linkUrl: newBroadcast.linkUrl.trim(), sortOrder: Number(newBroadcast.sortOrder) || 0 };
     if (isMockSession) {
       setBroadcasts([...broadcasts, { id: Date.now(), ...payload, active: true }].sort((a, b) => a.sortOrder - b.sortOrder));
     } else {
@@ -1896,19 +1898,19 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         return;
       }
     }
-    setNewBroadcast({ emoji: '', title: '', body: '', sortOrder: '' });
+    setNewBroadcast({ emoji: '', title: '', body: '', linkUrl: '', sortOrder: '' });
   };
 
   const [editingBroadcastId, setEditingBroadcastId] = useState(null);
-  const [editBroadcastForm, setEditBroadcastForm] = useState({ emoji: '', title: '', body: '', sortOrder: '', active: true });
+  const [editBroadcastForm, setEditBroadcastForm] = useState({ emoji: '', title: '', body: '', linkUrl: '', sortOrder: '', active: true });
 
   const startEditBroadcast = (b) => {
     setEditingBroadcastId(b.id);
-    setEditBroadcastForm({ emoji: b.emoji, title: b.title, body: b.body, sortOrder: String(b.sortOrder), active: b.active });
+    setEditBroadcastForm({ emoji: b.emoji, title: b.title, body: b.body, linkUrl: b.linkUrl || '', sortOrder: String(b.sortOrder), active: b.active });
   };
 
   const handleSaveBroadcastEdit = async (broadcast) => {
-    const payload = { emoji: editBroadcastForm.emoji.trim(), title: editBroadcastForm.title.trim(), body: editBroadcastForm.body.trim(), sortOrder: Number(editBroadcastForm.sortOrder) || 0, active: editBroadcastForm.active };
+    const payload = { emoji: editBroadcastForm.emoji.trim(), title: editBroadcastForm.title.trim(), body: editBroadcastForm.body.trim(), linkUrl: editBroadcastForm.linkUrl.trim(), sortOrder: Number(editBroadcastForm.sortOrder) || 0, active: editBroadcastForm.active };
     if (isMockSession) {
       setBroadcasts(broadcasts.map((b) => (b.id === broadcast.id ? { ...b, ...payload } : b)));
     } else {
@@ -4724,6 +4726,24 @@ Pick new people to present next Sunday`;
         handleSaveMemberProfile(email, { ...(rm?.profile || {}), roadmapTrack: value });
       };
 
+      // Azure / AWS (028_roadmap.sql): switches the member's cloud and restamps
+      // their unfinished cloud certs, same as the member's own switch.
+      const handleCloudPlatformChange = async (email, platform) => {
+        const key = email.toLowerCase();
+        const previousPlatform = memberProfiles[key]?.cloudPlatform || 'Azure';
+        const previousItems = roadmapItems;
+        setMemberProfiles((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), cloudPlatform: platform } }));
+        setRoadmapItems((prev) => switchItemsPlatform(prev, platform));
+        if (isMockSession) return;
+        try {
+          await setMemberCloudPlatform(email, platform);
+        } catch (err) {
+          setMemberProfiles((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), cloudPlatform: previousPlatform } }));
+          setRoadmapItems(previousItems);
+          setRoadmapItemsError(friendlyErrorMessage(err));
+        }
+      };
+
       return (
         <div>
           <div style={{ marginBottom: '32px' }}>
@@ -4843,15 +4863,27 @@ Pick new people to present next Sunday`;
                       <h3 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{roadmapSelected.member}</h3>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{roadmapSelected.email}</p>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '6px', color: 'var(--text-primary)' }}>Track</label>
-                      <select
-                        className="form-input"
-                        value={roadmapSelected.profile?.roadmapTrack || 'Not Assigned'}
-                        onChange={(e) => handleTrackChange(roadmapSelected.email, e.target.value)}
-                      >
-                        {ROADMAP_TRACKS.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '6px', color: 'var(--text-primary)' }}>Track</label>
+                        <select
+                          className="form-input"
+                          value={roadmapSelected.profile?.roadmapTrack || 'Not Assigned'}
+                          onChange={(e) => handleTrackChange(roadmapSelected.email, e.target.value)}
+                        >
+                          {ROADMAP_TRACKS.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '6px', color: 'var(--text-primary)' }}>Cloud</label>
+                        <select
+                          className="form-input"
+                          value={roadmapSelected.profile?.cloudPlatform || 'Azure'}
+                          onChange={(e) => handleCloudPlatformChange(roadmapSelected.email, e.target.value)}
+                        >
+                          {CLOUD_PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
                     </div>
                   </div>
 
@@ -4996,7 +5028,12 @@ Pick new people to present next Sunday`;
                                             {item.completed ? <CheckSquare size={18} color="var(--success)" /> : <Square size={18} color="var(--text-muted)" />}
                                           </button>
                                           <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontSize: '0.9rem', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.title}</div>
+                                            <div style={{ fontSize: '0.9rem', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
+                                              {item.title}
+                                              {item.platform === 'AWS' && isCloudVariantTitle(item.title) && (
+                                                <span className="badge badge-info" style={{ marginLeft: '8px', fontSize: '0.68rem', textDecoration: 'none' }} title="This member is on AWS - they see this cert as its AWS equivalent.">AWS: {displayTitleFor(item.title, 'AWS')}</span>
+                                              )}
+                                            </div>
                                             {ROADMAP_ITEM_DESCRIPTIONS[item.title] && (
                                               <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>{ROADMAP_ITEM_DESCRIPTIONS[item.title]}</div>
                                             )}
@@ -7282,10 +7319,11 @@ Pick new people to present next Sunday`;
             </h3>
             {broadcastsError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{broadcastsError}</p>}
 
-            <form onSubmit={handleAddBroadcast} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 2fr 90px auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+            <form onSubmit={handleAddBroadcast} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 2fr 1.4fr 90px auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
               <input className="form-input" value={newBroadcast.emoji} onChange={(e) => setNewBroadcast({ ...newBroadcast, emoji: e.target.value })} placeholder="🎯" />
               <input className="form-input" value={newBroadcast.title} onChange={(e) => setNewBroadcast({ ...newBroadcast, title: e.target.value })} placeholder="Title, e.g. Sprint 4 Active:" />
               <input className="form-input" value={newBroadcast.body} onChange={(e) => setNewBroadcast({ ...newBroadcast, body: e.target.value })} placeholder="Body text" />
+              <input className="form-input" value={newBroadcast.linkUrl} onChange={(e) => setNewBroadcast({ ...newBroadcast, linkUrl: e.target.value })} placeholder="Link (optional)" />
               <input type="number" className="form-input" value={newBroadcast.sortOrder} onChange={(e) => setNewBroadcast({ ...newBroadcast, sortOrder: e.target.value })} placeholder="Order" />
               <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', padding: '10px 16px' }}><Plus size={14} /> Add</button>
             </form>
@@ -7298,10 +7336,11 @@ Pick new people to present next Sunday`;
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {broadcasts.map((b) =>
                   editingBroadcastId === b.id ? (
-                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 2fr 90px auto', gap: '10px', alignItems: 'center', padding: '10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
+                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 2fr 1.4fr 90px auto', gap: '10px', alignItems: 'center', padding: '10px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--accent-cyan)' }}>
                       <input className="form-input" value={editBroadcastForm.emoji} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, emoji: e.target.value })} />
                       <input className="form-input" value={editBroadcastForm.title} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, title: e.target.value })} />
                       <input className="form-input" value={editBroadcastForm.body} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, body: e.target.value })} />
+                      <input className="form-input" value={editBroadcastForm.linkUrl} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, linkUrl: e.target.value })} placeholder="Link (optional)" />
                       <input type="number" className="form-input" value={editBroadcastForm.sortOrder} onChange={(e) => setEditBroadcastForm({ ...editBroadcastForm, sortOrder: e.target.value })} />
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '6px 10px' }} onClick={() => handleSaveBroadcastEdit(b)}>Save</button>
@@ -7313,6 +7352,7 @@ Pick new people to present next Sunday`;
                       <div style={{ fontSize: '0.85rem' }}>
                         <strong>{b.emoji} {b.title}</strong>
                         <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>{b.body}</div>
+                        {b.linkUrl && <div style={{ color: 'var(--accent-cyan)', marginTop: '2px', fontSize: '0.78rem', wordBreak: 'break-all' }}>{b.linkUrl}</div>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                         {!b.active && <span className="badge badge-warning" style={{ fontSize: '0.62rem' }}>Inactive</span>}

@@ -17,6 +17,9 @@ function mapRow(row) {
     detail: row.detail || '',
     dueDate: row.due_date || null,
     completed: !!row.completed,
+    // 'Azure' or 'AWS' (028_roadmap.sql) - which cloud this row is being
+    // worked on under; cloudPlatform.js shows an 'AWS' row as its AWS twin.
+    platform: row.platform === 'AWS' ? 'AWS' : 'Azure',
     // When it was actually completed (028_roadmap.sql's trigger) - not
     // updatedAt, which moves on any edit. null while not completed.
     completedAt: row.completed_at || null,
@@ -39,7 +42,7 @@ function mapRow(row) {
 export async function fetchMyRoadmap() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
+    .select('id, member_email, phase, category, title, platform, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });
   if (error) throw error;
@@ -133,7 +136,7 @@ export async function setRoadmapFoundationsApproval(email, approved) {
 export async function fetchAllRoadmapItems() {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, created_at, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at');
+    .select('id, member_email, phase, category, title, platform, detail, due_date, completed, completed_at, sort_order, created_at, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at');
   if (error) throw error;
   return (data || []).map(mapRow);
 }
@@ -143,7 +146,7 @@ export async function fetchAllRoadmapItems() {
 export async function fetchRoadmapForMember(email) {
   const { data, error } = await supabase
     .from('roadmap_items')
-    .select('id, member_email, phase, category, title, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
+    .select('id, member_email, phase, category, title, platform, detail, due_date, completed, completed_at, sort_order, updated_at, proof_url, review_status, review_note, submitted_at, reviewed_at')
     .eq('member_email', email.toLowerCase())
     .order('phase', { ascending: true })
     .order('sort_order', { ascending: true });
@@ -191,5 +194,25 @@ export async function updateRoadmapItem(itemId, { phase, category, title, detail
 /** Admin: remove an item from a member's roadmap. */
 export async function deleteRoadmapItem(itemId) {
   const { error } = await supabase.from('roadmap_items').delete().eq('id', itemId);
+  if (error) throw error;
+}
+
+/** The caller's own cloud platform ('Azure' or 'AWS'). */
+export async function fetchMyCloudPlatform() {
+  const { data, error } = await supabase.rpc('get_my_cloud_platform');
+  if (error) throw error;
+  return data === 'AWS' ? 'AWS' : 'Azure';
+}
+
+/** Switch the caller to Azure or AWS. Only unfinished rows are restamped,
+ * so a cert they already passed keeps the platform they passed it on. */
+export async function setMyCloudPlatform(platform) {
+  const { error } = await supabase.rpc('set_my_cloud_platform', { p_platform: platform });
+  if (error) throw error;
+}
+
+/** Admin: switch a member's cloud platform for them. */
+export async function setMemberCloudPlatform(email, platform) {
+  const { error } = await supabase.rpc('set_member_cloud_platform', { p_email: email.toLowerCase(), p_platform: platform });
   if (error) throw error;
 }

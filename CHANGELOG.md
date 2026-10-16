@@ -18,6 +18,32 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.16
+
+### Added
+- **Azure / AWS switch on every roadmap.** Each Microsoft cloud cert has an
+  AWS equivalent (`src/lib/awsEquivalents.js`: AZ-900 to Cloud Practitioner,
+  AI-901 to AI Practitioner, SC-900 to the free AWS Security Fundamentals
+  course, AZ-104 to SysOps Administrator, AZ-305 to Solutions Architect
+  Professional, AZ-400 to DevOps Engineer Professional, AI-103 to Machine
+  Learning Engineer, AZ-700 to Advanced Networking, and SC-200 / SC-500 /
+  SC-100 / SC-300 to the Security Specialty, shown once per track). A member
+  picks Azure or AWS at the top of My Roadmap; an admin can switch a member
+  from the Roadmaps tab. `roadmap_items` keeps its canonical Azure title and
+  gains a `platform` stamp, so every server-side title rule is unchanged;
+  `cloudPlatform.js` shows an `AWS` row as its twin. Switching only restamps
+  unfinished rows, so a passed AZ-900 is never relabelled. New:
+  `member_profiles.cloud_platform`, `roadmap_items.platform`, an insert
+  trigger that stamps new rows, and the `get_my_cloud_platform`,
+  `set_my_cloud_platform` and `set_member_cloud_platform` RPCs
+  (`028_roadmap.sql`, applied live as individual statements).
+- **Community Broadcast links.** `community_broadcasts.link_url` (optional,
+  `044_community_content.sql`) shows a "Book now" link under the broadcast;
+  only `https://` links are rendered. Used for the Career Audit announcement
+  (26 to 30 October 2026).
+- `scripts/google-apps-script/expert-edge-review-form.gs`: the Expert Edge
+  platform review Google Form.
+
 ## 2026.10.15
 
 ### Added

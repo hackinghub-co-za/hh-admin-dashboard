@@ -39,6 +39,8 @@ export async function fetchMemberProfiles() {
       jobReadiness: row.job_readiness || 'Not Started',
       interviewsHad: row.interviews_had || 0,
       roadmapTrack: row.roadmap_track || 'Not Assigned',
+      // 'Azure' or 'AWS' (028_roadmap.sql) - which cloud the roadmap follows.
+      cloudPlatform: row.cloud_platform === 'AWS' ? 'AWS' : 'Azure',
       roadmapFoundationsApproved: !!row.roadmap_foundations_approved_at,
       status: row.status || 'Active',
       employmentStatus: row.employment_status || 'Not Set',

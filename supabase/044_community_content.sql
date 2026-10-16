@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS public.community_broadcasts (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- Optional "Book now" style link shown under the broadcast (2026-10-16).
+ALTER TABLE public.community_broadcasts ADD COLUMN IF NOT EXISTS link_url TEXT;
+
 ALTER TABLE public.community_broadcasts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "members read active broadcasts" ON public.community_broadcasts;

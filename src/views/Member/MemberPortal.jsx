@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import ExamReadinessModal from '../../components/ExamReadinessModal';
@@ -47,7 +47,8 @@ import ResourceProgress from '../../components/ResourceProgress';
 import { fetchMyJobApplications, addJobApplication, updateJobApplication, deleteJobApplication } from '../../lib/jobApplicationsData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
 import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
-import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof } from '../../lib/roadmapData';
+import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof, fetchMyCloudPlatform, setMyCloudPlatform } from '../../lib/roadmapData';
+import { CLOUD_PLATFORMS, applyCloudPlatform, displayTitleFor, isCloudVariantTitle, switchItemsPlatform } from '../../lib/cloudPlatform';
 import { fetchMyRoadmapSubtasks, toggleMyRoadmapSubtask } from '../../lib/roadmapSubtasksData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
 import { recordDailyLogin, fetchMyLoginStreakSummary, fetchMyLoginHistory, fetchTopLoginStreak } from '../../lib/loginStreakData';
@@ -149,6 +150,7 @@ import {
   Timer,
   LayoutGrid,
   ListChecks,
+  Cloud,
 } from 'lucide-react';
 
 const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
@@ -1833,7 +1835,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // Members can only toggle items done via the toggle_my_roadmap_item RPC;
   // the plan itself (title/detail/phase/category) is admin-authored.
   const [roadmapTrack, setRoadmapTrack] = useState(isMockSession ? MOCK_ROADMAP_TRACK : null);
-  const [roadmapItems, setRoadmapItems] = useState(isMockSession ? MOCK_ROADMAP_ITEMS : []);
+  // rawRoadmapItems are the database rows (always the canonical Azure title);
+  // roadmapItems is what the page shows - each row under the cloud the
+  // member picked (cloudPlatform.js). Everything below reads roadmapItems.
+  const [rawRoadmapItems, setRoadmapItems] = useState(isMockSession ? MOCK_ROADMAP_ITEMS : []);
+  const roadmapItems = useMemo(() => applyCloudPlatform(rawRoadmapItems), [rawRoadmapItems]);
+  const [cloudPlatform, setCloudPlatform] = useState('Azure');
+  const [switchingCloud, setSwitchingCloud] = useState(false);
   const [roadmapFoundationsApproved, setRoadmapFoundationsApproved] = useState(isMockSession);
   const [loadingRoadmap, setLoadingRoadmap] = useState(!isMockSession);
   const [roadmapError, setRoadmapError] = useState(null);
@@ -1879,9 +1887,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
-    Promise.all([fetchMyRoadmapTrack(), fetchMyRoadmap(), fetchMyRoadmapFoundationsApproved(), fetchMyRoadmapSubtasks()])
-      .then(([track, items, approved, subtasks]) => {
+    Promise.all([fetchMyRoadmapTrack(), fetchMyRoadmap(), fetchMyRoadmapFoundationsApproved(), fetchMyRoadmapSubtasks(), fetchMyCloudPlatform().catch(() => 'Azure')])
+      .then(([track, items, approved, subtasks, platform]) => {
         if (cancelled) return;
+        setCloudPlatform(platform);
         setRoadmapTrack(track);
         setRoadmapItems(items);
         setRoadmapFoundationsApproved(approved);
@@ -1938,6 +1947,28 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
+  // Azure / AWS switch (028_roadmap.sql). Only unfinished rows move over, so
+  // a cert already passed stays the cert it was.
+  const handleSwitchCloudPlatform = async (platform) => {
+    if (platform === cloudPlatform || switchingCloud) return;
+    const previous = { platform: cloudPlatform, items: rawRoadmapItems };
+    setCloudPlatform(platform);
+    setRoadmapItems((prev) => switchItemsPlatform(prev, platform));
+    if (isMockSession) return;
+    setSwitchingCloud(true);
+    try {
+      await setMyCloudPlatform(platform);
+      logPortalEvent('cloud_platform_switched', { platform }).catch(() => {});
+    } catch {
+      setCloudPlatform(previous.platform);
+      setRoadmapItems(previous.items);
+      setRoadmapNotice('Could not switch your cloud platform. Please try again.');
+      setTimeout(() => setRoadmapNotice(null), 6000);
+    } finally {
+      setSwitchingCloud(false);
+    }
+  };
+
   const handleToggleMyRoadmapItem = async (item, { silent = false } = {}) => {
     // Projects items are never self-toggled - completion only ever comes
     // from an admin's review_project_submission approval (see the
@@ -1968,8 +1999,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     // roadmap, not just after the next refetch.
     const nowIso = new Date().toISOString();
     const updated = { ...item, completed: !item.completed, updatedAt: nowIso, completedAt: item.completed ? null : nowIso };
-    const nextItems = roadmapItems.map((i) => (i.id === item.id ? updated : i));
-    setRoadmapItems(nextItems);
+    const nextItems = applyCloudPlatform(rawRoadmapItems.map((i) => (
+      i.id === item.id ? { ...i, completed: updated.completed, updatedAt: nowIso, completedAt: updated.completedAt } : i
+    )));
+    setRoadmapItems((prev) => prev.map((i) => (
+      i.id === item.id ? { ...i, completed: updated.completed, updatedAt: nowIso, completedAt: updated.completedAt } : i
+    )));
 
     if (updated.completed) {
       // Skipped when this call is the auto-complete cascade from ticking a
@@ -1977,7 +2012,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // that click already played its own tick sound, so this would
       // otherwise double up on the same click.
       const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
-      const isCoreFoundationCert = (i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title);
+      const isCoreFoundationCert = (i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.slotTitle);
       const doneBefore = roadmapItems.filter(isCoreFoundationCert).filter((i) => i.completed).length;
       const doneAfter = nextItems.filter(isCoreFoundationCert).filter((i) => i.completed).length;
       if (doneBefore < SPECIALIZATION_UNLOCK_MIN && doneAfter >= SPECIALIZATION_UNLOCK_MIN) {
@@ -1998,7 +2033,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       }
     } catch (err) {
       setRoadmapError(friendlyMemberErrorMessage(err));
-      setRoadmapItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+      setRoadmapItems((prev) => prev.map((i) => (
+        i.id === item.id ? { ...i, completed: item.completed, updatedAt: item.updatedAt, completedAt: item.completedAt } : i
+      )));
     }
   };
 
@@ -4846,7 +4883,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // How many of the 7 standard Core Foundations certs are done, against
       // the 4-of-8 minimum every assigned roadmap uses.
       const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
-      const coreFoundationsDone = roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.title) && i.completed).length;
+      const coreFoundationsDone = roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.slotTitle) && i.completed).length;
       const coreFoundationsMet = coreFoundationsDone >= CORE_FOUNDATIONS_MIN_REQUIRED;
       // Specialization stays hidden until a higher bar than the plain
       // "foundations met" minimum - it should read as earned, not available
@@ -4864,8 +4901,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // the way it is for the single, universal Core Foundations catalog.
       const specializationCatalogForTrack = SPECIALIZATION_CATALOGS[roadmapTrack] || null;
       const specializationCatalogTitles = new Set((specializationCatalogForTrack?.items || []).map((c) => c.title));
-      const specializationCatalogTotal = specializationCatalogForTrack?.items.length || 0;
-      const specializationCatalogDone = roadmapItems.filter((i) => i.phase === 'Specialization' && specializationCatalogTitles.has(i.title) && i.completed).length;
+      // On AWS several Microsoft security certs share one AWS equivalent, so the
+      // track has fewer distinct items than the catalog has rows.
+      const specializationCatalogTotal = new Set((specializationCatalogForTrack?.items || []).map((c) => displayTitleFor(c.title, cloudPlatform))).size;
+      const specializationCatalogDone = Math.min(specializationCatalogTotal, roadmapItems.filter((i) => i.phase === 'Specialization' && specializationCatalogTitles.has(i.slotTitle) && i.completed).length);
       const specializationPercent = specializationCatalogTotal > 0 ? Math.round((specializationCatalogDone / specializationCatalogTotal) * 100) : 0;
       const projectsUnlocked = specializationCatalogTotal > 0 && specializationPercent >= PROJECTS_UNLOCK_PERCENT;
 
@@ -4876,7 +4915,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       const projectsCatalogForTrack = PROJECT_CATALOGS[roadmapTrack] || null;
       const projectsCatalogTitles = new Set((projectsCatalogForTrack?.items || []).map((c) => c.title));
       const projectsCatalogTotal = projectsCatalogForTrack?.items.length || 0;
-      const projectsCatalogDone = roadmapItems.filter((i) => i.phase === 'Projects' && projectsCatalogTitles.has(i.title) && i.completed).length;
+      const projectsCatalogDone = roadmapItems.filter((i) => i.phase === 'Projects' && projectsCatalogTitles.has(i.slotTitle) && i.completed).length;
       const projectsCompletePercent = projectsCatalogTotal > 0 ? Math.round((projectsCatalogDone / projectsCatalogTotal) * 100) : 0;
       const advancedUnlocked = projectsCatalogTotal > 0 && projectsCompletePercent >= ADVANCED_UNLOCK_PERCENT;
 
@@ -4897,6 +4936,37 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               {roadmapTrack ? `Your coach-assigned ${roadmapTrack} track.` : "Your coach hasn't assigned a track yet."} Check items off as you complete them — your coach owns the plan itself.
             </p>
           </div>
+
+          {/* Azure / AWS switch - every Microsoft cloud cert on the roadmap
+              has an AWS equivalent (awsEquivalents.js). Only certs not yet
+              finished move over, so a pass is never relabelled. */}
+          {rawRoadmapItems.some((i) => isCloudVariantTitle(i.title)) && (
+            <div className="glass-card" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 320px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.95rem' }}>
+                  <Cloud size={16} color="var(--accent-cyan)" /> Which cloud are you learning?
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                  Pick Azure or AWS and every cloud cert on your roadmap shows its equivalent. Certs you have already finished stay as they are.
+                </p>
+              </div>
+              <div role="group" aria-label="Cloud platform" style={{ display: 'flex', gap: '8px' }}>
+                {CLOUD_PLATFORMS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={cloudPlatform === p ? 'btn btn-primary' : 'btn btn-secondary'}
+                    aria-pressed={cloudPlatform === p}
+                    disabled={switchingCloud}
+                    style={{ minWidth: '96px', fontSize: '0.88rem' }}
+                    onClick={() => handleSwitchCloudPlatform(p)}
+                  >
+                    {p === 'Azure' ? 'Azure' : 'AWS'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* My Journey So Far - the stat recap plus the full chronological
               story, which starts collapsed to the stat row and expands on
@@ -5128,7 +5198,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       onOpenInfo: (title) => { setCoreFoundationInfoTitle(title); logPortalEvent('roadmap_item_opened', { title, source: 'pathway' }).catch(() => {}); },
                     };
                     const trackPathwayOn = roadmapView === 'pathway' && g.phase === 'Specialization' && !!buildTrackConfig(roadmapTrack);
-                    const trackItems = g.categories.flatMap((c) => c.items).filter((i) => specializationCatalogTitles.has(i.title));
+                    const trackItems = g.categories.flatMap((c) => c.items).filter((i) => specializationCatalogTitles.has(i.slotTitle));
                     // On the track pathway, only items the catalog doesn't cover keep their classic rows.
                     const categoriesToList = trackPathwayOn
                       ? g.categories.map((c) => ({ ...c, items: c.items.filter((i) => !specializationCatalogTitles.has(i.title)) })).filter((c) => c.items.length)
@@ -5146,7 +5216,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       <div key={c.category} style={{ gridColumn: '1 / -1' }}>
                         <RoadmapPathway
                           mode="core"
-                          catalogItems={c.items.filter((i) => catalogTitles.has(i.title))}
+                          catalogItems={c.items.filter((i) => catalogTitles.has(i.slotTitle))}
                           passedCertTitles={certCalendar
                             .filter((e) => e.result === 'Passed' && (e.memberEmail || '').toLowerCase() === myEmailLower)
                             .map((e) => ({ 'Security+': 'CompTIA Security+' }[matchExamReadinessCert(e.cert)] || matchExamReadinessCert(e.cert)))
@@ -5164,7 +5234,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             <RoadmapPathway
                               mode="core"
                               view="gateOnly"
-                              catalogItems={c.items.filter((i) => catalogTitles.has(i.title))}
+                              catalogItems={c.items.filter((i) => catalogTitles.has(i.slotTitle))}
                               isMockSession={isMockSession}
                               onBookMeeting={() => { setActiveTab('meetings'); logPortalEvent('pathway_checkpoint_book_clicked', {}).catch(() => {}); }}
                               onGateChange={setCoreGateAt}
@@ -6161,6 +6231,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   >
                     <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{communityBroadcasts[broadcastIndex]?.emoji} {communityBroadcasts[broadcastIndex]?.title}</span>
                     <span style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>{communityBroadcasts[broadcastIndex]?.body}</span>
+                    {/^https:\/\//.test(communityBroadcasts[broadcastIndex]?.linkUrl || '') && (
+                      <a
+                        href={communityBroadcasts[broadcastIndex].linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--accent-cyan)', fontWeight: 600, marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px', alignSelf: 'flex-start' }}
+                      >
+                        Book now <ExternalLink size={13} />
+                      </a>
+                    )}
                   </div>
                   {communityBroadcasts.length > 1 && (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>

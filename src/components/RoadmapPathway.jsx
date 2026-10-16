@@ -135,11 +135,16 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
   const trackPrefs = pathway.trackPrefs?.[track] || { startedOn: today, weeklyHours: DEFAULT_WEEKLY_HOURS, labOrder: [], certStarts: {} };
   const source = isTrack ? trackPrefs : pathway;
 
-  const byTitle = Object.fromEntries(catalogItems.map((i) => [i.title, i]));
+  // The plan runs on the canonical (Azure) slot titles; a row on AWS is shown
+  // as its AWS twin (cloudPlatform.js), so the display name is looked up per
+  // slot and the subtask ticks, links and prices follow the display name.
+  const byTitle = Object.fromEntries(catalogItems.map((i) => [i.slotTitle || i.title, i]));
+  const byDisplay = Object.fromEntries(catalogItems.map((i) => [i.title, i]));
+  const nameOf = (t) => byTitle[t]?.title ?? t;
   // Only items actually on this member's roadmap get scheduled.
   const status = Object.fromEntries(config.catalogTitles.filter((title) => byTitle[title]).map((title) => {
     const item = byTitle[title];
-    return [title, { completed: !!item.completed, fraction: itemFraction(title, !!item.completed, subtasks[title]) }];
+    return [title, { completed: !!item.completed, fraction: itemFraction(item.title, !!item.completed, subtasks[item.title]) }];
   }));
   const prefs = { labOrder: source.labOrder, certStarts: source.certStarts, weeklyHours: source.weeklyHours };
   const now = pathwayWeek(source.startedOn, today);
@@ -147,7 +152,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
   const advice = pathwayAdvice(plan);
   // Only Core Foundations asks for checkpoint 1-on-1s.
   const gate = isTrack ? null : activeCheckpoint({ doneCount: plan.doneCount, cleared: pathway.checkpoints, reachedDates: checkpointReachedDates(catalogItems), meetingDates: pathway.meetingDates });
-  const unclaimedPasses = (passedCertTitles || []).filter((t) => byTitle[t] && !byTitle[t].completed);
+  const unclaimedPasses = (passedCertTitles || []).filter((t) => byDisplay[t] && !byDisplay[t].completed);
   // Tell the parent when a checkpoint is open, so the classic view locks too.
   const gateAt = gate ? gate.at : null;
   useEffect(() => { onGateChange?.(gateAt); }, [gateAt, onGateChange]);
@@ -287,7 +292,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
         <div>
           <div style={{ ...smallLabel, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}><Route size={13} /> {isTrack ? `Your ${track} pathway` : 'Your pathway'}</div>
           <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '4px 0 0' }}>
-            Week {now}{lab ? ` · ${shortName(lab.title)}` : ''}{cert ? ` and ${cert.title}` : ''}
+            Week {now}{lab ? ` · ${shortName(nameOf(lab.title))}` : ''}{cert ? ` and ${nameOf(cert.title)}` : ''}
           </h4>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -310,7 +315,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
       {unclaimedPasses.map((t) => (
         <div key={t} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', padding: '10px 14px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--success-rgb), 0.07)', border: '1px solid rgba(var(--success-rgb), 0.3)', fontSize: '0.84rem' }}>
           <span style={{ flex: '1 1 240px' }}>Your Cert Calendar shows <b>{t}</b> as passed, but it isn't ticked off here yet.</span>
-          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.76rem', padding: '6px 12px' }} onClick={() => onCompleteItem(byTitle[t])}>Mark it done</button>
+          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.76rem', padding: '6px 12px' }} onClick={() => onCompleteItem(byDisplay[t])}>Mark it done</button>
         </div>
       ))}
 
@@ -327,28 +332,28 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '12px' }}>
             <div style={laneBox(TONE.labs.rgb)}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}><span style={smallLabel}>Labs lane</span>{lab && <PriceTag title={lab.title} />}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}><span style={smallLabel}>Labs lane</span>{lab && <PriceTag title={nameOf(lab.title)} />}</div>
               {lab ? (
                 <>
-                  <button type="button" onClick={() => onOpenInfo(lab.title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{lab.title}</button>
+                  <button type="button" onClick={() => onOpenInfo(nameOf(lab.title))} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{nameOf(lab.title)}</button>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>On track to finish in week {lab.end}</span>
-                  <ResourceLink title={lab.title} onOpenGuide={onOpenGuide} />
-                  <Checklist item={byTitle[lab.title]} doneKeys={subtasks[lab.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
+                  <ResourceLink title={nameOf(lab.title)} onOpenGuide={onOpenGuide} />
+                  <Checklist item={byTitle[lab.title]} doneKeys={subtasks[nameOf(lab.title)]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
                 </>
               ) : <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>{Object.keys(config.labs).length ? 'All the lab items are done.' : 'This track has no lab items.'}</span>}
             </div>
             <div style={laneBox(TONE.cert.rgb)}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}><span style={smallLabel}>Certificate sprint</span>{(cert || nextCert) && <PriceTag title={(cert || nextCert).title} />}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}><span style={smallLabel}>Certificate sprint</span>{(cert || nextCert) && <PriceTag title={nameOf((cert || nextCert).title)} />}</div>
               {cert ? (
                 <>
-                  <button type="button" onClick={() => onOpenInfo(cert.title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{cert.title} · week {now - cert.start + 1} of {cert.len}</button>
+                  <button type="button" onClick={() => onOpenInfo(nameOf(cert.title))} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{nameOf(cert.title)} · week {now - cert.start + 1} of {cert.len}</button>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Aim to sit the exam by the end of week {cert.end}, and log it on the Cert Calendar.</span>
-                  <ResourceLink title={cert.title} onOpenGuide={onOpenGuide} />
-                  <Checklist item={byTitle[cert.title]} doneKeys={subtasks[cert.title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
+                  <ResourceLink title={nameOf(cert.title)} onOpenGuide={onOpenGuide} />
+                  <Checklist item={byTitle[cert.title]} doneKeys={subtasks[nameOf(cert.title)]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
                 </>
               ) : (
                 <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                  {nextCert ? `No sprint this week. ${nextCert.title} starts in week ${nextCert.start}.` : Object.keys(config.certs).length ? 'All the certificates are done.' : 'This track has no certificates.'}
+                  {nextCert ? `No sprint this week. ${nameOf(nextCert.title)} starts in week ${nextCert.start}.` : Object.keys(config.certs).length ? 'All the certificates are done.' : 'This track has no certificates.'}
                 </span>
               )}
             </div>
@@ -380,12 +385,12 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
                 <span style={{ ...smallLabel, fontSize: '0.6rem', gridRow: 2, alignSelf: 'center' }}>Labs</span>
                 <span style={{ ...smallLabel, fontSize: '0.6rem', gridRow: 3, alignSelf: 'center' }}>Certificates</span>
                 {plan.labs.map((b) => (
-                  <div key={b.title} data-lab={b.title} title={`${b.title}: ${span(b.start, b.end)}`} style={blockStyle(b.title, TONE.labs, 2, b.start, b.end)}
-                    onPointerDown={(e) => onPointerDown(e, b.title, 'labs')}>{shortName(b.title)}</div>
+                  <div key={b.title} data-lab={b.title} title={`${nameOf(b.title)}: ${span(b.start, b.end)}`} style={blockStyle(b.title, TONE.labs, 2, b.start, b.end)}
+                    onPointerDown={(e) => onPointerDown(e, b.title, 'labs')}>{shortName(nameOf(b.title))}</div>
                 ))}
                 {plan.certs.map((c) => (
-                  <div key={c.title} title={`${c.title}: ${span(c.start, c.end)}`} style={blockStyle(c.title, TONE.cert, 3, c.start, c.end)}
-                    onPointerDown={(e) => onPointerDown(e, c.title, 'cert')}>{c.title}</div>
+                  <div key={c.title} title={`${nameOf(c.title)}: ${span(c.start, c.end)}`} style={blockStyle(c.title, TONE.cert, 3, c.start, c.end)}
+                    onPointerDown={(e) => onPointerDown(e, c.title, 'cert')}>{nameOf(c.title)}</div>
                 ))}
               </div>
             </div>
@@ -393,7 +398,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px' }}>
               {plan.labs.map((b, i) => (
                 <div key={b.title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', fontSize: '0.78rem' }}>
-                  <div style={{ minWidth: 0 }}><b>{shortName(b.title)}</b><div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Lab {i + 1} of {plan.labs.length}, {span(b.start, b.end)}</div></div>
+                  <div style={{ minWidth: 0 }}><b>{shortName(nameOf(b.title))}</b><div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Lab {i + 1} of {plan.labs.length}, {span(b.start, b.end)}</div></div>
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <button type="button" className="btn btn-secondary" style={{ padding: '4px 6px' }} disabled={i === 0 || saving} onClick={() => moveLab(b.title, i - 1)} aria-label={`Move ${b.title} earlier`}><ChevronLeft size={14} /></button>
                     <button type="button" className="btn btn-secondary" style={{ padding: '4px 6px' }} disabled={i === plan.labs.length - 1 || saving} onClick={() => moveLab(b.title, i + 1)} aria-label={`Move ${b.title} later`}><ChevronRight size={14} /></button>
@@ -402,7 +407,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
               ))}
               {plan.certs.map((c) => (
                 <div key={c.title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 10px', borderRadius: 'var(--border-radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', fontSize: '0.78rem' }}>
-                  <div style={{ minWidth: 0 }}><b>{c.title} sprint</b><div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{span(c.start, c.end)}</div></div>
+                  <div style={{ minWidth: 0 }}><b>{nameOf(c.title)} sprint</b><div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{span(c.start, c.end)}</div></div>
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <button type="button" className="btn btn-secondary" style={{ padding: '4px 6px' }} disabled={c.start <= now || saving} onClick={() => moveCert(c.title, c.start - 1)} aria-label={`Move the ${c.title} sprint a week earlier`}><ChevronLeft size={14} /></button>
                     <button type="button" className="btn btn-secondary" style={{ padding: '4px 6px' }} disabled={saving} onClick={() => moveCert(c.title, c.start + 1)} aria-label={`Move the ${c.title} sprint a week later`}><ChevronRight size={14} /></button>
@@ -433,7 +438,7 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
           <div style={{ ...smallLabel, marginBottom: '8px' }}>Already done</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             {plan.doneTitles.map((t) => (
-              <button key={t} type="button" onClick={() => onOpenInfo(t)} className="badge badge-success" style={{ fontSize: '0.72rem', cursor: 'pointer', font: 'inherit' }}>✓ {t}</button>
+              <button key={t} type="button" onClick={() => onOpenInfo(nameOf(t))} className="badge badge-success" style={{ fontSize: '0.72rem', cursor: 'pointer', font: 'inherit' }}>✓ {nameOf(t)}</button>
             ))}
           </div>
         </div>
@@ -442,17 +447,17 @@ function PathwayBody({ track, isTrack, today, pathway, setPathway, config, view,
       {/* Everything, tickable in any order */}
       <details>
         <summary style={{ cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-          {isTrack ? `All your ${track} items` : 'All your Core Foundations items'} {plan.afterUnlock.length > 0 ? `(including ${plan.afterUnlock.map(shortName).join(', ')}, which come after the unlock)` : ''}
+          {isTrack ? `All your ${track} items` : 'All your Core Foundations items'} {plan.afterUnlock.length > 0 ? `(including ${plan.afterUnlock.map((t) => shortName(nameOf(t))).join(', ')}, which come after the unlock)` : ''}
         </summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '10px', marginTop: '10px' }}>
           {config.catalogTitles.map((title) => byTitle[title] && (
             <div key={title} style={{ ...laneBox(title in config.labs ? TONE.labs.rgb : TONE.cert.rgb), gap: '4px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
-                <button type="button" onClick={() => onOpenInfo(title)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>{title}</button>
-                {byTitle[title].completed ? <span className="badge badge-success" style={{ fontSize: '0.64rem' }}>Done</span> : <PriceTag title={title} />}
+                <button type="button" onClick={() => onOpenInfo(nameOf(title))} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>{nameOf(title)}</button>
+                {byTitle[title].completed ? <span className="badge badge-success" style={{ fontSize: '0.64rem' }}>Done</span> : <PriceTag title={nameOf(title)} />}
               </div>
-              <ResourceLink title={title} onOpenGuide={onOpenGuide} />
-              <Checklist item={byTitle[title]} doneKeys={subtasks[title]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
+              <ResourceLink title={nameOf(title)} onOpenGuide={onOpenGuide} />
+              <Checklist item={byTitle[title]} doneKeys={subtasks[nameOf(title)]} locked={!!gate} busyKey={busyKey} onToggle={onToggleSubtask} onToggleItem={onToggleItem} />
             </div>
           ))}
         </div>
