@@ -17,6 +17,8 @@ export function mapLab(row) {
     provider: row.provider || '',
     externalUrl: row.external_url || '',
     roadmapItemTitle: row.roadmap_item_title || '',
+    // 'Neutral', 'Azure' or 'AWS' (engineering labs, 099_labs.sql).
+    platform: row.platform || 'Neutral',
     isPublished: row.is_published,
     sortOrder: row.sort_order,
   };
@@ -69,7 +71,14 @@ export async function saveLabProgress(labId, answers) {
 export async function submitLabAttempt(labId, answers) {
   const { data, error } = await supabase.rpc('submit_lab_attempt', { p_lab_id: labId, p_answers: answers });
   if (error) throw error;
-  return { autoScore: data?.auto_score ?? null, autoMax: data?.auto_max ?? null, taskResults: data?.task_results || null };
+  return { autoScore: data?.auto_score ?? null, autoMax: data?.auto_max ?? null, taskResults: data?.task_results || null, ...(data?.status ? { status: data.status } : {}) };
+}
+
+/** One pre-submission Check on a rules task. Returns { earned, max, checks: [{ ok, hint, points }] }; never the rules. */
+export async function checkLabTask(labId, taskKey, text) {
+  const { data, error } = await supabase.rpc('check_lab_task', { p_lab_id: labId, p_task_key: taskKey, p_text: text });
+  if (error) throw error;
+  return data;
 }
 
 export async function submitCuratedLabProof(labId, proofUrl) {

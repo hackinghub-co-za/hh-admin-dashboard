@@ -8,8 +8,8 @@ export const RELEASE_NOTES = [
   {
     version: '2026.10.16',
     date: '2026-10-16',
-    headline: 'Choose Azure or AWS, and book your Career Audit.',
-    intro: "Your roadmap can follow the cloud you want to learn, and Career Audit sessions open on 26 October.",
+    headline: 'Choose Azure or AWS, try the new labs, and book your Career Audit.',
+    intro: "Your roadmap can follow the cloud you want to learn, there are new hands-on labs, you can join the talent pool, and Career Audit sessions open on 26 October.",
     groups: [
       {
         label: 'New',
@@ -20,6 +20,18 @@ export const RELEASE_NOTES = [
             title: 'Pick Azure or AWS',
             body: "Every Azure cert on your roadmap now has an AWS equivalent. Press AWS at the top of My Roadmap and unfinished certs switch over. Certs you have already passed stay as they are.",
             where: 'My Roadmap',
+          },
+          {
+            icon: '🔎',
+            title: 'Join the talent pool',
+            body: "Want recruiters to see your skills? Opt in on the Job Board tab. They see an anonymous profile first, with the skills Hacking Hub verified marked separately from the ones you add. Your name and contact details are shared only if you say yes to a specific introduction, and you can delete your profile any time.",
+            where: 'Job Board',
+          },
+          {
+            icon: '🛠️',
+            title: 'Hands-on engineering labs',
+            body: "Nine new labs where you fix real files instead of only answering questions: storage, containers, Kubernetes, access policies, a detection rule and an audit of your own free cloud account. Press Check my work for instant feedback. Azure and AWS versions follow the cloud you picked.",
+            where: 'Labs',
           },
           {
             icon: '🧭',

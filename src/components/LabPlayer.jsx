@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, FileText, CheckCircle2, XCircle, Lock, Send, Clock, FlaskConical } from 'lucide-react';
-import { saveLabProgress, submitLabAttempt, fetchLabDebrief } from '../lib/labsData';
+import { saveLabProgress, submitLabAttempt, fetchLabDebrief, checkLabTask } from '../lib/labsData';
 import { fetchMyLabHelp } from '../lib/gemmaData';
 import GemmaLabHelp from './gemma/GemmaLabHelp';
 import { logPortalEvent } from '../lib/portalEventsData';
@@ -14,6 +14,78 @@ const SUBMITTED_STATES = ['Submitted', 'Approved', 'Needs Changes'];
 const RATING_COLOR = { Low: 'var(--success)', Medium: 'var(--warning)', High: 'var(--warning)', Critical: 'var(--danger)' };
 
 const wordCount = (text) => (text || '').trim().split(/\s+/).filter(Boolean).length;
+
+// Engineering labs (099_labs.sql): the member edits a file, or pastes a
+// command's output, and a Check button runs the staff-written rules on the
+// server. The result lists each check with a plain hint; the rules themselves
+// never reach the browser. Checks are rate limited server-side.
+function CheckList({ checks }) {
+  return (
+    <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      {checks.map((c, i) => (
+        <li key={i} style={{ fontSize: '0.82rem', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+          {c.ok ? <CheckCircle2 size={14} color="var(--success)" style={{ flexShrink: 0, marginTop: '2px' }} /> : <XCircle size={14} color="var(--danger)" style={{ flexShrink: 0, marginTop: '2px' }} />}
+          <span>{c.ok ? 'Passed' : c.hint || 'Not yet'}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RulesTask({ lab, task, value, starter, disabled, isMockSession, onChange }) {
+  const [result, setResult] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState(null);
+  const text = value ?? starter ?? '';
+  const isOutput = task.type === 'output';
+  const runCheck = async () => {
+    setChecking(true);
+    setCheckError(null);
+    try {
+      setResult(await checkLabTask(lab.id, task.key, text));
+    } catch (err) {
+      setCheckError(friendlyMemberErrorMessage(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {isOutput && Array.isArray(task.commands) && task.commands.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>Run this in your own account</span>
+          {task.commands.map((c) => (
+            <pre key={c} style={{ margin: 0, padding: '8px 12px', fontSize: '0.78rem', fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{c}</pre>
+          ))}
+        </div>
+      )}
+      <textarea
+        className="form-input"
+        rows={isOutput ? 8 : 16}
+        spellCheck={false}
+        disabled={disabled}
+        aria-label={task.title}
+        placeholder={task.placeholder}
+        value={text}
+        onChange={(e) => { setResult(null); onChange(e.target.value); }}
+        style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', lineHeight: 1.55, resize: 'vertical', whiteSpace: 'pre', overflowX: 'auto' }}
+      />
+      {!disabled && (
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} disabled={checking || !text.trim() || isMockSession} onClick={runCheck}>
+            {checking ? 'Checking...' : 'Check my work'}
+          </button>
+          {isMockSession && <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Mock Member: checks only run on real accounts.</span>}
+          {result && (
+            <span className={`badge ${result.earned === result.max ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.7rem' }}>{result.earned}/{result.max} pts</span>
+          )}
+        </div>
+      )}
+      {checkError && <span style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>{checkError}</span>}
+      {result && <CheckList checks={result.checks} />}
+    </div>
+  );
+}
 
 export function EvidenceBlock({ block }) {
   switch (block.type) {
@@ -104,7 +176,10 @@ function RiskScoreInput({ value, disabled, onChange }) {
   );
 }
 
-function TaskInput({ task, value, disabled, onChange }) {
+function TaskInput({ lab, task, value, starter, disabled, isMockSession, onChange }) {
+  if (task.type === 'artifact' || task.type === 'output') {
+    return <RulesTask lab={lab} task={task} value={value} starter={starter} disabled={disabled} isMockSession={isMockSession} onChange={onChange} />;
+  }
   if (task.type === 'single') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -250,6 +325,7 @@ export function TaskDebrief({ task, given, debrief }) {
       {task.type === 'risk_score' && answer && (
         <p style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}>Accepted score range: {answer.min} to {answer.max}</p>
       )}
+      {(task.type === 'artifact' || task.type === 'output') && Array.isArray(result?.checks) && <CheckList checks={result.checks} />}
       {task.type === 'rubric' && <RubricTable rubric={debrief.rubric} />}
       {debrief.model_answer && (
         <div style={{ fontSize: '0.84rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
@@ -273,6 +349,18 @@ export default function LabPlayer({ lab, content, attempt, isMockSession, onBack
   const saveTimer = useRef(null);
   const pendingAnswers = useRef(null);
   const hasStarted = useRef(!!attempt);
+  // Each member gets one of the lab's starting files, picked at random the
+  // first time and then kept, so a shared fixed file does not fit everyone.
+  const [variants] = useState(() => {
+    const saved = attempt?.answers?.__variants || {};
+    const picked = {};
+    content.tasks.forEach((t) => {
+      if (Array.isArray(t.starters) && t.starters.length) {
+        picked[t.key] = Number.isInteger(saved[t.key]) && saved[t.key] < t.starters.length ? saved[t.key] : Math.floor(Math.random() * t.starters.length);
+      }
+    });
+    return picked;
+  });
 
   const status = attempt?.status || null;
   const isSubmitted = SUBMITTED_STATES.includes(status);
@@ -324,7 +412,7 @@ export default function LabPlayer({ lab, content, attempt, isMockSession, onBack
   };
 
   const updateAnswer = (key, value) => {
-    const next = { ...answers, [key]: value };
+    const next = { ...answers, ...(Object.keys(variants).length ? { __variants: variants } : {}), [key]: value };
     setAnswers(next);
     setSaveState('pending');
     pendingAnswers.current = next;
@@ -464,7 +552,7 @@ export default function LabPlayer({ lab, content, attempt, isMockSession, onBack
                   </span>
                 </div>
                 <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>{task.prompt}</p>
-                <TaskInput task={task} value={answers[task.key]} disabled={disabled} onChange={(v) => updateAnswer(task.key, v)} />
+                <TaskInput lab={lab} task={task} value={answers[task.key]} starter={task.starters?.[variants[task.key]]?.text} disabled={disabled} isMockSession={isMockSession} onChange={(v) => updateAnswer(task.key, v)} />
                 {task.type !== 'rubric' && (!isSubmitted || debrief || isMockSession) && (
                   <GemmaLabHelp
                     labSlug={lab.slug}

@@ -8,6 +8,7 @@ import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SalesPipelineBoard from '../../components/SalesPipelineBoard';
 import AccountabilityCheckins from '../../components/AccountabilityCheckins';
 import LabReviews from '../../components/LabReviews';
+import TalentPoolAdmin from '../../components/TalentPoolAdmin';
 import GemmaAdmin from '../../components/GemmaAdmin';
 import TaskBoard from '../../components/TaskBoard';
 import MyOpenTasks from '../../components/MyOpenTasks';
@@ -4626,6 +4627,10 @@ Pick new people to present next Sunday`;
 
     case 'labreviews':
       return <LabReviews isMockSession={isMockSession} user={user} />;
+
+    case 'talentpool':
+      // Personal information: founder only, never community managers or mentors.
+      return isFounder ? <TalentPoolAdmin isMockSession={isMockSession} /> : null;
 
     case 'tasks':
       return <TaskBoard isMockSession={isMockSession} user={user} isAdmin={isFounder} focus={taskFocus} onFocusConsumed={onTaskFocusConsumed} />;

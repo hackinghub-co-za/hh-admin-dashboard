@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.lab_attempts (
 CREATE TABLE IF NOT EXISTS public.lab_answer_keys (
   lab_id BIGINT NOT NULL REFERENCES public.labs(id) ON DELETE CASCADE,
   task_key TEXT NOT NULL,
-  grading TEXT NOT NULL CHECK (grading IN ('single', 'multi', 'match', 'risk_score', 'rubric')),
+  grading TEXT NOT NULL CHECK (grading IN ('single', 'multi', 'match', 'risk_score', 'rubric', 'rules')),
   answer JSONB,
   points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0),
   model_answer TEXT,
@@ -187,6 +187,9 @@ DECLARE
   v_hits INTEGER;
   v_wrong INTEGER;
   v_product NUMERIC;
+  v_graded JSONB;
+  v_has_rules BOOLEAN;
+  v_auto BOOLEAN;
 BEGIN
   IF v_email IS NULL THEN
     RAISE EXCEPTION 'Sign in to submit a lab.';
@@ -271,25 +274,50 @@ BEGIN
           v_earned := v_key.points;
         END IF;
       END IF;
+
+    ELSIF v_key.grading = 'rules' THEN
+      -- Engineering labs (2026-10-16): the submitted text must satisfy every
+      -- rule. Members check as often as they like before this (see
+      -- check_lab_task), so a submission with a failing check is refused.
+      v_graded := public._grade_rules(
+        CASE WHEN v_given IS NOT NULL AND jsonb_typeof(v_given) = 'string' THEN v_given #>> '{}' ELSE '' END,
+        v_key.answer
+      );
+      v_earned := LEAST((v_graded ->> 'earned')::integer, v_key.points);
+      IF v_earned < v_key.points THEN
+        RAISE EXCEPTION 'A check still fails in this lab. Use Check on each task to see which one, then submit.';
+      END IF;
     END IF;
 
     v_score := v_score + v_earned;
     v_max := v_max + v_key.points;
-    v_results := v_results || jsonb_build_object(v_key.task_key, jsonb_build_object('earned', v_earned, 'max', v_key.points));
+    v_results := v_results || jsonb_build_object(v_key.task_key,
+      jsonb_build_object('earned', v_earned, 'max', v_key.points)
+      || CASE WHEN v_key.grading = 'rules' THEN jsonb_build_object('checks', v_graded -> 'checks') ELSE '{}'::jsonb END);
   END LOOP;
 
-  INSERT INTO public.lab_attempts (lab_id, member_email, status, answers, auto_score, auto_max, task_results, submitted_at)
-  VALUES (p_lab_id, v_email, 'Submitted', v_answers, v_score, v_max, v_results, now())
+  -- An engineering lab is checked by its rules, so most passes are approved
+  -- on the spot; one in five stays Submitted for a staff spot check of the
+  -- written explanation. Every other lab waits for a reviewer, as before.
+  SELECT EXISTS (SELECT 1 FROM public.lab_answer_keys k WHERE k.lab_id = p_lab_id AND k.grading = 'rules') INTO v_has_rules;
+  v_auto := v_has_rules AND random() >= 0.2;
+
+  INSERT INTO public.lab_attempts (lab_id, member_email, status, answers, auto_score, auto_max, task_results, submitted_at, reviewed_by, reviewed_at)
+  VALUES (p_lab_id, v_email, CASE WHEN v_auto THEN 'Approved' ELSE 'Submitted' END, v_answers, v_score, v_max, v_results, now(),
+          CASE WHEN v_auto THEN 'auto' END, CASE WHEN v_auto THEN now() END)
   ON CONFLICT (lab_id, member_email) DO UPDATE SET
     answers = EXCLUDED.answers,
-    status = 'Submitted',
+    status = EXCLUDED.status,
     auto_score = EXCLUDED.auto_score,
     auto_max = EXCLUDED.auto_max,
     task_results = EXCLUDED.task_results,
     submitted_at = now(),
+    reviewed_by = EXCLUDED.reviewed_by,
+    reviewed_at = EXCLUDED.reviewed_at,
     updated_at = now();
 
-  RETURN jsonb_build_object('auto_score', v_score, 'auto_max', v_max, 'task_results', v_results);
+  RETURN jsonb_build_object('auto_score', v_score, 'auto_max', v_max, 'task_results', v_results,
+                            'status', CASE WHEN v_auto THEN 'Approved' ELSE 'Submitted' END);
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.submit_lab_attempt(BIGINT, JSONB) TO authenticated;
@@ -355,7 +383,7 @@ BEGIN
   RETURN (
     SELECT COALESCE(jsonb_object_agg(k.task_key, jsonb_build_object(
       'grading', k.grading,
-      'answer', k.answer,
+      'answer', CASE WHEN k.grading = 'rules' THEN NULL ELSE k.answer END,
       'points', k.points,
       'model_answer', k.model_answer,
       'rubric', k.rubric,
@@ -1079,6 +1107,528 @@ A good explanation says why each rule exists, and describes allowing a VPN addre
      {"criterion": "Choice of data", "levels": ["No explanation", "A table named without reasons", "A table chosen and justified for the question"]},
      {"criterion": "Detection thinking", "levels": ["None", "A generic idea", "A specific rule with threshold and likely false positives"]}
    ]$j$::jsonb)
+) AS v(slug, task_key, grading, answer, points, model_answer, rubric) ON v.slug = l.slug
+ON CONFLICT (lab_id, task_key) DO UPDATE SET
+  grading = EXCLUDED.grading,
+  answer = EXCLUDED.answer,
+  points = EXCLUDED.points,
+  model_answer = EXCLUDED.model_answer,
+  rubric = EXCLUDED.rubric;
+
+-- =========================================================================
+-- ENGINEERING LABS (2026-10-16)
+-- =========================================================================
+-- Labs where the member produces something (a fixed config file, a detection
+-- rule, a command's output) and the portal checks it against staff-written
+-- rules. The rules sit in lab_answer_keys.answer, so members can never read
+-- them; they see only a plain hint per failed check. Nothing the member
+-- submits is ever executed - it is matched as text, nothing more.
+--
+--   labs.platform   'Neutral' shows to everyone; 'Azure' / 'AWS' labs show to
+--                   members on that cloud (member_profiles.cloud_platform).
+--   grading 'rules' answer = {"max_chars": 20000, "rules": [
+--                     {"need":   "regex that must match",   "hint": "...", "points": 5},
+--                     {"forbid": "regex that must not match", "hint": "...", "points": 10}]}
+--                   Full-line comments are ignored before matching. A rule may
+--                   carry "flags": "i" for case-insensitive.
+--
+-- A lab with a 'rules' task approves a full-marks submission on the spot
+-- (reviewed_by = 'auto'), except one in five, which stays Submitted for a
+-- staff spot check of the written explanation (submit_lab_attempt above).
+-- Labs stay outside Hub Score, as decided on 2026-10-03.
+
+ALTER TABLE public.labs ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'Neutral';
+ALTER TABLE public.labs DROP CONSTRAINT IF EXISTS labs_platform_check;
+ALTER TABLE public.labs ADD CONSTRAINT labs_platform_check CHECK (platform IN ('Neutral', 'Azure', 'AWS'));
+
+ALTER TABLE public.lab_answer_keys DROP CONSTRAINT IF EXISTS lab_answer_keys_grading_check;
+ALTER TABLE public.lab_answer_keys ADD CONSTRAINT lab_answer_keys_grading_check
+  CHECK (grading IN ('single', 'multi', 'match', 'risk_score', 'rubric', 'rules'));
+
+-- Every pre-submission Check is logged so it can be rate limited: without a
+-- limit, repeated checks would let a member work the hints out one by one.
+CREATE TABLE IF NOT EXISTS public.lab_task_checks (
+  id BIGSERIAL PRIMARY KEY,
+  lab_id BIGINT NOT NULL REFERENCES public.labs(id) ON DELETE CASCADE,
+  member_email TEXT NOT NULL,
+  task_key TEXT NOT NULL,
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_lab_task_checks_lookup ON public.lab_task_checks (member_email, lab_id, task_key, checked_at);
+ALTER TABLE public.lab_task_checks ENABLE ROW LEVEL SECURITY;
+-- No policies: members and staff reach it only through check_lab_task().
+
+-- Grades one text against one rule set. Returns
+--   {"earned": n, "max": n, "checks": [{"ok": bool, "hint": "...", "points": n}]}
+-- and never the patterns. Used by check_lab_task and submit_lab_attempt.
+CREATE OR REPLACE FUNCTION public._grade_rules(p_text TEXT, p_spec JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql IMMUTABLE SET search_path = public
+AS $$
+DECLARE
+  v_text TEXT;
+  v_rule JSONB;
+  v_pattern TEXT;
+  v_hit BOOLEAN;
+  v_ok BOOLEAN;
+  v_points INTEGER;
+  v_earned INTEGER := 0;
+  v_max INTEGER := 0;
+  v_checks JSONB := '[]'::jsonb;
+  v_limit INTEGER := COALESCE((p_spec ->> 'max_chars')::integer, 20000);
+BEGIN
+  IF p_spec IS NULL OR jsonb_typeof(p_spec -> 'rules') <> 'array' THEN
+    RAISE EXCEPTION 'This task has no rules.';
+  END IF;
+  IF p_text IS NULL OR length(trim(p_text)) = 0 THEN
+    v_text := '';
+  ELSIF length(p_text) > v_limit THEN
+    RAISE EXCEPTION 'That is longer than the % characters this task allows.', v_limit;
+  ELSE
+    -- Full-line comments (#, //, --) never count, so a fault cannot be hidden
+    -- and a control cannot be faked by commenting it in.
+    v_text := regexp_replace(replace(p_text, E'\r', ''), '^[ \t]*(#|//|--).*$', '', 'gn');
+  END IF;
+
+  FOR v_rule IN SELECT value FROM jsonb_array_elements(p_spec -> 'rules') LOOP
+    v_points := COALESCE((v_rule ->> 'points')::integer, 0);
+    v_pattern := COALESCE(v_rule ->> 'need', v_rule ->> 'forbid');
+    IF v_pattern IS NULL THEN
+      RAISE EXCEPTION 'A rule needs a "need" or "forbid" pattern.';
+    END IF;
+    IF position('i' IN COALESCE(v_rule ->> 'flags', '')) > 0 THEN
+      v_hit := v_text ~* v_pattern;
+    ELSE
+      v_hit := v_text ~ v_pattern;
+    END IF;
+    -- An empty submission passes nothing, so a blank box never shows green ticks
+    -- for the "must not contain" rules.
+    v_ok := CASE WHEN v_text = '' THEN false WHEN v_rule ? 'need' THEN v_hit ELSE NOT v_hit END;
+    v_max := v_max + v_points;
+    IF v_ok THEN v_earned := v_earned + v_points; END IF;
+    v_checks := v_checks || jsonb_build_array(jsonb_build_object('ok', v_ok, 'hint', COALESCE(v_rule ->> 'hint', ''), 'points', v_points));
+  END LOOP;
+
+  RETURN jsonb_build_object('earned', v_earned, 'max', v_max, 'checks', v_checks);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public._grade_rules(TEXT, JSONB) FROM PUBLIC, anon, authenticated;
+
+-- A member's pre-submission Check on one rules task. Does not lock or save
+-- anything; returns the per-check result. At most 30 checks a day for each
+-- lab task.
+CREATE OR REPLACE FUNCTION public.check_lab_task(p_lab_id BIGINT, p_task_key TEXT, p_text TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_key public.lab_answer_keys%ROWTYPE;
+  v_status TEXT;
+BEGIN
+  IF v_email IS NULL OR NOT public.is_member_allowed(v_email) THEN
+    RAISE EXCEPTION 'Sign in to check your work.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.labs l WHERE l.id = p_lab_id AND l.kind = 'hub' AND l.is_published) THEN
+    RAISE EXCEPTION 'That lab is not available.';
+  END IF;
+  SELECT * INTO v_key FROM public.lab_answer_keys k WHERE k.lab_id = p_lab_id AND k.task_key = p_task_key AND k.grading = 'rules';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'That task cannot be checked.';
+  END IF;
+  SELECT la.status INTO v_status FROM public.lab_attempts la WHERE la.lab_id = p_lab_id AND la.member_email = v_email;
+  IF v_status IN ('Submitted', 'Approved') THEN
+    RAISE EXCEPTION 'This lab has already been submitted.';
+  END IF;
+  IF (SELECT count(*) FROM public.lab_task_checks c
+      WHERE c.member_email = v_email AND c.lab_id = p_lab_id AND c.task_key = p_task_key
+        AND c.checked_at > now() - interval '1 day') >= 30 THEN
+    RAISE EXCEPTION 'You have used today''s 30 checks for this task. Come back tomorrow.';
+  END IF;
+  INSERT INTO public.lab_task_checks (lab_id, member_email, task_key) VALUES (p_lab_id, v_email, p_task_key);
+  RETURN public._grade_rules(p_text, v_key.answer);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.check_lab_task(BIGINT, TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.check_lab_task(BIGINT, TEXT, TEXT) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- SEED: nine engineering labs (2026-10-16)
+-- =========================================================================
+-- Prompts and starting files live in src/data/labs/eng*.js (matched by slug).
+-- Rules, model fixes and rubrics live here, and only here. Patterns use
+-- PostgreSQL regular expressions: \y is a word boundary (\b would mean
+-- backspace), (?n) makes ^ and $ match at line breaks, and a rule's "flags"
+-- of "i" makes it case-insensitive. Re-running updates in place.
+
+INSERT INTO public.labs (slug, kind, title, summary, track, difficulty, est_minutes, platform, roadmap_item_title, is_published, sort_order, created_by)
+VALUES
+  ('eng-storage-aws-amanzi-statements', 'hub', 'Fix the Storage Exposure: Amanzi Statements (AWS)',
+   'A statements bucket is public, unencrypted and sits beside a server with SSH open to the world. Fix the Terraform so it is safe to merge, and explain what you changed.',
+   'Cloud Security', 'Beginner', 45, 'AWS', 'AWS Certified SysOps Administrator – Associate', true, 500, 'migration'),
+  ('eng-storage-azure-karoostream', 'hub', 'Fix the Storage Exposure: KarooStream (Azure)',
+   'A storage account allows public blobs, old TLS and open network access beside a server with SSH open to the world. Fix the Terraform so it is safe to merge, and explain what you changed.',
+   'Cloud Security', 'Beginner', 45, 'Azure', 'AZ-104', true, 501, 'migration'),
+  ('eng-container-karoo-parcels', 'hub', 'Harden a Container: Karoo Parcels',
+   'A tracking API ships with a Dockerfile and a Compose file copied from a tutorial. Pin the image, drop root, remove baked-in secrets, and stop the Compose file handing the host to the container.',
+   'DevSecOps', 'Intermediate', 60, 'Neutral', 'KCSA', true, 502, 'migration'),
+  ('eng-kubernetes-masakhane-api', 'hub', 'Lock Down a Kubernetes Deployment: Masakhane Pay',
+   'A payments API manifest runs privileged on the host network with a password in plain text. Bring it in line with the cluster''s pod security rules.',
+   'DevSecOps', 'Intermediate', 50, 'Neutral', 'KCSA', true, 503, 'migration'),
+  ('eng-iam-aws-sibusiso-reports', 'hub', 'Least-Privilege Policy: Sibusiso Analytics (AWS)',
+   'A nightly job runs on an IAM policy that allows everything on everything. Replace it with one that lets the job list and download from a single bucket and nothing else.',
+   'IAM', 'Intermediate', 40, 'AWS', 'AWS Certified Security – Specialty', true, 504, 'migration'),
+  ('eng-iam-azure-ndlovu-insights', 'hub', 'Least-Privilege Role: Ndlovu Insights (Azure)',
+   'A nightly job''s service principal is Owner of the whole subscription. Replace it with the smallest role, on the smallest scope, that still lets it read reports.',
+   'IAM', 'Intermediate', 40, 'Azure', 'SC-300', true, 505, 'migration'),
+  ('eng-detection-spray-kaapstad-credit', 'hub', 'Catch a Password-Spraying Attack: Kaapstad Credit Union',
+   'One address is trying a few passwords against many staff accounts without locking any of them. Write a detection rule that catches it and leaves the head office gateway alone.',
+   'SOC', 'Intermediate', 45, 'Neutral', 'CySA+', true, 506, 'migration'),
+  ('eng-audit-aws-own-account', 'hub', 'Audit a Bucket in Your Own AWS Account',
+   'Create a throwaway bucket in your free AWS account, check its public access and encryption with read-only commands, fix the gaps and paste the output. No access to your account is ever needed.',
+   'Cloud Security', 'Beginner', 45, 'AWS', 'AWS Certified Security – Specialty', true, 507, 'migration'),
+  ('eng-audit-azure-own-account', 'hub', 'Audit a Storage Account in Your Own Azure Account',
+   'Create a throwaway storage account in your free Azure account, check its settings and firewall with read-only commands, fix the gaps and paste the output. No access to your account is ever needed.',
+   'Cloud Security', 'Beginner', 45, 'Azure', 'SC-500', true, 508, 'migration')
+ON CONFLICT (slug) DO UPDATE SET
+  kind = EXCLUDED.kind,
+  title = EXCLUDED.title,
+  summary = EXCLUDED.summary,
+  track = EXCLUDED.track,
+  difficulty = EXCLUDED.difficulty,
+  est_minutes = EXCLUDED.est_minutes,
+  platform = EXCLUDED.platform,
+  roadmap_item_title = EXCLUDED.roadmap_item_title,
+  sort_order = EXCLUDED.sort_order,
+  updated_at = now();
+
+INSERT INTO public.lab_answer_keys (lab_id, task_key, grading, answer, points, model_answer, rubric)
+SELECT l.id, v.task_key, v.grading, v.answer, v.points, v.model_answer, v.rubric
+FROM public.labs l
+JOIN (VALUES
+  -- ---------------- Fix the Storage Exposure: Amanzi Statements (AWS) ----------------
+  ('eng-storage-aws-amanzi-statements', 't1', 'single',
+   $j$"public-acl"$j$::jsonb, 10,
+   $m$The public bucket is the most dangerous fault: with a public-read ACL anyone who guesses or finds the bucket name can download every customer statement, with no account and no logs of who. The missing encryption and the open SSH port matter, but neither exposes customer data on its own the way the public ACL does.$m$,
+   NULL::jsonb),
+  ('eng-storage-aws-amanzi-statements', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"forbid": "acl\\s*=\\s*[\"\\']public-read", "hint": "The bucket is still public. Remove the public-read ACL.", "points": 15}, {"need": "aws_s3_bucket_public_access_block", "hint": "Add a public access block resource for the bucket.", "points": 10}, {"need": "block_public_acls\\s*=\\s*true", "hint": "block_public_acls is not switched on.", "points": 5}, {"need": "block_public_policy\\s*=\\s*true", "hint": "block_public_policy is not switched on.", "points": 5}, {"need": "ignore_public_acls\\s*=\\s*true", "hint": "ignore_public_acls is not switched on.", "points": 5}, {"need": "restrict_public_buckets\\s*=\\s*true", "hint": "restrict_public_buckets is not switched on.", "points": 5}, {"need": "aws_s3_bucket_server_side_encryption_configuration", "hint": "The bucket has no server-side encryption.", "points": 10}, {"forbid": "from_port\\s*=\\s*22\\y[^}]*0\\.0\\.0\\.0/0|0\\.0\\.0\\.0/0[^}]*from_port\\s*=\\s*22\\y", "hint": "SSH is still open to the whole internet. Restrict it or remove it.", "points": 15}, {"forbid": "AKIA[0-9A-Z]{16}|(access_key|secret_key)\\s*=\\s*[\"\\']", "hint": "A key is still written in the file. Use a role or environment instead.", "points": 10}]}$j$::jsonb, 80,
+   $m$provider "aws" {
+  region = "af-south-1"
+}
+
+resource "aws_s3_bucket" "statements" {
+  bucket = "amanzi-customer-statements"
+}
+
+resource "aws_s3_bucket_public_access_block" "statements" {
+  bucket                  = aws_s3_bucket.statements.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "statements" {
+  bucket = aws_s3_bucket.statements.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_security_group" "statement_server" {
+  name = "statement-server"
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Your resource names will differ. The controls are what matter: no public ACL,
+# all four public access block settings, encryption, no world-open SSH, and no
+# keys in the file (the provider picks up credentials from a role).$m$,
+   NULL::jsonb),
+  ('eng-storage-aws-amanzi-statements', 't3', 'rubric',
+   NULL::jsonb, 0,
+   $m$The public bucket goes first: it is the one fault that exposes customer data today. Then the public access block (so it cannot be made public again by mistake), encryption, SSH, and the keys. A strong answer says why the order matters, not just what changed.$m$,
+   $j$[{"criterion": "What changed", "levels": ["Vague or missing", "Names the changes but not where", "Names each change and what it did"]}, {"criterion": "Why it matters", "levels": ["No reason given", "Reasons are generic", "Ties each change to a real risk for this organisation"]}, {"criterion": "Priority", "levels": ["No priority", "A priority with no reason", "One change chosen first, with a clear reason"]}]$j$::jsonb),
+
+  -- ---------------- Fix the Storage Exposure: KarooStream (Azure) ----------------
+  ('eng-storage-azure-karoostream', 't1', 'single',
+   $j$"nested-public"$j$::jsonb, 10,
+   $m$Allowing blobs to be public is what lets a container be set to anonymous read. With that on, an invoice container can be read by anyone who has its address, with no sign-in. Old TLS and open SSH are real findings, but they do not by themselves hand over customer invoices.$m$,
+   NULL::jsonb),
+  ('eng-storage-azure-karoostream', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"need": "allow_nested_items_to_be_public\\s*=\\s*false", "hint": "Blobs can still be made public. Turn that off explicitly.", "points": 15}, {"need": "min_tls_version\\s*=\\s*[\"\\']TLS1_2", "hint": "The minimum TLS version is below 1.2.", "points": 10}, {"need": "(enable_https_traffic_only|https_traffic_only_enabled)\\s*=\\s*true", "hint": "HTTPS-only is not switched on.", "points": 10}, {"need": "default_action\\s*=\\s*[\"\\']Deny", "hint": "The storage firewall still allows traffic by default.", "points": 15}, {"forbid": "destination_port_range\\s*=\\s*[\"\\']22[\"\\'][^}]*source_address_prefix\\s*=\\s*[\"\\'](\\*|0\\.0\\.0\\.0/0|Internet)[\"\\']|source_address_prefix\\s*=\\s*[\"\\'](\\*|0\\.0\\.0\\.0/0|Internet)[\"\\'][^}]*destination_port_range\\s*=\\s*[\"\\']22[\"\\']", "hint": "SSH is still open to the whole internet. Restrict the source or remove the rule.", "points": 15}, {"forbid": "client_secret\\s*=\\s*[\"\\']", "hint": "A client secret is still written in the file.", "points": 10}]}$j$::jsonb, 75,
+   $m$provider "azurerm" {
+  features {}
+}
+
+resource "azurerm_storage_account" "media" {
+  name                            = "karoostreammedia"
+  resource_group_name             = "rg-karoostream"
+  location                        = "southafricanorth"
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  allow_nested_items_to_be_public = false
+  min_tls_version                 = "TLS1_2"
+  https_traffic_only_enabled      = true
+
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+  }
+}
+
+resource "azurerm_network_security_rule" "ssh" {
+  name                        = "allow-ssh-from-office"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefix       = "203.0.113.0/24"
+  destination_address_prefix  = "*"
+  resource_group_name         = "rg-karoostream"
+  network_security_group_name = "nsg-encoder"
+}
+
+# Your resource names will differ. The controls are what matter: no public blobs,
+# TLS 1.2 or newer, HTTPS only, a deny-by-default firewall, SSH from a known
+# range only, and no client secret in the file.$m$,
+   NULL::jsonb),
+  ('eng-storage-azure-karoostream', 't3', 'rubric',
+   NULL::jsonb, 0,
+   $m$Public blobs first: it is the setting that exposes customer invoices. Then the firewall default, TLS and HTTPS, SSH, and the secret. A strong answer links each change to what it stops.$m$,
+   $j$[{"criterion": "What changed", "levels": ["Vague or missing", "Names the changes but not where", "Names each change and what it did"]}, {"criterion": "Why it matters", "levels": ["No reason given", "Reasons are generic", "Ties each change to a real risk for this organisation"]}, {"criterion": "Priority", "levels": ["No priority", "A priority with no reason", "One change chosen first, with a clear reason"]}]$j$::jsonb),
+
+  -- ---------------- Harden a Container: Karoo Parcels ----------------
+  ('eng-container-karoo-parcels', 't1', 'multi',
+   $j$["privileged", "docker-sock", "host-net"]$j$::jsonb, 10,
+   $m$A privileged container, the Docker socket and the host network each give a compromised container a way onto the host: privileged turns off most isolation, the socket lets it start any container (including a privileged one), and the host network puts it on the machine's own network. A health check and a pinned tag are good practice and add no escape route.$m$,
+   NULL::jsonb),
+  ('eng-container-karoo-parcels', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"forbid": "(?n)^\\s*FROM\\s+\\S+:latest\\y", "hint": "The base image is still \"latest\". Pin it to a version.", "points": 10}, {"need": "(?n)^\\s*FROM\\s+\\S+:[0-9]", "hint": "The base image needs a version tag, such as 3.12-slim.", "points": 5}, {"forbid": "(?n)^\\s*(ENV|ARG)\\s+\\w*(secret|password|token|api_?key)\\w*[ =]\\s*\\S+", "hint": "A secret is still baked into the image. Pass it in at run time.", "points": 15, "flags": "i"}, {"need": "(?n)^\\s*USER\\s+(?!root\\y|0\\y)\\S+", "hint": "The container still runs as root. Add a non-root USER.", "points": 15}, {"forbid": "(?n)^\\s*ADD\\s+\\S", "hint": "Use COPY instead of ADD.", "points": 5}, {"need": "(?n)^\\s*HEALTHCHECK\\s", "hint": "Add a HEALTHCHECK.", "points": 5}, {"forbid": "(?n)^\\s*EXPOSE\\s+.*\\y22\\y", "hint": "Port 22 is still exposed. The app only serves its own port.", "points": 5}]}$j$::jsonb, 60,
+   $m$FROM python:3.12-slim
+
+RUN useradd --create-home --uid 10001 appuser
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+USER appuser
+
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"
+
+CMD ["python", "app.py"]
+
+# The secret key is no longer in the image: the platform passes SECRET_KEY in
+# when the container starts.$m$,
+   NULL::jsonb),
+  ('eng-container-karoo-parcels', 't3', 'rules',
+   $j${"max_chars": 20000, "rules": [{"forbid": "privileged:\\s*true", "hint": "The container is still privileged.", "points": 10}, {"forbid": "docker\\.sock", "hint": "The Docker socket is still mounted into the container.", "points": 10}, {"forbid": "network_mode:\\s*[\"\\']?host", "hint": "The container is still on the host network.", "points": 5}, {"forbid": "(?n)^\\s*-\\s*[\"\\']?(0\\.0\\.0\\.0:)?5432:5432", "hint": "The database port is still published to everyone. Remove it or bind it to 127.0.0.1.", "points": 10}, {"need": "read_only:\\s*true", "hint": "Make the API container read-only.", "points": 5}, {"need": "cap_drop:[\\s\\S]{0,30}ALL", "hint": "Drop all Linux capabilities.", "points": 5, "flags": "i"}]}$j$::jsonb, 45,
+   $m$services:
+  api:
+    build: .
+    read_only: true
+    cap_drop:
+      - ALL
+    ports:
+      - "5000:5000"
+  db:
+    image: postgres:16
+    # No ports published: the API reaches the database over the Compose network.$m$,
+   NULL::jsonb),
+  ('eng-container-karoo-parcels', 't4', 'rubric',
+   NULL::jsonb, 0,
+   $m$The Dockerfile: pinned image, no secret, non-root user. The Compose file: no privileged mode, no Docker socket, no published database port. If only one change, removing the Docker socket mount (or privileged mode) reduces the most risk, because it hands the host to anything that breaks into the container.$m$,
+   $j$[{"criterion": "What changed", "levels": ["Vague or missing", "Names the changes but not where", "Names each change and what it did"]}, {"criterion": "Why it matters", "levels": ["No reason given", "Reasons are generic", "Ties each change to a real risk for this organisation"]}, {"criterion": "Priority", "levels": ["No priority", "A priority with no reason", "One change chosen first, with a clear reason"]}]$j$::jsonb),
+
+  -- ---------------- Lock Down a Kubernetes Deployment: Masakhane Pay ----------------
+  ('eng-kubernetes-masakhane-api', 't1', 'single',
+   $j$"privileged"$j$::jsonb, 10,
+   $m$privileged: true gives the container nearly every capability of the node and access to its devices. A compromised pod can take over the node and everything scheduled on it. Replica count, ports and labels are not security settings.$m$,
+   NULL::jsonb),
+  ('eng-kubernetes-masakhane-api', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"forbid": "privileged:\\s*true", "hint": "The pod is still privileged.", "points": 10}, {"forbid": "hostNetwork:\\s*true", "hint": "The pod is still on the host network.", "points": 10}, {"forbid": "image:\\s*\\S+:latest", "hint": "The image is still \"latest\". Pin a version.", "points": 10}, {"need": "image:\\s*\\S+:[0-9]", "hint": "The image needs a version tag, such as 1.4.2.", "points": 5}, {"need": "runAsNonRoot:\\s*true", "hint": "Set runAsNonRoot to true.", "points": 10}, {"forbid": "runAsUser:\\s*0\\y", "hint": "The pod is still set to run as user 0 (root).", "points": 5}, {"need": "allowPrivilegeEscalation:\\s*false", "hint": "Set allowPrivilegeEscalation to false.", "points": 10}, {"need": "readOnlyRootFilesystem:\\s*true", "hint": "Make the root filesystem read-only.", "points": 10}, {"need": "drop:[\\s\\S]{0,40}ALL", "hint": "Drop all Linux capabilities.", "points": 10, "flags": "i"}, {"forbid": "(?n)name:\\s*[\"\\']?\\w*(password|secret|token)\\w*[\"\\']?\\s*\\n\\s*value:", "hint": "A password is written into the manifest. Reference the Secret instead.", "points": 10, "flags": "i"}, {"need": "limits:[\\s\\S]*?(cpu[\\s\\S]*?memory|memory[\\s\\S]*?cpu)", "hint": "Set both CPU and memory limits.", "points": 10}]}$j$::jsonb, 100,
+   $m$apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payments-api
+  template:
+    metadata:
+      labels:
+        app: payments-api
+    spec:
+      containers:
+        - name: api
+          image: masakhane/payments-api:1.4.2
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: db-password
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]$m$,
+   NULL::jsonb),
+  ('eng-kubernetes-masakhane-api', 't3', 'rubric',
+   NULL::jsonb, 0,
+   $m$Removing privileged mode and the host network comes first: they let a compromised pod take over the node. Then non-root and no privilege escalation, a read-only filesystem and dropped capabilities, then the secret and the limits.$m$,
+   $j$[{"criterion": "What changed", "levels": ["Vague or missing", "Names the changes but not where", "Names each change and what it did"]}, {"criterion": "Why it matters", "levels": ["No reason given", "Reasons are generic", "Ties each change to a real risk for this organisation"]}, {"criterion": "Priority", "levels": ["No priority", "A priority with no reason", "One change chosen first, with a clear reason"]}]$j$::jsonb),
+
+  -- ---------------- Least-Privilege Policy: Sibusiso Analytics (AWS) ----------------
+  ('eng-iam-aws-sibusiso-reports', 't1', 'single',
+   $j$"takeover"$j$::jsonb, 10,
+   $m$With s3:* and iam:* on every resource, a leaked credential can read or delete any bucket and create administrator users, which is a full account takeover. The cost or speed of the job is not the issue; the blast radius is.$m$,
+   NULL::jsonb),
+  ('eng-iam-aws-sibusiso-reports', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"forbid": "s3:\\*", "hint": "The policy still allows every S3 action.", "points": 10}, {"forbid": "iam:", "hint": "The job does not need any IAM actions.", "points": 15}, {"forbid": "\"\\*\"", "hint": "A bare * (every action or every resource) is still in the policy.", "points": 15}, {"forbid": "s3:(Put|Delete)", "hint": "The job only reads. Remove the write and delete actions.", "points": 10}, {"need": "s3:GetObject", "hint": "The job cannot download reports yet.", "points": 10}, {"need": "s3:ListBucket", "hint": "The job cannot list the reports yet.", "points": 10}, {"need": "arn:aws:s3:::sibusiso-client-reports[\"\\']", "hint": "Listing needs the bucket address itself.", "points": 5}, {"need": "arn:aws:s3:::sibusiso-client-reports/\\*", "hint": "Downloading needs the address of the objects in the bucket.", "points": 5}]}$j$::jsonb, 80,
+   $m${
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListReports",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::sibusiso-client-reports"
+    },
+    {
+      "Sid": "DownloadReports",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::sibusiso-client-reports/*"
+    }
+  ]
+}$m$,
+   NULL::jsonb),
+  ('eng-iam-aws-sibusiso-reports', 't3', 'rubric',
+   NULL::jsonb, 0,
+   $m$Two statements, because listing applies to the bucket and downloading applies to the objects in it. Only the two read actions, only the one bucket. To check the job still works, run it in a test account or with the policy simulator and read the access log for denied calls.$m$,
+   $j$[{"criterion": "What changed", "levels": ["Vague or missing", "Names the changes but not where", "Names each change and what it did"]}, {"criterion": "Why it matters", "levels": ["No reason given", "Reasons are generic", "Ties each change to a real risk for this organisation"]}, {"criterion": "Priority", "levels": ["No priority", "A priority with no reason", "One change chosen first, with a clear reason"]}]$j$::jsonb),
+
+  -- ---------------- Least-Privilege Role: Ndlovu Insights (Azure) ----------------
+  ('eng-iam-azure-ndlovu-insights', 't1', 'single',
+   $j$"takeover"$j$::jsonb, 10,
+   $m$An Owner at the subscription can read, change or delete anything in it and grant others access, so one leaked secret is a full takeover. The job's speed or the bill is not the concern; the blast radius is.$m$,
+   NULL::jsonb),
+  ('eng-iam-azure-ndlovu-insights', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"forbid": "role_definition_name\\s*=\\s*[\"\\'](Owner|Contributor|User Access Administrator)", "hint": "The role is still far too powerful for a job that only reads.", "points": 20}, {"need": "role_definition_name\\s*=\\s*[\"\\']Storage Blob Data Reader", "hint": "Use the Storage Blob Data Reader role.", "points": 20}, {"forbid": "scope\\s*=\\s*data\\.azurerm_subscription", "hint": "The role is still assigned at the whole subscription.", "points": 15}, {"need": "scope\\s*=\\s*azurerm_storage_(account|container)\\.\\w+\\.id", "hint": "Scope the role to the storage account.", "points": 20}]}$j$::jsonb, 75,
+   $m$resource "azurerm_role_assignment" "report_job" {
+  scope                = azurerm_storage_account.reports.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azuread_service_principal.report_job.object_id
+}$m$,
+   NULL::jsonb),
+  ('eng-iam-azure-ndlovu-insights', 't3', 'rubric',
+   NULL::jsonb, 0,
+   $m$Storage Blob Data Reader is the built-in role for reading blob data, and the storage account is the smallest scope that covers the reports. To confirm it still works, run the job and check it can read, then confirm it is refused when it tries to write or touch anything else.$m$,
+   $j$[{"criterion": "What changed", "levels": ["Vague or missing", "Names the changes but not where", "Names each change and what it did"]}, {"criterion": "Why it matters", "levels": ["No reason given", "Reasons are generic", "Ties each change to a real risk for this organisation"]}, {"criterion": "Priority", "levels": ["No priority", "A priority with no reason", "One change chosen first, with a clear reason"]}]$j$::jsonb),
+
+  -- ---------------- Catch a Password-Spraying Attack: Kaapstad Credit Union ----------------
+  ('eng-detection-spray-kaapstad-credit', 't1', 'single',
+   $j$"spray"$j$::jsonb, 10,
+   $m$Password spraying tries a small number of common passwords against many accounts, so no single account sees enough failures to lock. Brute force hammers one account; that is not what the log shows.$m$,
+   NULL::jsonb),
+  ('eng-detection-spray-kaapstad-credit', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"need": "event:\\s*signin_failed", "hint": "Look at failed sign-in events.", "points": 5, "flags": "i"}, {"need": "group_by:\\s*source_ip", "hint": "Count by source address. Spraying is one address across many accounts, so counting by user misses it.", "points": 25, "flags": "i"}, {"need": "distinct_users:\\s*[\"\\']?\\s*>=?\\s*([3-9]|[1-4][0-9])\\y", "hint": "Pick a number of accounts the attack really crosses, from 3 to 49.", "points": 20, "flags": "i"}, {"need": "window:\\s*(([1-9]|[1-5][0-9]|60)m|1h)\\y", "hint": "Use a window between 1 minute and 1 hour.", "points": 15, "flags": "i"}, {"need": "exclude:[\\s\\S]*10\\.20\\.0\\.5", "hint": "Exclude the head office gateway, 10.20.0.5, or it will fire every Monday.", "points": 15, "flags": "i"}]}$j$::jsonb, 80,
+   $m$detect:
+  event: signin_failed
+  group_by: source_ip
+  window: 10m
+  where:
+    distinct_users: ">= 5"
+    count: ">= 15"
+  exclude:
+    source_ip: ["10.20.0.5"]$m$,
+   NULL::jsonb),
+  ('eng-detection-spray-kaapstad-credit', 't3', 'rubric',
+   NULL::jsonb, 0,
+   $m$Group by source address because spraying is one address across many accounts. Thresholds need to sit below what the attacker does (six accounts in under a minute) and above ordinary typos. The head office gateway is excluded because every employee appears to come from it. Remaining false alarms: other shared addresses, such as a branch or a VPN, which an allowlist would need to cover.$m$,
+   $j$[{"criterion": "What changed", "levels": ["Vague or missing", "Names the changes but not where", "Names each change and what it did"]}, {"criterion": "Why it matters", "levels": ["No reason given", "Reasons are generic", "Ties each change to a real risk for this organisation"]}, {"criterion": "Priority", "levels": ["No priority", "A priority with no reason", "One change chosen first, with a clear reason"]}]$j$::jsonb),
+
+  -- ---------------- Audit a Bucket in Your Own AWS Account ----------------
+  ('eng-audit-aws-own-account', 't1', 'single',
+   $j$"policy"$j$::jsonb, 10,
+   $m$BlockPublicPolicy false means S3 will accept a bucket policy that makes the bucket public. The other three settings cover public ACLs; this one covers policies. All four need to be true.$m$,
+   NULL::jsonb),
+  ('eng-audit-aws-own-account', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"need": "BlockPublicAcls\\W+true", "hint": "BlockPublicAcls is not true.", "points": 10, "flags": "i"}, {"need": "BlockPublicPolicy\\W+true", "hint": "BlockPublicPolicy is not true.", "points": 10, "flags": "i"}, {"need": "IgnorePublicAcls\\W+true", "hint": "IgnorePublicAcls is not true.", "points": 10, "flags": "i"}, {"need": "RestrictPublicBuckets\\W+true", "hint": "RestrictPublicBuckets is not true.", "points": 10, "flags": "i"}, {"forbid": ":\\s*false", "hint": "A setting in the output is still false.", "points": 5}, {"forbid": "\\y[0-9]{12}\\y", "hint": "Remove your 12-digit account ID before pasting.", "points": 5}]}$j$::jsonb, 50,
+   $m${
+    "PublicAccessBlockConfiguration": {
+        "BlockPublicAcls": true,
+        "IgnorePublicAcls": true,
+        "BlockPublicPolicy": true,
+        "RestrictPublicBuckets": true
+    }
+}$m$,
+   NULL::jsonb),
+  ('eng-audit-aws-own-account', 't3', 'rules',
+   $j${"max_chars": 20000, "rules": [{"need": "SSEAlgorithm\\W+(AES256|aws:kms)", "hint": "The output does not show a default encryption algorithm.", "points": 20}, {"forbid": "\\y[0-9]{12}\\y", "hint": "Remove your 12-digit account ID before pasting.", "points": 5}]}$j$::jsonb, 25,
+   $m${
+    "ServerSideEncryptionConfiguration": {
+        "Rules": [
+            {
+                "ApplyServerSideEncryptionByDefault": {
+                    "SSEAlgorithm": "AES256"
+                },
+                "BucketKeyEnabled": true
+            }
+        ]
+    }
+}$m$,
+   NULL::jsonb),
+  ('eng-audit-aws-own-account', 't4', 'rubric',
+   NULL::jsonb, 0,
+   $m$A good answer names the settings that were off, the exact commands or console steps that fixed them, and a way to check at scale: an AWS Config rule or a security scanner that flags any bucket without all four block settings and default encryption.$m$,
+   $j$[{"criterion": "What the audit found", "levels": ["Not described", "Described without the actual settings", "States what each setting was before the fix"]}, {"criterion": "What was changed", "levels": ["Not described", "Changes named but vague", "The exact settings changed, and the command used"]}, {"criterion": "Scaling it up", "levels": ["No idea", "Mentions a tool without how it helps", "A realistic way to check many accounts, such as a policy or scanner, and what it would flag"]}]$j$::jsonb),
+
+  -- ---------------- Audit a Storage Account in Your Own Azure Account ----------------
+  ('eng-audit-azure-own-account', 't1', 'single',
+   $j$"anon"$j$::jsonb, 10,
+   $m$publicAccess true means containers can be configured for anonymous read, so anyone with a blob's address can download it without signing in. It does not describe TLS, regions or SAS tokens.$m$,
+   NULL::jsonb),
+  ('eng-audit-azure-own-account', 't2', 'rules',
+   $j${"max_chars": 20000, "rules": [{"need": "publicAccess\\W+false", "hint": "publicAccess is not false.", "points": 20, "flags": "i"}, {"need": "httpsOnly\\W+true", "hint": "httpsOnly is not true.", "points": 15, "flags": "i"}, {"need": "minTls\\W+TLS1_[23]", "hint": "minTls is below TLS 1.2.", "points": 10, "flags": "i"}, {"forbid": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", "hint": "Remove any subscription ID before pasting.", "points": 5}]}$j$::jsonb, 50,
+   $m${
+  "httpsOnly": true,
+  "minTls": "TLS1_2",
+  "publicAccess": false
+}$m$,
+   NULL::jsonb),
+  ('eng-audit-azure-own-account', 't3', 'rules',
+   $j${"max_chars": 20000, "rules": [{"need": "\\yDeny\\y", "hint": "The default network rule is not Deny.", "points": 20, "flags": "i"}, {"forbid": "\\yAllow\\y", "hint": "The output still shows Allow.", "points": 5, "flags": "i"}]}$j$::jsonb, 25,
+   $m$"Deny"$m$,
+   NULL::jsonb),
+  ('eng-audit-azure-own-account', 't4', 'rubric',
+   NULL::jsonb, 0,
+   $m$A good answer names the settings that were off, the exact commands or portal steps that fixed them, and a way to check at scale: Azure Policy with built-in definitions for storage accounts, or a security scanner that flags any account allowing public blobs, HTTP or old TLS.$m$,
+   $j$[{"criterion": "What the audit found", "levels": ["Not described", "Described without the actual settings", "States what each setting was before the fix"]}, {"criterion": "What was changed", "levels": ["Not described", "Changes named but vague", "The exact settings changed, and the command used"]}, {"criterion": "Scaling it up", "levels": ["No idea", "Mentions a tool without how it helps", "A realistic way to check many accounts, such as a policy or scanner, and what it would flag"]}]$j$::jsonb)
 ) AS v(slug, task_key, grading, answer, points, model_answer, rubric) ON v.slug = l.slug
 ON CONFLICT (lab_id, task_key) DO UPDATE SET
   grading = EXCLUDED.grading,

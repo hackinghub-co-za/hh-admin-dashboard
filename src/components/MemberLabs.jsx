@@ -16,6 +16,10 @@ const MOCK_LABS = [
   { id: 1, slug: 'grc-risk-register-kasi-kredit', kind: 'hub', title: 'Build a Risk Register: Kasi Kredit', summary: 'A micro-lender needs its first information security risk register before funder due diligence. Separate real risks from noise, score them, choose treatments and controls, and write up the top risk.', track: 'GRC', difficulty: 'Beginner', estMinutes: 60, roadmapItemTitle: 'Mock Risk Assessment', externalUrl: '', provider: '' },
   { id: 2, slug: 'grc-breach-or-not-mzansi-learn', kind: 'hub', title: 'Breach or Not? Mzansi Learn', summary: 'Four incidents at an online tutoring company. Decide which must be notified under POPIA section 22, who gets told, and draft the notice to parents.', track: 'GRC', difficulty: 'Beginner', estMinutes: 45, roadmapItemTitle: 'POPIA/GDPR Practitioner', externalUrl: '', provider: '' },
   { id: 3, slug: 'grc-popia-gap-analysis-ikhaya-health', kind: 'hub', title: 'POPIA Gap Analysis: Ikhaya Health Clinics', summary: 'Assess a group of private clinics against the eight POPIA conditions using interviews, forms and an incident log, then write a remediation memo the owner can act on.', track: 'GRC', difficulty: 'Intermediate', estMinutes: 90, roadmapItemTitle: 'Compliance Gap Analysis', externalUrl: '', provider: '' },
+  { id: 5, slug: 'eng-storage-aws-amanzi-statements', kind: 'hub', title: 'Fix the Storage Exposure: Amanzi Statements (AWS)', summary: 'A statements bucket is public, unencrypted and sits beside a server with SSH open to the world. Fix the Terraform so it is safe to merge, and explain what you changed.', track: 'Cloud Security', difficulty: 'Beginner', estMinutes: 45, platform: 'AWS', roadmapItemTitle: 'AWS Certified SysOps Administrator – Associate', isPublished: true, sortOrder: 500 },
+  { id: 6, slug: 'eng-storage-azure-karoostream', kind: 'hub', title: 'Fix the Storage Exposure: KarooStream (Azure)', summary: 'A storage account allows public blobs, old TLS and open network access beside a server with SSH open to the world. Fix the Terraform so it is safe to merge, and explain what you changed.', track: 'Cloud Security', difficulty: 'Beginner', estMinutes: 45, platform: 'Azure', roadmapItemTitle: 'AZ-104', isPublished: true, sortOrder: 501 },
+  { id: 7, slug: 'eng-container-karoo-parcels', kind: 'hub', title: 'Harden a Container: Karoo Parcels', summary: 'A tracking API ships with a Dockerfile and a Compose file copied from a tutorial. Pin the image, drop root, remove baked-in secrets, and stop the Compose file handing the host to the container.', track: 'DevSecOps', difficulty: 'Intermediate', estMinutes: 60, platform: 'Neutral', roadmapItemTitle: 'KCSA', isPublished: true, sortOrder: 502 },
+  { id: 8, slug: 'eng-detection-spray-kaapstad-credit', kind: 'hub', title: 'Catch a Password-Spraying Attack: Kaapstad Credit Union', summary: 'One address is trying a few passwords against many staff accounts without locking any of them. Write a detection rule that catches it and leaves the head office gateway alone.', track: 'SOC', difficulty: 'Intermediate', estMinutes: 45, platform: 'Neutral', roadmapItemTitle: 'CySA+', isPublished: true, sortOrder: 506 },
   { id: 4, slug: 'curated-example', kind: 'curated', title: 'Example curated lab (Mock Member)', summary: 'Curated labs are external labs picked by the Hacking Hub team. Do the lab on its own platform, then submit a link that proves you finished it.', track: 'SOC', difficulty: 'Beginner', estMinutes: 60, roadmapItemTitle: '', externalUrl: 'https://tryhackme.com/', provider: 'TryHackMe' },
 ];
 
@@ -76,7 +80,7 @@ function CuratedProofForm({ lab, attempt, isMockSession, onSubmitted, onCancel }
   );
 }
 
-export default function MemberLabs({ isMockSession, roadmapTrack, userEmail }) {
+export default function MemberLabs({ isMockSession, roadmapTrack, userEmail, cloudPlatform = 'Azure' }) {
   const simEnabled = isMockSession || SIM_PREVIEW;
   const [labs, setLabs] = useState(isMockSession ? MOCK_LABS : []);
   const [attempts, setAttempts] = useState([]);
@@ -85,6 +89,8 @@ export default function MemberLabs({ isMockSession, roadmapTrack, userEmail }) {
   // null = automatic: the member's own track if it has labs, otherwise All.
   const [trackFilterChoice, setTrackFilter] = useState(null);
   const [kindFilter, setKindFilter] = useState('all');
+  // null = the member's own cloud (Azure or AWS labs follow their roadmap choice); 'All' shows both.
+  const [cloudFilterChoice, setCloudFilter] = useState(null);
   const [openLabId, setOpenLabId] = useState(null);
   const [proofFormLabId, setProofFormLabId] = useState(null);
   const [simOpen, setSimOpen] = useState(false);
@@ -129,8 +135,11 @@ export default function MemberLabs({ isMockSession, roadmapTrack, userEmail }) {
   const tracks = [...new Set(labs.map((l) => l.track))].sort();
   const trackFilter = trackFilterChoice ?? (roadmapTrack && tracks.includes(roadmapTrack) ? roadmapTrack : 'All');
   const trackChips = ['All', ...(trackFilter !== 'All' && !tracks.includes(trackFilter) ? [trackFilter] : []), ...tracks];
+  const hasCloudLabs = labs.some((l) => l.platform && l.platform !== 'Neutral');
+  const cloudFilter = cloudFilterChoice ?? cloudPlatform;
   const visibleLabs = labs
     .filter((l) => trackFilter === 'All' || l.track === trackFilter)
+    .filter((l) => !l.platform || l.platform === 'Neutral' || cloudFilter === 'All' || l.platform === cloudFilter)
     .filter((l) => kindFilter === 'all' || l.kind === kindFilter)
     .sort((a, b) => (DIFFICULTY_ORDER[a.difficulty] - DIFFICULTY_ORDER[b.difficulty]) || a.title.localeCompare(b.title));
 
@@ -171,6 +180,14 @@ export default function MemberLabs({ isMockSession, roadmapTrack, userEmail }) {
         <Chip active={kindFilter === 'all'} onClick={() => setKindFilter('all')}>All labs</Chip>
         <Chip active={kindFilter === 'hub'} onClick={() => setKindFilter('hub')}>Hub Labs</Chip>
         <Chip active={kindFilter === 'curated'} onClick={() => setKindFilter('curated')}>Curated</Chip>
+        {hasCloudLabs && (
+          <>
+            <span style={{ width: '1px', background: 'var(--border-color)', margin: '0 4px' }} aria-hidden="true" />
+            <Chip active={cloudFilter === 'Azure'} onClick={() => setCloudFilter('Azure')}>Azure labs</Chip>
+            <Chip active={cloudFilter === 'AWS'} onClick={() => setCloudFilter('AWS')}>AWS labs</Chip>
+            <Chip active={cloudFilter === 'All'} onClick={() => setCloudFilter('All')}>Both clouds</Chip>
+          </>
+        )}
       </div>
 
       {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{error}</p>}
@@ -211,6 +228,7 @@ export default function MemberLabs({ isMockSession, roadmapTrack, userEmail }) {
                 {lab.summary && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{lab.summary}</p>}
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
                   <span>{lab.track}</span>
+                  {lab.platform && lab.platform !== 'Neutral' && <span>{lab.platform}</span>}
                   <span>{lab.difficulty}</span>
                   {lab.estMinutes && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={11} /> ~{lab.estMinutes} min</span>}
                   {content && <span>{content.tasks.length} tasks</span>}

@@ -43,6 +43,40 @@ saved in their browser's `localStorage`.
   (26 to 30 October 2026).
 - `scripts/google-apps-script/expert-edge-review-form.gs`: the Expert Edge
   platform review Google Form.
+- **Talent Pool, phase 0 (members).** Members opt in from the Job Board tab
+  (`TalentOptIn.jsx`) with a ticked consent box and get an anonymous profile: a
+  display ID such as T-0142, headline, summary, city, work mode, availability
+  and self-reported skills, beside skills verified from passed Cert Calendar
+  exams, finished roadmap items, approved Projects and approved labs
+  (`labs.skills`). The founder searches it from a new admin **Talent Pool** tab
+  (`TalentPoolAdmin.jsx`, admins only): keyword search with synonyms (SC-200
+  also finds Sentinel), filters for track, city, years, verified skills and
+  availability, a shortlist, and a copyable anonymous recruiter pack with no
+  names or contact details. Reveal contact is a separate, logged action for use
+  after the person agrees to an introduction. New in `107_talent_pool.sql`:
+  `talent_profiles` (no RLS policies; reached only through functions),
+  `talent_contact_views`, `talent_synonyms`, `search_talent_pool()`,
+  `get_talent_contact()`, the member save/get/delete functions, and a nightly
+  rebuild (01:30 SAST) that refreshes verified skills, hides profiles not
+  confirmed for 12 months and deletes the profile of anyone who has left. Phase
+  1 (website sign-up) is not built; `source = 'public'` is ready for it.
+- **Engineering labs: nine hands-on labs with rule-based checking.** Members
+  fix a Terraform, Dockerfile, Compose, Kubernetes or IAM file, write a
+  detection rule, or paste read-only command output from their own free cloud
+  account, then press **Check my work** for a per-check result (30 checks a
+  day per task). New in `099_labs.sql`: `labs.platform` (Neutral / Azure /
+  AWS, filtered by the member's cloud), grading kind `rules` (required and
+  forbidden patterns with a hint each, stored only in `lab_answer_keys`),
+  `_grade_rules()`, `check_lab_task()` and the `lab_task_checks` rate-limit
+  table. `submit_lab_attempt()` refuses a rules task with a failing check and
+  approves a full pass on the spot, except one in five that stays Submitted
+  for a staff spot check of the written explanation. Task types `artifact`
+  and `output` in `LabPlayer`; each artifact task has two starting files and
+  a random one is kept per member. Labs: storage exposure (AWS and Azure),
+  container hardening, Kubernetes lockdown, least-privilege policy (AWS IAM
+  and Azure RBAC), password-spraying detection (SOC) and a bucket or storage
+  account audit in the member's own account (AWS and Azure). Still outside
+  Hub Score, and free to every member.
 
 ## 2026.10.15
 

@@ -48,6 +48,7 @@ import { fetchMyJobApplications, addJobApplication, updateJobApplication, delete
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
 import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof, fetchMyCloudPlatform, setMyCloudPlatform } from '../../lib/roadmapData';
+import TalentOptIn from '../../components/TalentOptIn';
 import { CLOUD_PLATFORMS, applyCloudPlatform, displayTitleFor, isCloudVariantTitle, switchItemsPlatform } from '../../lib/cloudPlatform';
 import { fetchMyRoadmapSubtasks, toggleMyRoadmapSubtask } from '../../lib/roadmapSubtasksData';
 import { fetchOptinPool, joinOptinPool, leaveOptinPool, fetchMyGroups, fetchShowcaseGroups, submitGroupRecording, submitGroupNotes, rateGroup, fetchGroupRatings, fetchMyGroupRating } from '../../lib/matchmakerData';
@@ -748,6 +749,7 @@ const MOCK_RESOURCES = [
     { id: 'py2', title: 'Use the W3Schools Python tutorial for quick reading and the Try it Yourself editor', link: 'https://www.w3schools.com/python/' },
     { id: 'py3', title: "Practise each concept on Exercism's Python track", link: 'https://exercism.org/tracks/python' },
   ] },
+  { id: 36, category: 'Communities', title: 'Communities', format: 'Directory', description: 'Other cyber communities worth joining alongside Hacking Hub: meetups, conferences and groups where you can meet people, learn and hear about jobs. Links are added here as they are shared.', link: '', steps: [{ id: 'c1', title: 'HackSouth', link: '' }, { id: 'c2', title: 'BSides Johannesburg', link: '' }, { id: 'c3', title: 'AI Sec Eng (The AI Security Engineers Community)', link: '' }], createdBy: 'siya@hackinghub.co.za' },
   { id: 34, category: 'Cyber Platforms', title: 'DevSec Blueprint', format: 'Platform', description: 'A DevSecOps and cloud security training platform with a structured path (learn, build, apply, grow), guided projects and walkthroughs on real infrastructure. A free account opens some walkthroughs; full access is a paid membership.', link: 'https://devsecblueprint.com/' },
   { id: 1, category: 'Cert Prep', title: 'Cisco Junior Cybersecurity Analyst Career Path', format: 'Course', description: 'Free Cisco Networking Academy course covering cybersecurity operations fundamentals, from networking basics through to SOC-analyst-level skills.', link: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { id: 2, category: 'Cert Prep', title: 'Immersive Labs — Cyber Million', format: 'Course', description: 'Free, hands-on cybersecurity skills platform for building foundational, job-ready skills through guided labs.', link: 'https://www.immersivelabs.com/resources/cybermillion' },
@@ -3769,7 +3771,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'Soft Skills Playlist': () => setShowSoftSkillsGuide(true),
     'HH Interview Playbook': () => setShowInterviewPlaybookGuide(true),
   };
-  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Cyber Platforms', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Soft Skills', 'Programming'];
+  const RESOURCE_CATEGORIES = ['All', 'Cert Prep', 'Cyber Platforms', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Soft Skills', 'Programming', 'Communities'];
   const RESOURCE_ICON = {
     'Cert Prep': FileText,
     'Cyber Platforms': Target,
@@ -3781,6 +3783,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     'LinkedIn Strategy': IdCard,
     'Soft Skills': Handshake,
     'Programming': Code2,
+    'Communities': Users,
   };
 
   // Real Supabase data for a real session (RLS scopes reads to signed-in,
@@ -7225,6 +7228,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     case 'jobs':
       return (
         <div>
+          <TalentOptIn isMockSession={isMockSession} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '32px' }}>
             <div>
               <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Job Board</h1>
@@ -7441,7 +7445,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       );
 
     case 'labs':
-      return <MemberLabs isMockSession={isMockSession} roadmapTrack={roadmapTrack} userEmail={user?.email} />;
+      return <MemberLabs isMockSession={isMockSession} roadmapTrack={roadmapTrack} userEmail={user?.email} cloudPlatform={cloudPlatform} />;
 
     case 'resources':
       return (

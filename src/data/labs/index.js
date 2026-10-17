@@ -13,6 +13,15 @@ import aisecModelRiskMthunziClaims from './aisecModelRiskMthunziClaims';
 import azureAccessReviewCapeVineyards from './azureAccessReviewCapeVineyards';
 import azureStorageHardeningJoziPrint from './azureStorageHardeningJoziPrint';
 import azureActivityHuntDrakensbergTelecom from './azureActivityHuntDrakensbergTelecom';
+import engStorageAwsAmanziStatements from './engStorageAwsAmanziStatements';
+import engStorageAzureKaroostream from './engStorageAzureKaroostream';
+import engContainerKarooParcels from './engContainerKarooParcels';
+import engKubernetesMasakhaneApi from './engKubernetesMasakhaneApi';
+import engIamAwsSibusisoReports from './engIamAwsSibusisoReports';
+import engIamAzureNdlovuInsights from './engIamAzureNdlovuInsights';
+import engDetectionSprayKaapstadCredit from './engDetectionSprayKaapstadCredit';
+import engAuditAwsOwnAccount from './engAuditAwsOwnAccount';
+import engAuditAzureOwnAccount from './engAuditAzureOwnAccount';
 
 // Hub Lab content keyed by labs.slug. A published 'hub' lab with no entry
 // here is hidden from members rather than rendered empty.
@@ -23,6 +32,10 @@ export const HUB_LAB_CONTENT = Object.fromEntries(
     netsecFirewallUmdoniLogistics, netsecPacketAnalysisKarooClinics, netsecSegmentationMasakhane,
     aisecPromptInjectionPharmaquik, aisecRagLeakageImbizoHr, aisecModelRiskMthunziClaims,
     azureAccessReviewCapeVineyards, azureStorageHardeningJoziPrint, azureActivityHuntDrakensbergTelecom,
+    // Engineering labs: the member produces a file or output and rules check it.
+    engStorageAwsAmanziStatements, engStorageAzureKaroostream, engContainerKarooParcels,
+    engKubernetesMasakhaneApi, engIamAwsSibusisoReports, engIamAzureNdlovuInsights,
+    engDetectionSprayKaapstadCredit, engAuditAwsOwnAccount, engAuditAzureOwnAccount,
   ].map((lab) => [lab.slug, lab])
 );
 

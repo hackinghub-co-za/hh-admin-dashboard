@@ -37,7 +37,7 @@
 
 CREATE TABLE IF NOT EXISTS public.resources (
   id BIGSERIAL PRIMARY KEY,
-  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills', 'Programming')),
+  category TEXT NOT NULL CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills', 'Programming', 'Communities')),
   title TEXT NOT NULL,
   format TEXT,
   description TEXT,
@@ -48,12 +48,12 @@ CREATE TABLE IF NOT EXISTS public.resources (
 );
 
 -- Widens the category CHECK for a database where this table already existed
--- before 'LinkedIn Strategy'/'Cyber Platforms'/'Soft Skills'/'Programming' were added -
+-- before 'LinkedIn Strategy'/'Cyber Platforms'/'Soft Skills'/'Programming'/'Communities' were added -
 -- the inline CHECK above only takes effect on a fresh CREATE TABLE, not an
 -- existing one.
 ALTER TABLE public.resources DROP CONSTRAINT IF EXISTS resources_category_check;
 ALTER TABLE public.resources ADD CONSTRAINT resources_category_check
-  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills', 'Programming'));
+  CHECK (category IN ('Cert Prep', 'Role Roadmaps', 'Podcasts', 'Books', 'Interview Playbooks', 'CV Templates', 'LinkedIn Strategy', 'Cyber Platforms', 'Soft Skills', 'Programming', 'Communities'));
 
 ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 
@@ -713,3 +713,20 @@ SELECT 'Cyber Platforms', 'DevSec Blueprint', 'Platform',
   'A DevSecOps and cloud security training platform with a structured path (learn, build, apply, grow), guided projects and walkthroughs on real infrastructure, and a community. A free account opens some expert-written walkthroughs; full access is a paid membership.',
   'https://devsecblueprint.com/', NULL
 WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'DevSec Blueprint');
+
+-- COMMUNITIES (2026-10-17) - a new 'Communities' category and one resource,
+-- "Communities", where the founder shares links to other cyber communities
+-- worth joining. Seeded with the three named so far and no links yet (a step
+-- without a link just lists the community); add each link by editing the
+-- resource's steps ("Title | link" per line). Idempotent.
+INSERT INTO public.resources (category, title, format, description, link, steps, created_by)
+SELECT 'Communities', 'Communities', 'Directory',
+  'Other cyber communities worth joining alongside Hacking Hub: meetups, conferences and groups where you can meet people, learn and hear about jobs. Links are added here as they are shared.',
+  NULL,
+  '[
+  {"id":"c1","title":"HackSouth","link":""},
+  {"id":"c2","title":"BSides Johannesburg","link":""},
+  {"id":"c3","title":"AI Sec Eng (The AI Security Engineers Community)","link":""}
+]'::jsonb,
+  'siya@hackinghub.co.za'
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'Communities');

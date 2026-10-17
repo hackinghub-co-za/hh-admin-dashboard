@@ -165,6 +165,9 @@ function ReviewPanel({ attempt, answerKeys, isMockSession, onDone }) {
             ) : (
               <>
                 {summary && <p style={{ fontSize: '0.84rem' }}>Member's answer: {summary}</p>}
+                {(task.type === 'artifact' || task.type === 'output') && (
+                  <pre style={{ margin: 0, padding: '10px 12px', fontSize: '0.76rem', fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{given || '(no answer)'}</pre>
+                )}
                 {key ? <TaskDebrief task={task} given={given} debrief={{ ...key, result: null, rubric: null, model_answer: null }} /> : !isMockSession && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Loading answer key...</p>}
               </>
             )}

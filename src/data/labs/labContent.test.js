@@ -15,7 +15,9 @@ import { fileURLToPath } from 'url';
 import { describe, it, expect } from 'vitest';
 import { HUB_LAB_CONTENT } from './index';
 
-const VALID_TASK_TYPES = ['single', 'multi', 'match', 'risk_score', 'rubric'];
+const VALID_TASK_TYPES = ['single', 'multi', 'match', 'risk_score', 'rubric', 'artifact', 'output'];
+// Tasks the server checks with staff-written rules (grading 'rules').
+const RULES_TASK_TYPES = ['artifact', 'output'];
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(path.resolve(__dirname, '../../../supabase/099_labs.sql'), 'utf8');
@@ -25,7 +27,7 @@ const sql = readFileSync(path.resolve(__dirname, '../../../supabase/099_labs.sql
 // (one tuple opens with "(\n   'slug', 'tkey', 'grading',"), and intentionally
 // simple rather than a full SQL parser.
 function parseAnswerKeySeed(text) {
-  const re = /\(\s*'([a-z0-9-]+)',\s*'(t\d+)',\s*'(single|multi|match|risk_score|rubric)'/g;
+  const re = /\(\s*'([a-z0-9-]+)',\s*'(t\d+)',\s*'(single|multi|match|risk_score|rubric|rules)'/g;
   const rows = [];
   let m;
   while ((m = re.exec(text))) rows.push({ slug: m[1], taskKey: m[2], grading: m[3] });
@@ -102,9 +104,26 @@ describe('every Hub Lab content file', () => {
         lab.tasks.forEach((t) => {
           const row = byTaskKey[t.key];
           expect(row, `${lab.slug} ${t.key} has no lab_answer_keys row`).toBeTruthy();
-          expect(row.grading, `${lab.slug} ${t.key} grading mismatch`).toBe(t.type);
+          expect(row.grading, `${lab.slug} ${t.key} grading mismatch`).toBe(RULES_TASK_TYPES.includes(t.type) ? 'rules' : t.type);
         });
       });
+
+      if (lab.tasks.some((t) => RULES_TASK_TYPES.includes(t.type))) {
+        it('gives every artifact task at least two starting files, and every output task its commands', () => {
+          lab.tasks.filter((t) => t.type === 'artifact' && t.starters).forEach((t) => {
+            expect(t.starters.length).toBeGreaterThan(1);
+            t.starters.forEach((st) => expect(st.text.trim().length).toBeGreaterThan(20));
+          });
+          lab.tasks.filter((t) => t.type === 'output').forEach((t) => {
+            expect(Array.isArray(t.commands) && t.commands.length).toBeGreaterThan(0);
+          });
+        });
+
+        it('never puts a rule, pattern or model answer in the bundle', () => {
+          const text = JSON.stringify(lab);
+          expect(text).not.toMatch(/"(need|forbid|rules|model_answer)"\s*:/);
+        });
+      }
 
       it('has no leftover answer-key rows for tasks that no longer exist', () => {
         const taskKeys = new Set(lab.tasks.map((t) => t.key));

@@ -13,6 +13,8 @@ export function isTaskAnswered(task, value) {
     case 'match': return typeof value === 'object' && task.items.every((item) => value[item.id]);
     case 'risk_score': return Number.isInteger(value.likelihood) && Number.isInteger(value.impact);
     case 'rubric': return typeof value === 'string' && value.trim().length > 0;
+    case 'artifact':
+    case 'output': return typeof value === 'string' && value.trim().length > 0;
     default: return false;
   }
 }
