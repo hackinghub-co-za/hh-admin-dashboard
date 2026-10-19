@@ -16,7 +16,7 @@ import { supabase } from './supabase';
 // used it; renaming the id would silently orphan that history.
 export const MERCH_CATALOG = [
   { id: 'deskpad', name: 'Mousepads', price: 200, sizes: null, image: 'https://kveiflphktpvsddhkspz.supabase.co/storage/v1/object/public/merch-images/mousepads.jpg' },
-  { id: 'top', name: 'Top', price: 400, sizes: ['S', 'M', 'L', 'XL'] },
+  { id: 'top', name: 'Top', price: 250, sizes: ['S', 'M', 'L', 'XL'] },
   { id: 'hoodie', name: 'Hoodie', price: 600, sizes: ['S', 'M', 'L', 'XL'] },
 ];
 

@@ -139,7 +139,7 @@ BEGIN
   LOOP
     unit_price := CASE lower(item->>'product')
       WHEN 'deskpad' THEN 200
-      WHEN 'top' THEN 400
+      WHEN 'top' THEN 250   -- was 400 until 2026-10-19
       WHEN 'hoodie' THEN 600
       ELSE NULL
     END;
