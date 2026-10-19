@@ -53,20 +53,44 @@ ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check
 -- set_member_role() below (surfaced as the Team & Roles admin tab). This
 -- doesn't touch any existing profiles row - only affects new signups from
 -- here on, so the founder's own existing admin row is unaffected.
+-- PRE-ASSIGNED ROLES (2026-10-19): a community_manager or mentor role can be
+-- queued for an email that has not signed in yet. handle_new_user() applies
+-- it, once, when that address's account is first created - and only if the
+-- account's email is already confirmed (Google sign-in confirms it on
+-- creation), so nobody can claim a queued role by signing up with an address
+-- they do not own. 'admin' can never be pre-assigned. The table has RLS on
+-- and no policies: rows are added by the founder directly in the database.
+CREATE TABLE IF NOT EXISTS public.pending_role_assignments (
+  email TEXT PRIMARY KEY CHECK (email = lower(email)),
+  role TEXT NOT NULL CHECK (role IN ('community_manager', 'mentor')),
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.pending_role_assignments ENABLE ROW LEVEL SECURITY;
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_role TEXT := 'member';
+  v_pending TEXT;
 BEGIN
+    IF new.email_confirmed_at IS NOT NULL AND new.email IS NOT NULL THEN
+        DELETE FROM public.pending_role_assignments WHERE email = lower(new.email) RETURNING role INTO v_pending;
+        IF v_pending IS NOT NULL THEN
+            v_role := v_pending;
+        END IF;
+    END IF;
     INSERT INTO public.profiles (id, email, full_name, avatar_url, role)
     VALUES (
         new.id,
         new.email,
         new.raw_user_meta_data->>'full_name',
         new.raw_user_meta_data->>'avatar_url',
-        'member'
+        v_role
     );
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION public.is_community_manager(uid UUID)
 RETURNS BOOLEAN
