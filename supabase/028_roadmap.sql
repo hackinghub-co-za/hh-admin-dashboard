@@ -34,7 +34,7 @@
 ALTER TABLE public.member_profiles
   ADD COLUMN IF NOT EXISTS roadmap_track TEXT;
 
-UPDATE public.member_profiles SET specialty = 'Offensive Security' WHERE specialty = 'Red Team';
+UPDATE public.member_profiles SET specialty = 'Cybersecurity Analyst' WHERE specialty = 'Red Team';
 UPDATE public.member_profiles SET specialty = 'SOC' WHERE specialty = 'Blue Team';
 
 CREATE TABLE IF NOT EXISTS public.roadmap_items (
@@ -822,3 +822,19 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.set_member_cloud_platform(TEXT, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.set_member_cloud_platform(TEXT, TEXT) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- OFFENSIVE SECURITY -> CYBERSECURITY ANALYST (2026-10-22)
+-- =========================================================================
+-- The Offensive Security track was replaced by the generalist Cybersecurity
+-- Analyst track (SOC, cloud, network, GRC, AI security, DevSecOps and
+-- offensive - SPECIALIZATION_CATALOGS in src/lib/memberOptions.js).
+-- Members on the old track, and the matching specialty badge, move across;
+-- their roadmap items keep their completion and are regrouped under the
+-- new category names. Progress is matched by title, so eJPT, THM Junior
+-- Pentester and Full Pentest Report keep counting. Idempotent: once
+-- nothing carries the old names these update no rows.
+UPDATE public.member_profiles SET roadmap_track = 'Cybersecurity Analyst' WHERE roadmap_track = 'Offensive Security';
+UPDATE public.member_profiles SET specialty = 'Cybersecurity Analyst' WHERE specialty = 'Offensive Security';
+UPDATE public.roadmap_items SET category = 'Cybersecurity Analyst' WHERE phase = 'Specialization' AND category = 'Pen Testing';
+UPDATE public.roadmap_items SET category = 'Cybersecurity Analyst Projects' WHERE phase = 'Projects' AND category = 'Offensive Security Projects';

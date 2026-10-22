@@ -396,7 +396,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
 
   // Quick-fills whichever items from the member's assigned track's standard
   // Specialization catalog (SPECIALIZATION_CATALOGS) they don't already
-  // have. Only SOC and Offensive Security have a defined catalog today.
+  // have. Every track has a defined catalog today.
   const [addingStandardSpecialization, setAddingStandardSpecialization] = useState(false);
 
   const handleAddStandardSpecialization = async (catalog) => {

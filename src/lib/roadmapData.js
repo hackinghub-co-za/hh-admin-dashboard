@@ -101,7 +101,7 @@ export async function assignMyCoreFoundations() {
   return data || 0;
 }
 
-/** The caller's own assigned track (e.g. "Offensive Security"), or null if
+/** The caller's own assigned track (e.g. "Cybersecurity Analyst"), or null if
  * an admin hasn't assigned one yet. */
 export async function fetchMyRoadmapTrack() {
   const { data, error } = await supabase.rpc('get_my_roadmap_track');
