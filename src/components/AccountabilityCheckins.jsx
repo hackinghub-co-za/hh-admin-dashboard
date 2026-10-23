@@ -52,7 +52,7 @@ const MOCK_ROSTER = [
   { email: 'naledi@example.com', fullName: 'Naledi Mokoena', specialty: 'Cloud Security', headshotUrl: null },
   { email: 'thabo@example.com', fullName: 'Thabo Nkosi', specialty: 'SOC', headshotUrl: null },
   { email: 'karabo@example.com', fullName: 'Karabo Sithole', specialty: 'Cloud Security', headshotUrl: null },
-  { email: 'refilwe@example.com', fullName: 'Refilwe Dlamini', specialty: 'Offensive Security', headshotUrl: null },
+  { email: 'refilwe@example.com', fullName: 'Refilwe Dlamini', specialty: 'Cybersecurity Analyst', headshotUrl: null },
   { email: 'blessing@example.com', fullName: 'Blessing Mahlangu', specialty: 'GRC', headshotUrl: null },
   { email: 'lindiwe@example.com', fullName: 'Lindiwe Zulu', specialty: 'DevSecOps', headshotUrl: null },
   { email: 'sizwe@example.com', fullName: 'Sizwe Zwane', specialty: 'IAM', headshotUrl: null },

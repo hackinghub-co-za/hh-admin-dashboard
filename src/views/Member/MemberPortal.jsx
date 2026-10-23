@@ -246,7 +246,7 @@ const MOCK_DIRECTORY = [];
 // shows under Mock Member for a Matchmaker preview. Not a permanent
 // restoration of MOCK_DIRECTORY's fake entries (see comment above, which
 // stays true) - remove this block once the preview's done.
-const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Offensive Security', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Offensive Security', whyReasons: ['Financial Freedom', 'A Movie, Show, or Game'], whyStory: 'I watched Mr. Robot at 19 and never looked at my laptop the same way again.' };
+const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Cybersecurity Analyst', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Cybersecurity Analyst', whyReasons: ['Financial Freedom', 'A Movie, Show, or Game'], whyStory: 'I watched Mr. Robot at 19 and never looked at my laptop the same way again.' };
 const DEMO_MATCHMAKER_GROUP = { id: 99, activityType: 'Project', memberEmails: ['teammate@example.com'], status: 'Active', dueDate: '2026-09-23' };
 // Two already-presented groups so Mock Member can preview the showcase +
 // rating flow without a real Supabase session - one the mock member isn't
@@ -766,9 +766,9 @@ const MOCK_RESOURCES = [
 ];
 
 // Mock Member's demo roadmap - modeled on a real member's actual plan
-// (Offensive Security track, Core Foundations + Specialization phases) so
+// (Cybersecurity Analyst track, Core Foundations + Specialization phases) so
 // the mock experience matches what a real assigned roadmap looks like.
-const MOCK_ROADMAP_TRACK = 'Offensive Security';
+const MOCK_ROADMAP_TRACK = 'Cybersecurity Analyst';
 // 20 days old - past ROADMAP_STALE_AFTER_DAYS (14), so Mock Member also
 // demonstrates the "gone quiet" dashboard banner out of the box.
 const MOCK_ROADMAP_LAST_TOUCHED = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
@@ -792,13 +792,19 @@ const MOCK_ROADMAP_ITEMS = [
   // LinkedIn widget only once Specialization is actually unlocked, same as
   // a real member would see.
   { id: 6, phase: 'Specialization', category: 'Networking', title: 'Post once a week', detail: 'THM Medium-level room with a write-up', completed: false, sortOrder: 5, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 8, phase: 'Specialization', category: 'Red Teaming', title: 'THM Junior Pentester', detail: '100% complete', completed: true, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 9, phase: 'Specialization', category: 'Red Teaming', title: 'Burp Suite Practitioner Certification', detail: '', completed: false, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 10, phase: 'Specialization', category: 'Red Teaming', title: 'eJPT', detail: '', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 11, phase: 'Specialization', category: 'Red Teaming', title: 'THM Offensive Pentesting', detail: '34% complete, with write-ups', completed: false, sortOrder: 40, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 12, phase: 'Specialization', category: 'Red Teaming', title: 'OSCP', detail: '', completed: false, sortOrder: 50, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 15, phase: 'Projects', category: 'Offensive Security Projects', title: 'Full Pentest Report', detail: '', completed: false, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
-  { id: 16, phase: 'Projects', category: 'Offensive Security Projects', title: 'Custom Offensive Tool Build', detail: '', completed: false, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 8, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'THM Junior Pentester', detail: 'Offensive', completed: true, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 9, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'THM SOC Level 1', detail: 'SOC', completed: true, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 10, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'eJPT', detail: 'Offensive', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 11, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'CySA+', detail: 'SOC', completed: false, sortOrder: 40, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 12, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'AZ-104', detail: 'Cloud', completed: false, sortOrder: 50, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 17, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'TryHackMe Network Fundamentals', detail: 'Network', completed: true, sortOrder: 60, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 18, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'ISO/IEC 27001 Foundation', detail: 'GRC', completed: false, sortOrder: 70, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 19, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'ISACA IT Risk Fundamentals', detail: 'GRC', completed: false, sortOrder: 80, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 20, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'THM AI Security', detail: 'AI Security', completed: false, sortOrder: 90, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 21, phase: 'Specialization', category: 'Cybersecurity Analyst', title: 'GH-900', detail: 'DevSecOps', completed: false, sortOrder: 100, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 15, phase: 'Projects', category: 'Cybersecurity Analyst Projects', title: 'Purple Team Detection Lab', detail: '', completed: false, sortOrder: 10, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 16, phase: 'Projects', category: 'Cybersecurity Analyst Projects', title: 'Full Pentest Report', detail: '', completed: false, sortOrder: 20, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
+  { id: 22, phase: 'Projects', category: 'Cybersecurity Analyst Projects', title: 'Mock Risk Assessment', detail: '', completed: false, sortOrder: 30, updatedAt: MOCK_ROADMAP_LAST_TOUCHED },
 ];
 
 // Mock Core Foundations subtask ticks - completed items are fully ticked

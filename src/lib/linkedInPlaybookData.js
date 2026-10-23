@@ -60,7 +60,7 @@ export const THEME_DESCRIPTIONS = {
 // way the 84 example posts were, so this stays plain hardcoded content.
 export const DOMAIN_HASHTAGS = {
   SOC: '#SOCAnalyst #BlueTeam #ThreatDetection #SIEM #CyberSecurity',
-  'Offensive Security': '#OffSec #RedTeam #Pentesting #CTF #EthicalHacking',
+  'Cybersecurity Analyst': '#CyberSecurity #SecurityAnalyst #BlueTeam #Pentesting #CloudSecurity',
   'Cloud Security': '#CloudSecurity #AWS #Azure #GCP #CyberSecurity',
   DevSecOps: '#DevSecOps #AppSec #CICD #ShiftLeft #CyberSecurity',
   IAM: '#IAM #IdentitySecurity #ZeroTrust #AccessManagement',

@@ -5,7 +5,7 @@
 import { supabase } from './supabase';
 
 /** Generates tailored interview questions from a job description + CV text,
- * leaned toward the given domain (SOC, Offensive Security, etc. - the
+ * leaned toward the given domain (SOC, Cybersecurity Analyst, etc. - the
  * domain the member is actually interviewing for, from member_interviews.
  * interview_domain, not necessarily their own profile specialty). Job
  * description and CV text are both required; domain is optional - the

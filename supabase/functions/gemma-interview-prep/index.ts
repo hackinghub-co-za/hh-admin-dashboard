@@ -29,12 +29,14 @@ const MAX_INPUT_LENGTH = 8000; // same headroom as gemma-review, per field
 const WEEKLY_SESSION_CAP = 3; // own budget, separate from gemma-review's cv_reviews cap
 const GEMINI_MODEL = 'gemini-3.6-flash'; // same pin as gemma-chat/gemma-review
 
-// Same 7 domains as ROADMAP_TRACKS (memberOptions.js, minus 'Not
+// Same 8 domains as ROADMAP_TRACKS (memberOptions.js, minus 'Not
 // Assigned') and DOMAIN_HASHTAGS (linkedInPlaybookData.js) - whitelisted
 // here since `domain` comes straight from the client and gets embedded
 // into the system prompt below; never trust free-form client text into a
 // prompt without validating it against a known set first.
-const VALID_DOMAINS = ['SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC'];
+// 'Offensive Security' stays accepted for interviews logged before it became
+// the Cybersecurity Analyst track (2026-10-22).
+const VALID_DOMAINS = ['SOC', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security', 'Offensive Security'];
 
 const QUESTIONS_SCHEMA = {
   type: 'OBJECT',
