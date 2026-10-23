@@ -4,8 +4,25 @@ import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP
 import { formatDate } from '../lib/dateFormat';
 import { fetchMemberInterviews } from '../lib/memberInterviewsData';
 import { fetchMemberLinkedInPostStatus } from '../lib/linkedInPostData';
+import { sendMemberWelcomeEmail } from '../lib/onboardingData';
+import { friendlyErrorMessage } from '../lib/errorMessages';
 
 export default function MemberProfileModal({ member, profile, onSave, onDelete, onSetExpectedTotalPayment, savingExpectedTotalPayment, onClose, today, isMockSession }) {
+  // Welcome email (supabase/functions/welcome-email): a two-step button so a
+  // stray click never emails a member. Always a deliberate resend.
+  const [welcomeState, setWelcomeState] = useState('idle'); // idle | confirm | sending | sent | error
+  const [welcomeError, setWelcomeError] = useState(null);
+  const handleSendWelcome = async () => {
+    setWelcomeState('sending');
+    setWelcomeError(null);
+    try {
+      if (!isMockSession) await sendMemberWelcomeEmail(member.email, { force: true });
+      setWelcomeState('sent');
+    } catch (err) {
+      setWelcomeError(friendlyErrorMessage(err));
+      setWelcomeState('error');
+    }
+  };
   const [form, setForm] = useState({
     // Defaults to the real first-payment date (still shown separately,
     // read-only, as "First Payment" below) - editable here since it's wrong
@@ -486,6 +503,26 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
               </p>
             )}
           </div>
+
+          {member?.email && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-md)' }}>
+              <Mail size={16} color="var(--text-muted)" />
+              <span style={{ flex: '1 1 220px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {welcomeState === 'sent' ? `Welcome email sent to ${member.email}.` : 'Welcome email: the portal, WhatsApp and Lesedi steps.'}
+                {welcomeState === 'error' && <span style={{ display: 'block', color: 'var(--danger)' }}>{welcomeError}</span>}
+              </span>
+              {welcomeState === 'confirm' ? (
+                <span style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={handleSendWelcome}>Send to {member.email}</button>
+                  <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => setWelcomeState('idle')}>Cancel</button>
+                </span>
+              ) : (
+                <button type="button" className="btn btn-secondary" disabled={welcomeState === 'sending'} style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => setWelcomeState('confirm')}>
+                  {welcomeState === 'sending' ? 'Sending...' : welcomeState === 'sent' ? 'Send again' : 'Send welcome email'}
+                </button>
+              )}
+            </div>
+          )}
 
           {(form.status === 'Leaving' || form.status === 'Left') && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px', background: 'rgba(var(--danger-rgb), 0.04)', border: '1px solid rgba(var(--danger-rgb), 0.15)', borderRadius: 'var(--border-radius-md)' }}>

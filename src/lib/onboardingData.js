@@ -76,3 +76,40 @@ export async function fetchAllOnboardingSteps() {
   if (error) throw error;
   return data || [];
 }
+
+// ============================================================================
+// WELCOME EMAIL AND THE STEPS LESEDI OWNS (supabase/006_onboarding.sql PART 4)
+// ============================================================================
+
+export const WHATSAPP_COMMUNITY_URL = 'https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1';
+// Lesedi's WhatsApp number, opening a chat with "Hi Lesedi" ready to send.
+export const LESEDI_WHATSAPP_URL = 'https://wa.me/27820984319?text=Hi%20Lesedi';
+export const LESEDI_PHONE_DISPLAY = '+27 82 098 4319';
+
+/** Steps Lesedi (or an admin) ticks for a member, never the member themselves. */
+export const STAFF_ONBOARDING_STEPS = ['linkedin_reviewed', 'intro_approved'];
+
+/** Emails a member the welcome message. A member who already got it is skipped unless `force` is set. */
+export async function sendMemberWelcomeEmail(email, { force = false } = {}) {
+  const { data, error } = await supabase.functions.invoke('welcome-email', { body: { email, force } });
+  if (error) throw error;
+  return data || {};
+}
+
+/** Staff: tick or untick "LinkedIn reviewed" or "Intro approved" for a member. */
+export async function setMemberOnboardingStep(email, stepKey, done) {
+  const { error } = await supabase.rpc('set_member_onboarding_step', { p_email: email, p_step_key: stepKey, p_done: done });
+  if (error) throw error;
+}
+
+/** Staff: members who started in the last `days` days, with their checklist progress. */
+export async function fetchNewMembersOnboarding(days = 30) {
+  const { data, error } = await supabase.rpc('get_new_members_onboarding', { p_days: days });
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    email: row.email,
+    name: row.full_name || '',
+    startDate: row.start_date,
+    steps: row.steps || {},
+  }));
+}

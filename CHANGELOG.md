@@ -18,6 +18,47 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.23
+
+### Added
+- **Welcome email replaces the five WhatsApp messages.** One email from
+  siya@hackinghub.co.za with three steps in order (sign in to the portal,
+  join the community WhatsApp group, message Lesedi) and the rule not to
+  introduce themselves in the group yet. Sent once per member
+  (`member_profiles.welcome_email_sent_at`, back-filled for everyone who
+  already existed, so renewals and current members are never emailed). It
+  goes out from the PayFast webhook after a completed payment and from
+  recording an EFT payment; a "Send welcome email" button on the member
+  profile resends it. Shared template in
+  `supabase/functions/_shared/welcomeEmail.ts`; staff-triggered function
+  `welcome-email` (admins and community managers).
+- **Getting Started checklist follows the real onboarding order**: watch the
+  video, set up the profile, join WhatsApp, say "Hi Lesedi" (opens WhatsApp
+  to her number), fix LinkedIn with Lesedi, build the intro, post it in the
+  group, then the 1-on-1, calendar, why and tour. "Fix your LinkedIn" and
+  "Build your intro" are ticked by Lesedi; "Build your intro" and "Post your
+  intro" stay locked until the step before them is done, enforced in
+  `mark_my_onboarding_step_complete`. None of the new steps is one of the six
+  the Getting Started hard gate needs (`ONBOARDING_STEPS`), so a member is
+  never locked out waiting for Lesedi.
+- **Intro message builder** (`IntroBuilderModal`, `src/lib/introMessage.js`):
+  drafts the intro from the member's profile in the structure from the
+  onboarding guide, with a copy button.
+- **New members list** for admins and community managers: everyone who
+  started in the last 30 days, progress through seven steps, who the next
+  move belongs to, and the two tick boxes (LinkedIn reviewed, Intro
+  approved) through `set_member_onboarding_step`. Approval needs the review
+  first, and unticking the review withdraws an approval.
+
+### Fixed
+- "Share your why" never saved: `your_why` was missing from the allowed
+  `member_onboarding_steps.step_key` values, so completing it failed.
+
+### Notes
+- All changes to the database are in `006_onboarding.sql` PART 4 and are
+  already applied live. `welcome-email` and `payfast-webhook` need to be
+  deployed for the emails to go out.
+
 ## 2026.10.16
 
 ### Added

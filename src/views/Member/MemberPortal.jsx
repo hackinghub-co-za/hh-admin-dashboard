@@ -73,7 +73,9 @@ import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib
 import { fetchTodaysDailyQuestion, submitDailyQuestionAnswer } from '../../lib/dailyQuestionData';
 import DailyQuestionModal from '../../components/DailyQuestionModal';
 import MonthlyRecapModal from '../../components/MonthlyRecapModal';
-import { ONBOARDING_STEPS, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
+import { ONBOARDING_STEPS, STAFF_ONBOARDING_STEPS, WHATSAPP_COMMUNITY_URL, LESEDI_WHATSAPP_URL, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
+import IntroBuilderModal from '../../components/IntroBuilderModal';
+import { firstNameOf, suggestFocusAreas } from '../../lib/introMessage';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
 import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATION_SUBTASKS, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
@@ -1152,6 +1154,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [expandedOnboardingStep, setExpandedOnboardingStep] = useState(null);
   const [onboardingChecklistCollapsed, setOnboardingChecklistCollapsed] = useState(false);
   const [showPortalTour, setShowPortalTour] = useState(false);
+  const [showIntroBuilder, setShowIntroBuilder] = useState(false);
 
   useEffect(() => {
     if (isMockSession) return;
@@ -1238,6 +1241,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // tracked here (own progress badge, own row, same
   // member_onboarding_steps completion table) without being one of the
   // gate's required steps.
+  //
+  // Order follows how a new member is actually onboarded: sign in and fill
+  // in the profile, join WhatsApp, say hi to Lesedi, fix LinkedIn with her,
+  // build the intro, post it. Two steps are Lesedi's to tick
+  // (STAFF_ONBOARDING_STEPS, supabase/006_onboarding.sql PART 4) and two are
+  // locked until the one before them is done, so nobody posts an intro early.
+  // None of the new steps is in ONBOARDING_STEPS, so the hard gate never
+  // waits on Lesedi.
   const gettingStartedItems = [
     {
       key: 'watch_video',
@@ -1247,21 +1258,68 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       action: () => setExpandedOnboardingStep((k) => (k === 'watch_video' ? null : 'watch_video')),
     },
     {
-      key: 'book_1on1',
-      icon: Calendar,
-      label: 'Book your first 1-on-1',
-      actionLabel: 'Book Now',
-      action: () => setActiveTab?.('meetings'),
+      key: 'setup_profile',
+      icon: User,
+      label: 'Set up your profile',
+      actionLabel: 'Edit Profile',
+      action: () => { setActiveTab?.('members'); openEditProfile(); },
     },
     {
       key: 'join_whatsapp',
       icon: MessageCircle,
       label: 'Join the WhatsApp community',
+      hint: "Read along, but don't introduce yourself yet.",
       actionLabel: 'Join',
       action: () => {
-        window.open('https://chat.whatsapp.com/JjJxnaHruvu8EYdgcUOyz1', '_blank', 'noopener,noreferrer');
+        window.open(WHATSAPP_COMMUNITY_URL, '_blank', 'noopener,noreferrer');
         handleCompleteOnboardingStep('join_whatsapp');
       },
+    },
+    {
+      key: 'say_hi_lesedi',
+      icon: MessageCircle,
+      label: 'Say "Hi Lesedi" on WhatsApp',
+      hint: 'She will help with your LinkedIn and your intro.',
+      actionLabel: 'Open WhatsApp',
+      action: () => {
+        window.open(LESEDI_WHATSAPP_URL, '_blank', 'noopener,noreferrer');
+        handleCompleteOnboardingStep('say_hi_lesedi');
+      },
+    },
+    {
+      key: 'linkedin_reviewed',
+      icon: User,
+      label: 'Fix your LinkedIn with Lesedi',
+      hint: 'Lesedi ticks this off when you are done.',
+      staffOwned: true,
+    },
+    {
+      key: 'intro_approved',
+      icon: Lightbulb,
+      label: 'Build your intro with Lesedi',
+      hint: 'Write your intro here, then Lesedi approves it.',
+      lockedBy: 'linkedin_reviewed',
+      lockedHint: 'Unlocks after your LinkedIn is reviewed.',
+      staffOwned: true,
+      actionLabel: 'Build Intro',
+      action: () => setShowIntroBuilder(true),
+    },
+    {
+      key: 'intro_posted',
+      icon: MessageCircle,
+      label: 'Post your intro in the group',
+      hint: 'Tap the circle once you have posted it.',
+      lockedBy: 'intro_approved',
+      lockedHint: 'Unlocks after Lesedi approves your intro.',
+      actionLabel: 'Open Group',
+      action: () => window.open(WHATSAPP_COMMUNITY_URL, '_blank', 'noopener,noreferrer'),
+    },
+    {
+      key: 'book_1on1',
+      icon: Calendar,
+      label: 'Book your first 1-on-1',
+      actionLabel: 'Book Now',
+      action: () => setActiveTab?.('meetings'),
     },
     {
       key: 'install_calendar',
@@ -1272,13 +1330,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         window.open('https://workspace.google.com/products/calendar/', '_blank', 'noopener,noreferrer');
         handleCompleteOnboardingStep('install_calendar');
       },
-    },
-    {
-      key: 'setup_profile',
-      icon: User,
-      label: 'Set up your profile',
-      actionLabel: 'Edit Profile',
-      action: () => { setActiveTab?.('members'); openEditProfile(); },
     },
     {
       key: 'your_why',
@@ -1341,8 +1392,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 : "Less than a day left - finish this checklist or most of the portal locks down to just Dashboard, Meetings, and Members."}
             </div>
           )}
-          {gettingStartedItems.map(({ key, icon: StepIcon, label, actionLabel, action }) => {
+          {gettingStartedItems.map(({ key, icon: StepIcon, label, hint, lockedHint, lockedBy, staffOwned, actionLabel, action }) => {
             const done = !!onboardingSteps[key];
+            const locked = !done && !!lockedBy && !onboardingSteps[lockedBy];
+            // Lesedi's steps and locked steps cannot be ticked by the member.
+            const circleDisabled = done || locked || STAFF_ONBOARDING_STEPS.includes(key);
+            const subtitle = locked ? lockedHint : hint;
             return (
               <div key={key}>
                 <div
@@ -1358,18 +1413,26 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <button
                     type="button"
                     onClick={() => handleCompleteOnboardingStep(key)}
-                    aria-label={done ? 'Completed' : 'Mark as done'}
-                    style={{ background: 'transparent', border: 'none', cursor: done ? 'default' : 'pointer', color: done ? 'var(--accent-cyan)' : 'var(--text-muted)', display: 'flex' }}
+                    disabled={circleDisabled}
+                    aria-label={done ? 'Completed' : locked ? 'Locked' : staffOwned ? 'Lesedi ticks this step' : 'Mark as done'}
+                    style={{ background: 'transparent', border: 'none', cursor: circleDisabled ? 'default' : 'pointer', color: done ? 'var(--accent-cyan)' : 'var(--text-muted)', display: 'flex', opacity: locked ? 0.6 : 1 }}
                   >
-                    {done ? <CheckCircle2 size={20} /> : <Square size={20} />}
+                    {done ? <CheckCircle2 size={20} /> : locked ? <Lock size={20} /> : <Square size={20} />}
                   </button>
                   <StepIcon size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: '0.9rem', color: done ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: done ? 'line-through' : 'none' }}>
+                  <span style={{ flex: 1, fontSize: '0.9rem', color: done ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: done ? 'line-through' : 'none', opacity: locked ? 0.7 : 1 }}>
                     {label}
+                    {subtitle && !done && (
+                      <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', textDecoration: 'none', marginTop: '2px' }}>{subtitle}</span>
+                    )}
                   </span>
-                  <button type="button" onClick={action} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px', flexShrink: 0 }}>
-                    {actionLabel}
-                  </button>
+                  {action ? (
+                    <button type="button" onClick={action} disabled={locked} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px', flexShrink: 0, opacity: locked ? 0.5 : 1, cursor: locked ? 'not-allowed' : 'pointer' }}>
+                      {locked ? 'Locked' : actionLabel}
+                    </button>
+                  ) : (
+                    !done && <span className="badge" style={{ flexShrink: 0 }}>Waiting on Lesedi</span>
+                  )}
                 </div>
                 {key === 'watch_video' && expandedOnboardingStep === 'watch_video' && (
                   <div style={{ marginTop: '8px', borderRadius: 'var(--border-radius-md)', overflow: 'hidden', aspectRatio: '16 / 9' }}>
@@ -6628,6 +6691,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               reviewRequest={hubScoreReviewRequest}
               onRequestReview={handleRequestHubScoreReview}
               onClose={() => setShowHubScoreModal(false)}
+            />
+          )}
+
+          {showIntroBuilder && (
+            <IntroBuilderModal
+              initialName={firstNameOf(myDirectoryEntry?.fullName)}
+              initialLinkedin={myDirectoryEntry?.linkedin || ''}
+              initialAreas={suggestFocusAreas(roadmapTrack || myDirectoryEntry?.specialty)}
+              introApproved={!!onboardingSteps.intro_approved}
+              onClose={() => setShowIntroBuilder(false)}
             />
           )}
 
