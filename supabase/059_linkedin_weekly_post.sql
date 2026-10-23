@@ -382,3 +382,23 @@ INSERT INTO public.linkedin_playbook_posts (roadmap_track, week_index, post_text
   ('GRC', 10, 'Free resource that''s been huge for my GRC prep: NIST''s own CSF 2.0 documentation - clearer and more practical than most paid courses. If you''re starting out, read that first. Happy to share my control-mapping template.'),
   ('GRC', 11, '3 months into GRC prep: a fundamentals cert passed, a full risk assessment exercise completed, and a much better sense of how governance actually connects to real security outcomes. Biggest lesson - GRC isn''t the boring side of security, it''s the side that makes everything else sustainable. Thanks to everyone who shared real audit and risk advice along the way.')
 ON CONFLICT (roadmap_track, week_index) DO NOTHING;
+
+-- Cybersecurity Analyst (2026-10-22) - the generalist track that replaced
+-- Offensive Security (028_roadmap.sql). Same 12-week theme order as every
+-- other track. The old 'Offensive Security' rows stay in the table but no
+-- longer show, since DOMAIN_HASHTAGS (linkedInPlaybookData.js) no longer
+-- lists that track. DO NOTHING for the same reason as the seed above.
+INSERT INTO public.linkedin_playbook_posts (roadmap_track, week_index, post_text) VALUES
+  ('Cybersecurity Analyst', 0, 'Starting my journey into cybersecurity on a broad path on purpose: SOC, cloud, networking, GRC, AI security, DevSecOps and pen testing. I want to understand how the whole security team fits together before I specialise. If you work in cyber and remember what your first role actually asked of you, I''d love to connect.'),
+  ('Cybersecurity Analyst', 1, 'Built a small home lab this week: attacked a vulnerable VM, then went looking for my own attack in the logs. Seeing the same brute-force from the attacker''s terminal and from the defender''s SIEM made both sides click. Writeup and screenshots below.'),
+  ('Cybersecurity Analyst', 2, 'Today I learned why "least privilege" matters in three different places at once: cloud IAM roles, Active Directory groups and CI/CD pipeline tokens. Same principle, three very different ways to get it wrong. Broke down each with a simple example.'),
+  ('Cybersecurity Analyst', 3, 'Trying to learn from people across the whole security team, not just one corner of it. If you work in a SOC, GRC, cloud security or pen testing and are open to a quick chat about what your day actually looks like, I''d love to connect.'),
+  ('Cybersecurity Analyst', 4, 'Spent an hour chasing a "suspicious" alert before checking the asset inventory and realising it was a scheduled backup job. Lesson learned: context first, panic second. Knowing what normal looks like is half of detection.'),
+  ('Cybersecurity Analyst', 5, 'Passed another cert this week! 🎉 What I''m enjoying about a broad pathway is how each one connects to the last - the networking I learned for the SOC side made the pen testing labs far easier. On to the next area.'),
+  ('Cybersecurity Analyst', 6, 'This week''s breach is a good reminder that most incidents cross every team: a misconfigured cloud bucket, a missed alert, then a compliance fine. One root cause, three departments involved. What''s the breach writeup you''ve learned the most from?'),
+  ('Cybersecurity Analyst', 7, 'Reading writeups from SOC analysts, pen testers and GRC folks side by side has taught me more than any single course. If you publish incident reports, CTF writeups or audit lessons, drop a link - I''d love to read more.'),
+  ('Cybersecurity Analyst', 8, 'Full writeup: a purple team exercise in my lab. I ran a password-spraying attack, found it in my SIEM, wrote a detection rule that catches it without flooding me with false positives, then scored the business risk as if I were reporting to a manager. Every step documented below.'),
+  ('Cybersecurity Analyst', 9, 'Hot take: specialising too early is one of the biggest mistakes new people in cyber make. The best pen testers I''ve spoken to understand how defenders work, and the best analysts understand how attackers think. Curious whether people in the industry agree.'),
+  ('Cybersecurity Analyst', 10, 'Free resource that''s helped me most across every area: TryHackMe''s free rooms for networking and SOC basics, plus Microsoft Learn for cloud. If you''re starting out, do those before paying for anything. Happy to share my study plan.'),
+  ('Cybersecurity Analyst', 11, '3 months on a broad cybersecurity pathway: certs passed, labs on both the attack and defence side, and a risk assessment written up. The biggest shift is that I now see how SOC, cloud, GRC and pen testing depend on each other instead of seeing them as separate jobs. Thanks to everyone who shared advice along the way.')
+ON CONFLICT (roadmap_track, week_index) DO NOTHING;

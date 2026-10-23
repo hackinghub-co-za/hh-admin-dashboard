@@ -6,6 +6,32 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.22',
+    date: '2026-10-22',
+    headline: 'Meet the Cybersecurity Analyst pathway.',
+    intro: "The Offensive Security track is now the Cybersecurity Analyst pathway: one broad route across SOC, cloud, networking, GRC, AI security, DevSecOps and pen testing.",
+    groups: [
+      {
+        label: 'Changed',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🧭',
+            title: 'Offensive Security is now Cybersecurity Analyst',
+            body: "Most first cyber jobs ask for a mix of skills, so the pathway now covers seven areas instead of one. If you were on Offensive Security, you have been moved across and nothing is lost: eJPT, THM Junior Pentester and the Full Pentest Report still count. OSCP and Burp Suite are now optional Advanced steps once the pathway is done.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '🟣',
+            title: 'New project: Purple Team Detection Lab',
+            body: "Attack your own lab, find the attack in your SIEM, write a rule that catches it and explain the business risk. It is the whole pathway in one project.",
+            where: 'My Roadmap → Projects',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.16',
     date: '2026-10-16',
     headline: 'Choose Azure or AWS, try the new labs, and book your Career Audit.',

@@ -380,3 +380,17 @@ REVOKE EXECUTE ON FUNCTION public.toggle_my_roadmap_item(BIGINT, BOOLEAN) FROM P
 -- =========================================================================
 DELETE FROM public.roadmap_item_subtasks WHERE item_title = 'CISCO Junior Cyber Pathway';
 DELETE FROM public.roadmap_items WHERE phase = 'Core Foundations' AND title = 'CISCO Junior Cyber Pathway';
+
+-- =========================================================================
+-- OFFENSIVE SECURITY -> CYBERSECURITY ANALYST (2026-10-22)
+-- =========================================================================
+-- Pathway settings are keyed by track name, so a member who had paced the
+-- old Offensive Security track keeps their start date and weekly hours on
+-- the Cybersecurity Analyst track that replaced it (028_roadmap.sql).
+-- Idempotent: skips anyone who already has the new key.
+UPDATE public.member_pathways
+SET track_prefs = (track_prefs - 'Offensive Security')
+      || jsonb_build_object('Cybersecurity Analyst', track_prefs -> 'Offensive Security'),
+    updated_at = now()
+WHERE track_prefs ? 'Offensive Security'
+  AND NOT track_prefs ? 'Cybersecurity Analyst';

@@ -18,6 +18,30 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.22
+
+### Changed
+- **Offensive Security track replaced by Cybersecurity Analyst.** A
+  generalist track across SOC, cloud, network, GRC, AI security, DevSecOps
+  and offensive security (`SPECIALIZATION_CATALOGS['Cybersecurity Analyst']`
+  in `src/lib/memberOptions.js`, 10 items). eJPT, THM Junior Pentester and
+  Full Pentest Report carry over, so finished work still counts (progress
+  is matched by title). Projects are a new Purple Team Detection Lab, Full
+  Pentest Report and Mock Risk Assessment. THM Offensive Pentesting, Burp
+  Suite Certified Practitioner and OSCP move to a new Advanced catalog for
+  the track; their time estimates leave `trackPathway.js`.
+- **Members moved across** (`028_roadmap.sql`): `roadmap_track` and
+  `specialty` rename, `Pen Testing` and `Offensive Security Projects` items
+  regroup under the new category names, and pathway settings move to the
+  new track key (`102_core_pathway.sql`). Members who already had a
+  Specialization list were given the new items once, directly in the live
+  database.
+- **Job board** (`025_job_board.sql`): the two offensive listings move to
+  the new track; the track check also accepts Network Security now.
+- **LinkedIn playbook** (`059_linkedin_weekly_post.sql`): 12 weekly posts for
+  the new track, plus its hashtags. **Interview prep** (`gemma-interview-prep`)
+  accepts Cybersecurity Analyst and Network Security.
+
 ## 2026.10.16
 
 ### Added

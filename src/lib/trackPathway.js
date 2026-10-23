@@ -26,8 +26,6 @@ export const CERT_STUDY_WEEKS = {
   'SC-200': 8, // in-app guide: 4 to 12 weeks
   'Terraform Associate': 6, // in-app guide: 4 to 8 weeks
   eJPT: ASSOCIATE,
-  'Burp Suite Certified Practitioner': PROFESSIONAL,
-  OSCP: 16,
   'AZ-104': PROFESSIONAL,
   'SC-500': PROFESSIONAL,
   'SC-100': PROFESSIONAL,
@@ -65,7 +63,6 @@ export const LAB_STUDY_HOURS = {
   'Blue Team Level 1': 40,
   'CISCO Cybersecurity Defense Analyst': 40,
   'THM Junior Pentester': 30,
-  'THM Offensive Pentesting': 40,
   'THM Active Directory Basics': 6,
   'THM AI Security': 12,
   'OWASP Top 10 for LLM Applications': 10,

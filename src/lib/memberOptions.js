@@ -7,7 +7,7 @@ import { AWS_ROADMAP_LINKS, AWS_ROADMAP_DESCRIPTIONS, AWS_ROADMAP_INFO, AWS_FOUN
 // made it easy to assign a specialty that didn't match the actual roadmap
 // track. GRC now has a roadmap track counterpart too (see ROADMAP_TRACKS
 // and SPECIALIZATION_CATALOGS.GRC below).
-export const SPECIALTIES = ['Not Set', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
+export const SPECIALTIES = ['Not Set', 'SOC', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
 
 // "Your Why" - preset reasons a member picks from (multi-select - real
 // motivation is rarely just one thing), shown as tappable chips in Edit
@@ -60,7 +60,7 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Ope
 // The learning path a coach assigns a member to - drives which checklist shows
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
 // own self-described directory badge); this one is coach-assigned.
-export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Offensive Security', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
+export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
 export const ROADMAP_PHASES = ['Core Foundations', 'Specialization', 'Projects', 'Advanced'];
 
 // A member only sees their Projects section once they've completed this
@@ -75,8 +75,8 @@ export const PROJECTS_UNLOCK_PERCENT = 50;
 // (PROJECT_CATALOGS below) is fully done - real project work is the proof
 // of readiness for Tier 2/senior content, not just a percentage past a
 // threshold the way Projects itself unlocks. 100, not 50, deliberately -
-// every track's PROJECT_CATALOGS today is only 2 items, so "fully done"
-// is a real, reachable bar, not a token gate.
+// every track's PROJECT_CATALOGS today is only 2 or 3 items, so "fully
+// done" is a real, reachable bar, not a token gate.
 export const ADVANCED_UNLOCK_PERCENT = 100;
 
 // The standard Core Foundations "Certifications" catalog every assigned
@@ -217,7 +217,7 @@ export const ROADMAP_ITEM_LINKS = {
   'THM SOC Level 1': 'https://tryhackme.com/path/outline/soclevel1',
   'Blue Team Level 1': 'https://www.centri.org/certifications/blue-team-level-1',
   'CISCO Cybersecurity Defense Analyst': 'https://www.netacad.com/career-paths/splunk-cybersecurity-defense-analyst?courseLang=en-US',
-  // Offensive Security specialization (SPECIALIZATION_CATALOGS['Offensive Security'] below)
+  // Offensive certs (Cybersecurity Analyst Specialization and Advanced below)
   'eJPT': 'https://ine.com/security/certifications/ejpt-certification',
   'THM Junior Pentester': 'https://tryhackme.com/path/outline/jrpenetrationtester',
   'THM Offensive Pentesting': 'https://tryhackme.com/path/outline/offensivepentesting',
@@ -294,7 +294,7 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   'THM SOC Level 1': 'Guided, Hands-On SOC Analyst Path',
   'Blue Team Level 1': 'Practical Defensive Security Certification',
   'CISCO Cybersecurity Defense Analyst': 'Splunk-Powered SOC Detection & Response Career Path',
-  // Specialization - Offensive Security
+  // Offensive certs (Cybersecurity Analyst Specialization and Advanced)
   'eJPT': 'Entry-Level, Practical Pentesting Cert',
   'THM Junior Pentester': 'Guided Path to Your First Pentest Skills',
   'THM Offensive Pentesting': 'Advanced, Realistic Attack Simulation Path',
@@ -337,7 +337,9 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   // Projects - SOC
   'Cloud SIEM Detection Lab': 'Build & Prove Real Detection Skills',
   'Incident Response Write-Up': 'Practice the Full IR Lifecycle',
-  // Projects - Offensive Security
+  // Projects - Cybersecurity Analyst (Full Pentest Report and Mock Risk
+  // Assessment are shared with the old offensive and GRC lists)
+  'Purple Team Detection Lab': 'Attack It, Then Catch Yourself Doing It',
   'Full Pentest Report': "Prove You Can Deliver Client-Ready Work",
   'Custom Offensive Tool Build': 'Show You Understand the Tools, Not Just Use Them',
   // Projects - Cloud Security
@@ -436,10 +438,10 @@ export const ROADMAP_ITEM_INFO = {
     journey: "Splunk is one of the most widely deployed SIEM platforms in real SOCs, and this is the one item on this track that gets you free, genuine hands-on time in it. It rounds out the SOC track's tool coverage alongside SC-200's Microsoft stack.",
   },
 
-  // ---- Specialization: Offensive Security ----
+  // ---- Offensive certs (Cybersecurity Analyst Specialization and Advanced) ----
   'eJPT': {
     teaches: "Core penetration testing methodology - reconnaissance, scanning, exploitation, and reporting - validated through a genuinely hands-on practical exam rather than multiple-choice questions.",
-    journey: "This is usually the first real proof-of-skill cert on the Offensive Security track - affordable, genuinely practical, and a common first rung before something like OSCP.",
+    journey: "This is usually the first real proof-of-skill cert on the offensive side of the Cybersecurity Analyst pathway - affordable, genuinely practical, and a common first rung before something like OSCP.",
   },
   'THM Junior Pentester': {
     teaches: "A structured TryHackMe learning path covering the fundamentals of penetration testing - web app attacks, network exploitation, and privilege escalation - through guided, hands-on rooms.",
@@ -594,7 +596,11 @@ export const ROADMAP_ITEM_INFO = {
     journey: "Almost every SOC interview eventually asks \"walk me through how you'd handle an incident.\" This project means you have a real, specific answer instead of a generic textbook one.",
   },
 
-  // ---- Projects: Offensive Security ----
+  // ---- Projects: Cybersecurity Analyst ----
+  'Purple Team Detection Lab': {
+    teaches: "How an attack looks from both sides - run a small attack against your own lab (a brute-force or a web exploit), then find it in your SIEM logs, write a detection rule that catches it, and record the risk it poses to the business.",
+    journey: "This is the Cybersecurity Analyst pathway in one project: offensive, SOC and GRC skills used together on the same problem. Being able to say \"I attacked it, caught it and explained the risk\" shows an employer you understand the whole security team, not just one seat in it.",
+  },
   'Full Pentest Report': {
     teaches: "How to run a complete penetration test against a vulnerable-by-design target and write it up the way a real client would actually receive it - findings, CVSS scoring, and remediation guidance.",
     journey: "Finding vulnerabilities is only half the job - the report is what a client actually pays for. This project proves you can do both halves, which is exactly what separates a hobbyist from someone ready to be paid for this work.",
@@ -763,14 +769,24 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'CISCO Cybersecurity Defense Analyst', defaultDetail: '' },
     ],
   },
-  'Offensive Security': {
-    category: 'Pen Testing',
+  // The generalist pathway that replaced the Offensive Security track
+  // (2026-10-22): two items for SOC, GRC and offensive, one each for cloud,
+  // network, AI security and DevSecOps. eJPT and THM Junior Pentester carry
+  // over from the old track so finished work still counts; the deeper
+  // offensive certs moved to ADVANCED_CATALOGS below.
+  'Cybersecurity Analyst': {
+    category: 'Cybersecurity Analyst',
     items: [
-      { title: 'eJPT', defaultDetail: '' },
-      { title: 'THM Junior Pentester', defaultDetail: '' },
-      { title: 'THM Offensive Pentesting', defaultDetail: '' },
-      { title: 'Burp Suite Certified Practitioner', defaultDetail: '' },
-      { title: 'OSCP', defaultDetail: '' },
+      { title: 'CySA+', defaultDetail: 'SOC' },
+      { title: 'THM SOC Level 1', defaultDetail: 'SOC' },
+      { title: 'AZ-104', defaultDetail: 'Cloud' },
+      { title: 'TryHackMe Network Fundamentals', defaultDetail: 'Network' },
+      { title: 'ISO/IEC 27001 Foundation', defaultDetail: 'GRC' },
+      { title: 'ISACA IT Risk Fundamentals', defaultDetail: 'GRC' },
+      { title: 'THM AI Security', defaultDetail: 'AI Security' },
+      { title: 'GH-900', defaultDetail: 'DevSecOps' },
+      { title: 'eJPT', defaultDetail: 'Offensive' },
+      { title: 'THM Junior Pentester', defaultDetail: 'Offensive' },
     ],
   },
   'Cloud Security': {
@@ -858,11 +874,12 @@ export const PROJECT_CATALOGS = {
       { title: 'Incident Response Write-Up', defaultDetail: 'Document a full simulated incident end-to-end: detection, containment, eradication, lessons learned' },
     ],
   },
-  'Offensive Security': {
-    category: 'Offensive Security Projects',
+  'Cybersecurity Analyst': {
+    category: 'Cybersecurity Analyst Projects',
     items: [
+      { title: 'Purple Team Detection Lab', defaultDetail: 'Attack your own lab, find the attack in your SIEM, write a rule that catches it, and record the business risk' },
       { title: 'Full Pentest Report', defaultDetail: 'Run a complete pentest against a vulnerable-by-design target, write a professional report with CVSS scoring and remediation' },
-      { title: 'Custom Offensive Tool Build', defaultDetail: 'Write and document a small custom tool you built yourself (e.g. a scanner or fuzzer)' },
+      { title: 'Mock Risk Assessment', defaultDetail: 'Perform a risk assessment for a hypothetical org using a real framework (NIST RMF or ISO 27001), document findings' },
     ],
   },
   'Cloud Security': {
@@ -922,6 +939,16 @@ export const PROJECT_CATALOGS = {
 // automation, leadership) that read better as separate groups on the
 // roadmap than one flat list.
 export const ADVANCED_CATALOGS = {
+  // Where the old Offensive Security track's deeper certs went: an optional
+  // next step once the broad pathway is done, for members going into pen
+  // testing.
+  'Cybersecurity Analyst': {
+    items: [
+      { category: 'Offensive Specialisation', title: 'THM Offensive Pentesting', defaultDetail: '' },
+      { category: 'Offensive Specialisation', title: 'Burp Suite Certified Practitioner', defaultDetail: '' },
+      { category: 'Offensive Specialisation', title: 'OSCP', defaultDetail: '' },
+    ],
+  },
   SOC: {
     items: [
       { category: 'Tier 2 Certifications', title: 'CompTIA SecurityX', defaultDetail: '' },
@@ -1917,12 +1944,12 @@ export const TEAM_MEMBERS = [
 
 // One accent hue per track, reused for both the compact group card's accent
 // border and its avatar-stack tint - keeps a track visually identifiable at
-// a glance across the whole grouped view. Offensive Security gets the
-// product's own accent-cyan since it's the flagship track; the rest are
+// a glance across the whole grouped view. Cybersecurity Analyst keeps the
+// red the Offensive Security track had before it replaced it; the rest are
 // hues already used elsewhere in this app (release-note group colors) so
 // nothing here is a freshly invented palette.
 export const TRACK_COLORS = {
-  'Offensive Security': '#ef4444',
+  'Cybersecurity Analyst': '#ef4444',
   'SOC': '#3b82f6',
   'Cloud Security': '#22d3ee',
   'DevSecOps': '#a78bfa',
@@ -1939,7 +1966,7 @@ export const TEAM_GROUP_COLOR = '#f5b942';
 // (GroupedMemberDirectory.jsx), so someone browsing the roster gets a real
 // answer without leaving the page.
 export const TRACK_DESCRIPTIONS = {
-  'Offensive Security': 'Attacking systems on purpose, with permission - penetration testing, red teaming, and exploit development.',
+  'Cybersecurity Analyst': 'The all-rounder - SOC, cloud, networking, GRC, AI security, DevSecOps and pen testing in one pathway.',
   'SOC': 'The front line - monitoring, detecting, and responding to real attacks as they happen.',
   'Cloud Security': 'Securing AWS and Azure environments - identity, network, and posture in infrastructure that never stops changing.',
   'DevSecOps': 'Security built into the pipeline itself - CI/CD, infrastructure as code, and container security.',
@@ -1958,10 +1985,10 @@ export const TRACK_DESCRIPTIONS = {
 // employer/experience/certs) - a "roughly what to expect" anchor for
 // someone choosing a track, not a quoted, sourced statistic.
 export const TRACK_INFO = {
-  'Offensive Security': {
-    whatItIs: "Finding the holes attackers would find first - legally, and with permission. You think like an adversary so the business can fix what you find before someone with worse intentions does.",
-    roles: ['Junior Penetration Tester', 'Red Team Operator', 'Vulnerability Researcher', 'Exploit Developer'],
-    salaryRange: 'R20,000 – R45,000/month entry-to-mid, R60,000 – R120,000+/month senior (OSCP/OSCE-level and up)',
+  'Cybersecurity Analyst': {
+    whatItIs: "A broad base across the whole security team - watching alerts in a SOC, securing cloud and networks, knowing the risk and compliance side, and testing systems the way an attacker would. Most first cyber jobs ask for exactly this mix, and it leaves every specialisation open, pen testing included.",
+    roles: ['Cybersecurity Analyst', 'SOC Analyst', 'Security Analyst', 'GRC Analyst', 'Junior Penetration Tester'],
+    salaryRange: 'R15,000 – R25,000/month entry, R30,000 – R45,000/month mid, R50,000+/month senior',
   },
   'SOC': {
     whatItIs: "The team that never stops watching - triaging alerts, spotting the real attack inside the noise, and responding before it spreads. The most common real entry point into the industry.",
