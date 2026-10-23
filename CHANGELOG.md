@@ -18,29 +18,46 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
-## 2026.10.22
+## 2026.10.23
 
-### Changed
-- **Offensive Security track replaced by Cybersecurity Analyst.** A
-  generalist track across SOC, cloud, network, GRC, AI security, DevSecOps
-  and offensive security (`SPECIALIZATION_CATALOGS['Cybersecurity Analyst']`
-  in `src/lib/memberOptions.js`, 10 items). eJPT, THM Junior Pentester and
-  Full Pentest Report carry over, so finished work still counts (progress
-  is matched by title). Projects are a new Purple Team Detection Lab, Full
-  Pentest Report and Mock Risk Assessment. THM Offensive Pentesting, Burp
-  Suite Certified Practitioner and OSCP move to a new Advanced catalog for
-  the track; their time estimates leave `trackPathway.js`.
-- **Members moved across** (`028_roadmap.sql`): `roadmap_track` and
-  `specialty` rename, `Pen Testing` and `Offensive Security Projects` items
-  regroup under the new category names, and pathway settings move to the
-  new track key (`102_core_pathway.sql`). Members who already had a
-  Specialization list were given the new items once, directly in the live
-  database.
-- **Job board** (`025_job_board.sql`): the two offensive listings move to
-  the new track; the track check also accepts Network Security now.
-- **LinkedIn playbook** (`059_linkedin_weekly_post.sql`): 12 weekly posts for
-  the new track, plus its hashtags. **Interview prep** (`gemma-interview-prep`)
-  accepts Cybersecurity Analyst and Network Security.
+### Added
+- **Welcome email replaces the five WhatsApp messages.** One email from
+  siya@hackinghub.co.za with three steps in order (sign in to the portal,
+  join the community WhatsApp group, message Lesedi) and the rule not to
+  introduce themselves in the group yet. Sent once per member
+  (`member_profiles.welcome_email_sent_at`, back-filled for everyone who
+  already existed, so renewals and current members are never emailed). It
+  goes out from the PayFast webhook after a completed payment and from
+  recording an EFT payment; a "Send welcome email" button on the member
+  profile resends it. Shared template in
+  `supabase/functions/_shared/welcomeEmail.ts`; staff-triggered function
+  `welcome-email` (admins and community managers).
+- **Getting Started checklist follows the real onboarding order**: watch the
+  video, set up the profile, join WhatsApp, say "Hi Lesedi" (opens WhatsApp
+  to her number), fix LinkedIn with Lesedi, build the intro, post it in the
+  group, then the 1-on-1, calendar, why and tour. "Fix your LinkedIn" and
+  "Build your intro" are ticked by Lesedi; "Build your intro" and "Post your
+  intro" stay locked until the step before them is done, enforced in
+  `mark_my_onboarding_step_complete`. None of the new steps is one of the six
+  the Getting Started hard gate needs (`ONBOARDING_STEPS`), so a member is
+  never locked out waiting for Lesedi.
+- **Intro message builder** (`IntroBuilderModal`, `src/lib/introMessage.js`):
+  drafts the intro from the member's profile in the structure from the
+  onboarding guide, with a copy button.
+- **New members list** for admins and community managers: everyone who
+  started in the last 30 days, progress through seven steps, who the next
+  move belongs to, and the two tick boxes (LinkedIn reviewed, Intro
+  approved) through `set_member_onboarding_step`. Approval needs the review
+  first, and unticking the review withdraws an approval.
+
+### Fixed
+- "Share your why" never saved: `your_why` was missing from the allowed
+  `member_onboarding_steps.step_key` values, so completing it failed.
+
+### Notes
+- All changes to the database are in `006_onboarding.sql` PART 4 and are
+  already applied live. `welcome-email` and `payfast-webhook` need to be
+  deployed for the emails to go out.
 
 ## 2026.10.16
 

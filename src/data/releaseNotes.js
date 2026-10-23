@@ -6,26 +6,38 @@
 
 export const RELEASE_NOTES = [
   {
-    version: '2026.10.22',
-    date: '2026-10-22',
-    headline: 'Meet the Cybersecurity Analyst pathway.',
-    intro: "The Offensive Security track is now the Cybersecurity Analyst pathway: one broad route across SOC, cloud, networking, GRC, AI security, DevSecOps and pen testing.",
+    version: '2026.10.23',
+    date: '2026-10-23',
+    headline: 'A clearer start for new members.',
+    intro: "The Getting Started checklist now follows the order new members really do things, with help from Lesedi on your LinkedIn and your introduction.",
     groups: [
       {
-        label: 'Changed',
+        label: 'New',
         color: '#5ee37a',
         items: [
           {
-            icon: '🧭',
-            title: 'Offensive Security is now Cybersecurity Analyst',
-            body: "Most first cyber jobs ask for a mix of skills, so the pathway now covers seven areas instead of one. If you were on Offensive Security, you have been moved across and nothing is lost: eJPT, THM Junior Pentester and the Full Pentest Report still count. OSCP and Burp Suite are now optional Advanced steps once the pathway is done.",
-            where: 'My Roadmap',
+            icon: '👋',
+            title: 'Say hi to Lesedi, then fix your LinkedIn together',
+            body: "After you join the WhatsApp community, a button on your checklist opens a chat with Lesedi with \"Hi Lesedi\" ready to send. She helps you fix your LinkedIn profile and ticks the step off when you are done.",
+            where: 'Dashboard → Getting Started',
           },
           {
-            icon: '🟣',
-            title: 'New project: Purple Team Detection Lab',
-            body: "Attack your own lab, find the attack in your SIEM, write a rule that catches it and explain the business risk. It is the whole pathway in one project.",
-            where: 'My Roadmap → Projects',
+            icon: '✍️',
+            title: 'Build your intro message',
+            body: "Your name, LinkedIn link and focus area are filled in for you. Pick a goal, copy the message, and Lesedi checks it with you. Posting it in the group unlocks once she approves it.",
+            where: 'Dashboard → Getting Started',
+          },
+        ],
+      },
+      {
+        label: 'Fixed',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🧭',
+            title: 'Share your why now saves',
+            body: "Adding your why used to fail to tick off on the checklist. It saves properly now.",
+            where: 'Dashboard → Getting Started',
           },
         ],
       },

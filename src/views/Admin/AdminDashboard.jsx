@@ -7,6 +7,7 @@ import RecordEftPaymentModal from '../../components/RecordEftPaymentModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SalesPipelineBoard from '../../components/SalesPipelineBoard';
 import AccountabilityCheckins from '../../components/AccountabilityCheckins';
+import NewMembersOnboarding from '../../components/NewMembersOnboarding';
 import LabReviews from '../../components/LabReviews';
 import TalentPoolAdmin from '../../components/TalentPoolAdmin';
 import GemmaAdmin from '../../components/GemmaAdmin';
@@ -63,7 +64,7 @@ import { HUB_SCORE_TIERS } from '../../lib/hubScoreTiers';
 import { setMemberCloudPlatform } from '../../lib/roadmapData';
 import { CLOUD_PLATFORMS, displayTitleFor, isCloudVariantTitle, switchItemsPlatform } from '../../lib/cloudPlatform';
 import { fetchRoadmapForMember, fetchAllRoadmapItems, addRoadmapItem, updateRoadmapItem, deleteRoadmapItem, setRoadmapFoundationsApproval, reviewProjectSubmission } from '../../lib/roadmapData';
-import { ONBOARDING_STEPS, fetchAllOnboardingSteps } from '../../lib/onboardingData';
+import { ONBOARDING_STEPS, fetchAllOnboardingSteps, sendMemberWelcomeEmail } from '../../lib/onboardingData';
 import { fetchOptinPool, fetchAllGroups, runMatchmakerRound, sendMatchmakerGroupEmails, updateGroupStatus, updateGroupDueDate, deleteGroup } from '../../lib/matchmakerData';
 import { fetchAllRoomLogs, reviewRoomLog, correctRoomLogReview } from '../../lib/roomLogData';
 import { fetchOneOnOneLogsForMember, logOneOnOne, deleteOneOnOneLog, fetchAllOneOnOneLogs } from '../../lib/oneOnOneLogsData';
@@ -2479,6 +2480,16 @@ Pick new people to present next Sunday`;
       // grant failure surfaces as a warning rather than losing the payment.
       try {
         await grantMemberPortalAccess(basePayment.email, basePayment.member);
+        // First payment only: a member who has already been welcomed (a
+        // renewal) is skipped server-side. A failed send never loses the
+        // payment; the Members tab has a button to resend.
+        try {
+          await sendMemberWelcomeEmail(basePayment.email);
+        } catch (emailErr) {
+          setSavedMemberDataError(
+            `Payment saved and access granted, but the welcome email to ${basePayment.member} did not send. Use "Send welcome email" on their profile: ${friendlyErrorMessage(emailErr)}`
+          );
+        }
       } catch (grantErr) {
         setSavedMemberDataError(
           `Payment saved, but granting portal access to ${basePayment.member} failed - check the Members tab: ${friendlyErrorMessage(grantErr)}`
@@ -4624,6 +4635,9 @@ Pick new people to present next Sunday`;
 
     case 'accountability':
       return <AccountabilityCheckins isMockSession={isMockSession} user={user} />;
+
+    case 'newmembers':
+      return <NewMembersOnboarding isMockSession={isMockSession} />;
 
     case 'labreviews':
       return <LabReviews isMockSession={isMockSession} user={user} />;

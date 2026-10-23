@@ -28,6 +28,7 @@
 // Only once all three pass does a transaction get written.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendWelcomeEmail } from '../_shared/welcomeEmail.ts';
 // Web Crypto's SubtleCrypto only supports the SHA family, not MD5 - the same
 // reason src/lib/payfast.js has to hand-roll MD5 client-side. Using a proper
 // tested library here instead of re-implementing it a second time.
@@ -216,6 +217,19 @@ Deno.serve(async (req) => {
       });
       if (grantError) {
         console.error('payfast-webhook: grant_member_portal_access failed', grantError.message);
+      } else {
+        // Welcome email, once per member (a renewal skips it). Like the grant
+        // above, a failure is logged and never fails the webhook.
+        const resendKey = Deno.env.get('RESEND_API_KEY');
+        if (resendKey) {
+          try {
+            await sendWelcomeEmail(adminClient, resendKey, payerEmail);
+          } catch (emailErr) {
+            console.error('payfast-webhook: welcome email failed', emailErr);
+          }
+        } else {
+          console.error('payfast-webhook: RESEND_API_KEY not set, welcome email skipped');
+        }
       }
     }
 
