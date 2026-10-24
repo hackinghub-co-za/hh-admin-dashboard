@@ -635,6 +635,7 @@ SET format = 'Guide',
   {"id":"gp6","group":"Practice: guided projects","title":"Set up cost guardrails in Azure","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-cost-guardrails/"},
   {"id":"gp7","group":"Practice: guided projects","title":"Monitor Azure with Service Health and Activity Log alerts","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-monitor-service-health-activity-alerts/"},
   {"id":"gp8","group":"Practice: guided projects","title":"Manage Azure resources with Cloud Shell and the Azure CLI","link":"https://learn.microsoft.com/en-us/training/modules/guided-project-manage-resources-cloud-shell-cli/"},
+  {"id":"kk1","group":"Practice: KodeKloud 100 Days of Cloud (free)","title":"Practise with KodeKloud's free 100 Days of Cloud","link":"https://engineer.kodekloud.com/practice"},
   {"id":"ep1","group":"Get exam-ready","title":"Read the official study guide and its skills-measured outline","link":"https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900"},
   {"id":"ep2","group":"Get exam-ready","title":"Watch the Exam Readiness Zone videos","link":"https://learn.microsoft.com/en-us/shows/exam-readiness-zone/"},
   {"id":"ep7","group":"Get exam-ready","title":"Watch the recommended AZ-900 video playlist","link":"https://www.youtube.com/playlist?list=PLZCHR_fccEf8zN6UB8JOK2Y6l5DVqAcyc"},
@@ -730,3 +731,20 @@ SELECT 'Communities', 'Communities', 'Directory',
 ]'::jsonb,
   'siya@hackinghub.co.za'
 WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'Communities');
+
+-- KODEKLOUD 100 DAYS OF CLOUD (2026-10-23) - a free, hands-on practice
+-- programme from KodeKloud, added as a step to the AZ-900 guide above (step
+-- id "kk1") and as the practice step of a small AZ-104 resource. AZ-104 had
+-- no study resource of its own; this one starts with two steps and can grow
+-- (add steps by editing the resource). Idempotent: the insert is skipped
+-- when the row exists, and the AZ-900 step is only added if it is missing.
+INSERT INTO public.resources (category, title, format, description, link, steps, created_by)
+SELECT 'Cert Prep', 'AZ-104 Study Resources', 'Guide',
+  'Where to study and practise for AZ-104 (Azure Administrator): the official certification page and KodeKloud''s free 100 Days of Cloud, a hands-on way to build the day-to-day Azure skills the exam tests. The exam fee is paid by the member on Permanent Access.',
+  NULL,
+  '[
+  {"id":"az1","group":"Learn","title":"Read the official AZ-104 certification page and its skills measured","link":"https://learn.microsoft.com/en-us/credentials/certifications/azure-administrator/"},
+  {"id":"kk1","group":"Practice: KodeKloud 100 Days of Cloud (free)","title":"Practise with KodeKloud''s free 100 Days of Cloud","link":"https://engineer.kodekloud.com/practice"}
+]'::jsonb,
+  'siya@hackinghub.co.za'
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-104 Study Resources');

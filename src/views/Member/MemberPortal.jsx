@@ -738,6 +738,7 @@ const MOCK_RESOURCES = [
     { id: "gp6", group: "Practice: guided projects", title: "Set up cost guardrails in Azure", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-cost-guardrails/" },
     { id: "gp7", group: "Practice: guided projects", title: "Monitor Azure with Service Health and Activity Log alerts", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-monitor-service-health-activity-alerts/" },
     { id: "gp8", group: "Practice: guided projects", title: "Manage Azure resources with Cloud Shell and the Azure CLI", link: "https://learn.microsoft.com/en-us/training/modules/guided-project-manage-resources-cloud-shell-cli/" },
+    { id: "kk1", group: "Practice: KodeKloud 100 Days of Cloud (free)", title: "Practise with KodeKloud's free 100 Days of Cloud", link: "https://engineer.kodekloud.com/practice" },
     { id: "ep1", group: "Get exam-ready", title: "Read the official study guide and its skills-measured outline", link: "https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900" },
     { id: "ep2", group: "Get exam-ready", title: "Watch the Exam Readiness Zone videos", link: "https://learn.microsoft.com/en-us/shows/exam-readiness-zone/" },
     { id: "ep7", group: "Get exam-ready", title: "Watch the recommended AZ-900 video playlist", link: "https://www.youtube.com/playlist?list=PLZCHR_fccEf8zN6UB8JOK2Y6l5DVqAcyc" },
@@ -763,6 +764,10 @@ const MOCK_RESOURCES = [
   { id: 8, category: 'Cert Prep', title: 'SC-200 Study Guide', format: 'Guide', description: 'What it costs, how long to study, and every resource members actually use - official cert page, OpenExamPrep, Microsoft Learn, and KC7 for KQL practice.', link: '' },
   { id: 9, category: 'Podcasts', title: 'Recommended Podcasts', format: 'Guide', description: 'An easy way to digest what\'s happening in the cyber industry - listen on a commute or as background noise. CyberWire Daily and The Secure Developer.', link: '' },
   { id: 10, category: 'Cert Prep', title: 'KodeKloud', format: 'Guide', description: 'What KodeKloud actually is, and which of its hands-on courses are relevant to your roadmap - Terraform Associate, plus Kubernetes fundamentals (KCNA/KCSA).', link: '' },
+  { id: 14, category: 'Cert Prep', title: 'AZ-104 Study Resources', format: 'Guide', description: "Where to study and practise for AZ-104 (Azure Administrator): the official certification page and KodeKloud's free 100 Days of Cloud, a hands-on way to build the day-to-day Azure skills the exam tests.", link: '', steps: [
+    { id: "az1", group: "Learn", title: "Read the official AZ-104 certification page and its skills measured", link: "https://learn.microsoft.com/en-us/credentials/certifications/azure-administrator/" },
+    { id: "kk1", group: "Practice: KodeKloud 100 Days of Cloud (free)", title: "Practise with KodeKloud's free 100 Days of Cloud", link: "https://engineer.kodekloud.com/practice" },
+  ] },
 ];
 
 // Mock Member's demo roadmap - modeled on a real member's actual plan
@@ -4102,6 +4107,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // sharing state would let one clobber the other's spinner/error.
   const [merchCart, setMerchCart] = useState([]); // [{ productId, size, quantity }]
   const [merchSelectedSizes, setMerchSelectedSizes] = useState({}); // { [productId]: size }
+  const [merchDeliveryArea, setMerchDeliveryArea] = useState('');
   const [merchDeliveryNotes, setMerchDeliveryNotes] = useState('');
   const [merchCheckoutLoading, setMerchCheckoutLoading] = useState(false);
   const [merchError, setMerchError] = useState(null);
@@ -4132,6 +4138,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
   const handleMerchCheckout = async () => {
     if (merchCart.length === 0) return;
+    const deliveryArea = merchDeliveryArea.trim();
+    if (!deliveryArea) {
+      setMerchError('Enter your delivery area or location so we know where to send your order.');
+      return;
+    }
     setMerchCheckoutLoading(true);
     setMerchError(null);
     try {
@@ -4144,6 +4155,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         memberName: user?.user_metadata?.full_name || '',
         items,
         totalAmount: merchCartTotal,
+        deliveryArea,
         deliveryNotes: merchDeliveryNotes,
       });
       const checkoutUrl = await createPayfastCheckoutUrl({
@@ -9419,6 +9431,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   <span>R {merchCartTotal}</span>
                 </div>
                 <div style={{ marginBottom: '16px' }}>
+                  <label htmlFor="merch-delivery-area" style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Delivery area or location *</label>
+                  <input
+                    id="merch-delivery-area"
+                    type="text"
+                    className="form-input"
+                    value={merchDeliveryArea}
+                    onChange={(e) => setMerchDeliveryArea(e.target.value)}
+                    placeholder="e.g. Soweto, Johannesburg"
+                    maxLength={120}
+                    required
+                    aria-required="true"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Delivery notes (optional)</label>
                   <textarea
                     className="form-input"
@@ -9469,6 +9496,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                               {o.items.map((it, idx) => (
                                 <div key={idx}>{it.product}{it.size ? ` (${it.size})` : ''} × {it.quantity}</div>
                               ))}
+                              {o.deliveryArea && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Deliver to: {o.deliveryArea}</div>}
                               {o.deliveryNotes && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Note: {o.deliveryNotes}</div>}
                             </td>
                             <td style={{ padding: '12px 8px', fontWeight: 700 }}>R {o.totalAmount}</td>

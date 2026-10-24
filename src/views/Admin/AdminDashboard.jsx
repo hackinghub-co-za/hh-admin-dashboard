@@ -1636,7 +1636,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   // reconciling against the real PayFast/bank record - see
   // handleResolveNeedsReviewOrder below.
   const [merchOrders, setMerchOrders] = useState(isMockSession ? [
-    { id: 1, memberEmail: 'demo.member1@example.com', memberName: 'Demo Member', items: [{ product: 'Hoodie', size: 'L', quantity: 1, unitPrice: 600 }], totalAmount: 600, deliveryNotes: "I'll collect at the next meetup", status: 'Paid', createdAt: '2026-08-20T10:00:00Z', paidAt: '2026-08-20T10:05:00Z' },
+    { id: 1, memberEmail: 'demo.member1@example.com', memberName: 'Demo Member', items: [{ product: 'Hoodie', size: 'L', quantity: 1, unitPrice: 600 }], totalAmount: 600, deliveryArea: 'Soweto, Johannesburg', deliveryNotes: "I'll collect at the next meetup", status: 'Paid', createdAt: '2026-08-20T10:00:00Z', paidAt: '2026-08-20T10:05:00Z' },
   ] : []);
   const [loadingMerchOrders, setLoadingMerchOrders] = useState(!isMockSession);
   const [merchOrdersError, setMerchOrdersError] = useState(null);
@@ -6438,8 +6438,11 @@ Pick new people to present next Sunday`;
                         ))}
                         <strong> - R {order.totalAmount}</strong>
                       </p>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-primary)', marginTop: '4px' }}>
+                        <strong>Deliver to:</strong> {order.deliveryArea || 'Not given (order placed before this was required)'}
+                      </p>
                       {order.deliveryNotes && (
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Delivery: {order.deliveryNotes}</p>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Delivery notes: {order.deliveryNotes}</p>
                       )}
                       {order.status === 'Needs Review' && (
                         <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>

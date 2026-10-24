@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS public.merch_orders (
   items JSONB NOT NULL,
   total_amount NUMERIC NOT NULL CHECK (total_amount > 0),
   delivery_notes TEXT,
+  -- Where to deliver it (an area or suburb, such as "Soweto, Johannesburg").
+  -- Required for every new order by validate_merch_order_total() below,
+  -- added 2026-10-24; orders from before then have none.
+  delivery_area TEXT,
   -- 'Needs Review' is where payfast-webhook parks an order whose real ITN
   -- amount_gross doesn't match total_amount, rather than either trusting a
   -- mismatched amount or leaving it stuck at 'Awaiting Payment' forever
@@ -48,6 +52,8 @@ CREATE TABLE IF NOT EXISTS public.merch_orders (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
   paid_at TIMESTAMP WITH TIME ZONE
 );
+
+ALTER TABLE public.merch_orders ADD COLUMN IF NOT EXISTS delivery_area TEXT;
 
 ALTER TABLE public.merch_orders ENABLE ROW LEVEL SECURITY;
 
@@ -131,6 +137,17 @@ DECLARE
   qty NUMERIC;
   computed_total NUMERIC := 0;
 BEGIN
+  -- A delivery area or location is required on every new order (2026-10-24).
+  -- Checked here rather than as a column CHECK so orders placed before this
+  -- existed keep a NULL area without breaking.
+  NEW.delivery_area := NULLIF(btrim(NEW.delivery_area), '');
+  IF NEW.delivery_area IS NULL THEN
+    RAISE EXCEPTION 'Delivery area is required.';
+  END IF;
+  IF length(NEW.delivery_area) > 120 THEN
+    RAISE EXCEPTION 'Delivery area is too long (120 characters at most).';
+  END IF;
+
   IF NEW.items IS NULL OR jsonb_typeof(NEW.items) != 'array' OR jsonb_array_length(NEW.items) = 0 THEN
     RAISE EXCEPTION 'Merch order must have at least one item.';
   END IF;

@@ -64,7 +64,12 @@ const SECTIONS = [
     ],
   },
   {
-    heading: '5. Get exam-ready',
+    heading: '5. Practice: KodeKloud 100 Days of Cloud (free)',
+    body: "KodeKloud's free 100 Days of Cloud is a daily, hands-on way to keep practising cloud skills in a real environment, which is the habit that makes the exam topics stick. It is free to use.",
+    items: [{ label: 'KodeKloud 100 Days of Cloud', href: 'https://engineer.kodekloud.com/practice' }],
+  },
+  {
+    heading: '6. Get exam-ready',
     body: "Read what is actually measured, watch the videos, then test yourself with the free Practice Assessment. Revisit the learning-path modules for any weak domain and retake it until you are comfortably above 70%, then try the exam sandbox so the exam screen is familiar before you book.",
     items: [
       { label: 'Official study guide and skills-measured outline', href: 'https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/az-900' },

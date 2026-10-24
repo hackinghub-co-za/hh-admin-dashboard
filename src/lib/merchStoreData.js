@@ -27,6 +27,7 @@ function mapOrder(row) {
     memberName: row.member_name || '',
     items: row.items || [],
     totalAmount: Number(row.total_amount),
+    deliveryArea: row.delivery_area || '',
     deliveryNotes: row.delivery_notes || '',
     status: row.status,
     createdAt: row.created_at,
@@ -38,7 +39,7 @@ function mapOrder(row) {
  * Payment' and member_email to the caller's own session regardless of what
  * this sends). Call this BEFORE PayFast checkout - the returned order's id
  * gets passed as merchOrderId to createPayfastCheckoutUrl. */
-export async function createMyMerchOrder({ memberEmail, memberName, items, totalAmount, deliveryNotes }) {
+export async function createMyMerchOrder({ memberEmail, memberName, items, totalAmount, deliveryArea, deliveryNotes }) {
   const { data, error } = await supabase
     .from('merch_orders')
     .insert({
@@ -46,6 +47,7 @@ export async function createMyMerchOrder({ memberEmail, memberName, items, total
       member_name: memberName || null,
       items,
       total_amount: totalAmount,
+      delivery_area: deliveryArea,
       delivery_notes: deliveryNotes || null,
     })
     .select()
@@ -58,7 +60,7 @@ export async function createMyMerchOrder({ memberEmail, memberName, items, total
 export async function fetchMyMerchOrders() {
   const { data, error } = await supabase
     .from('merch_orders')
-    .select('id, items, total_amount, delivery_notes, status, created_at, paid_at')
+    .select('id, items, total_amount, delivery_area, delivery_notes, status, created_at, paid_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapOrder);
@@ -68,7 +70,7 @@ export async function fetchMyMerchOrders() {
 export async function fetchAllMerchOrders() {
   const { data, error } = await supabase
     .from('merch_orders')
-    .select('id, member_email, member_name, items, total_amount, delivery_notes, status, created_at, paid_at')
+    .select('id, member_email, member_name, items, total_amount, delivery_area, delivery_notes, status, created_at, paid_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(mapOrder);

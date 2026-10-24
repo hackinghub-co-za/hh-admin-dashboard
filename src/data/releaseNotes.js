@@ -16,6 +16,18 @@ export const RELEASE_NOTES = [
         color: '#5ee37a',
         items: [
           {
+            icon: '📦',
+            title: 'Tell us where to deliver your merch',
+            body: "Merch checkout now asks for your delivery area or location, so we know where to send your order. You will see it on your past orders too.",
+            where: 'Merch Store',
+          },
+          {
+            icon: '☁️',
+            title: 'Free daily cloud practice for AZ-900 and AZ-104',
+            body: "KodeKloud's free 100 Days of Cloud is now on the AZ-900 guide, and there is a new AZ-104 Study Resources card in Resources with the same practice link.",
+            where: 'Resources',
+          },
+          {
             icon: '👋',
             title: 'Say hi to Lesedi, then fix your LinkedIn together',
             body: "After you join the WhatsApp community, a button on your checklist opens a chat with Lesedi with \"Hi Lesedi\" ready to send. She helps you fix your LinkedIn profile and ticks the step off when you are done.",

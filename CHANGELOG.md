@@ -50,6 +50,18 @@ saved in their browser's `localStorage`.
   approved) through `set_member_onboarding_step`. Approval needs the review
   first, and unticking the review withdraws an approval.
 
+- **KodeKloud 100 Days of Cloud (free) for AZ-900 and AZ-104.** A new
+  practice step ("kk1") in the AZ-900 Study and Practice Guide, with its own
+  section in the in-app guide, and a new "AZ-104 Study Resources" resource
+  (the official certification page plus the same practice step). Both are in
+  `026_resources.sql` and already applied live.
+
+- **Merch orders need a delivery area.** Checkout asks for the member's area
+  or location (required, up to 120 characters) and keeps the optional
+  delivery notes. Enforced on the server in `validate_merch_order_total()`
+  (`060_merch_orders.sql`), with a new `delivery_area` column; orders from
+  before this keep none. Admins see "Deliver to" on every order.
+
 ### Fixed
 - "Share your why" never saved: `your_why` was missing from the allowed
   `member_onboarding_steps.step_key` values, so completing it failed.
