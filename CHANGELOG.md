@@ -21,6 +21,15 @@ saved in their browser's `localStorage`.
 ## 2026.10.24
 
 ### Added
+- **Monday weekly report email** to siya@hackinghub.co.za, every Monday at
+  06:00 SAST (`weekly-report-monday` cron, `108_weekly_report.sql`):
+  members, money this month against last month (to the same day and in
+  full), the month's revenue, expense and net profit forecast, new joiners,
+  this week's events, Sunday Catchup presenter and exams, last week's exam
+  results, the competition top 5, ready-to-join and interested prospects by
+  name, and a to-do list. Figures come from `get_weekly_report()`
+  (service role only); the email is built by the `weekly-report-email`
+  function. Already deployed and scheduled.
 - **Presenter on Sunday Catchups.** A "Who is presenting" field in the event
   form for Sunday Catchup events (`community_events.presenter`,
   `019_events.sql`), shown on the admin event row ("No presenter set yet"
