@@ -45,6 +45,11 @@ import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail, sendCertFailEmail } from '../../lib/certCalendarData';
 import MemberHoverCard from '../../components/MemberHoverCard';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
+import { forecastExpenses } from '../../lib/financeForecast';
+
+// Current month in South African time, as "YYYY-MM". Module scope so the
+// clock read stays out of the component's render body.
+const sastMonthNow = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' }).slice(0, 7);
 import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFiveUpdates } from '../../lib/focusFiveData';
 import { fetchMemberDirectory } from '../../lib/memberDirectoryData';
 import { fetchRoadmapExclusions, addRoadmapExclusion, removeRoadmapExclusion } from '../../lib/roadmapExclusionsData';
@@ -1507,7 +1512,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   }, [isMockSession, dataRefreshKey]);
 
   const EXPENSE_CATEGORIES = ['Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Training & Certifications', 'Other'];
-  const [newExpense, setNewExpense] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
+  const [newExpense, setNewExpense] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '', isOneOff: false });
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
@@ -1515,7 +1520,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     const amount = Number(newExpense.amount);
     if (isMockSession) {
       setExpenses([
-        { id: Math.max(0, ...expenses.map((x) => x.id)) + 1, category: newExpense.category, description: newExpense.description, amount, date: newExpense.date },
+        { id: Math.max(0, ...expenses.map((x) => x.id)) + 1, category: newExpense.category, description: newExpense.description, amount, date: newExpense.date, isOneOff: !!newExpense.isOneOff },
         ...expenses,
       ]);
     } else {
@@ -1527,15 +1532,15 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
         return;
       }
     }
-    setNewExpense({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
+    setNewExpense({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '', isOneOff: false });
   };
 
   const [editingExpenseId, setEditingExpenseId] = useState(null);
-  const [editExpenseForm, setEditExpenseForm] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '' });
+  const [editExpenseForm, setEditExpenseForm] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '', isOneOff: false });
 
   const startEditExpense = (x) => {
     setEditingExpenseId(x.id);
-    setEditExpenseForm({ category: x.category, description: x.description, amount: String(x.amount), date: x.date });
+    setEditExpenseForm({ category: x.category, description: x.description, amount: String(x.amount), date: x.date, isOneOff: !!x.isOneOff });
   };
 
   const handleSaveExpenseEdit = async (expense) => {
@@ -1552,6 +1557,20 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       }
     }
     setEditingExpenseId(null);
+  };
+
+  // One click flips an expense between recurring and one-off, which is all
+  // the forecast needs (financeForecast.js).
+  const handleToggleOneOff = async (expense) => {
+    const next = { ...expense, isOneOff: !expense.isOneOff };
+    setExpenses((prev) => prev.map((x) => (x.id === expense.id ? next : x)));
+    if (isMockSession) return;
+    try {
+      await updateExpense(expense.id, { category: expense.category, description: expense.description, amount: expense.amount, date: expense.date, isOneOff: next.isOneOff });
+    } catch (err) {
+      setExpensesError(friendlyErrorMessage(err));
+      setExpenses((prev) => prev.map((x) => (x.id === expense.id ? expense : x)));
+    }
   };
 
   const handleDeleteExpense = async (expense) => {
@@ -2293,7 +2312,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
   const HH_EVENT_IMAGE_URL = 'https://kveiflphktpvsddhkspz.supabase.co/storage/v1/object/public/event-images/_hh-branding/logo.png';
   const HH_RUN_EVENT_TYPES = ['HH Meetup', 'Sunday Catchup', 'Study Session'];
 
-  const EMPTY_EVENT_FORM = { type: 'HH Meetup', title: '', description: '', date: '', endDate: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL, capacity: '' };
+  const EMPTY_EVENT_FORM = { type: 'HH Meetup', title: '', description: '', date: '', endDate: '', time: '', location: '', link: '', imageUrl: HH_EVENT_IMAGE_URL, capacity: '', presenter: '' };
   const [showAddEventForm, setShowAddEventForm] = useState(false);
   const [newEvent, setNewEvent] = useState(EMPTY_EVENT_FORM);
   const [addingEvent, setAddingEvent] = useState(false);
@@ -2340,7 +2359,7 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
     setEditingEventId(ev.id);
     setNewEvent({
       type: ev.type, title: ev.title, description: ev.description || '', date: ev.date, endDate: ev.endDate || '', time: ev.time || '',
-      location: ev.location || '', link: ev.link || '', imageUrl: ev.imageUrl || '', capacity: ev.capacity ?? '',
+      location: ev.location || '', link: ev.link || '', imageUrl: ev.imageUrl || '', capacity: ev.capacity ?? '', presenter: ev.presenter || '',
     });
     setShowAddEventForm(true);
   };
@@ -5903,6 +5922,9 @@ Pick new people to present next Sunday`;
                 </select>
                 <input className="form-input" placeholder="Title" value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} required />
               </div>
+              {newEvent.type === 'Sunday Catchup' && (
+                <input className="form-input" placeholder="Who is presenting (optional)" aria-label="Who is presenting" maxLength={120} value={newEvent.presenter} onChange={(e) => setNewEvent({ ...newEvent, presenter: e.target.value })} />
+              )}
               <textarea className="form-input" placeholder="Description (optional)" rows={2} value={newEvent.description} onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
                 <input type="date" className="form-input" title="Start date" aria-label="Start date" value={newEvent.date} onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })} required />
@@ -5993,6 +6015,11 @@ Pick new people to present next Sunday`;
                           {formatDate(ev.date)}{ev.endDate ? ` - ${formatDate(ev.endDate)}` : ''}{ev.time ? ` at ${ev.time}` : ''} | {ev.location || 'No location set'}
                           {ev.createdBy && ` | Submitted by ${ev.createdBy}`}
                         </p>
+                        {ev.type === 'Sunday Catchup' && (
+                          <p style={{ fontSize: '0.78rem', color: ev.presenter ? 'var(--text-primary)' : 'var(--warning)', marginTop: '2px' }}>
+                            {ev.presenter ? `Presenting: ${ev.presenter}` : 'No presenter set yet'}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
@@ -8333,17 +8360,52 @@ Pick new people to present next Sunday`;
               </div>
             )}
 
-            <form onSubmit={handleAddExpense} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 140px 160px auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
-              <select className="form-input" value={newExpense.category} onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}>
+            <form onSubmit={handleAddExpense} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 140px 160px auto auto', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+              {/* Picking Events ticks One-off for you; untick it for a cost that repeats. */}
+              <select className="form-input" value={newExpense.category} onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value, isOneOff: e.target.value === 'Events' ? true : newExpense.isOneOff })}>
                 {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <input className="form-input" value={newExpense.description} onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })} placeholder="Description" />
               <input type="number" step="0.01" className="form-input" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} placeholder="Amount (R)" />
               <input type="date" className="form-input" value={newExpense.date} onChange={(e) => setNewExpense({ ...newExpense, date: e.target.value })} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }} title="One-off costs are not expected again next month">
+                <input type="checkbox" checked={!!newExpense.isOneOff} onChange={(e) => setNewExpense({ ...newExpense, isOneOff: e.target.checked })} /> One-off
+              </label>
               <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', padding: '10px 16px' }}>
                 <Plus size={14} /> Add
               </button>
             </form>
+
+            {/* Recurring costs still to come this month (financeForecast.js):
+                last month's costs that are not marked one-off and have not
+                been logged yet this month. Same rule the Monday report uses. */}
+            {!loadingExpenses && expenses.length > 0 && (() => {
+              const month = sastMonthNow();
+              const f = forecastExpenses(expenses, month);
+              const rand = (n) => `R ${n.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              return (
+                <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: 'var(--border-radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '18px', fontSize: '0.85rem', marginBottom: f.expected.length ? '10px' : 0 }}>
+                    <span>Logged this month: <strong>{rand(f.logged)}</strong></span>
+                    <span>Recurring still expected: <strong>{rand(f.expectedTotal)}</strong></span>
+                    <span>Forecast for the month: <strong>{rand(f.total)}</strong></span>
+                  </div>
+                  {f.expected.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Logged last month but not yet this month. Mark any that won't repeat as one-off:</span>
+                      {f.expected.map((x) => (
+                        <span key={x.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          {x.description} ({x.category}) · {rand(x.amount)}
+                          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.72rem', padding: '3px 10px' }} onClick={() => handleToggleOneOff(x)}>Mark one-off</button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Every recurring cost from last month has been logged.</p>
+                  )}
+                </div>
+              );
+            })()}
 
             {loadingExpenses ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading expenses...</p>
@@ -8374,6 +8436,9 @@ Pick new people to present next Sunday`;
                         </td>
                         <td style={{ padding: '10px 8px' }}>
                           <input className="form-input" style={{ fontSize: '0.8rem', padding: '6px 8px' }} value={editExpenseForm.description} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, description: e.target.value })} />
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                            <input type="checkbox" checked={!!editExpenseForm.isOneOff} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, isOneOff: e.target.checked })} /> One-off
+                          </label>
                         </td>
                         <td style={{ padding: '10px 8px' }}>
                           <input type="number" step="0.01" className="form-input" style={{ fontSize: '0.8rem', padding: '6px 8px', width: '100px' }} value={editExpenseForm.amount} onChange={(e) => setEditExpenseForm({ ...editExpenseForm, amount: e.target.value })} />
@@ -8387,7 +8452,18 @@ Pick new people to present next Sunday`;
                       <tr key={x.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
                         <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{x.date}</td>
                         <td style={{ padding: '12px 8px' }}><span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{x.category}</span></td>
-                        <td style={{ padding: '12px 8px' }}>{x.description}</td>
+                        <td style={{ padding: '12px 8px' }}>
+                          {x.description}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOneOff(x)}
+                            className={`badge ${x.isOneOff ? 'badge-warning' : ''}`}
+                            style={{ fontSize: '0.62rem', marginLeft: '8px', cursor: 'pointer', border: '1px solid var(--border-color)', background: x.isOneOff ? undefined : 'transparent', color: x.isOneOff ? undefined : 'var(--text-muted)' }}
+                            title={x.isOneOff ? 'One-off: not expected next month. Click to mark as recurring.' : 'Recurring: expected again next month. Click to mark as one-off.'}
+                          >
+                            {x.isOneOff ? 'One-off' : 'Recurring'}
+                          </button>
+                        </td>
                         <td style={{ padding: '12px 8px', fontWeight: 700 }}>R {x.amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</td>
                         <td style={{ padding: '12px 8px', whiteSpace: 'nowrap' }}>
                           <button onClick={() => startEditExpense(x)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'inline-flex', marginRight: '10px' }} aria-label="Edit expense">

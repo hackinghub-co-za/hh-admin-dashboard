@@ -9,7 +9,7 @@ import { supabase } from './supabase';
 export async function fetchExpenses() {
   const { data, error } = await supabase
     .from('expenses')
-    .select('id, category, description, amount, expense_date, created_by')
+    .select('id, category, description, amount, expense_date, created_by, is_one_off')
     .order('expense_date', { ascending: false });
   if (error) throw error;
   return (data || []).map((row) => ({
@@ -19,11 +19,13 @@ export async function fetchExpenses() {
     amount: Number(row.amount),
     date: row.expense_date,
     createdBy: row.created_by || '',
+    // One-off costs are never expected to repeat (financeForecast.js).
+    isOneOff: !!row.is_one_off,
   }));
 }
 
 /** Admin-only: logs a new expense. */
-export async function addExpense({ category, description, amount, date, createdBy }) {
+export async function addExpense({ category, description, amount, date, isOneOff, createdBy }) {
   const { data, error } = await supabase
     .from('expenses')
     .insert({
@@ -31,6 +33,7 @@ export async function addExpense({ category, description, amount, date, createdB
       description,
       amount,
       expense_date: date,
+      is_one_off: !!isOneOff,
       created_by: createdBy ? createdBy.toLowerCase() : null,
     })
     .select()
@@ -43,14 +46,15 @@ export async function addExpense({ category, description, amount, date, createdB
     amount: Number(data.amount),
     date: data.expense_date,
     createdBy: data.created_by || '',
+    isOneOff: !!data.is_one_off,
   };
 }
 
 /** Admin-only: edits an existing expense. */
-export async function updateExpense(id, { category, description, amount, date }) {
+export async function updateExpense(id, { category, description, amount, date, isOneOff }) {
   const { error } = await supabase
     .from('expenses')
-    .update({ category, description, amount, expense_date: date })
+    .update({ category, description, amount, expense_date: date, is_one_off: !!isOneOff })
     .eq('id', id);
   if (error) throw error;
 }

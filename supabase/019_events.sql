@@ -422,3 +422,8 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.set_event_agenda(BIGINT, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.set_event_agenda(BIGINT, TEXT) FROM PUBLIC, anon;
+
+-- Who is presenting (2026-10-24), shown on Sunday Catchup event cards and in
+-- the founder's Monday report. Set by staff in the event form. Members can
+-- read it like any other event field; it is plain text, not a member link.
+ALTER TABLE public.community_events ADD COLUMN IF NOT EXISTS presenter TEXT;

@@ -18,6 +18,23 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.24
+
+### Added
+- **Presenter on Sunday Catchups.** A "Who is presenting" field in the event
+  form for Sunday Catchup events (`community_events.presenter`,
+  `019_events.sql`), shown on the admin event row ("No presenter set yet"
+  until filled) and on the member event card.
+- **One-off and recurring expenses.** `expenses.is_one_off`
+  (`037_expenses.sql`). In Finances each expense has a clickable Recurring /
+  One-off tag, the add and edit forms have a One-off box (ticked
+  automatically for Events), and a panel shows what is logged this month,
+  the recurring costs still expected, and the month's forecast.
+  `src/lib/financeForecast.js` spots recurring costs by matching last
+  month's non-one-off expenses to this month's by category and a shared
+  leading word. Existing events, flights, the Apple developer account,
+  referral, certification and merch costs were marked one-off live.
+
 ## 2026.10.23
 
 ### Added

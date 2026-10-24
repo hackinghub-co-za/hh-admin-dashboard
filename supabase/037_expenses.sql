@@ -41,3 +41,10 @@ ALTER TABLE public.expenses ADD CONSTRAINT expenses_category_check
 -- 'Training & Certifications' added (exam fees, courses, subscriptions bought
 -- for learning). The two CHECKs above list the full set, so a database that
 -- ran this file earlier picks it up from the DROP/ADD just above on re-run.
+
+-- One-off costs (2026-10-24). The weekly report and the Finances tab expect
+-- last month's costs to repeat this month unless they are marked one-off
+-- (an event, a flight, an annual account, merch stock). Recurring costs are
+-- spotted by matching last month's expenses to this month's by category and
+-- the first word of the description (src/lib/financeForecast.js).
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_one_off BOOLEAN NOT NULL DEFAULT false;

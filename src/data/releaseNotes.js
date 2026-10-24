@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.24',
+    date: '2026-10-24',
+    headline: 'See who is presenting at Sunday Catchup.',
+    intro: "Sunday Catchup events now show who is presenting, right on the event card.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🎤',
+            title: "Who's presenting on Sunday",
+            body: "Sunday Catchup cards now name the presenter once the team has set one, so you know what to expect before you join.",
+            where: 'Events',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.23',
     date: '2026-10-23',
     headline: 'A clearer start for new members.',

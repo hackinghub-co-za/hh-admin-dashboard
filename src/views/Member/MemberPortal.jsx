@@ -3060,6 +3060,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           </div>
         )}
         <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{e.title}</h4>
+        {e.type === 'Sunday Catchup' && e.presenter && (
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, margin: 0 }}>Presenting: {e.presenter}</p>
+        )}
         <ExpandableText text={e.description} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }} />
         <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
