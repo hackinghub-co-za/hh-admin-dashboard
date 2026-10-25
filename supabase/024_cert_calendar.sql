@@ -134,10 +134,15 @@ CREATE POLICY "admins manage cert calendar"
 -- ask an admin. A plain RLS UPDATE policy can't cleanly express "these
 -- columns yes, that one no" (RLS has no OLD/NEW the way a trigger does),
 -- so this is a narrow RPC instead: only the caller's own row, and only
--- cert_name/date/cohort - never member/member_email/created_by (identity
--- of the entry) or result (self-marking your own exam Passed/Failed would
--- defeat the whole point of that field being admin-verified).
-CREATE OR REPLACE FUNCTION public.update_my_cert_calendar_entry(p_id BIGINT, p_cert TEXT, p_date DATE, p_cohort TEXT DEFAULT NULL)
+-- cert_name/date/cohort/result - never member/member_email/created_by
+-- (identity of the entry). result used to be admin-only too, but members
+-- were left with passed or failed exams stuck as "Awaiting Result" until
+-- an admin caught up (13 of them at 2026-10-25), so a member can now mark
+-- their own entry Passed/Failed, or set it back to Pending when they
+-- reschedule a retake. p_result NULL keeps the current result. The
+-- Recent Win post and pass/fail emails stay with the admin flow.
+DROP FUNCTION IF EXISTS public.update_my_cert_calendar_entry(BIGINT, TEXT, DATE, TEXT);
+CREATE OR REPLACE FUNCTION public.update_my_cert_calendar_entry(p_id BIGINT, p_cert TEXT, p_date DATE, p_cohort TEXT DEFAULT NULL, p_result TEXT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -150,7 +155,7 @@ BEGIN
   IF v_owner_email IS NULL THEN
     RAISE EXCEPTION 'Cert entry not found.';
   END IF;
-  IF v_owner_email != v_email THEN
+  IF lower(v_owner_email) != v_email THEN
     RAISE EXCEPTION 'You can only edit your own cert calendar entries.';
   END IF;
   IF p_cert IS NULL OR trim(p_cert) = '' THEN
@@ -159,14 +164,17 @@ BEGIN
   IF p_date IS NULL THEN
     RAISE EXCEPTION 'Target exam date is required.';
   END IF;
+  IF p_result IS NOT NULL AND p_result NOT IN ('Pending', 'Passed', 'Failed') THEN
+    RAISE EXCEPTION 'Result must be Pending, Passed or Failed.';
+  END IF;
 
   UPDATE public.cert_calendar
-  SET cert_name = trim(p_cert), date = p_date, cohort = p_cohort
+  SET cert_name = trim(p_cert), date = p_date, cohort = p_cohort, result = COALESCE(p_result, result)
   WHERE id = p_id;
 END;
 $$;
-GRANT EXECUTE ON FUNCTION public.update_my_cert_calendar_entry(BIGINT, TEXT, DATE, TEXT) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.update_my_cert_calendar_entry(BIGINT, TEXT, DATE, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_my_cert_calendar_entry(BIGINT, TEXT, DATE, TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.update_my_cert_calendar_entry(BIGINT, TEXT, DATE, TEXT, TEXT) FROM PUBLIC, anon;
 
 -- Seed with only the real target dates - ids 1-7 below were placeholder
 -- entries (reconciled from two hardcoded arrays that predated this table),

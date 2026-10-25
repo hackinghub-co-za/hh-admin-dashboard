@@ -85,18 +85,19 @@ export async function updateCertCalendarEntry(id, { member, cert, date, cohort, 
   if (error) throw error;
 }
 
-/** A member editing their OWN entry - only cert/date/cohort, never
- * member/member_email/created_by (identity of the entry) or result
- * (self-marking your own exam Passed/Failed would defeat the point of
- * that field being admin-verified). The RPC itself re-checks ownership
- * server-side, so there's nothing to trust the client on here.
+/** A member editing their OWN entry - cert/date/cohort/result, never
+ * member/member_email/created_by (identity of the entry). result lets a
+ * member mark their exam Passed/Failed, or back to Pending when they
+ * reschedule a retake. The RPC itself re-checks ownership and the result
+ * value server-side, so there's nothing to trust the client on here.
  * (update_my_cert_calendar_entry, 024_cert_calendar.sql) */
-export async function updateMyCertCalendarEntry(id, { cert, date, cohort }) {
+export async function updateMyCertCalendarEntry(id, { cert, date, cohort, result }) {
   const { error } = await supabase.rpc('update_my_cert_calendar_entry', {
     p_id: id,
     p_cert: cert,
     p_date: date,
     p_cohort: cohort || null,
+    p_result: result || null,
   });
   if (error) throw error;
 }

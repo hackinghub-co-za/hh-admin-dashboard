@@ -3191,14 +3191,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // identical; only the submit handler and a couple of labels change.
   // Members previously had no way to fix a mis-picked cert or a wrong date
   // after creating an entry at all - update_my_cert_calendar_entry()
-  // (024_cert_calendar.sql) only lets them touch cert_name/date/cohort on
-  // their OWN row, never result/member/member_email.
+  // (024_cert_calendar.sql) lets them touch cert_name/date/cohort/result on
+  // their OWN row, never member/member_email.
   const [editingCertEntry, setEditingCertEntry] = useState(null);
 
   const handleOpenEditCert = (c) => {
     const vendorGroup = CERT_CATALOG_BY_VENDOR.find((g) => g.certs.includes(c.cert));
     setCertVendor(vendorGroup ? vendorGroup.vendor : '__other__');
-    setNewCertForm({ member: c.member, cert: c.cert, date: c.date });
+    setNewCertForm({ member: c.member, cert: c.cert, date: c.date, result: c.result || 'Pending' });
     setEditingCertEntry(c);
     setAddCertError(null);
     setShowAddCertForm(true);
@@ -3308,7 +3308,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       if (editingCertEntry) {
         if (isMockSession) {
           setCertCalendar((prev) =>
-            prev.map((c) => (c.id === editingCertEntry.id ? { ...c, cert: newCertForm.cert.trim(), date: newCertForm.date } : c))
+            prev.map((c) => (c.id === editingCertEntry.id ? { ...c, cert: newCertForm.cert.trim(), date: newCertForm.date, result: newCertForm.result } : c))
               .sort((a, b) => new Date(a.date) - new Date(b.date))
           );
         } else {
@@ -3316,6 +3316,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             cert: newCertForm.cert.trim(),
             date: newCertForm.date,
             cohort: editingCertEntry.cohort,
+            result: newCertForm.result,
           });
           setCertCalendar(await fetchCertCalendar());
         }
@@ -8021,6 +8022,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             // A member's headshot and hover profile come from the same public
             // directory card the Members Directory shows.
             const certProfile = (c) => directory.find((m) => (m.email || '').toLowerCase() === (c.memberEmail || '').toLowerCase());
+            const isMyCert = (c) => !!(c.memberEmail && user?.email && c.memberEmail.toLowerCase() === user.email.toLowerCase());
+            // Members edit their own entries from any section - reschedule
+            // an upcoming exam, or mark it Passed/Failed once written.
+            const editCertButton = (c) => isMyCert(c) && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleOpenEditCert(c); }}
+                title="Reschedule or update the result"
+                className="badge"
+                style={{ background: 'rgba(var(--accent-rgb), 0.1)', border: '1px solid rgba(var(--accent-rgb), 0.3)', cursor: 'pointer', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Pencil size={11} /> Edit
+              </button>
+            );
             return (
           <>
           <div className="glass-card" style={{ marginBottom: '32px' }}>
@@ -8045,7 +8060,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 // Exam readiness is a personal self-assessment - only ever
                 // shown for the signed-in member's own booked exam, never
                 // for someone else's card on this shared community calendar.
-                const isOwnCert = !!(c.memberEmail && user?.email && c.memberEmail.toLowerCase() === user.email.toLowerCase());
+                const isOwnCert = isMyCert(c);
                 const readinessCertKey = isOwnCert ? matchExamReadinessCert(c.cert) : null;
                 const readinessRow = readinessCertKey ? examReadiness.find((r) => r.certName === readinessCertKey) : null;
                 const readinessPct = readinessCertKey
@@ -8091,16 +8106,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                             the outcome, only that the date had gone by, but read
                             exactly like it was. */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {isOwnCert && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleOpenEditCert(c); }}
-                              title="Edit this entry"
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0 }}
-                            >
-                              <Pencil size={13} />
-                            </button>
-                          )}
+                          {editCertButton(c)}
                           <span className={`badge ${c.result === 'Failed' ? 'badge-danger' : daysLeft <= 7 ? 'badge-danger' : isUrgent ? 'badge-warning' : 'badge-success'}`}>
                             {c.result === 'Failed' ? 'Failed' : daysLeft > 0 ? `${daysLeft} Day${daysLeft === 1 ? '' : 's'} Remaining` : daysLeft === 0 ? 'Exam Day!' : 'Awaiting Result'}
                           </span>
@@ -8178,9 +8184,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
-                        <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle2 size={12} /> Passed
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {editCertButton(c)}
+                          <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <CheckCircle2 size={12} /> Passed
+                          </span>
+                        </div>
                       </div>
                       <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={certProfile(c)} nameStyle={{ fontSize: '1.05rem' }} /></div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -8225,7 +8234,10 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>{c.cohort}</span>
-                        <span className="badge badge-danger">Failed</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {editCertButton(c)}
+                          <span className="badge badge-danger">Failed</span>
+                        </div>
                       </div>
                       <div style={{ marginBottom: '8px' }}><MemberHoverCard name={c.member} email={c.memberEmail} profile={certProfile(c)} nameStyle={{ fontSize: '1.05rem' }} /></div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -8292,7 +8304,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-cyan)' }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>{editingCertEntry ? 'Edit Cert Calendar Entry' : 'Add to Cert Calendar'}</h2>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px' }}>{editingCertEntry ? 'Update Your Exam' : 'Add to Cert Calendar'}</h2>
                 <form onSubmit={handleAddCertEntry} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {!editingCertEntry && (
                   <div>
@@ -8386,6 +8398,26 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       required
                     />
                   </div>
+
+                  {editingCertEntry && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Result</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {['Pending', 'Passed', 'Failed'].map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            className={`btn ${newCertForm.result === r ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ flex: 1, fontSize: '0.8rem', padding: '8px 10px' }}
+                            onClick={() => setNewCertForm({ ...newCertForm, result: r })}
+                          >
+                            {r === 'Pending' ? 'Not written yet' : r}
+                          </button>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>Rescheduled a retake? Set it back to Not written yet and change the date.</p>
+                    </div>
+                  )}
 
                   {addCertError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{addCertError}</p>}
 
