@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
 
   for (const member of targets) {
     try {
-      const post = postByTrack[member.roadmap_track] || postByTrack.SOC;
+      const post = postByTrack[member.roadmap_track] || postByTrack['Cybersecurity Analyst'];
       const firstName = (member.full_name || '').trim().split(' ')[0] || 'there';
       const unsubscribeToken = await signUnsubscribeToken(member.email, unsubscribeTokenSecret);
       const unsubscribeUrl = `${supabaseUrl}/functions/v1/linkedin-reminder-unsubscribe?email=${encodeURIComponent(member.email)}&token=${unsubscribeToken}`;

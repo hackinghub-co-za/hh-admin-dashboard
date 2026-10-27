@@ -838,3 +838,20 @@ UPDATE public.member_profiles SET roadmap_track = 'Cybersecurity Analyst' WHERE 
 UPDATE public.member_profiles SET specialty = 'Cybersecurity Analyst' WHERE specialty = 'Offensive Security';
 UPDATE public.roadmap_items SET category = 'Cybersecurity Analyst' WHERE phase = 'Specialization' AND category = 'Pen Testing';
 UPDATE public.roadmap_items SET category = 'Cybersecurity Analyst Projects' WHERE phase = 'Projects' AND category = 'Offensive Security Projects';
+
+-- =========================================================================
+-- SOC -> CYBERSECURITY ANALYST (2026-10-26)
+-- =========================================================================
+-- The SOC track was folded into the Cybersecurity Analyst track
+-- (SPECIALIZATION_CATALOGS, PROJECT_CATALOGS and ADVANCED_CATALOGS in
+-- src/lib/memberOptions.js now hold its items). Members on SOC, and the
+-- matching specialty badge, move across, and their Specialization and
+-- Projects items regroup under the new category names. Their Advanced
+-- groups (Detection & Threat Hunting and the rest) keep their names, which
+-- are the same ones the Cybersecurity Analyst Advanced list uses. Progress
+-- is matched by title, so finished certs, labs and projects keep counting.
+-- Idempotent: once nothing carries the old names these update no rows.
+UPDATE public.member_profiles SET roadmap_track = 'Cybersecurity Analyst' WHERE roadmap_track = 'SOC';
+UPDATE public.member_profiles SET specialty = 'Cybersecurity Analyst' WHERE specialty = 'SOC';
+UPDATE public.roadmap_items SET category = 'Cybersecurity Analyst' WHERE phase = 'Specialization' AND category = 'SOC';
+UPDATE public.roadmap_items SET category = 'Cybersecurity Analyst Projects' WHERE phase = 'Projects' AND category = 'SOC Projects';

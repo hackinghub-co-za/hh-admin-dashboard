@@ -6,6 +6,58 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.26',
+    date: '2026-10-26',
+    headline: 'SOC joins the Cybersecurity Analyst pathway.',
+    intro: "One broader pathway now covers the SOC work too. Your finished certs, labs and projects all still count.",
+    groups: [
+      {
+        label: 'Changed',
+        color: '#f5b942',
+        items: [
+          {
+            icon: '🛡️',
+            title: 'SOC is now part of Cybersecurity Analyst',
+            body: "If you were on the SOC track, your roadmap has moved across. CySA+, THM SOC Level 1 and SC-200 are on the list, Blue Team Level 1 and the Cisco course are optional extras, and the SOC projects and Advanced work are still there.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '🎓',
+            title: 'Roadmap changes on Cloud Security, GRC and AI Security',
+            body: "Cloud Security now has hands-on practice and an Advanced list. GRC starts with the ISC2 CC and keeps CGRC and CRISC for Advanced. AI Security adds two free labs: Lakera Gandalf and PortSwigger's LLM attack labs.",
+            where: 'My Roadmap',
+          },
+          {
+            icon: '☁️',
+            title: 'AWS version of AZ-104 is now Solutions Architect – Associate',
+            body: "If you chose AWS, the stand-in for AZ-104 is the Solutions Architect – Associate exam, which leads straight into the Professional one.",
+            where: 'My Roadmap',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    version: '2026.10.25',
+    date: '2026-10-25',
+    headline: 'Update your own exam results.',
+    intro: "You can now mark your own Cert Calendar exams as passed or failed, and reschedule them yourself.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '✅',
+            title: 'Mark your own exam Passed or Failed',
+            body: "Every one of your exam cards now has an Edit button. Change the date if you rescheduled, or pick Passed or Failed once you have written it. A failed exam can go back to Not written yet with a new date for the retake.",
+            where: 'Cert Calendar',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.24',
     date: '2026-10-24',
     headline: 'See who is presenting at Sunday Catchup.',

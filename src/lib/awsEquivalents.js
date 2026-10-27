@@ -18,7 +18,10 @@ export const AZURE_TO_AWS = {
   // Closest fit: AWS has no fundamentals-level security exam, so this is
   // the free Skill Builder course rather than a certification.
   'SC-900': 'AWS Security Fundamentals',
-  'AZ-104': 'AWS Certified SysOps Administrator – Associate',
+  // 2026-10-26: Solutions Architect – Associate, the usual AWS pairing for
+  // AZ-104 and the stepping stone to the Professional exam AZ-305 maps to.
+  // (SysOps Administrator was the stand-in before; its entries below are kept.)
+  'AZ-104': 'AWS Certified Solutions Architect – Associate',
   // Closest fit for the four Microsoft security certs: the Security Specialty
   // is AWS's only security credential.
   'SC-200': 'AWS Certified Security – Specialty',
@@ -35,6 +38,7 @@ export const AWS_ROADMAP_LINKS = {
   'AWS Certified Cloud Practitioner': 'https://aws.amazon.com/certification/certified-cloud-practitioner/',
   'AWS Certified AI Practitioner': 'https://aws.amazon.com/certification/certified-ai-practitioner/',
   'AWS Security Fundamentals': 'https://skillbuilder.aws/',
+  'AWS Certified Solutions Architect – Associate': 'https://aws.amazon.com/certification/certified-solutions-architect-associate/',
   'AWS Certified SysOps Administrator – Associate': 'https://aws.amazon.com/certification/certified-sysops-admin-associate/',
   'AWS Certified Solutions Architect – Professional': 'https://aws.amazon.com/certification/certified-solutions-architect-professional/',
   'AWS Certified DevOps Engineer – Professional': 'https://aws.amazon.com/certification/certified-devops-engineer-professional/',
@@ -46,6 +50,7 @@ export const AWS_ROADMAP_DESCRIPTIONS = {
   'AWS Certified Cloud Practitioner': 'AWS Cloud Fundamentals',
   'AWS Certified AI Practitioner': 'AI, ML & Generative AI Fundamentals',
   'AWS Security Fundamentals': 'Free AWS Security Basics Course',
+  'AWS Certified Solutions Architect – Associate': 'Core AWS Architecture, Secure & Resilient',
   'AWS Certified SysOps Administrator – Associate': 'Hands-On AWS Administration',
   'AWS Certified Solutions Architect – Professional': 'Expert-Level Cloud Solutions Architecture',
   'AWS Certified DevOps Engineer – Professional': 'DevOps Engineering on AWS',
@@ -65,6 +70,10 @@ export const AWS_ROADMAP_INFO = {
   'AWS Security Fundamentals': {
     teaches: "The building blocks of security on AWS - the shared responsibility model, IAM, encryption and key management, and monitoring and compliance. A free Skill Builder course, not an exam.",
     journey: "AWS has no fundamentals-level security exam, so this free course is the closest stand-in for SC-900. Identity and access sit at the centre of almost every major breach, and this gives you the AWS view of it.",
+  },
+  'AWS Certified Solutions Architect – Associate': {
+    teaches: "Designing secure, resilient and cost-aware architectures on AWS - compute, storage, networking, databases and the security services around them - through scenario questions about picking the right service.",
+    journey: "The AWS counterpart to AZ-104, and the most common AWS associate certification. It leads straight into the Solutions Architect – Professional exam, which is the AWS counterpart to AZ-305.",
   },
   'AWS Certified SysOps Administrator – Associate': {
     teaches: "Deploying, managing and operating workloads on AWS day to day - monitoring, automation, networking and cost optimisation.",
@@ -118,6 +127,7 @@ export const AWS_FOUNDATION_PRICING = {
 
 // Study weeks for the track pathway view (see trackPathway.js).
 export const AWS_CERT_STUDY_WEEKS = {
+  'AWS Certified Solutions Architect – Associate': 8,
   'AWS Certified SysOps Administrator – Associate': 8,
   'AWS Certified Solutions Architect – Professional': 8,
   'AWS Certified DevOps Engineer – Professional': 8,

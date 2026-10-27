@@ -18,6 +18,60 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.26
+
+### Changed
+- **SOC track folded into Cybersecurity Analyst.** SOC is no longer a track
+  or a specialty (`ROADMAP_TRACKS`, `SPECIALTIES`, `TRACK_COLORS`,
+  `TRACK_DESCRIPTIONS`, `TRACK_INFO` in `src/lib/memberOptions.js`). CySA+,
+  THM SOC Level 1 and SC-200 are required items on the Analyst list; Blue Team
+  Level 1 and the Cisco Cybersecurity Defense Analyst course came across as
+  "Optional" (they still count toward the Projects unlock percentage, like
+  the optional Python item on DevSecOps). The two SOC projects joined the
+  Analyst Projects list (five now, and Advanced unlocks at 100% of them), and
+  SOC's Advanced work (Detection & Threat Hunting, Automation, Incident
+  Leadership) is the Analyst Advanced list's defensive lane. GH-500 joined
+  the list too.
+- **Cybersecurity Analyst list trimmed.** ISO/IEC 27001 Foundation (ISACA IT
+  Risk Fundamentals stays as the one GRC fundamentals exam), TryHackMe
+  Network Fundamentals and eJPT left Specialization, and OSCP left Advanced
+  as too expensive. CompTIA SecurityX is in Advanced.
+- **Members moved across** (`028_roadmap.sql`, `102_core_pathway.sql`,
+  `025_job_board.sql`, `099_labs.sql`): 25 SOC members now have
+  `roadmap_track` and `specialty` of Cybersecurity Analyst, their items
+  regroup under the Analyst category names, pathway settings and lab and job
+  tags move to the new name. Finished items keep counting (matched by
+  title). The new items, and the removal of untouched unfinished ones, were
+  done directly in the live database for members who already had each list
+  (27 Analyst, 6 Cloud Security and 2 GRC members; 22 untouched unfinished
+  Analyst rows and 2 ITIL rows removed; unfinished SC-100, AZ-305, CGRC and
+  CRISC rows moved to Advanced).
+- **Cloud Security.** KCNA, KCSA and KodeKloud 100 Days of Cloud joined
+  Specialization; SC-100 and AZ-305 moved to a new Advanced list with AWS
+  Security Specialty, CCSK and a "Run a Cloud Posture Review at Your Job"
+  item. The Specialization order puts the Security Specialty last on AWS.
+- **AWS stand-in for AZ-104 is now Solutions Architect – Associate**
+  (`awsEquivalents.js`, `107_talent_pool.sql`, the AWS storage lab). It is
+  display-only, so no rows changed.
+- **GRC.** ISC2 Certified in Cybersecurity (CC) is the first Specialization
+  item, ISC2 CGRC and ISACA CRISC moved to a new Advanced list, and ITIL 4
+  Foundation was dropped.
+- **AI Security.** Lakera Gandalf and PortSwigger's LLM attack labs
+  (both free) joined Specialization.
+- **Labs and job board**: labs and jobs tagged SOC now carry Cybersecurity
+  Analyst. The LinkedIn playbook falls back to Cybersecurity Analyst posts
+  (`linkedin-post-reminder-email` redeployed with `--no-verify-jwt`).
+- Pathway time estimates (`trackPathway.js`) updated for the new items.
+
+## 2026.10.25
+
+### Changed
+- **Members can mark their own Cert Calendar exams Passed or Failed**, and
+  edit or reschedule them from any card (`update_my_cert_calendar_entry` in
+  `024_cert_calendar.sql` now takes an optional result). The Recent Win post
+  and the pass and fail emails still only go out when an admin sets the
+  result.
+
 ## 2026.10.24
 
 ### Added

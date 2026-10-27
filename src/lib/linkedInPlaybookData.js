@@ -59,7 +59,6 @@ export const THEME_DESCRIPTIONS = {
 // 'Not Assigned') - small and static, never duplicated anywhere else the
 // way the 84 example posts were, so this stays plain hardcoded content.
 export const DOMAIN_HASHTAGS = {
-  SOC: '#SOCAnalyst #BlueTeam #ThreatDetection #SIEM #CyberSecurity',
   'Cybersecurity Analyst': '#CyberSecurity #SecurityAnalyst #BlueTeam #Pentesting #CloudSecurity',
   'Cloud Security': '#CloudSecurity #AWS #Azure #GCP #CyberSecurity',
   DevSecOps: '#DevSecOps #AppSec #CICD #ShiftLeft #CyberSecurity',
@@ -88,9 +87,9 @@ export function getCurrentWeekIndex(date = new Date()) {
 }
 
 /** Resolves a roadmapTrack (possibly null/'Not Assigned'/unrecognized) to a
- * valid domain key, falling back to 'SOC'. */
+ * valid domain key, falling back to 'Cybersecurity Analyst'. */
 export function resolveDomain(roadmapTrack) {
-  return roadmapTrack && DOMAIN_HASHTAGS[roadmapTrack] ? roadmapTrack : 'SOC';
+  return roadmapTrack && DOMAIN_HASHTAGS[roadmapTrack] ? roadmapTrack : 'Cybersecurity Analyst';
 }
 
 /** This week's theme alone (no example post) - domain-independent, so this

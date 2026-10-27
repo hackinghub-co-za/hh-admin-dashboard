@@ -34,8 +34,8 @@ const GEMINI_MODEL = 'gemini-3.6-flash'; // same pin as gemma-chat/gemma-review
 // here since `domain` comes straight from the client and gets embedded
 // into the system prompt below; never trust free-form client text into a
 // prompt without validating it against a known set first.
-// 'Offensive Security' stays accepted for interviews logged before it became
-// the Cybersecurity Analyst track (2026-10-22).
+// 'Offensive Security' and 'SOC' stay accepted for interviews logged before
+// they became the Cybersecurity Analyst track (2026-10-22 and 2026-10-26).
 const VALID_DOMAINS = ['SOC', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security', 'Offensive Security'];
 
 const QUESTIONS_SCHEMA = {

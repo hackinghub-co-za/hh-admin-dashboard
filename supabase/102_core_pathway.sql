@@ -394,3 +394,17 @@ SET track_prefs = (track_prefs - 'Offensive Security')
     updated_at = now()
 WHERE track_prefs ? 'Offensive Security'
   AND NOT track_prefs ? 'Cybersecurity Analyst';
+
+-- =========================================================================
+-- SOC -> CYBERSECURITY ANALYST (2026-10-26)
+-- =========================================================================
+-- Same idea as the Offensive Security move above: a member who had paced the
+-- SOC track keeps their start date, weekly hours and lab order on the
+-- Cybersecurity Analyst track that took it in (028_roadmap.sql). Idempotent:
+-- skips anyone who already has the new key.
+UPDATE public.member_pathways
+SET track_prefs = (track_prefs - 'SOC')
+      || jsonb_build_object('Cybersecurity Analyst', track_prefs -> 'SOC'),
+    updated_at = now()
+WHERE track_prefs ? 'SOC'
+  AND NOT track_prefs ? 'Cybersecurity Analyst';

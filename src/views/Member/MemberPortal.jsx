@@ -1953,7 +1953,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // own copy. Mock session gets a tiny inline placeholder instead of a
   // real fetch, same as every other Supabase-backed piece of state here.
   const [linkedInPosts, setLinkedInPosts] = useState(
-    isMockSession ? { SOC: Array(12).fill('Demo mode - real example posts load once you sign in for real.') } : {}
+    isMockSession ? { 'Cybersecurity Analyst': Array(12).fill('Demo mode - real example posts load once you sign in for real.') } : {}
   );
   useEffect(() => {
     if (isMockSession) return;

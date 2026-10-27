@@ -151,7 +151,7 @@ AS $$
   WITH aws AS (
     SELECT * FROM jsonb_each_text('{
       "AZ-900": "AWS Certified Cloud Practitioner", "AI-901": "AWS Certified AI Practitioner",
-      "SC-900": "AWS Security Fundamentals", "AZ-104": "AWS Certified SysOps Administrator – Associate",
+      "SC-900": "AWS Security Fundamentals", "AZ-104": "AWS Certified Solutions Architect – Associate",
       "SC-200": "AWS Certified Security – Specialty", "SC-500": "AWS Certified Security – Specialty",
       "SC-100": "AWS Certified Security – Specialty", "SC-300": "AWS Certified Security – Specialty",
       "AZ-305": "AWS Certified Solutions Architect – Professional", "AZ-400": "AWS Certified DevOps Engineer – Professional",

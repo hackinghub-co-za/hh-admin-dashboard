@@ -48,7 +48,7 @@ const MOCK_ATTEMPTS = [
   },
 ];
 
-const EMPTY_LAB_FORM = { title: '', provider: '', externalUrl: '', track: 'SOC', difficulty: 'Beginner', estMinutes: '', summary: '' };
+const EMPTY_LAB_FORM = { title: '', provider: '', externalUrl: '', track: 'Cybersecurity Analyst', difficulty: 'Beginner', estMinutes: '', summary: '' };
 
 function givenSummary(task, given) {
   if (given == null) return '(no answer)';

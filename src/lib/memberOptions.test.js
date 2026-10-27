@@ -5,6 +5,9 @@ import {
   ROADMAP_TRACKS,
   SPECIALIZATION_CATALOGS,
   PROJECT_CATALOGS,
+  ADVANCED_CATALOGS,
+  ROADMAP_ITEM_DESCRIPTIONS,
+  ROADMAP_ITEM_INFO,
   CERT_CATALOG_BY_VENDOR,
   CORE_FOUNDATIONS_CATALOG,
   CORE_FOUNDATION_PRICING,
@@ -87,6 +90,40 @@ describe('roadmap catalogs are keyed by real ROADMAP_TRACKS entries', () => {
     for (const key of Object.keys(PROJECT_CATALOGS)) {
       expect(realTracks).toContain(key);
     }
+  });
+
+  it('every ADVANCED_CATALOGS key is a real track', () => {
+    for (const key of Object.keys(ADVANCED_CATALOGS)) {
+      expect(realTracks).toContain(key);
+    }
+  });
+
+  it('SOC is no longer a track: it was folded into Cybersecurity Analyst', () => {
+    expect(ROADMAP_TRACKS).not.toContain('SOC');
+    expect(SPECIALTIES).not.toContain('SOC');
+    const analystTitles = SPECIALIZATION_CATALOGS['Cybersecurity Analyst'].items.map((i) => i.title);
+    ['CySA+', 'THM SOC Level 1', 'SC-200', 'Blue Team Level 1', 'CISCO Cybersecurity Defense Analyst'].forEach((t) => expect(analystTitles).toContain(t));
+    const analystProjects = PROJECT_CATALOGS['Cybersecurity Analyst'].items.map((i) => i.title);
+    ['Cloud SIEM Detection Lab', 'Incident Response Write-Up'].forEach((t) => expect(analystProjects).toContain(t));
+  });
+
+  it('no item is on both a Specialization list and the same track\'s Advanced list', () => {
+    for (const track of Object.keys(ADVANCED_CATALOGS)) {
+      const spec = new Set((SPECIALIZATION_CATALOGS[track]?.items || []).map((i) => i.title));
+      ADVANCED_CATALOGS[track].items.forEach((i) => expect(spec.has(i.title), `${track}: ${i.title}`).toBe(false));
+    }
+  });
+
+  it('every item on every roadmap has a description and an info entry', () => {
+    const titles = [
+      ...Object.values(SPECIALIZATION_CATALOGS).flatMap((c) => c.items),
+      ...Object.values(PROJECT_CATALOGS).flatMap((c) => c.items),
+      ...Object.values(ADVANCED_CATALOGS).flatMap((c) => c.items),
+    ].map((i) => i.title);
+    titles.forEach((t) => {
+      expect(ROADMAP_ITEM_DESCRIPTIONS[t], `${t} has no description`).toBeTruthy();
+      expect(ROADMAP_ITEM_INFO[t], `${t} has no info`).toBeTruthy();
+    });
   });
 });
 

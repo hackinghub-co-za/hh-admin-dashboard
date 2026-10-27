@@ -26,11 +26,14 @@ describe('buildTrackConfig', () => {
     expect(buildTrackConfig('Not Assigned')).toBeNull();
     expect(buildTrackConfig('Nonsense')).toBeNull();
   });
-  it('splits SOC into certificates and labs and sets the real milestones', () => {
-    const c = buildTrackConfig('SOC');
-    expect(Object.keys(c.certs)).toEqual(['CySA+', 'SC-200']);
-    expect(Object.keys(c.labs)).toEqual(['THM SOC Level 1', 'Blue Team Level 1', 'CISCO Cybersecurity Defense Analyst']);
-    expect(c.milestones).toEqual([{ at: 3, label: 'Projects unlock' }, { at: 5, label: 'Track complete' }]);
+  it('splits Cybersecurity Analyst into certificates and labs and sets the real milestones', () => {
+    const c = buildTrackConfig('Cybersecurity Analyst');
+    expect(Object.keys(c.certs)).toEqual(['CySA+', 'SC-200', 'AZ-104', 'ISACA IT Risk Fundamentals', 'GH-900', 'GH-500']);
+    expect(Object.keys(c.labs)).toEqual(['THM SOC Level 1', 'THM AI Security', 'THM Junior Pentester', 'Blue Team Level 1', 'CISCO Cybersecurity Defense Analyst']);
+    expect(c.milestones).toEqual([{ at: 6, label: 'Projects unlock' }, { at: 11, label: 'Track complete' }]);
+  });
+  it('has no SOC track any more', () => {
+    expect(buildTrackConfig('SOC')).toBeNull();
   });
   it('uses half the catalog, rounded up, for Projects unlock', () => {
     TRACKS_WITH_PATHWAY.forEach((t) => {
@@ -56,12 +59,12 @@ describe('every track schedules cleanly', () => {
 });
 
 describe('track plans honour progress and rearranging', () => {
-  const c = buildTrackConfig('SOC');
+  const c = buildTrackConfig('AI Security');
   it('leaves finished items out and counts them toward the milestones', () => {
     const s = blankFor(c);
-    s['CySA+'] = { completed: true, fraction: 1 };
-    s['THM SOC Level 1'] = { completed: true, fraction: 1 };
-    s['SC-200'] = { completed: true, fraction: 1 };
+    s['AI-103'] = { completed: true, fraction: 1 };
+    s['CompTIA SecAI+'] = { completed: true, fraction: 1 };
+    s['THM AI Security'] = { completed: true, fraction: 1 };
     const plan = buildPathway(s, prefs(), 5, c);
     expect(plan.doneCount).toBe(3);
     expect(plan.certs).toEqual([]);
@@ -73,17 +76,17 @@ describe('track plans honour progress and rearranging', () => {
     expect(plan.certs[0].start).toBe(1);
     expect(plan.certs[1].start).toBe(plan.certs[0].end + 1);
     // Swapping order means moving the first one out of the way.
-    const moved = buildPathway(blankFor(c), prefs({ certStarts: { 'CySA+': 12 } }), 1, c);
-    expect(moved.certs.map((x) => [x.title, x.start])).toEqual([['SC-200', 1], ['CySA+', 12]]);
+    const moved = buildPathway(blankFor(c), prefs({ certStarts: { 'AI-103': 12 } }), 1, c);
+    expect(moved.certs.map((x) => [x.title, x.start])).toEqual([['CompTIA SecAI+', 1], ['AI-103', 12]]);
     // A saved start that would overlap an earlier sprint is pushed later, never stacked.
-    const clash = buildPathway(blankFor(c), prefs({ certStarts: { 'SC-200': 3 } }), 1, c);
-    expect(clash.certs.map((x) => x.title)).toEqual(['CySA+', 'SC-200']);
+    const clash = buildPathway(blankFor(c), prefs({ certStarts: { 'CompTIA SecAI+': 3 } }), 1, c);
+    expect(clash.certs.map((x) => x.title)).toEqual(['AI-103', 'CompTIA SecAI+']);
     expect(clash.certs[1].start).toBe(clash.certs[0].end + 1);
-    expect(checkCertMove(plan, 'SC-200', plan.certs[0].start)).toMatch(/one certificate sprint/);
-    expect(checkCertMove(plan, 'SC-200', plan.certs[1].end + 5)).toBeNull();
+    expect(checkCertMove(plan, 'CompTIA SecAI+', plan.certs[0].start)).toMatch(/one certificate sprint/);
+    expect(checkCertMove(plan, 'CompTIA SecAI+', plan.certs[1].end + 5)).toBeNull();
   });
   it('gives no Core-only advice on a track', () => {
-    const plan = buildPathway(blankFor(c), prefs({ labOrder: ['Blue Team Level 1'] }), 1, c);
+    const plan = buildPathway(blankFor(c), prefs({ labOrder: ['THM AI Security'] }), 1, c);
     expect(plan.config.advice(plan)).toEqual([]);
   });
 });

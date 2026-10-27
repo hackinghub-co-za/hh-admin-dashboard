@@ -59,7 +59,7 @@ describe('displayTitleFor', () => {
 describe('applyCloudPlatform', () => {
   it('shows an AWS-stamped row as its twin and keeps the slot title', () => {
     const [shown] = applyCloudPlatform([row({ platform: 'AWS' })]);
-    expect(shown.title).toBe('AWS Certified SysOps Administrator – Associate');
+    expect(shown.title).toBe('AWS Certified Solutions Architect – Associate');
     expect(shown.slotTitle).toBe('AZ-104');
   });
 

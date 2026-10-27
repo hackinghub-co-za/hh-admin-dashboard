@@ -25,11 +25,8 @@ export const CERT_STUDY_WEEKS = {
   'CySA+': 8, // in-app guide: 4 to 12 weeks
   'SC-200': 8, // in-app guide: 4 to 12 weeks
   'Terraform Associate': 6, // in-app guide: 4 to 8 weeks
-  eJPT: ASSOCIATE,
   'AZ-104': PROFESSIONAL,
   'SC-500': PROFESSIONAL,
-  'SC-100': PROFESSIONAL,
-  'AZ-305': PROFESSIONAL,
   'AZ-400': PROFESSIONAL,
   'Linux Essentials': FOUNDATION,
   'GH-900': FOUNDATION,
@@ -40,9 +37,7 @@ export const CERT_STUDY_WEEKS = {
   'ISO/IEC 27001 Foundation': FOUNDATION,
   'ISACA IT Risk Fundamentals': FOUNDATION,
   'POPIA/GDPR Practitioner': FOUNDATION,
-  'ITIL 4 Foundation': FOUNDATION,
-  'ISC2 CGRC': ADVANCED,
-  'ISACA CRISC': ADVANCED,
+  'ISC2 Certified in Cybersecurity (CC)': FOUNDATION,
   'SC-300': ASSOCIATE,
   'Okta Certified Professional': ASSOCIATE,
   'CyberArk Defender': ASSOCIATE,
@@ -63,6 +58,9 @@ export const LAB_STUDY_HOURS = {
   'Blue Team Level 1': 40,
   'CISCO Cybersecurity Defense Analyst': 40,
   'THM Junior Pentester': 30,
+  'Lakera Gandalf': 3,
+  'PortSwigger LLM Attack Labs': 8,
+  'KodeKloud 100 Days of Cloud': 50, // 100 short daily tasks
   'THM Active Directory Basics': 6,
   'THM AI Security': 12,
   'OWASP Top 10 for LLM Applications': 10,

@@ -1265,7 +1265,7 @@ INSERT INTO public.labs (slug, kind, title, summary, track, difficulty, est_minu
 VALUES
   ('eng-storage-aws-amanzi-statements', 'hub', 'Fix the Storage Exposure: Amanzi Statements (AWS)',
    'A statements bucket is public, unencrypted and sits beside a server with SSH open to the world. Fix the Terraform so it is safe to merge, and explain what you changed.',
-   'Cloud Security', 'Beginner', 45, 'AWS', 'AWS Certified SysOps Administrator – Associate', true, 500, 'migration'),
+   'Cloud Security', 'Beginner', 45, 'AWS', 'AWS Certified Solutions Architect – Associate', true, 500, 'migration'),
   ('eng-storage-azure-karoostream', 'hub', 'Fix the Storage Exposure: KarooStream (Azure)',
    'A storage account allows public blobs, old TLS and open network access beside a server with SSH open to the world. Fix the Terraform so it is safe to merge, and explain what you changed.',
    'Cloud Security', 'Beginner', 45, 'Azure', 'AZ-104', true, 501, 'migration'),
@@ -1283,7 +1283,7 @@ VALUES
    'IAM', 'Intermediate', 40, 'Azure', 'SC-300', true, 505, 'migration'),
   ('eng-detection-spray-kaapstad-credit', 'hub', 'Catch a Password-Spraying Attack: Kaapstad Credit Union',
    'One address is trying a few passwords against many staff accounts without locking any of them. Write a detection rule that catches it and leaves the head office gateway alone.',
-   'SOC', 'Intermediate', 45, 'Neutral', 'CySA+', true, 506, 'migration'),
+   'Cybersecurity Analyst', 'Intermediate', 45, 'Neutral', 'CySA+', true, 506, 'migration'),
   ('eng-audit-aws-own-account', 'hub', 'Audit a Bucket in Your Own AWS Account',
    'Create a throwaway bucket in your free AWS account, check its public access and encryption with read-only commands, fix the gaps and paste the output. No access to your account is ever needed.',
    'Cloud Security', 'Beginner', 45, 'AWS', 'AWS Certified Security – Specialty', true, 507, 'migration'),
@@ -1636,3 +1636,11 @@ ON CONFLICT (lab_id, task_key) DO UPDATE SET
   points = EXCLUDED.points,
   model_answer = EXCLUDED.model_answer,
   rubric = EXCLUDED.rubric;
+
+-- 2026-10-26: the SOC track was folded into Cybersecurity Analyst, so any lab
+-- tagged 'SOC' (including curated labs added by hand) moves across. Members
+-- see the labs of their own track first. The AWS storage lab now points at
+-- the Solutions Architect – Associate exam, the AWS stand-in for AZ-104.
+UPDATE public.labs SET track = 'Cybersecurity Analyst' WHERE track = 'SOC';
+UPDATE public.labs SET roadmap_item_title = 'AWS Certified Solutions Architect – Associate'
+WHERE roadmap_item_title = 'AWS Certified SysOps Administrator – Associate';

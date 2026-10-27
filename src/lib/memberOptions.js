@@ -7,7 +7,7 @@ import { AWS_ROADMAP_LINKS, AWS_ROADMAP_DESCRIPTIONS, AWS_ROADMAP_INFO, AWS_FOUN
 // made it easy to assign a specialty that didn't match the actual roadmap
 // track. GRC now has a roadmap track counterpart too (see ROADMAP_TRACKS
 // and SPECIALIZATION_CATALOGS.GRC below).
-export const SPECIALTIES = ['Not Set', 'SOC', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
+export const SPECIALTIES = ['Not Set', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
 
 // "Your Why" - preset reasons a member picks from (multi-select - real
 // motivation is rarely just one thing), shown as tappable chips in Edit
@@ -60,7 +60,7 @@ export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Ope
 // The learning path a coach assigns a member to - drives which checklist shows
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's
 // own self-described directory badge); this one is coach-assigned.
-export const ROADMAP_TRACKS = ['Not Assigned', 'SOC', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
+export const ROADMAP_TRACKS = ['Not Assigned', 'Cybersecurity Analyst', 'Cloud Security', 'DevSecOps', 'IAM', 'AI Security', 'GRC', 'Network Security'];
 export const ROADMAP_PHASES = ['Core Foundations', 'Specialization', 'Projects', 'Advanced'];
 
 // A member only sees their Projects section once they've completed this
@@ -209,7 +209,9 @@ export const ROADMAP_ITEM_LINKS = {
   'CompTIA SecAI+': 'https://www.comptia.org/en/certifications/secai/',
   'OWASP Top 10 for LLM Applications': 'https://genai.owasp.org/initiatives/top-10-for-llm-and-genai/',
   'THM AI Security': 'https://tryhackme.com/paths',
-  // SOC specialization (SPECIALIZATION_CATALOGS.SOC below) - CySA+ and
+  'Lakera Gandalf': 'https://gandalf.lakera.ai/',
+  'PortSwigger LLM Attack Labs': 'https://portswigger.net/web-security/llm-attacks',
+  // SOC items (now in SPECIALIZATION_CATALOGS['Cybersecurity Analyst'] below) - CySA+ and
   // SC-200 are deliberately absent here, same as Terraform Associate
   // below: all three already have a real in-app guide modal (richer than
   // a bare external link), so the fallback in MemberPortal.jsx's roadmap
@@ -227,6 +229,8 @@ export const ROADMAP_ITEM_LINKS = {
   'AZ-104': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-administrator/',
   'SC-100': 'https://learn.microsoft.com/en-us/credentials/certifications/cybersecurity-architect-expert/',
   'AZ-305': 'https://learn.microsoft.com/en-us/credentials/certifications/azure-solutions-architect/',
+  'KodeKloud 100 Days of Cloud': 'https://engineer.kodekloud.com/practice',
+  'CCSK': 'https://cloudsecurityalliance.org/education/ccsk',
   // SC-500 is Microsoft's newer "Cloud and AI Security Engineer Associate"
   // exam, confirmed by the founder - it's what AZ-500 (Azure Security
   // Engineer Associate) has been superseded by, not a typo.
@@ -246,6 +250,7 @@ export const ROADMAP_ITEM_LINKS = {
   // GRC specialization (SPECIALIZATION_CATALOGS.GRC below)
   'ISO/IEC 27001 Foundation': 'https://www.iso.org/standard/27001',
   'NIST Cybersecurity Framework (CSF)': 'https://www.nist.gov/cyberframework',
+  'ISC2 Certified in Cybersecurity (CC)': 'https://www.isc2.org/certifications/cc',
   'ISC2 CGRC': 'https://www.isc2.org/certifications/cgrc',
   'ISACA CRISC': 'https://www.isaca.org/credentialing/crisc',
   'ISACA IT Risk Fundamentals': 'https://www.isaca.org/credentialing/it-risk-fundamentals-certificate',
@@ -255,7 +260,7 @@ export const ROADMAP_ITEM_LINKS = {
   // (POPIA and GDPR are two different laws with different practitioner
   // programs), so a link here would be a guess rather than a real one.
   //
-  // SOC Advanced (ADVANCED_CATALOGS.SOC below) - SC-500 already has an
+  // SOC Advanced items (now in ADVANCED_CATALOGS['Cybersecurity Analyst'] below) - SC-500 already has an
   // entry above (Cloud Security specialization), reused as-is since it's
   // the exact same exam either way.
   'CompTIA SecurityX': 'https://www.comptia.org/en/certifications/securityx/',
@@ -306,6 +311,9 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   'Terraform Associate': 'Infrastructure as Code Fundamentals',
   'SC-100': 'Security Architecture Design',
   'AZ-305': 'Expert-Level Cloud Solutions Architecture',
+  'KodeKloud 100 Days of Cloud': 'Free Daily Hands-On Cloud Practice',
+  'CCSK': 'Vendor-Neutral Cloud Security Knowledge',
+  'Run a Cloud Posture Review at Your Job': 'Check a Real Environment Against a Benchmark',
   // Specialization - DevSecOps
   'Linux Essentials': 'Linux Fundamentals Certification',
   'GH-900': 'GitHub Fundamentals',
@@ -326,9 +334,12 @@ export const ROADMAP_ITEM_DESCRIPTIONS = {
   'CompTIA SecAI+': 'Security Fundamentals for AI Systems',
   'OWASP Top 10 for LLM Applications': 'The Standard Reference for LLM Vulnerabilities',
   'THM AI Security': 'Hands-On AI Attack & Defense Labs',
+  'Lakera Gandalf': 'Free Prompt-Injection Game',
+  'PortSwigger LLM Attack Labs': 'Free Hands-On LLM Attack Labs',
   // Specialization - GRC
   'ISO/IEC 27001 Foundation': 'Information Security Management Systems',
   'NIST Cybersecurity Framework (CSF)': "The US Government's Risk Framework",
+  'ISC2 Certified in Cybersecurity (CC)': 'Entry-Level ISC2 Cybersecurity Certification',
   'ISC2 CGRC': 'Full Professional GRC Certification',
   'ISACA CRISC': 'Risk Management for IT Systems',
   'ISACA IT Risk Fundamentals': 'Entry-Level IT Risk Certificate',
@@ -419,7 +430,7 @@ export const ROADMAP_ITEM_INFO = {
   // ---- Specialization: SOC ----
   'CySA+': {
     teaches: "Behavioral threat detection, log/SIEM analysis, vulnerability management, and incident response - the practical, day-to-day skills of a SOC analyst, building directly on what Security+ introduced.",
-    journey: "This is the specialization-level cert that actually matches the job title you're chasing on the SOC track. Where Security+ proves you know the concepts, CySA+ proves you can apply them to real alerts and real incidents.",
+    journey: "This is the specialization-level cert that actually matches the job title you're chasing on the SOC side of the Cybersecurity Analyst pathway. Where Security+ proves you know the concepts, CySA+ proves you can apply them to real alerts and real incidents.",
   },
   'SC-200': {
     teaches: "How to investigate, respond to, and hunt for threats using Microsoft Sentinel, Defender XDR, and Kusto Query Language (KQL) - the actual tools a SOC analyst uses in a Microsoft shop.",
@@ -427,7 +438,7 @@ export const ROADMAP_ITEM_INFO = {
   },
   'THM SOC Level 1': {
     teaches: "A structured TryHackMe path covering the full SOC analyst toolkit hands-on - SIEM triage, phishing analysis, log analysis, and endpoint detection - through real guided labs.",
-    journey: "This is where the SOC track stops being theoretical. It's the practical rehearsal for the exact kind of alert triage you'd be doing in a junior SOC analyst seat.",
+    journey: "This is where the SOC side of the pathway stops being theoretical. It's the practical rehearsal for the exact kind of alert triage you'd be doing in a junior SOC analyst seat.",
   },
   'Blue Team Level 1': {
     teaches: "A practical, exam-based certification covering security fundamentals, phishing analysis, digital forensics, SIEM, and incident response - built entirely around real defensive work, not multiple-choice theory.",
@@ -435,7 +446,7 @@ export const ROADMAP_ITEM_INFO = {
   },
   'CISCO Cybersecurity Defense Analyst': {
     teaches: "A Splunk-powered SOC detection and response career path through Cisco's free NetAcad courses - SIEM fundamentals, log analysis and correlation, threat detection techniques, and incident response workflows, all hands-on with Splunk itself.",
-    journey: "Splunk is one of the most widely deployed SIEM platforms in real SOCs, and this is the one item on this track that gets you free, genuine hands-on time in it. It rounds out the SOC track's tool coverage alongside SC-200's Microsoft stack.",
+    journey: "Splunk is one of the most widely deployed SIEM platforms in real SOCs, and this is the one item on this pathway that gets you free, genuine hands-on time in it. It rounds out the SOC tool coverage alongside SC-200's Microsoft stack.",
   },
 
   // ---- Offensive certs (Cybersecurity Analyst Specialization and Advanced) ----
@@ -700,7 +711,7 @@ export const ROADMAP_ITEM_INFO = {
   // ---- Advanced: SOC ----
   'CompTIA SecurityX': {
     teaches: "Advanced security architecture and engineering - governance/risk/compliance, security architecture, security engineering, and security operations at a senior, design-level depth, not just day-to-day operation.",
-    journey: "This is CompTIA's top-tier cert (formerly CASP+), aimed at someone ready to architect enterprise security solutions, not just run them. It's one of two real Tier 2 certification options on the Advanced SOC track, alongside SC-500.",
+    journey: "This is CompTIA's top-tier cert (formerly CASP+), aimed at someone ready to architect enterprise security solutions, not just run them. It's the Tier 2 certification on the Advanced phase of the Cybersecurity Analyst pathway.",
   },
   'AWS Certified Security – Specialty': {
     teaches: "Deep, AWS-specific security specialization - threat detection and incident response, security logging and monitoring, infrastructure security, identity and access management, and data protection at cloud scale.",
@@ -716,7 +727,7 @@ export const ROADMAP_ITEM_INFO = {
   },
   'THM SOC Level 2': {
     teaches: "The advanced follow-on to SOC Level 1 - deeper threat hunting, malware analysis fundamentals, advanced incident response, and threat intelligence, aimed at analysts ready to move beyond Tier 1 triage.",
-    journey: "This is where the SOC track's hands-on TryHackMe path continues past the fundamentals - the natural next step once SOC Level 1 and CySA+/SC-200 feel solid, and a strong companion to the real threat-hunting item above.",
+    journey: "This is where the pathway's hands-on TryHackMe SOC path continues past the fundamentals - the natural next step once SOC Level 1 and CySA+/SC-200 feel solid, and a strong companion to the real threat-hunting item above.",
   },
   'Automate a Real SOC Workflow': {
     teaches: "How to actually automate a real, manual SOC task - AI-assisted or scripted - and document exactly how much manual time it replaces.",
@@ -737,6 +748,32 @@ export const ROADMAP_ITEM_INFO = {
   'Present Findings to a Stakeholder': {
     teaches: "How to present technical security findings to a non-technical stakeholder - translating what you found into what it actually means for the business.",
     journey: "The best technical analysis in the world doesn't matter if you can't explain it to the person who has to act on it. This is the communication skill that separates a strong individual contributor from someone ready for a lead or client-facing role.",
+  },
+  // ---- Added with the SOC -> Cybersecurity Analyst move and the track
+  // updates of 2026-10-26 ----
+  'ISC2 Certified in Cybersecurity (CC)': {
+    teaches: "The core ideas of cybersecurity in five areas - security principles, business continuity and incident response, access control concepts, network security, and security operations - tested by a multiple-choice exam. It asks for no work experience.",
+    journey: "The first step on the GRC track. It teaches the vocabulary that ISO 27001 and the risk exams assume you already know, and it is a recognised ISC2 credential from day one.",
+  },
+  'KodeKloud 100 Days of Cloud': {
+    teaches: "A free, daily set of hands-on cloud tasks you do in a real environment in your browser, so the services you read about for the exams are ones you have actually used.",
+    journey: "Six exams with no practice makes a paper-certified engineer. This is the hands-on side of the Cloud Security track, and it runs alongside the exams, not after them.",
+  },
+  'CCSK': {
+    teaches: "Cloud security from the Cloud Security Alliance - governance, risk and compliance, identity, data security, and how responsibility is shared between you and the cloud provider - tested by an open-book online exam.",
+    journey: "It is vendor-neutral, so it counts whether you studied Azure or AWS. A good capstone once the associate exams are done, and a respected name on a cloud security CV.",
+  },
+  'Run a Cloud Posture Review at Your Job': {
+    teaches: "How to review the security settings of a real cloud environment against a benchmark such as CIS or the Well-Architected Framework, and write up what you found and what you would fix first.",
+    journey: "Advanced work is proof you can do the job, not another exam. A real review at your own workplace, written up with the sensitive details removed, is the strongest thing you can bring to a cloud security interview.",
+  },
+  'Lakera Gandalf': {
+    teaches: "A game where you trick an AI chatbot into giving up a secret password. Each level adds a stronger defence, so you feel how prompt injection works and why simple filters fail.",
+    journey: "The quickest way to see prompt injection for yourself. It is a free warm-up for the PortSwigger labs and for the Red Team an LLM App project.",
+  },
+  'PortSwigger LLM Attack Labs': {
+    teaches: "Free labs from PortSwigger's Web Security Academy on attacking apps built on large language models - prompt injection, insecure handling of model output, and abusing the APIs a model is allowed to call.",
+    journey: "These are guided, graded practice for the Red Team an LLM App project. They need only a free PortSwigger account.",
   },
 };
 
@@ -759,45 +796,44 @@ export const REFERRAL_REWARD_AMOUNT = 500;
 // defined catalog here get the admin "Add Standard Specialization"
 // quick-fill.
 export const SPECIALIZATION_CATALOGS = {
-  SOC: {
-    category: 'SOC',
-    items: [
-      { title: 'CySA+', defaultDetail: '' },
-      { title: 'SC-200', defaultDetail: '' },
-      { title: 'THM SOC Level 1', defaultDetail: '' },
-      { title: 'Blue Team Level 1', defaultDetail: '' },
-      { title: 'CISCO Cybersecurity Defense Analyst', defaultDetail: '' },
-    ],
-  },
   // The generalist pathway that replaced the Offensive Security track
-  // (2026-10-22): two items for SOC, GRC and offensive, one each for cloud,
-  // network, AI security and DevSecOps. eJPT and THM Junior Pentester carry
-  // over from the old track so finished work still counts; the deeper
-  // offensive certs moved to ADVANCED_CATALOGS below.
+  // (2026-10-22), and that took the SOC track in on 2026-10-26: SOC, cloud,
+  // GRC, AI security, DevSecOps and offensive items in one list. Finished
+  // work always still counts (progress is matched by title). The two
+  // "Optional" items are the paid and longer SOC extras and still count
+  // toward the Projects unlock percentage, the same as the optional Python
+  // item on DevSecOps. The deeper offensive certs, and SOC's Tier 2 and
+  // detection work, are in ADVANCED_CATALOGS below.
   'Cybersecurity Analyst': {
     category: 'Cybersecurity Analyst',
     items: [
       { title: 'CySA+', defaultDetail: 'SOC' },
       { title: 'THM SOC Level 1', defaultDetail: 'SOC' },
+      { title: 'SC-200', defaultDetail: 'SOC' },
       { title: 'AZ-104', defaultDetail: 'Cloud' },
-      { title: 'TryHackMe Network Fundamentals', defaultDetail: 'Network' },
-      { title: 'ISO/IEC 27001 Foundation', defaultDetail: 'GRC' },
       { title: 'ISACA IT Risk Fundamentals', defaultDetail: 'GRC' },
       { title: 'THM AI Security', defaultDetail: 'AI Security' },
       { title: 'GH-900', defaultDetail: 'DevSecOps' },
-      { title: 'eJPT', defaultDetail: 'Offensive' },
+      { title: 'GH-500', defaultDetail: 'DevSecOps' },
       { title: 'THM Junior Pentester', defaultDetail: 'Offensive' },
+      { title: 'Blue Team Level 1', defaultDetail: 'SOC - Optional' },
+      { title: 'CISCO Cybersecurity Defense Analyst', defaultDetail: 'SOC - Optional' },
     ],
   },
   'Cloud Security': {
     category: 'Cloud Security',
+    // SC-100 and AZ-305 moved to ADVANCED_CATALOGS (2026-10-26). The order
+    // is deliberate: on AWS the Microsoft security exams all show as the one
+    // AWS Security Specialty, which then lands last, after the associate
+    // exam and the hands-on practice it expects.
     items: [
       { title: 'AZ-104', defaultDetail: '' },
+      { title: 'KodeKloud 100 Days of Cloud', defaultDetail: 'Free' },
+      { title: 'Terraform Associate', defaultDetail: '' },
+      { title: 'KCNA', defaultDetail: '' },
+      { title: 'KCSA', defaultDetail: '' },
       { title: 'SC-200', defaultDetail: '' },
       { title: 'SC-500', defaultDetail: '' },
-      { title: 'Terraform Associate', defaultDetail: '' },
-      { title: 'SC-100', defaultDetail: '' },
-      { title: 'AZ-305', defaultDetail: '' },
     ],
   },
   DevSecOps: {
@@ -818,14 +854,14 @@ export const SPECIALIZATION_CATALOGS = {
   },
   GRC: {
     category: 'GRC',
+    // ISC2 CGRC and ISACA CRISC moved to ADVANCED_CATALOGS and ITIL 4
+    // Foundation was dropped (2026-10-26).
     items: [
+      { title: 'ISC2 Certified in Cybersecurity (CC)', defaultDetail: '' },
       { title: 'ISO/IEC 27001 Foundation', defaultDetail: '' },
       { title: 'NIST Cybersecurity Framework (CSF)', defaultDetail: '' },
-      { title: 'ISC2 CGRC', defaultDetail: '' },
-      { title: 'ISACA CRISC', defaultDetail: '' },
       { title: 'ISACA IT Risk Fundamentals', defaultDetail: '' },
       { title: 'POPIA/GDPR Practitioner', defaultDetail: '' },
-      { title: 'ITIL 4 Foundation', defaultDetail: '' },
     ],
   },
   IAM: {
@@ -845,6 +881,8 @@ export const SPECIALIZATION_CATALOGS = {
       { title: 'CompTIA SecAI+', defaultDetail: '' },
       { title: 'OWASP Top 10 for LLM Applications', defaultDetail: '' },
       { title: 'THM AI Security', defaultDetail: '' },
+      { title: 'Lakera Gandalf', defaultDetail: 'Free' },
+      { title: 'PortSwigger LLM Attack Labs', defaultDetail: 'Free' },
     ],
   },
   'Network Security': {
@@ -867,19 +905,15 @@ export const SPECIALIZATION_CATALOGS = {
 // grade projects per track, each tailored to what that track actually does
 // day to day, rather than a generic "build something" prompt.
 export const PROJECT_CATALOGS = {
-  SOC: {
-    category: 'SOC Projects',
-    items: [
-      { title: 'Cloud SIEM Detection Lab', defaultDetail: 'Deploy a SIEM (e.g. Wazuh or Elastic), ingest logs from a cloud source, build 3 real detection rules' },
-      { title: 'Incident Response Write-Up', defaultDetail: 'Document a full simulated incident end-to-end: detection, containment, eradication, lessons learned' },
-    ],
-  },
   'Cybersecurity Analyst': {
     category: 'Cybersecurity Analyst Projects',
     items: [
       { title: 'Purple Team Detection Lab', defaultDetail: 'Attack your own lab, find the attack in your SIEM, write a rule that catches it, and record the business risk' },
       { title: 'Full Pentest Report', defaultDetail: 'Run a complete pentest against a vulnerable-by-design target, write a professional report with CVSS scoring and remediation' },
       { title: 'Mock Risk Assessment', defaultDetail: 'Perform a risk assessment for a hypothetical org using a real framework (NIST RMF or ISO 27001), document findings' },
+      // The two SOC projects, which came across with the SOC track (2026-10-26).
+      { title: 'Cloud SIEM Detection Lab', defaultDetail: 'Deploy a SIEM (e.g. Wazuh or Elastic), ingest logs from a cloud source, build 3 real detection rules' },
+      { title: 'Incident Response Write-Up', defaultDetail: 'Document a full simulated incident end-to-end: detection, containment, eradication, lessons learned' },
     ],
   },
   'Cloud Security': {
@@ -927,11 +961,11 @@ export const PROJECT_CATALOGS = {
 };
 
 // The Advanced phase - for members already working the job, not trying to
-// land it. Only SOC has a catalog today (the one track with an obvious,
-// well-known Tier 1 -> Tier 2/senior progression to draw on); the other
-// tracks would each need their own genuinely-researched "what comes after
-// the first job" content, not a reskin of this one, so they're deliberately
-// left undefined for now rather than guessed at.
+// land it. Cybersecurity Analyst (which took in the old SOC track's Tier 1
+// -> Tier 2 progression), Cloud Security and GRC have a catalog today; the
+// other tracks would each need their own genuinely-researched "what comes
+// after the first job" content, not a reskin of these, so they're
+// deliberately left undefined for now rather than guessed at.
 //
 // Unlike SPECIALIZATION_CATALOGS/PROJECT_CATALOGS above, items carry their
 // own `category` instead of one shared category on the catalog - Advanced
@@ -939,21 +973,16 @@ export const PROJECT_CATALOGS = {
 // automation, leadership) that read better as separate groups on the
 // roadmap than one flat list.
 export const ADVANCED_CATALOGS = {
-  // Where the old Offensive Security track's deeper certs went: an optional
-  // next step once the broad pathway is done, for members going into pen
-  // testing.
+  // Two lanes after the broad pathway: the offensive certs the old Offensive
+  // Security track had (OSCP was dropped on 2026-10-26 as too expensive,
+  // and CompTIA SecurityX added), and the defensive Tier 2 work that came
+  // across with the SOC track. SOC's SC-500 and AWS Security Specialty
+  // exams moved to Cloud Security's Advanced phase.
   'Cybersecurity Analyst': {
     items: [
       { category: 'Offensive Specialisation', title: 'THM Offensive Pentesting', defaultDetail: '' },
       { category: 'Offensive Specialisation', title: 'Burp Suite Certified Practitioner', defaultDetail: '' },
-      { category: 'Offensive Specialisation', title: 'OSCP', defaultDetail: '' },
-    ],
-  },
-  SOC: {
-    items: [
       { category: 'Tier 2 Certifications', title: 'CompTIA SecurityX', defaultDetail: '' },
-      { category: 'Tier 2 Certifications', title: 'SC-500', defaultDetail: '' },
-      { category: 'Tier 2 Certifications', title: 'AWS Certified Security – Specialty', defaultDetail: '' },
       { category: 'Detection & Threat Hunting', title: 'Write & Tune 3 Detection Rules', defaultDetail: 'Document the logic and false-positive rate for each, at your own SOC' },
       { category: 'Detection & Threat Hunting', title: 'Run a Real Threat Hunt', defaultDetail: 'Pick one MITRE ATT&CK technique, hunt for it in your environment, write up what you found' },
       { category: 'Detection & Threat Hunting', title: 'THM SOC Level 2', defaultDetail: '' },
@@ -962,6 +991,25 @@ export const ADVANCED_CATALOGS = {
       { category: 'Incident Leadership', title: 'Own a Real Incident End-to-End', defaultDetail: 'Sanitized write-up: detection, containment, eradication, lessons learned' },
       { category: 'Incident Leadership', title: 'Mentor a Tier 1 Analyst', defaultDetail: 'Through one real triage case this quarter' },
       { category: 'Incident Leadership', title: 'Present Findings to a Stakeholder', defaultDetail: '' },
+    ],
+  },
+  // Cloud Security's Advanced phase (2026-10-26): the expert-level exams that
+  // used to sit in Specialization, plus the AWS Security Specialty from SOC.
+  'Cloud Security': {
+    items: [
+      { category: 'Tier 2 Certifications', title: 'SC-100', defaultDetail: '' },
+      { category: 'Tier 2 Certifications', title: 'AZ-305', defaultDetail: '' },
+      { category: 'Tier 2 Certifications', title: 'AWS Certified Security – Specialty', defaultDetail: '' },
+      { category: 'Tier 2 Certifications', title: 'CCSK', defaultDetail: '' },
+      { category: 'Real-World Work', title: 'Run a Cloud Posture Review at Your Job', defaultDetail: 'Review a real environment against CIS or the Well-Architected Framework and write up the findings, with sensitive details removed' },
+    ],
+  },
+  // GRC's Advanced phase (2026-10-26): the two certs that expect real work
+  // experience, moved out of Specialization.
+  GRC: {
+    items: [
+      { category: 'Tier 2 Certifications', title: 'ISC2 CGRC', defaultDetail: '' },
+      { category: 'Tier 2 Certifications', title: 'ISACA CRISC', defaultDetail: '' },
     ],
   },
 };
@@ -1950,7 +1998,6 @@ export const TEAM_MEMBERS = [
 // nothing here is a freshly invented palette.
 export const TRACK_COLORS = {
   'Cybersecurity Analyst': '#ef4444',
-  'SOC': '#3b82f6',
   'Cloud Security': '#22d3ee',
   'DevSecOps': '#a78bfa',
   'IAM': '#f5b942',
@@ -1967,7 +2014,6 @@ export const TEAM_GROUP_COLOR = '#f5b942';
 // answer without leaving the page.
 export const TRACK_DESCRIPTIONS = {
   'Cybersecurity Analyst': 'The all-rounder - SOC, cloud, networking, GRC, AI security, DevSecOps and pen testing in one pathway.',
-  'SOC': 'The front line - monitoring, detecting, and responding to real attacks as they happen.',
   'Cloud Security': 'Securing AWS and Azure environments - identity, network, and posture in infrastructure that never stops changing.',
   'DevSecOps': 'Security built into the pipeline itself - CI/CD, infrastructure as code, and container security.',
   'IAM': 'Who gets access to what, and proving it - identity, authentication, and access governance.',
@@ -1987,13 +2033,8 @@ export const TRACK_DESCRIPTIONS = {
 export const TRACK_INFO = {
   'Cybersecurity Analyst': {
     whatItIs: "A broad base across the whole security team - watching alerts in a SOC, securing cloud and networks, knowing the risk and compliance side, and testing systems the way an attacker would. Most first cyber jobs ask for exactly this mix, and it leaves every specialisation open, pen testing included.",
-    roles: ['Cybersecurity Analyst', 'SOC Analyst', 'Security Analyst', 'GRC Analyst', 'Junior Penetration Tester'],
+    roles: ['Cybersecurity Analyst', 'SOC Analyst', 'Incident Responder', 'Security Analyst', 'GRC Analyst', 'Junior Penetration Tester'],
     salaryRange: 'R15,000 – R25,000/month entry, R30,000 – R45,000/month mid, R50,000+/month senior',
-  },
-  'SOC': {
-    whatItIs: "The team that never stops watching - triaging alerts, spotting the real attack inside the noise, and responding before it spreads. The most common real entry point into the industry.",
-    roles: ['SOC Analyst (Tier 1-3)', 'Incident Responder', 'Threat Hunter', 'Detection Engineer'],
-    salaryRange: 'R15,000 – R28,000/month entry, R30,000 – R55,000/month mid, R60,000+/month senior/lead',
   },
   'Cloud Security': {
     whatItIs: "Securing environments that never sit still - AWS and Azure workloads, identity, network posture, and misconfigurations, in infrastructure that changes daily instead of once a year.",
