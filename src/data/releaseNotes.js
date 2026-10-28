@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.28',
+    date: '2026-10-28',
+    headline: 'Add your qualification to your profile.',
+    intro: "Tell us about your degree, diploma or other qualification, so we can put you forward for roles that ask for one.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🎓',
+            title: 'Highest qualification on Edit Profile',
+            body: "Choose your highest qualification, say whether you've finished it or are still studying, and add the name, school or university and year if you like. If you are still studying, tell us your year of study too. Only admins can see it.",
+            where: 'Edit Profile',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.26',
     date: '2026-10-26',
     headline: 'SOC joins the Cybersecurity Analyst pathway.',

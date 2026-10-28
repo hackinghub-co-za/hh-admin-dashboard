@@ -75,6 +75,37 @@ export async function fetchMyAgeAndGender() {
   return { age: row?.age || '', gender: row?.gender || '' };
 }
 
+/** The current member's own highest qualification (109_qualifications.sql) -
+ * peer-invisible like age/gender, so it's read separately to pre-fill their
+ * own edit form. */
+export async function fetchMyQualification() {
+  const { data, error } = await supabase.rpc('get_my_qualification');
+  if (error) throw error;
+  const row = data?.[0];
+  return {
+    qualificationLevel: row?.level || '',
+    qualificationName: row?.name || '',
+    qualificationInstitution: row?.institution || '',
+    qualificationStatus: row?.status || '',
+    qualificationYear: row?.year ?? '',
+    qualificationStudyYear: row?.study_year ?? '',
+  };
+}
+
+/** Saves the current member's own highest qualification. Clearing the level
+ * clears the rest server-side. */
+export async function saveMyQualification({ qualificationLevel, qualificationName, qualificationInstitution, qualificationStatus, qualificationYear, qualificationStudyYear }) {
+  const { error } = await supabase.rpc('save_my_qualification', {
+    p_level: qualificationLevel || null,
+    p_name: qualificationName || null,
+    p_institution: qualificationInstitution || null,
+    p_status: qualificationStatus || null,
+    p_year: qualificationYear === '' || qualificationYear === null || qualificationYear === undefined ? null : Number(qualificationYear),
+    p_study_year: qualificationStudyYear === '' || qualificationStudyYear === null || qualificationStudyYear === undefined ? null : Number(qualificationStudyYear),
+  });
+  if (error) throw error;
+}
+
 /** Uploads (or replaces) the current member's headshot to the public
  * member-headshots bucket, scoped to a path prefixed with their own email
  * (enforced server-side by storage RLS, not just this path convention), and

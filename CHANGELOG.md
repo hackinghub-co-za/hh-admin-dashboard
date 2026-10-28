@@ -18,6 +18,23 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.28
+
+### Added
+- **Highest qualification on Edit Profile** (`109_qualifications.sql`).
+  Members pick a level (Matric through Doctorate), whether it's completed or
+  in progress, and optionally the qualification name, institution and year.
+  Students (in progress) also give their school or university and their year
+  of study, 1st to 6th (`qualification_study_year`, cleared once the status is
+  Completed); a member marked Student in Employment Status is prompted to fill
+  it in.
+  Admin-only, like age/gender: never in `get_member_directory()`, read back
+  through its own `get_my_qualification()` / `save_my_qualification()` pair
+  so `update_my_directory_profile()` (also called by the mobile app) keeps
+  its signature. Shown read-only on the admin member profile, and as a new
+  "By Qualification" breakdown on Insights, with in-progress counted apart
+  from completed, plus a "Students by Year of Study" card.
+
 ## 2026.10.26
 
 ### Changed

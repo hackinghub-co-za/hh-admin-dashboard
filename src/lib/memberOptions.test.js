@@ -11,7 +11,13 @@ import {
   CERT_CATALOG_BY_VENDOR,
   CORE_FOUNDATIONS_CATALOG,
   CORE_FOUNDATION_PRICING,
+  QUALIFICATION_LEVELS,
+  QUALIFICATION_STATUSES,
+  QUALIFICATION_STUDY_YEARS,
+  studyYearLabel,
 } from './memberOptions';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { displayTitleFor } from './cloudPlatform';
 
 describe('matchExamReadinessCert', () => {
@@ -170,5 +176,27 @@ describe('CORE_FOUNDATION_PRICING', () => {
     const titles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => displayTitleFor(c.title, 'Azure')));
     CORE_FOUNDATIONS_CATALOG.forEach((c) => titles.add(displayTitleFor(c.title, 'AWS')));
     Object.keys(CORE_FOUNDATION_PRICING).forEach((k) => expect(titles.has(k)).toBe(true));
+  });
+});
+
+// The qualification lists in the UI and the CHECK constraints in
+// 109_qualifications.sql must say the same thing: a value the form offers but
+// the database refuses would only show up as a failed Save Profile.
+describe('qualification options match 109_qualifications.sql', () => {
+  const sql = readFileSync(resolve(process.cwd(), 'supabase/109_qualifications.sql'), 'utf8');
+  const sqlText = (v) => `'${v.replace(/'/g, "''")}'`;
+
+  it('every level is allowed by the level constraint', () => {
+    QUALIFICATION_LEVELS.forEach((l) => expect(sql, l).toContain(sqlText(l)));
+  });
+  it('every status is allowed by the status constraint', () => {
+    QUALIFICATION_STATUSES.forEach((st) => expect(sql, st).toContain(sqlText(st)));
+  });
+  it('the year of study list is as long as the constraint allows', () => {
+    expect(sql).toContain(`BETWEEN 1 AND ${QUALIFICATION_STUDY_YEARS.length}`);
+    expect(studyYearLabel(1)).toBe('1st year');
+    expect(studyYearLabel(QUALIFICATION_STUDY_YEARS.length)).toBe('6th year or later');
+    expect(studyYearLabel('')).toBe('');
+    expect(studyYearLabel(null)).toBe('');
   });
 });

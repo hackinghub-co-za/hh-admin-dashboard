@@ -23,7 +23,7 @@ import PathwayStaffNote from '../../components/PathwayStaffNote';
 // payfast_transactions table (see 033_payfast_transactions.sql PART 2) and
 // the real file has been removed and purged from git history entirely.
 import payfastTransactionsMockData from '../../data/payfastTransactions.mock.json';
-import { LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, SPECIALTIES, JOB_READINESS_STAGES } from '../../lib/memberOptions';
+import { studyYearLabel, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_STALE_AFTER_DAYS, ROADMAP_TRACKS, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_CATALOGS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, EXAM_NUDGE_WINDOW_DAYS, EXAM_NUDGE_THRESHOLD_PCT, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, SPECIALTIES, JOB_READINESS_STAGES } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import {
   fetchMemberProfiles,
@@ -6814,6 +6814,15 @@ Pick new people to present next Sunday`;
       const ageBuckets = bucketBy((m) => m.profile?.age);
       const genderBuckets = bucketBy((m) => m.profile?.gender);
       const locationBuckets = bucketBy((m) => m.profile?.location);
+      // Completed and in-progress kept apart, so "has a degree" isn't
+      // inflated by members still studying.
+      const qualificationBuckets = bucketBy((m) => m.profile?.qualificationLevel
+        ? `${m.profile.qualificationLevel}${m.profile.qualificationStatus === 'In Progress' ? ' (in progress)' : ''}`
+        : null);
+      // Members still studying, by the year of study they gave.
+      const studyYearBuckets = bucketBy((m) => (m.profile?.qualificationStatus === 'In Progress' && m.profile?.qualificationLevel !== 'Matric'
+        ? (studyYearLabel(m.profile.qualificationStudyYear) || 'Year not set')
+        : null));
 
       // "Your Why" is multi-select (a member can pick more than one reason),
       // so this counts each reason across every member who picked it rather
@@ -7090,6 +7099,14 @@ Pick new people to present next Sunday`;
             <div className="glass-card">
               <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Location</h3>
               {locationBuckets.length ? renderBreakdownBars(locationBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
+            </div>
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Qualification</h3>
+              {qualificationBuckets.length ? renderBreakdownBars(qualificationBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
+            </div>
+            <div className="glass-card">
+              <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>Students by Year of Study</h3>
+              {studyYearBuckets.length ? renderBreakdownBars(studyYearBuckets) : <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No data yet.</p>}
             </div>
             <div className="glass-card">
               <h3 style={{ marginBottom: '16px', fontSize: '1rem' }}>By Membership Tier</h3>

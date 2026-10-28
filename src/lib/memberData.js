@@ -57,6 +57,14 @@ export async function fetchMemberProfiles() {
       manualStartDate: row.manual_start_date || '',
       whyReasons: row.why_reasons || [],
       whyStory: row.why_story || '',
+      // Highest qualification (109_qualifications.sql) - member-declared on
+      // Edit Profile, admin view-only; never written by upsertMemberProfile().
+      qualificationLevel: row.qualification_level || '',
+      qualificationName: row.qualification_name || '',
+      qualificationInstitution: row.qualification_institution || '',
+      qualificationStatus: row.qualification_status || '',
+      qualificationYear: row.qualification_year ?? null,
+      qualificationStudyYear: row.qualification_study_year ?? null,
       // Daily login streak (032_login_streak.sql) - written server-side by
       // record_daily_login(), read-only here. lastLoginDate lets a viewer
       // tell a live streak from a stale one (the stored count only resets

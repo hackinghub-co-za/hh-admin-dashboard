@@ -34,7 +34,7 @@ import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
 import RoadmapPathway from '../../components/RoadmapPathway';
 import { buildTrackConfig } from '../../lib/trackPathway';
 import { fetchReviews, submitReview } from '../../lib/reviewsData';
-import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMyAgeAndGender } from '../../lib/memberDirectoryData';
+import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMyAgeAndGender, fetchMyQualification, saveMyQualification } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
 import { fetchCertCalendar, addCertCalendarEntry, updateMyCertCalendarEntry } from '../../lib/certCalendarData';
@@ -77,7 +77,7 @@ import { ONBOARDING_STEPS, STAFF_ONBOARDING_STEPS, WHATSAPP_COMMUNITY_URL, LESED
 import IntroBuilderModal from '../../components/IntroBuilderModal';
 import { firstNameOf, suggestFocusAreas } from '../../lib/introMessage';
 import { fetchMyRoomLogs, submitDailyRoomLog } from '../../lib/roomLogData';
-import { LOCATIONS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATION_SUBTASKS, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
+import { LOCATIONS, QUALIFICATION_LEVELS, QUALIFICATION_STATUSES, QUALIFICATION_STUDY_YEARS, SPECIALTIES, ROADMAP_TRACKS, EMPLOYMENT_STATUSES, ROADMAP_PHASES, CORE_FOUNDATIONS_CATALOG, CORE_FOUNDATIONS_MIN_REQUIRED, CORE_FOUNDATION_SUBTASKS, ROADMAP_ITEM_DESCRIPTIONS, SPECIALIZATION_UNLOCK_MIN, SPECIALIZATION_CATALOGS, PROJECT_CATALOGS, PROJECTS_UNLOCK_PERCENT, ADVANCED_UNLOCK_PERCENT, ROADMAP_STALE_AFTER_DAYS, TEAM_MEMBERS, EXAM_READINESS_CATALOGS, matchExamReadinessCert, AGES, GENDERS, REFERRAL_REWARD_AMOUNT, ROADMAP_ITEM_LINKS, CERT_CATALOG_BY_VENDOR, WHY_REASONS } from '../../lib/memberOptions';
 import { formatDate } from '../../lib/dateFormat';
 import { isSafeUrl } from '../../lib/safeUrl';
 import { friendlyMemberErrorMessage } from '../../lib/errorMessages';
@@ -1783,6 +1783,12 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     jobTitle: '',
     age: '',
     gender: '',
+    qualificationLevel: '',
+    qualificationName: '',
+    qualificationInstitution: '',
+    qualificationStatus: '',
+    qualificationYear: '',
+    qualificationStudyYear: '',
     whyReasons: [],
     whyStory: '',
   };
@@ -1833,10 +1839,20 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession]);
 
+  // Highest qualification (109_qualifications.sql) - private the same way
+  // age/gender are, so it's fetched on its own and merged in on open.
+  const [myQualification, setMyQualification] = useState({});
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchMyQualification().then((data) => !cancelled && setMyQualification(data)).catch((err) => console.error('Could not load qualification:', err));
+    return () => { cancelled = true; };
+  }, [isMockSession]);
+
   const myDirectoryEntry = directory.find((m) => m.email === user?.email);
 
   const openEditProfile = () => {
-    setProfileForm(myDirectoryEntry ? { ...emptyProfileForm, ...myDirectoryEntry, ...myAgeGender } : { ...emptyProfileForm, ...myAgeGender });
+    setProfileForm(myDirectoryEntry ? { ...emptyProfileForm, ...myDirectoryEntry, ...myAgeGender, ...myQualification } : { ...emptyProfileForm, ...myAgeGender, ...myQualification });
     setEditingProfile(true);
   };
 
@@ -1876,6 +1892,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         });
       } else {
         await updateMyDirectoryProfile(profileForm);
+        await saveMyQualification(profileForm);
+        setMyQualification({
+          qualificationLevel: profileForm.qualificationLevel,
+          qualificationName: profileForm.qualificationLevel ? profileForm.qualificationName : '',
+          qualificationInstitution: profileForm.qualificationLevel ? profileForm.qualificationInstitution : '',
+          qualificationStatus: profileForm.qualificationLevel ? profileForm.qualificationStatus : '',
+          qualificationYear: profileForm.qualificationLevel ? profileForm.qualificationYear : '',
+          qualificationStudyYear: profileForm.qualificationLevel && profileForm.qualificationStatus === 'In Progress' ? profileForm.qualificationStudyYear : '',
+        });
         const updated = await fetchMemberDirectory();
         setDirectory(updated);
       }
@@ -4739,6 +4764,62 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                   </div>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '-8px' }}>
                     Only visible to admins - never shown to other members.
+                  </p>
+
+                  {/* Highest qualification (109_qualifications.sql) - same
+                      admin-only visibility as age/gender above. */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Highest Qualification</label>
+                      <select className="form-input" value={profileForm.qualificationLevel} onChange={(e) => setProfileForm({ ...profileForm, qualificationLevel: e.target.value })}>
+                        <option value="">Not set</option>
+                        {QUALIFICATION_LEVELS.map((q) => <option key={q} value={q}>{q}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Status</label>
+                      <select className="form-input" value={profileForm.qualificationStatus} disabled={!profileForm.qualificationLevel} onChange={(e) => setProfileForm({ ...profileForm, qualificationStatus: e.target.value })}>
+                        <option value="">Not set</option>
+                        {QUALIFICATION_STATUSES.map((q) => <option key={q} value={q}>{q}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {/* A student (Employment Status below) is asked what they are
+                      studying for, where, and which year of study they are in. */}
+                  {profileForm.employmentStatus === 'Student' && !profileForm.qualificationLevel && (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', marginTop: '-4px' }}>
+                      You are marked as a student. Pick the qualification you are studying for, set the status to In Progress, then add your school or university and your year of study.
+                    </p>
+                  )}
+                  {profileForm.qualificationLevel && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Qualification Name</label>
+                        <input type="text" className="form-input" maxLength={120} placeholder="e.g. BSc Computer Science" value={profileForm.qualificationName} onChange={(e) => setProfileForm({ ...profileForm, qualificationName: e.target.value })} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>{profileForm.qualificationStatus === 'In Progress' ? 'School or University' : 'Institution'}</label>
+                          <input type="text" className="form-input" maxLength={120} placeholder="e.g. University of Johannesburg" value={profileForm.qualificationInstitution} onChange={(e) => setProfileForm({ ...profileForm, qualificationInstitution: e.target.value })} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>{profileForm.qualificationStatus === 'In Progress' ? 'Expected Year' : 'Year'}</label>
+                          <input type="number" className="form-input" min={1960} max={2100} placeholder="e.g. 2025" value={profileForm.qualificationYear} onChange={(e) => setProfileForm({ ...profileForm, qualificationYear: e.target.value })} />
+                        </div>
+                      </div>
+                      {profileForm.qualificationStatus === 'In Progress' && profileForm.qualificationLevel !== 'Matric' && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Year of Study</label>
+                          <select className="form-input" value={profileForm.qualificationStudyYear} onChange={(e) => setProfileForm({ ...profileForm, qualificationStudyYear: e.target.value })}>
+                            <option value="">Not set</option>
+                            {QUALIFICATION_STUDY_YEARS.map((label, i) => <option key={label} value={i + 1}>{label}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '-8px' }}>
+                    Only visible to admins - helps us put you forward for roles that ask for a degree or diploma.
                   </p>
 
                   <div>

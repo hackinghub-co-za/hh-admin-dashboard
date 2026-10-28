@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Mail, Phone, MapPin, Link, Calendar, CalendarClock, CreditCard, Wallet, Briefcase, Shield, UserCheck, Building2, Banknote, Flag, LogOut, Star, Milestone, Trash2, CheckCircle2, IdCard } from 'lucide-react';
-import { SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS } from '../lib/memberOptions';
+import { studyYearLabel, SPECIALTIES, JOB_READINESS_STAGES, GENDERS, LOCATIONS, AGES, MEMBERSHIP_STATUSES, EMPLOYMENT_STATUSES, OFFBOARDING_REASONS, LAPSED_AFTER_DAYS, MEETING_OVERDUE_AFTER_DAYS, ROADMAP_TRACKS } from '../lib/memberOptions';
 import { formatDate } from '../lib/dateFormat';
 import { fetchMemberInterviews } from '../lib/memberInterviewsData';
 import { fetchMemberLinkedInPostStatus } from '../lib/linkedInPostData';
@@ -396,6 +396,22 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
                 {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Highest qualification (109_qualifications.sql) - the member sets
+              this on their own Edit Profile, so it's read-only here. */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Highest Qualification</label>
+            <p style={{ fontSize: '0.9rem', margin: 0 }}>
+              {profile?.qualificationLevel
+                ? [
+                    profile.qualificationName || profile.qualificationLevel,
+                    profile.qualificationInstitution,
+                    [profile.qualificationStatus, profile.qualificationYear].filter(Boolean).join(' '),
+                    profile.qualificationStatus === 'In Progress' ? studyYearLabel(profile.qualificationStudyYear) : '',
+                  ].filter(Boolean).join(' · ')
+                : <span style={{ color: 'var(--text-muted)' }}>Not set yet - the member adds this on Edit Profile.</span>}
+            </p>
           </div>
 
           <div>

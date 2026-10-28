@@ -37,6 +37,14 @@ export const LOCATIONS = [
   'Other (Rest of the World)',
 ];
 export const AGES = ['16-18', '18-21', '21-24', '24-27', '27-30', '30-35', '35-40', '40+'];
+// Highest qualification, self-declared on Edit Profile (109_qualifications.sql
+// - the CHECK constraints there must match these lists).
+export const QUALIFICATION_LEVELS = ['Matric', 'Higher Certificate', 'Diploma', "Bachelor's Degree", 'Honours', "Master's", 'Doctorate'];
+export const QUALIFICATION_STATUSES = ['Completed', 'In Progress'];
+// Year of study for someone still studying (stored as 1-6, matching the CHECK
+// in 109_qualifications.sql). Index + 1 is the stored number.
+export const QUALIFICATION_STUDY_YEARS = ['1st year', '2nd year', '3rd year', '4th year', '5th year', '6th year or later'];
+export const studyYearLabel = (n) => QUALIFICATION_STUDY_YEARS[Number(n) - 1] || '';
 // 'Active' is auto-flagged "Lapsed" after LAPSED_AFTER_DAYS with no payment.
 // 'Active (Permanent)' is exempt from that check entirely - for members who've paid
 // in full or are otherwise not expected to pay again. 'Leaving' is a grace period -
