@@ -1985,7 +1985,7 @@ export const ROADMAP_DISENGAGEMENT_ALERT_AFTER_DAYS = 21;
 // and rarely changes membership, so it's a plain constant here rather than
 // a database table or admin-editable setting - the same "just hardcode it,
 // it barely changes" treatment gemma-chat/index.ts's FAQ_KNOWLEDGE gives
-// mentor info. Same four people as the real MENTORS list in
+// mentor info. Same people as the real MENTORS list in
 // MemberPortal.jsx's Book a 1on1 screen. Nokulunga's real email isn't
 // confirmed yet (2026-08) - add her here once it is; until then she just
 // won't show up in this grouped view, same as anyone else with no matching
@@ -1996,6 +1996,7 @@ export const TEAM_MEMBERS = [
   { email: 'siya@hackinghub.co.za', role: 'Founder' },
   { email: 'nonhlanhlakamangethe@gmail.com', role: 'Community Mentor · Data Security & AI' },
   { email: 'kmchunu029@gmail.com', role: 'Community Mentor · Red Teaming' },
+  { email: 'tsheponchabeng03@gmail.com', role: 'Community Mentor · Cyber Security Supervisor at KPMG' },
 ];
 
 // One accent hue per track, reused for both the compact group card's accent
