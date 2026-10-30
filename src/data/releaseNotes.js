@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.10.30',
+    date: '2026-10-30',
+    headline: 'Meet Tshepo, our newest mentor.',
+    intro: "Tshepo is a Cyber Security Supervisor at KPMG, and he is now on the mentor list.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🧑‍💼',
+            title: 'Tshepo, Cyber Security Supervisor at KPMG',
+            body: "Find him on Book a 1on1 with a link to his LinkedIn. Ask for him when you want advice on working in a large firm's cyber security team.",
+            where: 'Book a 1on1',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.28',
     date: '2026-10-28',
     headline: 'Add your qualification to your profile.',

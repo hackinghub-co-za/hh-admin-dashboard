@@ -40,7 +40,9 @@ function pfEncode(value: string): string {
 }
 
 // Real, fixed membership prices - matches ALL_TIERS in MemberPortal.jsx
-// (Permanent Access R1000 x 10 monthly payments is the only tier sold;
+// (Permanent Access R1250 x 12 monthly payments is the only tier sold;
+// it was R1000 x 10 until 2026-10-30, and PayFast subscriptions already
+// created at that price keep billing on PayFast's side;
 // Basic Access and Monthly Operative were retired, and Elite Operative is
 // "Apply Only", never paid through this flow at all).
 // Without this, `amount` below came straight from the client with only a
@@ -56,7 +58,10 @@ function pfEncode(value: string): string {
 // that trusted total - so merch is already safe end-to-end without this.
 // Membership has no such downstream check at all, which is what makes
 // this the one place an amount for it is ever actually decided.
-const VALID_MEMBERSHIP_AMOUNTS = new Set([1000]);
+// R1000 stays accepted for now so the function can be deployed BEFORE the new
+// site goes live without breaking checkout on the old one. Drop it once the
+// site is live (the old price is then no longer sold).
+const VALID_MEMBERSHIP_AMOUNTS = new Set([1000, 1250]);
 
 function generateSignature(data: Record<string, string>, passphrase: string): string {
   const parts: string[] = [];

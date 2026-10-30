@@ -18,6 +18,29 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.10.30
+
+### Added
+- **Tshepo joins the mentors** on Book a 1on1 (`MENTORS` in
+  `MemberPortal.jsx`): Cyber Security Supervisor at KPMG, with his LinkedIn.
+  His headshot is `public/mentors/tshepo-mentor-headshot.jpeg`. There is no
+  booking link yet, so the card reads "Synced via Siya" like Nokulunga's.
+  Gemma's mentoring note (`gemma_knowledge`, `100_gemma_upgrade.sql`) lists
+  him, and its roadmap note now names Cybersecurity Analyst instead of the
+  retired SOC and Offensive Security tracks (updated live, since both rows
+  were still the seeded text).
+
+### Changed
+- **Permanent Access is now R1,250 a month for 12 months (R15,000 in
+  total)**, up from R1,000 for 10 months (R10,000). The tier card and its
+  PayFast cycle count (`cycles: 12`) are in `MemberPortal.jsx`, and
+  `payfast-checkout` accepts R1,250 (`VALID_MEMBERSHIP_AMOUNTS`) and, for now,
+  still R1,000. Deploy the function first, then the site, then remove R1,000
+  from the list. Existing
+  PayFast subscriptions keep billing at R1,000 on PayFast's side, so earlier
+  members stay on the price they joined at. The Elite Operative guide, the
+  Elite Guarantee guide and the Parent Guide decks were updated to match.
+
 ## 2026.10.28
 
 ### Added

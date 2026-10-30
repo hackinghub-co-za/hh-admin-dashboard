@@ -235,6 +235,16 @@ const MENTORS = [
     sideNote: 'Synced via Siya',
     bio: 'Red Teaming / Ethical Hacking.',
   },
+  {
+    id: 'tshepo',
+    name: 'Tshepo',
+    photo: '/mentors/tshepo-mentor-headshot.jpeg',
+    badge: 'COMMUNITY MENTOR',
+    badgeClass: 'badge-warning',
+    sideNote: 'Synced via Siya',
+    bio: 'Cyber Security Supervisor at KPMG.',
+    linkedinUrl: 'https://www.linkedin.com/in/tsheponchabeng/',
+  },
 ];
 const MENTOR_CALENDAR_URL = 'https://calendar.app.google/aZMNiPQ68w21yJg59';
 
@@ -4110,7 +4120,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
   // cycles is PayFast's own "stop billing after N payments" field - 0 (the
   // default) means indefinite, billed until the member cancels. Only
-  // Permanent Access passes a real number here (tier.cycles = 8), so it's
+  // Permanent Access passes a real number here (tier.cycles = 12), so it's
   // the one tier that pays itself off and stops.
   const handlePayfastPay = async (planName, amount, isSubscription = true, cycles = 0) => {
     setPayfastLoadingTier(planName);
@@ -4245,22 +4255,23 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     {
       rank: 3,
       name: 'Permanent Access',
-      priceDisplay: 'R 1,000.00',
-      period: '/ month for 10 months',
-      amount: 1000,
+      priceDisplay: 'R 1,250.00',
+      period: '/ month for 12 months',
+      amount: 1250,
       // PayFast cycle cap - the checkout actually stops billing after this
-      // many monthly payments (R1,000 x 10 = R10,000 total), unlike the
+      // many monthly payments (R1,250 x 12 = R15,000 total, from 2026-10-30;
+      // it was R1,000 x 10 before that), unlike the
       // legacy tiers here, which bill indefinitely until the member cancels.
       // Passed through handlePayfastPay -> createPayfastCheckoutUrl -> the
       // payfast-checkout Edge Function's `cycles` field - PayFast itself
       // stops the subscription, nothing in this app has to.
-      cycles: 10,
+      cycles: 12,
       badgeClass: 'badge-success',
       badgeStyle: { background: 'rgba(192, 132, 252, 0.2)', color: 'var(--accent-purple)' },
       btnStyle: { background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))' },
       badgeText: 'PERMANENT ACCESS',
       benefits: [
-        'R10,000 total - billing stops automatically after 10 months',
+        'R15,000 total - billing stops automatically after 12 months',
         'Community Discord access',
         'Daily Accountability programme',
         '1-on-1 strategy & coaching sessions',
