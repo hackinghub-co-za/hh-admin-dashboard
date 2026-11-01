@@ -149,8 +149,8 @@ BEGIN
                          FROM (SELECT member_name, rooms_completed FROM public.competition_standings WHERE NOT opted_out ORDER BY rooms_completed DESC LIMIT 5) c),
 
     'pipeline_counts', (SELECT COALESCE(jsonb_object_agg(phase, n), '{}'::jsonb) FROM (SELECT phase, count(*) n FROM public.pipeline_prospects GROUP BY 1) p),
-    'pipeline_hot', (SELECT COALESCE(jsonb_agg(jsonb_build_object('name', full_name, 'phase', phase, 'source', source, 'note', left(split_part(COALESCE(notes, ''), E'\n', 1), 140)) ORDER BY CASE phase WHEN 'Ready to Join' THEN 0 ELSE 1 END, updated_at DESC), '[]'::jsonb)
-                     FROM public.pipeline_prospects WHERE phase IN ('Ready to Join', 'Interested')),
+    'pipeline_hot', (SELECT COALESCE(jsonb_agg(jsonb_build_object('name', full_name, 'phase', phase, 'source', source, 'note', left(split_part(COALESCE(notes, ''), E'\n', 1), 140)) ORDER BY updated_at DESC), '[]'::jsonb)
+                     FROM public.pipeline_prospects WHERE phase = 'Ready to Join'),
 
     'merch_to_fulfil', (SELECT count(*) FROM public.merch_orders WHERE status IN ('Paid', 'Needs Review')),
     'wins_7d', (SELECT count(*) FROM public.community_wins WHERE created_at >= now() - interval '7 days')

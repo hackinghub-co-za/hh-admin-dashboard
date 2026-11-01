@@ -13,7 +13,6 @@ import {
   Contact,
   Trophy,
   Award,
-  Network,
   FlaskConical,
   MessageCircleHeart,
   ListTodo,
@@ -453,8 +452,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'insights', label: 'Insights', icon: BarChart3 },
         { id: 'community-content', label: 'Community Content', icon: Megaphone },
-        { id: 'team', label: 'Team & Roles', icon: UserCog },
-        { id: 'orgchart', label: 'Org Chart', icon: Network },
+        { id: 'team', label: 'Team & Org Chart', icon: UserCog },
       ]
     : viewRole === 'community_manager'
     ? [

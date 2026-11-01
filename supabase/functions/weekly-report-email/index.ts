@@ -137,7 +137,6 @@ function buildEmail(r: Report): { subject: string; html: string } {
   const counts = r.pipeline_counts || {};
   const hot: Report[] = r.pipeline_hot || [];
   const ready = hot.filter((p) => p.phase === 'Ready to Join');
-  const interested = hot.filter((p) => p.phase === 'Interested');
 
   const todo: string[] = [];
   if (missingTrack) todo.push(`<b>Assign a track</b> to ${missingTrack} of the ${m.new_7d.length} new member${m.new_7d.length === 1 ? '' : 's'}`);
@@ -145,7 +144,6 @@ function buildEmail(r: Report): { subject: string; html: string } {
   if (sundays.length === 0) todo.push(`<b>Add Sunday's catchup</b> and its presenter to the calendar`);
   else if (sundays.some((s) => !s.presenter)) todo.push(`<b>Pick a presenter</b> for Sunday's catchup`);
   if (ready.length) todo.push(`<b>Contact before month end:</b> ${ready.map((p) => esc(p.name)).join(', ')} (ready to join)`);
-  if (interested.length) todo.push(`<b>Follow up</b> ${interested.map((p) => esc(p.name)).join(', ')} (interested)`);
   if (Number(r.merch_to_fulfil) > 0) todo.push(`<b>Fulfil</b> ${r.merch_to_fulfil} paid merch order${Number(r.merch_to_fulfil) === 1 ? '' : 's'}`);
   if (comp && comp.ended) todo.push(`<b>Start the next competition season</b> (${esc(comp.title)} ended ${esc(shortDay(comp.end_date))})`);
 
@@ -197,10 +195,10 @@ function buildEmail(r: Report): { subject: string; html: string } {
     ${top5.length ? table(null, top5.map((p, i) => [`${i + 1}. ${esc(p.name)}`, `${p.rooms} rooms`]), [1]) : ''}
 
     ${heading('Sales pipeline')}
-    <p style="font-size:14px;margin:0 0 8px;"><b>${counts['Ready to Join'] || 0}</b> ready to join · <b>${counts['Interested'] || 0}</b> interested · <b>${counts['Contacted'] || 0}</b> contacted · <b>${counts['Joined'] || 0}</b> joined</p>
+    <p style="font-size:14px;margin:0 0 8px;"><b>${counts['Ready to Join'] || 0}</b> ready to join · <b>${counts['Contacted'] || 0}</b> contacted · <b>${counts['Joined'] || 0}</b> joined</p>
     ${hot.length ? table(['Name', 'Stage', 'Next step'], hot.map((p) => [
       esc(p.name),
-      p.phase === 'Ready to Join' ? 'Ready to join' : 'Interested',
+      'Ready to join',
       p.note ? esc(p.note) : flag('No next step noted'),
     ])) : ''}
 

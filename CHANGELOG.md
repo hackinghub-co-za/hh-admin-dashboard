@@ -41,6 +41,26 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.01
+
+### Changed
+- **Admin: "Team & Roles" and "Org Chart" are now one tab, "Team & Org
+  Chart"**, with a Roles / Org Chart switch at the top. Both views stay
+  founder-only.
+- **Sales pipeline: "Interested" removed, "Not Qualified" added**
+  (`083_pipeline_prospects.sql`). The 3 prospects in Interested moved to
+  Ready to Join, after the cards already there, and the board now runs Lead,
+  Contacted, Ready to Join, Joined, Not Interested, Not Qualified (a new
+  terminal column). The Monday weekly report no longer lists Interested
+  (`108_weekly_report.sql`, `weekly-report-email`).
+- **Admin Roadmaps tab.** The LinkedIn Playbook Engagement list is gone from
+  the tab. It now opens on an overview (active members, how many are on a
+  track, average progress, Specialization approved, awaiting approval, gone
+  quiet), the per-track chips show each track's average progress, and a wide
+  search box by name or email sits above the member list (Enter opens the
+  first match). The engagement data and `get_linkedin_engagement_overview`
+  still exist, and the per-member view in the profile is unchanged.
+
 ## 2026.10.31
 
 ### Changed

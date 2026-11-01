@@ -54,8 +54,6 @@ import { fetchFocusFive, addToFocusFive, removeFromFocusFive, fetchTodaysFocusFi
 import { fetchMemberDirectory } from '../../lib/memberDirectoryData';
 import { fetchRoadmapExclusions, addRoadmapExclusion, removeRoadmapExclusion } from '../../lib/roadmapExclusionsData';
 import { fetchMenteesForMentor, addMentee, removeMentee } from '../../lib/mentorMenteesData';
-import { fetchLinkedInEngagementOverview } from '../../lib/linkedInPostData';
-import { getCurrentWeekTheme } from '../../lib/linkedInPlaybookData';
 import {
   fetchAllCommunityBroadcasts, addCommunityBroadcast, updateCommunityBroadcast, deleteCommunityBroadcast,
   fetchAllCommunityWins, addCommunityWin, updateCommunityWin, deleteCommunityWin,
@@ -133,7 +131,6 @@ import {
   UserCog,
   ShieldCheck,
   ImagePlus,
-  IdCard,
   ClipboardList,
   Compass,
   Coffee,
@@ -1138,29 +1135,6 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .catch((err) => setMentorMeetingsError(friendlyErrorMessage(err)))
       .finally(() => setLoadingMentorMeetings(false));
   }, [isMockSession, role, activeTab, providerToken]);
-
-  // LinkedIn Playbook engagement, whole-cohort (admin Roadmaps tab) -
-  // every active member with a real roadmap track, and whether they've
-  // confirmed this week's post. Computed and authorized entirely
-  // server-side (get_linkedin_engagement_overview - an admin/community_manager
-  // gets every row, a mentor only their own mentees), so this depends on
-  // dataRefreshKey like every other bulk admin fetch in this file, never on
-  // memberRoster directly - memberRoster is rebuilt fresh on every render,
-  // so an effect keyed to it would refetch on virtually every render.
-  const [linkedInEngagement, setLinkedInEngagement] = useState([]);
-  const [loadingLinkedInEngagement, setLoadingLinkedInEngagement] = useState(true);
-  const [linkedInEngagementError, setLinkedInEngagementError] = useState(null);
-
-  useEffect(() => {
-    if (isMockSession) return;
-    fetchLinkedInEngagementOverview()
-      .then((rows) => {
-        setLinkedInEngagement(rows);
-        setLinkedInEngagementError(null);
-      })
-      .catch((err) => setLinkedInEngagementError(friendlyErrorMessage(err)))
-      .finally(() => setLoadingLinkedInEngagement(false));
-  }, [isMockSession, dataRefreshKey]);
 
   // Manually-logged 1-on-1s (one_on_one_logs, 071_overdue_1on1_digest.sql -
   // see oneOnOneLogsData.js) merged into this same "last meeting" concept.
@@ -2970,6 +2944,9 @@ Pick new people to present next Sunday`;
   // community_manager or mentor gets nothing, not even a read). Deliberately
   // separate from profiles.role/Team & Roles above - a staff member here
   // doesn't need a portal account at all.
+  // The Team and Org Chart tabs are one tab now (id 'team'), with this switch
+  // between its two views.
+  const [teamSubTab, setTeamSubTab] = useState('roles');
   const [orgChartMembers, setOrgChartMembers] = useState([]);
   const [loadingOrgChart, setLoadingOrgChart] = useState(!isMockSession);
   const [orgChartError, setOrgChartError] = useState(null);
@@ -2986,7 +2963,7 @@ Pick new people to present next Sunday`;
   };
 
   useEffect(() => {
-    if (activeTab === 'orgchart' && isFounder) loadOrgChartMembers();
+    if ((activeTab === 'orgchart' || activeTab === 'team') && isFounder) loadOrgChartMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isFounder, isMockSession, dataRefreshKey]);
 
@@ -4707,6 +4684,30 @@ Pick new people to present next Sunday`;
         if (!items || items.length === 0) return null;
         return Math.round((items.filter((i) => i.completed).length / items.length) * 100);
       };
+      // Overview numbers for the top of the tab - every active member, not
+      // just whoever is open below. Progress is items done over items on
+      // their list, the same figure the picker rows show.
+      const roadmapOverview = (() => {
+        const withTrack = activeRoadmapRoster.filter((m) => (m.profile?.roadmapTrack || 'Not Assigned') !== 'Not Assigned');
+        const pcts = activeRoadmapRoster.map((m) => getRoadmapProgressPct(m.email)).filter((v) => v !== null);
+        return {
+          active: activeRoadmapRoster.length,
+          withTrack: withTrack.length,
+          withoutTrack: activeRoadmapRoster.length - withTrack.length,
+          averageProgress: pcts.length ? Math.round(pcts.reduce((sum, v) => sum + v, 0) / pcts.length) : null,
+          withRoadmap: pcts.length,
+          finished: pcts.filter((v) => v === 100).length,
+          specializationOpen: activeRoadmapRoster.filter((m) => m.profile?.roadmapFoundationsApproved).length,
+          quiet: staleRoadmaps.length,
+        };
+      })();
+      const trackAverageProgress = (track) => {
+        const pcts = activeRoadmapRoster
+          .filter((m) => (m.profile?.roadmapTrack || 'Not Assigned') === track)
+          .map((m) => getRoadmapProgressPct(m.email))
+          .filter((v) => v !== null);
+        return pcts.length ? Math.round(pcts.reduce((sum, v) => sum + v, 0) / pcts.length) : null;
+      };
       const existingCategories = [...new Set(roadmapItems.map((i) => i.category))];
       const completedCount = roadmapItems.filter((i) => i.completed).length;
       const roadmapProgress = roadmapItems.length ? Math.round((completedCount / roadmapItems.length) * 100) : 0;
@@ -4796,6 +4797,24 @@ Pick new people to present next Sunday`;
             </div>
           )}
 
+          {/* Overview - the numbers worth seeing the moment the tab opens. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            {[
+              { label: 'Active members', value: roadmapOverview.active, note: `${roadmapOverview.withRoadmap} have a roadmap` },
+              { label: 'On a track', value: roadmapOverview.withTrack, note: roadmapOverview.withoutTrack ? `${roadmapOverview.withoutTrack} still need one` : 'Everyone has one' },
+              { label: 'Average progress', value: roadmapOverview.averageProgress === null ? '-' : `${roadmapOverview.averageProgress}%`, note: `${roadmapOverview.finished} finished` },
+              { label: 'Specialization open', value: roadmapOverview.specializationOpen, note: 'approved to start' },
+              { label: 'Awaiting approval', value: awaitingApprovalMembers.length, note: 'ready for you to approve', warn: awaitingApprovalMembers.length > 0 },
+              { label: 'Gone quiet', value: roadmapOverview.quiet, note: `no activity in ${ROADMAP_STALE_AFTER_DAYS}+ days`, warn: roadmapOverview.quiet > 0 },
+            ].map((t) => (
+              <div key={t.label} className="glass-card" style={{ padding: '16px' }}>
+                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', marginBottom: '6px' }}>{t.label}</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums', color: t.warn ? 'var(--warning)' : 'var(--text-primary)' }}>{t.value}</div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>{t.note}</div>
+              </div>
+            ))}
+          </div>
+
           {/* Breakdown of active members per specialization track - click a
               chip to filter the member picker down to just that track. */}
           <div className="glass-card" style={{ marginBottom: '20px' }}>
@@ -4817,25 +4836,34 @@ Pick new people to present next Sunday`;
                   }}
                 >
                   <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{track}</span>
+                  {trackAverageProgress(track) !== null && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>avg {trackAverageProgress(track)}%</span>}
                   <span className={`badge ${track === 'Not Assigned' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.7rem' }}>{count}</span>
                 </button>
               ))}
             </div>
           </div>
 
+          {/* Search by name or email - narrows the list below, and Enter
+              opens the first match. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '12px 16px', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
+            <Search size={18} color="var(--text-muted)" />
+            <input
+              type="text"
+              aria-label="Search members by name or email"
+              placeholder="Search a member by name or email to open their roadmap..."
+              value={roadmapMemberSearch}
+              onChange={(e) => setRoadmapMemberSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && filteredRoadmapRoster.length > 0) loadRoadmapForMember(filteredRoadmapRoster[0].email); }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '0.95rem', outline: 'none', width: '100%' }}
+            />
+            {roadmapMemberSearch && (
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{filteredRoadmapRoster.length} match{filteredRoadmapRoster.length === 1 ? '' : 'es'}</span>
+            )}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'flex-start' }}>
             {/* Member picker */}
             <div className="glass-card" style={{ padding: '16px' }}>
-              <div style={{ display: 'flex', gap: '8px', background: 'rgba(var(--overlay-rgb), 0.02)', padding: '8px 12px', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', marginBottom: '10px' }}>
-                <Search size={16} color="var(--text-muted)" style={{ marginTop: '2px' }} />
-                <input
-                  type="text"
-                  placeholder="Search members..."
-                  value={roadmapMemberSearch}
-                  onChange={(e) => setRoadmapMemberSearch(e.target.value)}
-                  style={{ background: 'none', border: 'none', color: '#fff', fontSize: '0.85rem', outline: 'none', width: '100%' }}
-                />
-              </div>
               <select
                 className="form-input"
                 value={roadmapTrackFilter}
@@ -4893,7 +4921,7 @@ Pick new people to present next Sunday`;
             {/* Selected member's roadmap */}
             <div className="glass-card" style={{ padding: '24px' }}>
               {!roadmapSelected ? (
-                <p style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>Pick a member on the left to assign a track and build their checklist.</p>
+                <p style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>Search for a member above, or pick one on the left, to open their roadmap, assign a track and build their checklist.</p>
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -5292,63 +5320,6 @@ Pick new people to present next Sunday`;
               </div>
             )}
           </div>
-
-          {/* LinkedIn Playbook Engagement - closes a real gap: confirming
-              this week's post was entirely self-reported with no way to
-              see who's actually keeping up without opening each profile
-              one at a time (MemberProfileModal.jsx still has that
-              per-member view). Only ever lists members who haven't
-              confirmed yet - the actionable list, same "only show what
-              needs attention" shape as Roadmaps Awaiting Approval above. */}
-          {(() => {
-            const notConfirmed = linkedInEngagement.filter((r) => !r.confirmedThisWeek);
-            const confirmedCount = linkedInEngagement.length - notConfirmed.length;
-            return (
-              <div className="glass-card" style={{ marginTop: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                  <IdCard size={18} color="var(--accent-cyan)" />
-                  <h3 style={{ margin: 0 }}>LinkedIn Playbook Engagement</h3>
-                  {linkedInEngagement.length > 0 && (
-                    <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{confirmedCount}/{linkedInEngagement.length} confirmed this week</span>
-                  )}
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                  Every active member with a track assigned who hasn't confirmed this week's post yet.
-                </p>
-
-                {linkedInEngagementError ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Couldn't load this: {linkedInEngagementError}</p>
-                ) : loadingLinkedInEngagement ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Loading...</p>
-                ) : linkedInEngagement.length === 0 ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                    {role === 'mentor' ? "None of your mentees have a track assigned yet." : 'No active, track-assigned members yet.'}
-                  </p>
-                ) : notConfirmed.length === 0 ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--success)' }}>Everyone's confirmed this week's post. 🎉</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {notConfirmed.map((r) => {
-                      const week = getCurrentWeekTheme();
-                      return (
-                        <div key={r.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{r.fullName || r.email}</div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>
-                              {r.roadmapTrack} · This week: {week.theme}
-                            </div>
-                          </div>
-                          <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
-                            {r.lastConfirmedAt ? `Last posted ${formatDate(r.lastConfirmedAt.slice(0, 10))}` : 'Never confirmed'}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
         </div>
       );
     }
@@ -8581,7 +8552,12 @@ Pick new people to present next Sunday`;
       );
     }
 
-    case 'team': {
+    // One tab, two views: Roles (who has which login role) and Org Chart (staff
+    // structure). 'orgchart' stays as an alias for any old link to it. The two
+    // views are the original tab bodies, unchanged, wrapped as functions.
+    case 'team':
+    case 'orgchart': {
+      const renderTeamRolesTab = () => {
       if (!isFounder) {
         return (
           <div>
@@ -8747,9 +8723,9 @@ Pick new people to present next Sunday`;
           )}
         </div>
       );
-    }
+      };
 
-    case 'orgchart': {
+      const renderOrgChartTab = () => {
       if (!isFounder) {
         return (
           <div>
@@ -8872,6 +8848,30 @@ Pick new people to present next Sunday`;
               onClose={() => { setShowAddOrgChartModal(false); setEditingOrgChartMember(null); }}
             />
           )}
+        </div>
+      );
+      };
+
+      const teamViews = [['roles', 'Roles', UserCog], ['orgchart', 'Org Chart', Network]];
+      // An old link to the Org Chart tab opens straight on that view.
+      const currentTeamView = activeTab === 'orgchart' ? 'orgchart' : teamSubTab;
+      return (
+        <div>
+          <div role="group" aria-label="Team views" style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
+            {teamViews.map(([id, label, Icon]) => (
+              <button
+                key={id}
+                type="button"
+                className={currentTeamView === id ? 'btn btn-primary' : 'btn btn-secondary'}
+                aria-pressed={currentTeamView === id}
+                onClick={() => { setTeamSubTab(id); if (activeTab === 'orgchart') setActiveTab('team'); }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Icon size={16} /> {label}
+              </button>
+            ))}
+          </div>
+          {currentTeamView === 'orgchart' ? renderOrgChartTab() : renderTeamRolesTab()}
         </div>
       );
     }

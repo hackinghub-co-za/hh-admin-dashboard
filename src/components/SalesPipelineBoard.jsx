@@ -6,15 +6,15 @@ import { Plus, X, Pencil, Trash2, Mail, Phone, Tag, Clock, ChevronLeft, ChevronR
 import { fetchProspects, addProspect, updateProspect, updateProspectPhase, deleteProspect } from '../lib/pipelineData';
 import { friendlyErrorMessage } from '../lib/errorMessages';
 
-const PHASES = ['Lead', 'Contacted', 'Interested', 'Ready to Join', 'Joined', 'Not Interested'];
+const PHASES = ['Lead', 'Contacted', 'Ready to Join', 'Joined', 'Not Interested', 'Not Qualified'];
 
 const PHASE_COLORS = {
   Lead: 'var(--text-muted)',
   Contacted: 'var(--accent-cyan)',
-  Interested: 'var(--accent-purple)',
   'Ready to Join': 'var(--warning)',
   Joined: 'var(--success)',
   'Not Interested': 'var(--danger)',
+  'Not Qualified': 'var(--accent-purple)',
 };
 
 // Local-only demo board for Mock Admin - same "no real Supabase session"
@@ -23,7 +23,7 @@ const PHASE_COLORS = {
 const MOCK_PROSPECTS = [
   { id: 'mock-1', fullName: 'Naledi Mokoena', email: 'naledi@example.com', phone: '', phase: 'Lead', source: 'Instagram DM', notes: '', sortOrder: 0, updatedAt: new Date().toISOString() },
   { id: 'mock-2', fullName: 'Karabo Sithole', email: '', phone: '071 234 5678', phase: 'Contacted', source: 'Referral - Sizwe Zwane', notes: 'Following up next week.', sortOrder: 0, updatedAt: new Date().toISOString() },
-  { id: 'mock-3', fullName: 'Refilwe Dlamini', email: 'refilwe@example.com', phone: '', phase: 'Interested', source: 'BSides JHB', notes: '', sortOrder: 0, updatedAt: new Date().toISOString() },
+  { id: 'mock-3', fullName: 'Refilwe Dlamini', email: 'refilwe@example.com', phone: '', phase: 'Ready to Join', source: 'BSides JHB', notes: '', sortOrder: 1, updatedAt: new Date().toISOString() },
   { id: 'mock-4', fullName: 'Blessing Mahlangu', email: '', phone: '', phase: 'Ready to Join', source: 'Referral - Lesoko', notes: 'Just needs to confirm a payment method.', sortOrder: 0, updatedAt: new Date().toISOString() },
 ];
 
