@@ -52,6 +52,7 @@ const TIER_RANK: Record<string, number> = {
   'Monthly Operative': 2,
   'Permanent Access': 3,
   'Elite Operative': 4,
+  'Elite with Job Guarantee': 5,
 };
 
 async function sendEmail(resendApiKey: string, toEmail: string, subject: string, html: string): Promise<void> {

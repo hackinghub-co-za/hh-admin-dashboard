@@ -63,7 +63,7 @@ export const OFFBOARDING_REASONS = [
   'Other',
 ];
 export const EMPLOYMENT_STATUSES = ['Not Set', 'Employed', 'Unemployed', 'Student'];
-export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Operative', 'Permanent Access', 'Custom Plan', 'Maintenance Fee'];
+export const MEMBERSHIP_TIERS = ['Basic Access', 'Monthly Operative', 'Elite Operative', 'Elite with Job Guarantee', 'Permanent Access', 'Custom Plan', 'Maintenance Fee'];
 
 // The learning path a coach assigns a member to - drives which checklist shows
 // up under "My Roadmap". Distinct from SPECIALTIES above (that's the member's

@@ -43,7 +43,21 @@ saved in their browser's `localStorage`.
 
 ## 2026.11.01
 
+### Added
+- **Daily portal report email** to the founder every morning at 06:00 SAST
+  (`daily-report-email`, `get_daily_report()` in `108_weekly_report.sql`): what
+  needs you, member activity (active members, study hours, rooms, applications,
+  roadmap ticks, wins, who has gone quiet) and the business side (money
+  received, pipeline moves, staff activity). One email, to one address.
+
 ### Changed
+- **Two Elite cards:** "Elite Operative" and "Elite with Job Guarantee", both
+  apply-only with no price shown, and the button now says "Apply Now". The
+  guarantee card lists its conditions. "Elite with Job Guarantee" is also a
+  plan an admin can record on a payment, and counts as Elite in the tier mix
+  and for perk requests (`cert-perk-request-email`).
+- **Free Azure exams on the Permanent Access card** now read "available
+  immediately, up to four" instead of "upon milestone completion".
 - **Admin: "Team & Roles" and "Org Chart" are now one tab, "Team & Org
   Chart"**, with a Roles / Org Chart switch at the top. Both views stay
   founder-only.

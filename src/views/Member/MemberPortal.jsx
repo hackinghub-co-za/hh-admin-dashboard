@@ -4282,7 +4282,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         'All future programme updates',
         'Priority support & coaching',
         'Founding member status & badge',
-        'Free Azure exams (upon milestone completion)',
+        'Free Azure exams (available immediately, up to four)',
       ],
     },
     {
@@ -4297,8 +4297,22 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       benefits: [
         'Everything in Permanent Access',
         'Sponsored Certifications (Azure/AWS, CompTIA, ISC2, TryHackMe & more)',
-        '12-Month Job Placement Guarantee (or 100% refund)',
         'Direct founder 1on1 access',
+      ],
+    },
+    {
+      rank: 5,
+      name: 'Elite with Job Guarantee',
+      priceDisplay: 'Apply Only',
+      period: '',
+      amount: 0,
+      badgeClass: 'badge-danger',
+      badgeText: 'ELITE WITH JOB GUARANTEE',
+      isApplyOnly: true,
+      benefits: [
+        'Everything in Elite Operative',
+        '12-Month Job Placement Guarantee (all fees refunded if you are not placed)',
+        'Conditions apply: 5 study hours a week, 2 one-on-one sessions a month, and 5 job applications a week once job-ready',
       ],
     },
   ];
@@ -9704,7 +9718,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                         className="btn btn-primary"
                         style={{ width: '100%', justifyContent: 'center', background: 'var(--danger)', borderBottomColor: '#b91c1c', color: '#ffffff' }}
                       >
-                        Apply for Placement <ExternalLink size={14} />
+                        Apply Now <ExternalLink size={14} />
                       </a>
                     ) : (
                       <button

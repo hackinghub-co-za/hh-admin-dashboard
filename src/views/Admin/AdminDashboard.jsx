@@ -6818,7 +6818,7 @@ Pick new people to present next Sunday`;
       // into "Other". Kept in tier order rather than count-sorted so the
       // hierarchy reads top-down.
       const tierOf = (plan) => {
-        if (plan === 'Elite Operative') return 'Elite';
+        if (plan === 'Elite Operative' || plan === 'Elite with Job Guarantee') return 'Elite';
         if (plan === 'Permanent Access') return 'Permanent';
         if (plan === 'Monthly Operative') return 'Monthly';
         if (plan === 'Basic Access') return 'Basic';
