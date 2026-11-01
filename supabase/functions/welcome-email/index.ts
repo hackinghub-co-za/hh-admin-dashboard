@@ -16,15 +16,22 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sendWelcomeEmail } from '../_shared/welcomeEmail.ts';
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+const JSON_HEADERS = { ...CORS_HEADERS, 'Content-Type': 'application/json' };
 
 function respond(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
   }
 
   try {
