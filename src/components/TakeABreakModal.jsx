@@ -43,6 +43,10 @@ export default function TakeABreakModal({ submitting, error, onStart, onClose })
           with you. There's no "end early" button by design - once you start, it just quietly resumes on
           its own on the date you pick.
         </p>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: 1.5 }}>
+          <strong>Your membership payments carry on as normal while you're on a break.</strong> A break pauses
+          the reminders and check-ins, not your instalments.
+        </p>
 
         <div style={{ padding: '16px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--accent-rgb), 0.05)', border: '1px solid rgba(var(--accent-rgb), 0.15)', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '10px' }}>

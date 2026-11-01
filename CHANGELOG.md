@@ -41,6 +41,14 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.10.31
+
+### Changed
+- **Take a Break says payments continue.** The modal now states that
+  membership payments carry on during a break (it pauses reminders and
+  check-ins, not instalments), and Gemma's `take-a-break` note says the same
+  (updated live, since it was still the seeded text).
+
 ## 2026.10.28
 
 ### Added
