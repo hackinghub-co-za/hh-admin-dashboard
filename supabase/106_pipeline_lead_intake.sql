@@ -51,6 +51,8 @@ DECLARE
   v_id BIGINT;
   v_next INTEGER;
   v_line TEXT;
+  v_reason TEXT;
+  v_phase TEXT := 'Lead';
 BEGIN
   IF p_ref IS NULL OR length(trim(p_ref)) = 0 THEN
     RAISE EXCEPTION 'A ref is required.';
@@ -92,14 +94,30 @@ BEGIN
     RETURN jsonb_build_object('action', 'updated', 'id', v_id);
   END IF;
 
-  SELECT COALESCE(MAX(sort_order), -1) + 1 INTO v_next FROM public.pipeline_prospects WHERE phase = 'Lead';
+  -- Outside the target profile: an Elite application that picks "High School"
+  -- (the first words of any short answer) or "Other (Rest of the world)" goes
+  -- straight to Not Qualified instead of Lead, with the reason on the card.
+  -- Only a brand-new card is placed this way; an existing card is never moved.
+  IF p_source ILIKE '%elite%' THEN
+    SELECT string_agg(DISTINCT CASE WHEN a ~* '^high ?school' THEN 'High School' ELSE 'Other (Rest of the world)' END, ', ')
+    INTO v_reason
+    FROM (SELECT trim(substring(line FROM '^[^:]*:\s*(.*)$')) AS a
+          FROM regexp_split_to_table(COALESCE(p_notes, ''), E'\n') AS line) q
+    WHERE a ~* '^high ?school' OR a ~* '^other \(rest of the world\)';
+    IF v_reason IS NOT NULL THEN
+      v_phase := 'Not Qualified';
+      v_line := v_line || E'\nAuto-moved to Not Qualified: ' || v_reason;
+    END IF;
+  END IF;
+
+  SELECT COALESCE(MAX(sort_order), -1) + 1 INTO v_next FROM public.pipeline_prospects WHERE phase = v_phase;
 
   INSERT INTO public.pipeline_prospects (full_name, email, phone, phase, source, notes, sort_order, created_by)
-  VALUES (COALESCE(v_name, v_email, 'Unknown'), v_email, v_phone, 'Lead', p_source, v_line, v_next, 'automation')
+  VALUES (COALESCE(v_name, v_email, 'Unknown'), v_email, v_phone, v_phase, p_source, v_line, v_next, 'automation')
   RETURNING id INTO v_id;
 
   INSERT INTO public.pipeline_lead_events (ref, prospect_id, source) VALUES (p_ref, v_id, p_source) ON CONFLICT DO NOTHING;
-  RETURN jsonb_build_object('action', 'created', 'id', v_id);
+  RETURN jsonb_build_object('action', 'created', 'id', v_id, 'phase', v_phase);
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public._intake_pipeline_lead(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN) FROM PUBLIC, anon, authenticated;

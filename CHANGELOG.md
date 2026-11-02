@@ -44,6 +44,11 @@ saved in their browser's `localStorage`.
 ## 2026.11.01
 
 ### Added
+- **Elite applications from outside the target profile go straight to Not
+  Qualified.** An application that picks "High School" or "Other (Rest of the
+  world)" lands in the Not Qualified column with the reason on the card,
+  instead of Lead (`_intake_pipeline_lead()` in `106_pipeline_lead_intake.sql`).
+  Existing cards are never moved by it.
 - **Daily portal report email** to the founder every morning at 06:00 SAST
   (`daily-report-email`, `get_daily_report()` in `108_weekly_report.sql`): what
   needs you, member activity (active members, study hours, rooms, applications,
