@@ -27,7 +27,7 @@ export const WHY_REASONS = [
   { key: 'job_security', label: 'Job Security', emoji: '📈' },
 ];
 export const JOB_READINESS_STAGES = ['Not Started', 'In Progress', 'Interview Ready', 'Job Placed'];
-export const GENDERS = ['Male', 'Female'];
+export const GENDERS = ['Male', 'Female', 'Prefer not to say'];
 export const LOCATIONS = [
   'Cape Town',
   'Johannesburg',

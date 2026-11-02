@@ -46,6 +46,7 @@ export async function fetchMemberProfiles() {
       employmentStatus: row.employment_status || 'Not Set',
       jobTitle: row.job_title || '',
       monthlyRemuneration: Number(row.monthly_remuneration) || 0,
+      salaryDeclined: row.salary_declined === true,
       jobPlacedDate: row.job_placed_date || '',
       offboardingReason: row.offboarding_reason || '',
       offboardingNotes: row.offboarding_notes || '',

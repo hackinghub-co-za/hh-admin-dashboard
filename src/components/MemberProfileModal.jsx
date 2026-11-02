@@ -496,7 +496,7 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
               </div>
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  <Banknote size={13} /> Monthly Remuneration (R)
+                  <Banknote size={13} /> Monthly Remuneration (R){profile?.salaryDeclined && !(Number(form.monthlyRemuneration) > 0) ? <span style={{ marginLeft: '6px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>(member chose not to say)</span> : null}
                 </label>
                 <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={form.monthlyRemuneration} onChange={update('monthlyRemuneration')} />
               </div>

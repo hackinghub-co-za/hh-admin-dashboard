@@ -44,6 +44,21 @@ saved in their browser's `localStorage`.
 ## 2026.11.01
 
 ### Added
+- **Members who have not signed in for 60 days are removed automatically, with
+  a warning first.** Every morning at 06:30 the founder is emailed the members
+  who have reached 57 days with no sign-in; 3 days later, if they still have
+  not signed in, they are blocked and taken off the allow-list (status Left).
+  Signing in cancels it. Mentors, and anyone who has paid in the last 60 days, are spared
+  (`inactive-members-sweep`, `111_inactive_member_removal.sql`).
+- **Profile gate: members must fill in four things before they can use the
+  portal.** After the welcome intro, a full-screen "One last step" form asks for
+  gender, where they live, employment status and qualification, and only asks
+  for what is missing. A member who is employed also gives their job title and
+  gross monthly salary, or picks "Prefer not to say". The salary is only readable
+  by the admin account. "Prefer not to say" is also a gender option. Staff,
+  members who are leaving and Mock sessions are never stopped
+  (`my_profile_gate_missing()`, `get_my_profile_gate()`, `save_my_profile_gate()`
+  and `salary_declined` in `109_qualifications.sql`; `ProfileGate.jsx`).
 - **"Are you in your final year this year?" on Edit Profile.** A member whose
   degree or diploma is In Progress is asked, with Yes or No, whether they finish
   this year. It shows on their profile in the admin dashboard as "Final year

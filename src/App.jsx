@@ -7,9 +7,11 @@ import AdminDashboard from './views/Admin/AdminDashboard';
 import MemberPortal from './views/Member/MemberPortal';
 import OnboardingSequence from './components/OnboardingSequence';
 import OffboardingSequence from './components/OffboardingSequence';
+import ProfileGate from './components/ProfileGate';
 import GemmaWidget from './components/GemmaWidget';
 import { checkOnboardingStatus, markOnboardingComplete, getMyGettingStartedGraceStartedAt, fetchMyOnboardingSteps, ONBOARDING_STEPS } from './lib/onboardingData';
 import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
+import { fetchProfileGateMissing } from './lib/profileGateData';
 import { amIRoadmapExcluded } from './lib/roadmapExclusionsData';
 import { logMobileBlock } from './lib/portalEventsData';
 import { getMyRole } from './lib/teamData';
@@ -75,6 +77,12 @@ export default function App() {
   // admin has set this member's status to 'Leaving'. Takes priority over the
   // onboarding gate - a departing member doesn't need the welcome animation.
   const [needsOffboarding, setNeedsOffboarding] = useState(false);
+  // Gates the member layout behind the "One last step" form until gender,
+  // location, employment status and qualification are all filled in
+  // (109_qualifications.sql PART 2). Comes after the welcome intro and never
+  // applies to staff, mock sessions or a member who is leaving. Fails open on
+  // a check error, like every other gate here.
+  const [needsProfileGate, setNeedsProfileGate] = useState(false);
   // Hard-blocks the member layout down to just Dashboard/Meetings/Members
   // (Sidebar + MemberPortal both read this) once a member is
   // GETTING_STARTED_GRACE_DAYS past their grace start and still hasn't
@@ -198,6 +206,7 @@ export default function App() {
       if (isStaff) {
         setNeedsOnboarding(false);
         setNeedsOffboarding(false);
+        setNeedsProfileGate(false);
         setGettingStartedGateActive(false);
         setRoadmapExcluded(false);
       } else {
@@ -217,6 +226,16 @@ export default function App() {
           console.error('Offboarding status check failed:', err.message);
         }
         setNeedsOffboarding(offboarding);
+
+        let profileGate = false;
+        if (!offboarding) {
+          try {
+            profileGate = (await fetchProfileGateMissing()).length > 0;
+          } catch (err) {
+            console.error('Profile gate check failed - not blocking over a transient error:', err.message);
+          }
+        }
+        setNeedsProfileGate(profileGate);
 
         let stillOnboarding = true;
         if (offboarding) {
@@ -346,6 +365,7 @@ export default function App() {
     // trigger it on demand via the "Replay Intro" button in the sidebar instead.
     // "Mock Member (Leaving)" still shows the farewell screen as before.
     setNeedsOffboarding(!!mockUser.mockLeaving);
+    setNeedsProfileGate(false);
     setNeedsOnboarding(false);
     setGettingStartedGateActive(false);
   };
@@ -482,6 +502,10 @@ export default function App() {
 
   if (!isStaff && needsOnboarding) {
     return <OnboardingSequence user={user} onComplete={handleOnboardingDone} />;
+  }
+
+  if (!isStaff && needsProfileGate) {
+    return <ProfileGate user={user} onDone={() => setNeedsProfileGate(false)} onLogout={handleLogout} />;
   }
 
   return (
