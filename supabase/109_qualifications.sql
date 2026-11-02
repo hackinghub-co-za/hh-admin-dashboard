@@ -4,7 +4,10 @@
 --
 -- A member declares their highest qualification (degree, diploma, etc.) on
 -- Edit Profile. Students say what they are studying for, where, and which
--- year of study they are in (qualification_status 'In Progress').
+-- year of study they are in (qualification_status 'In Progress'), and whether
+-- this is their final year (true = they finish this year, false = they do not).
+-- A member who is studying is asked that last question so we know who is
+-- about to graduate.
 -- Same privacy rules as age/gender (010_member_directory.sql):
 -- never part of get_member_directory(), so other members can't see it, and
 -- read back only by the member themselves (get_my_qualification) or by an
@@ -23,7 +26,8 @@ ALTER TABLE public.member_profiles
   ADD COLUMN IF NOT EXISTS qualification_institution TEXT,
   ADD COLUMN IF NOT EXISTS qualification_status TEXT,
   ADD COLUMN IF NOT EXISTS qualification_year INTEGER,
-  ADD COLUMN IF NOT EXISTS qualification_study_year INTEGER;
+  ADD COLUMN IF NOT EXISTS qualification_study_year INTEGER,
+  ADD COLUMN IF NOT EXISTS qualification_final_year BOOLEAN;
 
 -- Must match QUALIFICATION_LEVELS / QUALIFICATION_STATUSES in
 -- src/lib/memberOptions.js.
@@ -48,13 +52,13 @@ ALTER TABLE public.member_profiles ADD CONSTRAINT member_profiles_qualification_
 -- return shape grew by study_year, so the old version is dropped first.
 DROP FUNCTION IF EXISTS public.get_my_qualification();
 CREATE FUNCTION public.get_my_qualification()
-RETURNS TABLE (level TEXT, name TEXT, institution TEXT, status TEXT, year INTEGER, study_year INTEGER)
+RETURNS TABLE (level TEXT, name TEXT, institution TEXT, status TEXT, year INTEGER, study_year INTEGER, final_year BOOLEAN)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 STABLE
 AS $$
-  SELECT qualification_level, qualification_name, qualification_institution, qualification_status, qualification_year, qualification_study_year
+  SELECT qualification_level, qualification_name, qualification_institution, qualification_status, qualification_year, qualification_study_year, qualification_final_year
   FROM public.member_profiles
   WHERE email = lower(auth.jwt() ->> 'email');
 $$;
@@ -63,17 +67,20 @@ GRANT EXECUTE ON FUNCTION public.get_my_qualification() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_my_qualification() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.get_my_qualification() FROM anon;
 
--- Saves the caller's own qualification. Only ever touches these six columns
+-- Saves the caller's own qualification. Only ever touches these seven columns
 -- on their own row. Picking no level clears the rest, so a half-filled entry
--- can't linger, and the year of study is only kept while it is In Progress.
+-- can't linger, and the year of study and final-year answer are only kept
+-- while it is In Progress.
 DROP FUNCTION IF EXISTS public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER);
+DROP FUNCTION IF EXISTS public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER);
 CREATE FUNCTION public.save_my_qualification(
   p_level TEXT,
   p_name TEXT,
   p_institution TEXT,
   p_status TEXT,
   p_year INTEGER,
-  p_study_year INTEGER DEFAULT NULL
+  p_study_year INTEGER DEFAULT NULL,
+  p_final_year BOOLEAN DEFAULT NULL
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -96,11 +103,12 @@ BEGIN
     qualification_status = CASE WHEN v_level IS NULL THEN NULL ELSE v_status END,
     qualification_year = CASE WHEN v_level IS NULL THEN NULL ELSE p_year END,
     qualification_study_year = CASE WHEN v_level IS NULL OR v_status IS DISTINCT FROM 'In Progress' THEN NULL ELSE p_study_year END,
+    qualification_final_year = CASE WHEN v_level IS NULL OR v_status IS DISTINCT FROM 'In Progress' THEN NULL ELSE p_final_year END,
     updated_at = now()
   WHERE email = v_email;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER) FROM anon;
+GRANT EXECUTE ON FUNCTION public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, BOOLEAN) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, BOOLEAN) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.save_my_qualification(TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, BOOLEAN) FROM anon;

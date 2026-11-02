@@ -44,6 +44,11 @@ saved in their browser's `localStorage`.
 ## 2026.11.01
 
 ### Added
+- **"Are you in your final year this year?" on Edit Profile.** A member whose
+  degree or diploma is In Progress is asked, with Yes or No, whether they finish
+  this year. It shows on their profile in the admin dashboard as "Final year
+  this year" or "Not final year" (`qualification_final_year`,
+  `109_qualifications.sql`).
 - **Elite applications from outside the target profile go straight to Not
   Qualified.** An application that picks "High School" or "Other (Rest of the
   world)" lands in the Not Qualified column with the reason on the card,

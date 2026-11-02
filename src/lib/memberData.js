@@ -65,6 +65,7 @@ export async function fetchMemberProfiles() {
       qualificationStatus: row.qualification_status || '',
       qualificationYear: row.qualification_year ?? null,
       qualificationStudyYear: row.qualification_study_year ?? null,
+      qualificationFinalYear: row.qualification_final_year ?? null,
       // Daily login streak (032_login_streak.sql) - written server-side by
       // record_daily_login(), read-only here. lastLoginDate lets a viewer
       // tell a live streak from a stale one (the stored count only resets

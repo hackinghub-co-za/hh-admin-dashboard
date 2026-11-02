@@ -1799,6 +1799,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     qualificationStatus: '',
     qualificationYear: '',
     qualificationStudyYear: '',
+    qualificationFinalYear: '',
     whyReasons: [],
     whyStory: '',
   };
@@ -1910,6 +1911,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           qualificationStatus: profileForm.qualificationLevel ? profileForm.qualificationStatus : '',
           qualificationYear: profileForm.qualificationLevel ? profileForm.qualificationYear : '',
           qualificationStudyYear: profileForm.qualificationLevel && profileForm.qualificationStatus === 'In Progress' ? profileForm.qualificationStudyYear : '',
+          qualificationFinalYear: profileForm.qualificationLevel && profileForm.qualificationStatus === 'In Progress' ? profileForm.qualificationFinalYear : '',
         });
         const updated = await fetchMemberDirectory();
         setDirectory(updated);
@@ -4838,6 +4840,16 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                           <select className="form-input" value={profileForm.qualificationStudyYear} onChange={(e) => setProfileForm({ ...profileForm, qualificationStudyYear: e.target.value })}>
                             <option value="">Not set</option>
                             {QUALIFICATION_STUDY_YEARS.map((label, i) => <option key={label} value={i + 1}>{label}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      {profileForm.qualificationStatus === 'In Progress' && profileForm.qualificationLevel !== 'Matric' && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Are you in your final year this year?</label>
+                          <select className="form-input" value={profileForm.qualificationFinalYear} onChange={(e) => setProfileForm({ ...profileForm, qualificationFinalYear: e.target.value })}>
+                            <option value="">Not set</option>
+                            <option value="yes">Yes, I finish this year</option>
+                            <option value="no">No, I have more than this year left</option>
                           </select>
                         </div>
                       )}

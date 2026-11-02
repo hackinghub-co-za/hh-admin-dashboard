@@ -409,6 +409,8 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
                     profile.qualificationInstitution,
                     [profile.qualificationStatus, profile.qualificationYear].filter(Boolean).join(' '),
                     profile.qualificationStatus === 'In Progress' ? studyYearLabel(profile.qualificationStudyYear) : '',
+                    profile.qualificationStatus === 'In Progress' && profile.qualificationFinalYear === true ? 'Final year this year' : '',
+                    profile.qualificationStatus === 'In Progress' && profile.qualificationFinalYear === false ? 'Not final year' : '',
                   ].filter(Boolean).join(' · ')
                 : <span style={{ color: 'var(--text-muted)' }}>Not set yet - the member adds this on Edit Profile.</span>}
             </p>

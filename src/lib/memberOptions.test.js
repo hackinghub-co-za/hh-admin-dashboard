@@ -199,4 +199,8 @@ describe('qualification options match 109_qualifications.sql', () => {
     expect(studyYearLabel('')).toBe('');
     expect(studyYearLabel(null)).toBe('');
   });
+  it('the final-year answer has a column and is saved through the same function', () => {
+    expect(sql).toContain('qualification_final_year BOOLEAN');
+    expect(sql).toContain('p_final_year BOOLEAN');
+  });
 });

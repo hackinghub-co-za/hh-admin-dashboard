@@ -89,12 +89,14 @@ export async function fetchMyQualification() {
     qualificationStatus: row?.status || '',
     qualificationYear: row?.year ?? '',
     qualificationStudyYear: row?.study_year ?? '',
+    // 'yes' = finishes this year, 'no' = does not, '' = not answered.
+    qualificationFinalYear: row?.final_year === true ? 'yes' : row?.final_year === false ? 'no' : '',
   };
 }
 
 /** Saves the current member's own highest qualification. Clearing the level
  * clears the rest server-side. */
-export async function saveMyQualification({ qualificationLevel, qualificationName, qualificationInstitution, qualificationStatus, qualificationYear, qualificationStudyYear }) {
+export async function saveMyQualification({ qualificationLevel, qualificationName, qualificationInstitution, qualificationStatus, qualificationYear, qualificationStudyYear, qualificationFinalYear }) {
   const { error } = await supabase.rpc('save_my_qualification', {
     p_level: qualificationLevel || null,
     p_name: qualificationName || null,
@@ -102,6 +104,7 @@ export async function saveMyQualification({ qualificationLevel, qualificationNam
     p_status: qualificationStatus || null,
     p_year: qualificationYear === '' || qualificationYear === null || qualificationYear === undefined ? null : Number(qualificationYear),
     p_study_year: qualificationStudyYear === '' || qualificationStudyYear === null || qualificationStudyYear === undefined ? null : Number(qualificationStudyYear),
+    p_final_year: qualificationFinalYear === 'yes' ? true : qualificationFinalYear === 'no' ? false : null,
   });
   if (error) throw error;
 }
