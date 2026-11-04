@@ -49,6 +49,13 @@ saved in their browser's `localStorage`.
   Microsoft Learn's official AZ-305 video series on YouTube
   (`026_resources.sql`).
 
+### Fixed
+- **Cert pass and fail emails failed with "Failed to send a request to the
+  Edge Function".** `cert-pass-email` and `cert-fail-email` did not answer the
+  browser's CORS preflight, so the admin site's call never reached them. Both
+  now send the same CORS headers as `welcome-email`. They were the only two
+  browser-called functions missing them.
+
 ## 2026.11.01
 
 ### Added

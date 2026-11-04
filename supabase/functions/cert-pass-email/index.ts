@@ -33,6 +33,15 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// The admin site calls this straight from the browser, so it has to answer
+// the CORS preflight and send these headers on every reply (same as
+// welcome-email), or the browser drops the call before it arrives.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+const JSON_HEADERS = { ...CORS_HEADERS, 'Content-Type': 'application/json' };
+
 const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
 const PORTAL_URL = 'https://portal.hackinghub.co.za';
 
@@ -65,8 +74,11 @@ function certPassEmailHtml(firstName: string, certName: string): string {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
   }
 
   try {
@@ -79,7 +91,7 @@ Deno.serve(async (req) => {
     if (!resendKey) {
       return new Response(JSON.stringify({ error: 'Not configured - missing RESEND_API_KEY secret.' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
 
@@ -91,14 +103,14 @@ Deno.serve(async (req) => {
     if (authError || !callerEmail) {
       return new Response(JSON.stringify({ error: 'Admins only.' }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
     const { data: callerRole, error: roleError } = await callerClient.rpc('get_my_role');
     if (roleError || !['admin', 'community_manager', 'mentor'].includes(callerRole)) {
       return new Response(JSON.stringify({ error: 'Admins only.' }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
 
@@ -106,7 +118,7 @@ Deno.serve(async (req) => {
     if (!certId) {
       return new Response(JSON.stringify({ error: 'Missing certId.' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
 
@@ -122,13 +134,13 @@ Deno.serve(async (req) => {
       console.error('cert-pass-email: fetching cert failed', certError.message);
       return new Response(JSON.stringify({ error: 'Could not load that cert entry.' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
     if (!cert) {
       return new Response(JSON.stringify({ error: 'Cert entry not found.' }), {
         status: 404,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
 
@@ -139,19 +151,19 @@ Deno.serve(async (req) => {
     if (cert.result !== 'Passed') {
       return new Response(JSON.stringify({ skipped: true, reason: 'not marked Passed' }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
     if (!cert.member_email) {
       return new Response(JSON.stringify({ skipped: true, reason: 'no member email on file' }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
     if (cert.pass_email_sent_at) {
       return new Response(JSON.stringify({ skipped: true, reason: 'already sent' }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
       });
     }
 
@@ -177,13 +189,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ sent: true }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
     });
   } catch (err) {
     console.error('cert-pass-email error:', err);
     return new Response(JSON.stringify({ error: 'Something went wrong.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
     });
   }
 });
