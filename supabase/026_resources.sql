@@ -748,3 +748,18 @@ SELECT 'Cert Prep', 'AZ-104 Study Resources', 'Guide',
 ]'::jsonb,
   'siya@hackinghub.co.za'
 WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-104 Study Resources');
+
+-- AZ-305 STUDY RESOURCES (2026-11-04) - same shape as the AZ-104 resource
+-- above: a small checklist members tick off in the resource's modal. Starts
+-- with KodeKloud's AZ-305 course and Microsoft Learn's official AZ-305 video
+-- series on YouTube; add more steps by editing the resource. Idempotent.
+INSERT INTO public.resources (category, title, format, description, link, steps, created_by)
+SELECT 'Cert Prep', 'AZ-305 Study Resources', 'Guide',
+  'Where to study for AZ-305 (Azure Solutions Architect Expert): KodeKloud''s AZ-305 course and Microsoft Learn''s official AZ-305 video series on YouTube. AZ-305 is an expert-level exam, so finish AZ-104 first.',
+  NULL,
+  '[
+  {"id":"az305-kk","group":"Course","title":"Complete KodeKloud''s AZ-305 course","link":"https://kodekloud.com/courses/az-305-microsoft-azure-solutions-architect-expert"},
+  {"id":"az305-yt","group":"Videos","title":"Watch Microsoft Learn''s AZ-305 videos on YouTube","link":"https://www.youtube.com/playlist?list=PLahhVEj9XNTejs0fgXT6HXaj_a_qsUoKa"}
+]'::jsonb,
+  'siya@hackinghub.co.za'
+WHERE NOT EXISTS (SELECT 1 FROM public.resources WHERE title = 'AZ-305 Study Resources');

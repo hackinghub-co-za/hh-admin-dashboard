@@ -41,6 +41,14 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.04
+
+### Added
+- **AZ-305 Study Resources in Resources (Cert Prep).** A checklist with two
+  items members can tick off in the modal: KodeKloud's AZ-305 course and
+  Microsoft Learn's official AZ-305 video series on YouTube
+  (`026_resources.sql`).
+
 ## 2026.11.01
 
 ### Added

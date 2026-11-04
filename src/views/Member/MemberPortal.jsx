@@ -777,6 +777,9 @@ const MOCK_RESOURCES = [
   { id: 14, category: 'Cert Prep', title: 'AZ-104 Study Resources', format: 'Guide', description: "Where to study and practise for AZ-104 (Azure Administrator): the official certification page and KodeKloud's free 100 Days of Cloud, a hands-on way to build the day-to-day Azure skills the exam tests.", link: '', steps: [
     { id: "az1", group: "Learn", title: "Read the official AZ-104 certification page and its skills measured", link: "https://learn.microsoft.com/en-us/credentials/certifications/azure-administrator/" },
     { id: "kk1", group: "Practice: KodeKloud 100 Days of Cloud (free)", title: "Practise with KodeKloud's free 100 Days of Cloud", link: "https://engineer.kodekloud.com/practice" },
+  ] },  { id: 15, category: 'Cert Prep', title: 'AZ-305 Study Resources', format: 'Guide', description: "Where to study for AZ-305 (Azure Solutions Architect Expert): KodeKloud's AZ-305 course and Microsoft Learn's official AZ-305 video series on YouTube. AZ-305 is an expert-level exam, so finish AZ-104 first.", link: '', steps: [
+    { id: "az305-kk", group: "Course", title: "Complete KodeKloud's AZ-305 course", link: "https://kodekloud.com/courses/az-305-microsoft-azure-solutions-architect-expert" },
+    { id: "az305-yt", group: "Videos", title: "Watch Microsoft Learn's AZ-305 videos on YouTube", link: "https://www.youtube.com/playlist?list=PLahhVEj9XNTejs0fgXT6HXaj_a_qsUoKa" },
   ] },
 ];
 
