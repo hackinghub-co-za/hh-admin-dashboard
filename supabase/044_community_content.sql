@@ -141,3 +141,51 @@ SELECT 'Callum', 'landed an IT Audit role', '2026-08-22', 'https://www.linkedin.
 WHERE NOT EXISTS (
   SELECT 1 FROM public.community_wins WHERE member_name = 'Callum' AND achievement = 'landed an IT Audit role'
 );
+
+-- NEW RECENT WINS POPUP, SEEN ONCE PER MEMBER (2026-11-06) - the member
+-- Dashboard pops up wins posted since the member last saw the popup
+-- (NewWinsModal.jsx). The highest win id each member has been shown is kept
+-- here rather than in the browser, so a win shows once per member, not once
+-- per device. Members never touch the table directly: the two RPCs below
+-- read and raise only the caller's own row (by their signed-in email), and
+-- the mark only ever moves forward (GREATEST), so a stale tab can't make
+-- old wins reappear.
+CREATE TABLE IF NOT EXISTS public.community_win_views (
+  email TEXT PRIMARY KEY,
+  seen_upto BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE public.community_win_views ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.get_my_wins_seen_upto()
+RETURNS BIGINT
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+  SELECT COALESCE((SELECT seen_upto FROM public.community_win_views WHERE email = lower(auth.jwt() ->> 'email')), 0);
+$$;
+
+CREATE OR REPLACE FUNCTION public.mark_my_wins_seen(p_upto BIGINT)
+RETURNS BIGINT
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_upto BIGINT;
+BEGIN
+  IF v_email IS NULL OR v_email = '' THEN
+    RAISE EXCEPTION 'Not signed in.';
+  END IF;
+  -- Never past the newest real win, so a client can't skip future ones.
+  p_upto := LEAST(COALESCE(p_upto, 0), COALESCE((SELECT max(id) FROM public.community_wins), 0));
+  INSERT INTO public.community_win_views (email, seen_upto) VALUES (v_email, p_upto)
+  ON CONFLICT (email) DO UPDATE
+    SET seen_upto = GREATEST(community_win_views.seen_upto, EXCLUDED.seen_upto), updated_at = now()
+  RETURNING seen_upto INTO v_upto;
+  RETURN v_upto;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_my_wins_seen_upto() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.mark_my_wins_seen(BIGINT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_wins_seen_upto() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_my_wins_seen(BIGINT) TO authenticated;

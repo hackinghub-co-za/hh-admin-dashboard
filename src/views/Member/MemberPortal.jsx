@@ -73,6 +73,8 @@ import { MERCH_CATALOG, createMyMerchOrder, fetchMyMerchOrders } from '../../lib
 import { fetchTodaysDailyQuestion, submitDailyQuestionAnswer } from '../../lib/dailyQuestionData';
 import DailyQuestionModal from '../../components/DailyQuestionModal';
 import MonthlyRecapModal from '../../components/MonthlyRecapModal';
+import NewWinsModal from '../../components/NewWinsModal';
+import { unseenWins, highestWinId, readLastSeenWinId, writeLastSeenWinId, fetchMyWinsSeenUpto, markMyWinsSeen } from '../../lib/newWinsData';
 import { ONBOARDING_STEPS, STAFF_ONBOARDING_STEPS, WHATSAPP_COMMUNITY_URL, LESEDI_WHATSAPP_URL, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import IntroBuilderModal from '../../components/IntroBuilderModal';
 import { firstNameOf, suggestFocusAreas } from '../../lib/introMessage';
@@ -884,7 +886,11 @@ const MOCK_COMMUNITY_BROADCASTS = [
   { id: 2, emoji: '🏆', title: 'TryHackMe Competition kicks off 31 August:', body: 'Complete as many rooms as you can this quarter — 1st place wins a R6,000 cert voucher, 2nd R3,000, 3rd R1,000. Get logging early once it opens.' },
 ];
 
+// The first two are dated today so Mock Member also gets the New Recent
+// Wins popup (NewWinsModal), which only shows wins from the last 14 days.
 const MOCK_COMMUNITY_WINS = [
+  { id: 4, member: 'Lerato P.', achievement: 'passed AZ-900', achievedDate: new Date().toLocaleDateString('en-CA'), linkedinUrl: '' },
+  { id: 3, member: 'Ayanda K.', achievement: 'landed a SOC Analyst role', achievedDate: new Date().toLocaleDateString('en-CA'), linkedinUrl: '' },
   { id: 1, member: 'Philisiwe N.', achievement: 'earned SC-900: Security, Compliance & Identity Fundamentals', achievedDate: '2026-08-20', linkedinUrl: 'https://www.linkedin.com/posts/philisiwe-ncube-258263360_sc900-microsoftcertified-cybersecurity-activity-7494082635091251201-xzT6' },
   { id: 2, member: 'Kiolin', achievement: 'landed a Software Developer internship', achievedDate: '2026-08-15', linkedinUrl: 'https://www.linkedin.com/in/kiolinharisanker/' },
 ];
@@ -2766,10 +2772,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // visible tile, moving feed" pattern as the Community Broadcast card
   // above), on its own independent 5s timer.
   const [communityWins, setCommunityWins] = useState(isMockSession ? MOCK_COMMUNITY_WINS : []);
+  const [communityWinsSettled, setCommunityWinsSettled] = useState(isMockSession);
   useEffect(() => {
     if (isMockSession) return;
     let cancelled = false;
-    fetchCommunityWins().then((data) => !cancelled && setCommunityWins(data)).catch(() => {});
+    fetchCommunityWins()
+      .then((data) => !cancelled && setCommunityWins(data))
+      .catch(() => {})
+      .finally(() => !cancelled && setCommunityWinsSettled(true));
     return () => { cancelled = true; };
   }, [isMockSession]);
   const [victoryIndex, setVictoryIndex] = useState(0);
@@ -2780,6 +2790,36 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }, 5000);
     return () => clearInterval(interval);
   }, [communityWins.length]);
+
+  // New Recent Wins popup (NewWinsModal, lib/newWinsData.js) - on the
+  // Dashboard, after Cyber Question of the Day is out of the way (never
+  // stacked over it). Every win loaded is marked seen in the database as
+  // soon as the popup opens, so each win shows once per member, on any
+  // device. If the seen mark can't be read, nothing pops up (better to miss
+  // one than to repeat old ones). The monthly recap waits on
+  // newWinsChecked/newWinsToShow below.
+  const newWinsCheckedRef = useRef(false);
+  const [newWinsChecked, setNewWinsChecked] = useState(false);
+  const [newWinsToShow, setNewWinsToShow] = useState([]);
+  useEffect(() => {
+    if (newWinsCheckedRef.current) return;
+    if (activeTab !== 'dashboard') return;
+    if (!communityWinsSettled || !dailyQuestionSettled || dailyQuestionModalOpen) return;
+    newWinsCheckedRef.current = true;
+    const email = user?.email || '';
+    const upto = highestWinId(communityWins);
+    const readSeen = isMockSession ? Promise.resolve(readLastSeenWinId(email)) : fetchMyWinsSeenUpto();
+    readSeen
+      .then((seen) => {
+        const fresh = unseenWins(communityWins, seen);
+        if (!fresh.length) return;
+        setNewWinsToShow(fresh);
+        if (isMockSession) writeLastSeenWinId(email, upto);
+        else markMyWinsSeen(upto).catch(() => {});
+      })
+      .catch(() => {})
+      .finally(() => setNewWinsChecked(true));
+  }, [activeTab, communityWinsSettled, dailyQuestionSettled, dailyQuestionModalOpen, communityWins, user?.email, isMockSession]);
 
   // All upcoming events members can attend, across every category
   const [eventTypeFilter, setEventTypeFilter] = useState('All');
@@ -2927,6 +2967,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     // stacking a second modal over an unanswered one. Deliberately doesn't
     // set the ref here, so this re-checks once dailyQuestionModalOpen flips.
     if (dailyQuestionModalOpen) return;
+    // Same for the New Recent Wins popup: wait until it has been checked
+    // and closed.
+    if (!newWinsChecked || newWinsToShow.length > 0) return;
     monthlyRecapCheckedRef.current = true;
 
     const now = new Date();
@@ -2984,7 +3027,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       // Storage unavailable - the recap just won't remember it's been shown,
       // same tradeoff Sidebar's markReleaseSeen accepts.
     }
-  }, [activeTab, loadingRoadmap, loadingRoomLogs, loadingEvents, loadingEventRsvps, loginStreakSettled, dailyQuestionSettled, roadmapItems, roomLogs, communityEvents, loginStreak, hasRsvpedToEvent, dailyQuestionModalOpen]);
+  }, [activeTab, loadingRoadmap, loadingRoomLogs, loadingEvents, loadingEventRsvps, loginStreakSettled, dailyQuestionSettled, roadmapItems, roomLogs, communityEvents, loginStreak, hasRsvpedToEvent, dailyQuestionModalOpen, newWinsChecked, newWinsToShow.length]);
 
   const handleAddEvent = async (e) => {
     e.preventDefault();
@@ -6804,6 +6847,21 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               submitting={submittingDailyQuestion}
               onAnswer={handleAnswerDailyQuestion}
               onClose={() => setDailyQuestionModalOpen(false)}
+            />
+          )}
+
+          {newWinsToShow.length > 0 && (
+            <NewWinsModal
+              wins={newWinsToShow.map((w) => {
+                const email = (w.memberEmail || '').toLowerCase();
+                return {
+                  ...w,
+                  dateLabel: relativeWinDateLabel(w.achievedDate),
+                  headshotUrl: email ? directory.find((m) => m.email.toLowerCase() === email)?.headshotUrl : null,
+                  isYou: !!email && email === (user?.email || '').toLowerCase(),
+                };
+              })}
+              onClose={() => setNewWinsToShow([])}
             />
           )}
 

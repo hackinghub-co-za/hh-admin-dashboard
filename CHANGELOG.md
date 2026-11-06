@@ -41,6 +41,25 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.06
+
+### Added
+- **New Recent Wins pop up on the member Dashboard.** Wins posted since a
+  member last saw the popup open in a carousel after Cyber Question of the Day
+  (never on top of it), one at a time: arrows, swipe, keyboard arrows, or a
+  5-second auto-advance that stops on the last one. Only wins from the last
+  14 days count, at most 5 at once, and each is shown once per member on any
+  device: the highest win id they've been shown is stored in a new
+  `community_win_views` table, read and raised only through
+  `get_my_wins_seen_upto()` / `mark_my_wins_seen()` (the mark never moves
+  backwards or past the newest win; Mock Member uses localStorage). A
+  member's own win is marked "That's you!". **Celebrate 🎉** showers emojis
+  over the whole screen with a short cheer, made with the Web Audio API so
+  there's no sound file (`EmojiRain.jsx`, `lib/emojiDrops.js`,
+  `lib/cheerSound.js`), and holds the auto-advance while it plays. The
+  month-end recap now waits for the popup (`NewWinsModal.jsx`,
+  `lib/newWinsData.js`, `044_community_content.sql`).
+
 ## 2026.11.04
 
 ### Added

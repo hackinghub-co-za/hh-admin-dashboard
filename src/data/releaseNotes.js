@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.11.06',
+    date: '2026-11-06',
+    headline: 'New wins now pop up on your Dashboard.',
+    intro: "When someone in the community lands a role or passes a cert, you'll see it the next time you open the portal.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🎉',
+            title: 'New Recent Wins open on their own',
+            body: "After the Cyber Question of the Day, any wins posted since your last visit open in a popup. Swipe, use the arrows, or let it move to the next one by itself. Tap Celebrate to make it rain emojis, with a cheer. Each win only shows to you once.",
+            where: 'Dashboard',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.10.30',
     date: '2026-10-30',
     headline: 'Meet Tshepo, our newest mentor.',
