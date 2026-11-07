@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.11.07',
+    date: '2026-11-07',
+    headline: 'Weekly Updates start this Sunday.',
+    intro: "Every week, from Sunday, the portal asks how your week went before it opens. It takes about two minutes.",
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🗓️',
+            title: 'Your weekly update',
+            body: "Four questions: what you did this week, what you'll work on next week, any big achievements, and anything blocking you. Only Siya sees your answers, and blockers get a reply. If you don't sign in on Sunday, it waits for your first visit that week.",
+            where: 'When you sign in',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.11.06',
     date: '2026-11-06',
     headline: 'New wins now pop up on your Dashboard.',
@@ -19,6 +39,12 @@ export const RELEASE_NOTES = [
             icon: '🎉',
             title: 'New Recent Wins open on their own',
             body: "After the Cyber Question of the Day, any wins posted since your last visit open in a popup. Swipe, use the arrows, or let it move to the next one by itself. Tap Celebrate to make it rain emojis, with a cheer. Each win only shows to you once.",
+            where: 'Dashboard',
+          },
+          {
+            icon: '💬',
+            title: 'Comment on Recent Wins',
+            body: "Say congrats right under a win, in the popup or with the comment button on the Recent Wins card. You can delete your own comments.",
             where: 'Dashboard',
           },
         ],

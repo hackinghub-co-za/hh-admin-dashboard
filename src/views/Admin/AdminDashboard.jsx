@@ -10,6 +10,7 @@ import AccountabilityCheckins from '../../components/AccountabilityCheckins';
 import NewMembersOnboarding from '../../components/NewMembersOnboarding';
 import LabReviews from '../../components/LabReviews';
 import TalentPoolAdmin from '../../components/TalentPoolAdmin';
+import WeeklyUpdatesAdmin from '../../components/WeeklyUpdatesAdmin';
 import GemmaAdmin from '../../components/GemmaAdmin';
 import TaskBoard from '../../components/TaskBoard';
 import MyOpenTasks from '../../components/MyOpenTasks';
@@ -4641,6 +4642,10 @@ Pick new people to present next Sunday`;
     case 'talentpool':
       // Personal information: founder only, never community managers or mentors.
       return isFounder ? <TalentPoolAdmin isMockSession={isMockSession} /> : null;
+
+    case 'weeklyupdates':
+      // Blockers can be personal: founder only (get_weekly_updates() checks too).
+      return isFounder ? <WeeklyUpdatesAdmin isMockSession={isMockSession} user={user} /> : null;
 
     case 'tasks':
       return <TaskBoard isMockSession={isMockSession} user={user} isAdmin={isFounder} focus={taskFocus} onFocusConsumed={onTaskFocusConsumed} />;

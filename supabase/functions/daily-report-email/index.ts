@@ -20,6 +20,7 @@ const PORTAL_URL = 'https://portal.hackinghub.co.za';
 
 // deno-lint-ignore no-explicit-any
 type Report = Record<string, any>;
+type Row = Report;
 
 function esc(s: unknown): string {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -83,7 +84,21 @@ function activeBars(series: { d: string; n: number }[], total: number): string {
     <p style="font-size:11px;color:${C.ink3};margin:6px 0 0;">Members who signed in each day, of ${total} active members.</p>`;
 }
 
-function buildEmail(r: Report): { subject: string; html: string; needs: number } {
+// Monday only: the Weekly Updates for the week that ended on the report's
+// day (Sunday), from weekly_updates_digest() (112_weekly_updates.sql).
+function weeklySection(w: Row | null): string {
+  if (!w) return '';
+  const blockers: Row[] = w.blockers || [];
+  const achievements: Row[] = w.achievements || [];
+  const rate = Number(w.eligible) ? Math.round((Number(w.submitted) / Number(w.eligible)) * 100) : 0;
+  const list = (items: Row[], tone: 'amber' | 'blue', label: string) => rows(items.map((i) => ({ main: esc(i.name), sub: esc(i.text), tag: chip(label, tone) })));
+  return section(`Weekly updates · week ending ${dayFmt(w.week_ending, { day: 'numeric', month: 'short' })}`,
+    `<p style="margin:0 0 8px;font-size:14px;">${Number(w.submitted)} of ${Number(w.eligible)} active members answered (${rate}%). Members can still answer until Saturday.</p>`
+    + (blockers.length ? list(blockers, 'amber', 'Blocker') : `<p style="font-size:13px;color:${C.ink3};margin:0 0 6px;">No blockers reported.</p>`)
+    + (achievements.length ? list(achievements, 'blue', 'Achievement') : ''));
+}
+
+function buildEmail(r: Report, weekly: Row | null = null): { subject: string; html: string; needs: number } {
   const day: string = r.day;
   const longDay = dayFmt(day, { weekday: 'long', day: 'numeric', month: 'long' });
   const money = r.money;
@@ -163,6 +178,7 @@ function buildEmail(r: Report): { subject: string; html: string; needs: number }
     ${section('Active members, last 7 days', activeBars(r.active_series || [], Number(r.members_total)))}
     ${section('Wins', wins.length ? rows(wins) : `<p style="font-size:13px;color:${C.ink3};margin:0;">No wins recorded that day.</p>`)}
     ${section('Gone quiet', quiet.length ? rows(quiet) : `<p style="font-size:13px;color:${C.ink3};margin:0;">Nobody has gone quiet.</p>`)}
+    ${weeklySection(weekly)}
 
     ${band('Business and staff')}
     ${section('Money', tiles([
@@ -209,7 +225,16 @@ Deno.serve(async (req) => {
     const { data, error } = await admin.rpc('get_daily_report', { p_day: day });
     if (error) throw new Error(`get_daily_report failed: ${error.message}`);
 
-    const { subject, html, needs } = buildEmail(data as Report);
+    // The report covers one day; when that day is a Sunday, add the Weekly
+    // Updates for the week it ends. A failure here never stops the report.
+    let weekly: Row | null = null;
+    if (new Date(`${data.day}T12:00:00Z`).getUTCDay() === 0) {
+      const { data: w, error: wErr } = await admin.rpc('weekly_updates_digest', { p_week_ending: data.day });
+      if (wErr) console.error('weekly_updates_digest failed:', wErr.message);
+      else weekly = w;
+    }
+
+    const { subject, html, needs } = buildEmail(data as Report, weekly);
     if (body.preview) {
       return new Response(JSON.stringify({ preview: true, subject, needs, html }), { headers: { 'Content-Type': 'application/json' } });
     }

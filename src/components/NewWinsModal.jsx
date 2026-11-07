@@ -3,6 +3,7 @@ import { Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { isSafeUrl } from '../lib/safeUrl';
 import { playCheer } from '../lib/cheerSound';
 import EmojiRain from './EmojiRain';
+import WinComments from './WinComments';
 import { makeEmojiDrops } from '../lib/emojiDrops';
 
 // New Recent Wins popup - opens on the Dashboard the first time a member
@@ -13,15 +14,19 @@ import { makeEmojiDrops } from '../lib/emojiDrops';
 // auto-advance stops on the last one. Unlike the question it can always be
 // closed. Celebrate showers emojis over the whole screen with a cheer
 // (EmojiRain, lib/cheerSound.js), and holds the auto-advance while it plays.
+// Each win has its comment thread underneath (WinComments); auto-advance
+// also holds while someone is writing. The Dashboard's Recent Wins card
+// reuses this for a single win, with its own title.
 //
 // The parent resolves each win's display bits (dateLabel, headshotUrl,
-// isYou) so this stays a dumb view.
+// isYou) and owns the comments, so this stays a dumb view.
 const AUTO_ADVANCE_MS = 5000;
 const SWIPE_PX = 40;
 
-export default function NewWinsModal({ wins, onClose }) {
+export default function NewWinsModal({ wins, onClose, title, commentsByWin = {}, headshotFor, onAddComment, onDeleteComment }) {
   const [index, setIndex] = useState(0);
   const [drops, setDrops] = useState(null);
+  const [typing, setTyping] = useState(false);
   const touchStartX = useRef(null);
   const endRain = useCallback(() => setDrops(null), []);
   const celebrate = () => {
@@ -34,10 +39,10 @@ export default function NewWinsModal({ wins, onClose }) {
   // Restarts on every move, so a manual click gets a full 5s before the
   // next automatic one.
   useEffect(() => {
-    if (isLast || drops) return;
+    if (isLast || drops || typing) return;
     const t = setTimeout(() => setIndex((i) => Math.min(i + 1, count - 1)), AUTO_ADVANCE_MS);
     return () => clearTimeout(t);
-  }, [index, isLast, count, drops]);
+  }, [index, isLast, count, drops, typing]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -114,11 +119,11 @@ export default function NewWinsModal({ wins, onClose }) {
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        style={{ width: '100%', maxWidth: '480px', padding: '32px', border: '1px solid var(--accent-purple)' }}
+        style={{ width: '100%', maxWidth: '480px', maxHeight: '92vh', overflowY: 'auto', padding: '32px', border: '1px solid var(--accent-purple)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
           <Award size={22} color="var(--accent-purple)" />
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{count === 1 ? 'New Recent Win' : `${count} New Recent Wins`}</h2>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{title || (count === 1 ? 'New Recent Win' : `${count} New Recent Wins`)}</h2>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -177,7 +182,18 @@ export default function NewWinsModal({ wins, onClose }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+        {onAddComment && (
+          <WinComments
+            key={win.id}
+            comments={commentsByWin[win.id] || []}
+            headshotFor={headshotFor}
+            onAdd={(body) => onAddComment(win.id, body)}
+            onDelete={(id) => onDeleteComment(win.id, id)}
+            onTypingChange={setTyping}
+          />
+        )}
+
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           <button
             type="button"
             onClick={celebrate}

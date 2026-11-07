@@ -8,10 +8,12 @@ import MemberPortal from './views/Member/MemberPortal';
 import OnboardingSequence from './components/OnboardingSequence';
 import OffboardingSequence from './components/OffboardingSequence';
 import ProfileGate from './components/ProfileGate';
+import WeeklyUpdateGate from './components/WeeklyUpdateGate';
 import GemmaWidget from './components/GemmaWidget';
 import { checkOnboardingStatus, markOnboardingComplete, getMyGettingStartedGraceStartedAt, fetchMyOnboardingSteps, ONBOARDING_STEPS } from './lib/onboardingData';
 import { checkOffboardingPending, submitExitFeedback } from './lib/offboardingData';
 import { fetchProfileGateMissing } from './lib/profileGateData';
+import { fetchMyWeeklyUpdateStatus } from './lib/weeklyUpdateData';
 import { amIRoadmapExcluded } from './lib/roadmapExclusionsData';
 import { logMobileBlock } from './lib/portalEventsData';
 import { getMyRole } from './lib/teamData';
@@ -83,6 +85,9 @@ export default function App() {
   // applies to staff, mock sessions or a member who is leaving. Fails open on
   // a check error, like every other gate here.
   const [needsProfileGate, setNeedsProfileGate] = useState(false);
+  // Weekly Updates (112_weekly_updates.sql): the week's Sunday when this
+  // member still owes an update, null otherwise.
+  const [weeklyUpdateWeek, setWeeklyUpdateWeek] = useState(null);
   // Hard-blocks the member layout down to just Dashboard/Meetings/Members
   // (Sidebar + MemberPortal both read this) once a member is
   // GETTING_STARTED_GRACE_DAYS past their grace start and still hasn't
@@ -207,6 +212,7 @@ export default function App() {
         setNeedsOnboarding(false);
         setNeedsOffboarding(false);
         setNeedsProfileGate(false);
+        setWeeklyUpdateWeek(null);
         setGettingStartedGateActive(false);
         setRoadmapExcluded(false);
       } else {
@@ -236,6 +242,17 @@ export default function App() {
           }
         }
         setNeedsProfileGate(profileGate);
+
+        let weeklyWeek = null;
+        if (!offboarding) {
+          try {
+            const status = await fetchMyWeeklyUpdateStatus();
+            if (status.due) weeklyWeek = status.weekEnding;
+          } catch (err) {
+            console.error('Weekly update check failed - not blocking over a transient error:', err.message);
+          }
+        }
+        setWeeklyUpdateWeek(weeklyWeek);
 
         let stillOnboarding = true;
         if (offboarding) {
@@ -366,6 +383,7 @@ export default function App() {
     // "Mock Member (Leaving)" still shows the farewell screen as before.
     setNeedsOffboarding(!!mockUser.mockLeaving);
     setNeedsProfileGate(false);
+    setWeeklyUpdateWeek(null);
     setNeedsOnboarding(false);
     setGettingStartedGateActive(false);
   };
@@ -506,6 +524,10 @@ export default function App() {
 
   if (!isStaff && needsProfileGate) {
     return <ProfileGate user={user} onDone={() => setNeedsProfileGate(false)} onLogout={handleLogout} />;
+  }
+
+  if (!isStaff && weeklyUpdateWeek) {
+    return <WeeklyUpdateGate user={user} weekEnding={weeklyUpdateWeek} onDone={() => setWeeklyUpdateWeek(null)} onLogout={handleLogout} />;
   }
 
   return (

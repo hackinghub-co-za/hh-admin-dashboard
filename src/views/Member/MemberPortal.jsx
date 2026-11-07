@@ -75,6 +75,7 @@ import DailyQuestionModal from '../../components/DailyQuestionModal';
 import MonthlyRecapModal from '../../components/MonthlyRecapModal';
 import NewWinsModal from '../../components/NewWinsModal';
 import { unseenWins, highestWinId, readLastSeenWinId, writeLastSeenWinId, fetchMyWinsSeenUpto, markMyWinsSeen } from '../../lib/newWinsData';
+import { fetchWinComments, addWinComment, deleteWinComment } from '../../lib/winCommentsData';
 import { ONBOARDING_STEPS, STAFF_ONBOARDING_STEPS, WHATSAPP_COMMUNITY_URL, LESEDI_WHATSAPP_URL, fetchMyOnboardingSteps, markMyOnboardingStepComplete, haveIHadA1on1 } from '../../lib/onboardingData';
 import IntroBuilderModal from '../../components/IntroBuilderModal';
 import { firstNameOf, suggestFocusAreas } from '../../lib/introMessage';
@@ -2801,6 +2802,54 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const newWinsCheckedRef = useRef(false);
   const [newWinsChecked, setNewWinsChecked] = useState(false);
   const [newWinsToShow, setNewWinsToShow] = useState([]);
+
+  // Comments on Recent Wins (WinComments in NewWinsModal) - loaded once for
+  // every active win when the wins arrive, shared by the popup and the
+  // Dashboard card's comment button (openWinId). Mock Member comments only
+  // live in this state.
+  const [winComments, setWinComments] = useState({});
+  const [openWinId, setOpenWinId] = useState(null);
+  useEffect(() => {
+    if (isMockSession || !communityWinsSettled || !communityWins.length) return;
+    let cancelled = false;
+    fetchWinComments(communityWins.map((w) => w.id))
+      .then((byWin) => !cancelled && setWinComments(byWin))
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMockSession, communityWinsSettled, communityWins]);
+  const handleAddWinComment = async (winId, body) => {
+    let comment;
+    if (isMockSession) {
+      comment = { id: `mock-${Date.now()}`, winId, authorEmail: user?.email || '', authorName: firstName || 'You', body, createdAt: new Date().toISOString(), isMine: true };
+    } else {
+      try {
+        comment = await addWinComment(winId, body);
+      } catch (err) {
+        throw new Error(friendlyMemberErrorMessage(err), { cause: err });
+      }
+    }
+    setWinComments((prev) => ({ ...prev, [winId]: [...(prev[winId] || []), comment] }));
+  };
+  const handleDeleteWinComment = async (winId, id) => {
+    if (!isMockSession) {
+      try {
+        await deleteWinComment(id);
+      } catch {
+        return;
+      }
+    }
+    setWinComments((prev) => ({ ...prev, [winId]: (prev[winId] || []).filter((c) => c.id !== id) }));
+  };
+  const headshotForEmail = (email) => {
+    const e = (email || '').toLowerCase();
+    return e ? directory.find((m) => m.email.toLowerCase() === e)?.headshotUrl : null;
+  };
+  const toModalWin = (w) => ({
+    ...w,
+    dateLabel: relativeWinDateLabel(w.achievedDate),
+    headshotUrl: headshotForEmail(w.memberEmail),
+    isYou: !!w.memberEmail && w.memberEmail.toLowerCase() === (user?.email || '').toLowerCase(),
+  });
   useEffect(() => {
     if (newWinsCheckedRef.current) return;
     if (activeTab !== 'dashboard') return;
@@ -6584,7 +6633,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       )}
                     </div>
                     <span style={{ color: 'var(--text-secondary)' }}>{communityWins[victoryIndex]?.achievement}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{communityWins[victoryIndex] && relativeWinDateLabel(communityWins[victoryIndex].achievedDate)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{communityWins[victoryIndex] && relativeWinDateLabel(communityWins[victoryIndex].achievedDate)}</span>
+                      {communityWins[victoryIndex] && (
+                        <button
+                          type="button"
+                          onClick={() => setOpenWinId(communityWins[victoryIndex].id)}
+                          title="Comment on this win"
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', fontFamily: 'inherit' }}
+                        >
+                          <MessageCircle size={13} /> {(winComments[communityWins[victoryIndex].id] || []).length || 'Comment'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {communityWins.length > 1 && (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
@@ -6852,16 +6913,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
 
           {newWinsToShow.length > 0 && (
             <NewWinsModal
-              wins={newWinsToShow.map((w) => {
-                const email = (w.memberEmail || '').toLowerCase();
-                return {
-                  ...w,
-                  dateLabel: relativeWinDateLabel(w.achievedDate),
-                  headshotUrl: email ? directory.find((m) => m.email.toLowerCase() === email)?.headshotUrl : null,
-                  isYou: !!email && email === (user?.email || '').toLowerCase(),
-                };
-              })}
+              wins={newWinsToShow.map(toModalWin)}
               onClose={() => setNewWinsToShow([])}
+              commentsByWin={winComments}
+              headshotFor={headshotForEmail}
+              onAddComment={handleAddWinComment}
+              onDeleteComment={handleDeleteWinComment}
+            />
+          )}
+
+          {openWinId != null && newWinsToShow.length === 0 && communityWins.some((w) => w.id === openWinId) && (
+            <NewWinsModal
+              title="Recent Win"
+              wins={communityWins.filter((w) => w.id === openWinId).map(toModalWin)}
+              onClose={() => setOpenWinId(null)}
+              commentsByWin={winComments}
+              headshotFor={headshotForEmail}
+              onAddComment={handleAddWinComment}
+              onDeleteComment={handleDeleteWinComment}
             />
           )}
 

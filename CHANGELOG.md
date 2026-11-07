@@ -41,9 +41,51 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.07
+
+### Added
+- **Weekly Updates.** From Sunday 8 November, the first time an active member
+  signs in each week (Sunday to Saturday), a full-screen check-in opens before
+  the portal, after the profile gate: what they did this week, what they'll
+  work on next week, any major achievements, any major blockers. The first two
+  are required (10 to 600 characters); the other two have "Nothing this week"
+  / "No blockers". One answer per member per week; a missed week isn't carried
+  over. Asked: status Active or Active (Permanent), onboarded before that
+  week's Sunday, not on a Take a break, never staff or inactivity-exempt
+  mentors (73 members for the first week). Fails open if the check errors.
+  The thank-you screen shows a weeks-in-a-row streak
+  (`WeeklyUpdateGate.jsx`, `112_weekly_updates.sql`).
+- **Weekly Updates page (founder only).** Pick a week to see who answered, the
+  response rate against the week before, blockers first, achievements, and who
+  is still to answer. An achievement can be posted as a Recent Win in one
+  click, with the text editable first (`WeeklyUpdatesAdmin.jsx`,
+  `get_weekly_updates()`).
+- **Monday's daily report gets a "Weekly updates" section**: answered out of
+  eligible, every blocker and every achievement for the week that ended the
+  day before (`weekly_updates_digest()`, `daily-report-email`).
+
 ## 2026.11.06
 
 ### Added
+- **Comments on Recent Wins.** Members can congratulate a win from the New
+  Recent Wins popup, or from the comment button on the Dashboard's Recent
+  Wins card (which opens that win on its own, so older wins can be commented
+  on too). Up to 500 characters; authors can delete their own, and the admin
+  can delete any. A new `community_win_comments` table is reached only
+  through `get_win_comments()`, `add_win_comment()` and
+  `delete_win_comment()`, which require an allowed member or staff and take
+  the author's email and name from their sign-in and profile, never from the
+  browser. The popup's auto-advance holds while someone is typing
+  (`WinComments.jsx`, `lib/winCommentsData.js`, `044_community_content.sql`).
+- **"How the community celebrated your achievement" email, to the founder.**
+  Every day at 18:00 SAST, one email per Recent Win with new comments since
+  its last email, listing every comment so far under "What the community
+  said". It is written to the member so it can be forwarded, with a note at
+  the top for the founder (who to forward it to; delete before forwarding).
+  Never sent to the member directly. A win is marked emailed
+  (`community_wins.comments_emailed_upto`) only after its email has gone out
+  (`win-comments-email`, `win_comments_email_due()`,
+  `mark_win_comments_emailed()`).
 - **New Recent Wins pop up on the member Dashboard.** Wins posted since a
   member last saw the popup open in a carousel after Cyber Question of the Day
   (never on top of it), one at a time: arrows, swipe, keyboard arrows, or a

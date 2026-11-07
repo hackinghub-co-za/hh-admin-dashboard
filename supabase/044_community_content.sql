@@ -189,3 +189,171 @@ REVOKE EXECUTE ON FUNCTION public.get_my_wins_seen_upto() FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.mark_my_wins_seen(BIGINT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_wins_seen_upto() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_my_wins_seen(BIGINT) TO authenticated;
+
+-- COMMENTS ON RECENT WINS (2026-11-06) - members can congratulate a win
+-- from the New Recent Wins popup or the Dashboard card. Like
+-- community_win_views, nobody touches the table directly (RLS on, no
+-- policies): three RPCs read, add and delete, all gated on the caller being
+-- an allowed member or staff. The author is always the signed-in person
+-- (email from the JWT, display name looked up from their profile), never
+-- what the browser sends. Only the author or the admin can delete a
+-- comment. Comments on an inactive or deleted win go with it.
+CREATE TABLE IF NOT EXISTS public.community_win_comments (
+  id BIGSERIAL PRIMARY KEY,
+  win_id BIGINT NOT NULL REFERENCES public.community_wins(id) ON DELETE CASCADE,
+  author_email TEXT NOT NULL,
+  author_name TEXT NOT NULL,
+  body TEXT NOT NULL CHECK (char_length(btrim(body)) BETWEEN 1 AND 500),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS community_win_comments_win_idx ON public.community_win_comments (win_id, created_at);
+ALTER TABLE public.community_win_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public._can_use_win_comments()
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+  SELECT public.is_member_allowed(auth.jwt() ->> 'email')
+    OR COALESCE(public.get_my_role() IN ('admin', 'community_manager', 'mentor'), false);
+$$;
+REVOKE EXECUTE ON FUNCTION public._can_use_win_comments() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public._can_use_win_comments() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_win_comments(p_win_ids BIGINT[])
+RETURNS TABLE (id BIGINT, win_id BIGINT, author_email TEXT, author_name TEXT, body TEXT, created_at TIMESTAMPTZ, is_mine BOOLEAN)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+BEGIN
+  IF NOT public._can_use_win_comments() THEN
+    RAISE EXCEPTION 'Not allowed.';
+  END IF;
+  RETURN QUERY
+    SELECT c.id, c.win_id, c.author_email, c.author_name, c.body, c.created_at,
+           c.author_email = lower(auth.jwt() ->> 'email')
+    FROM public.community_win_comments c
+    JOIN public.community_wins w ON w.id = c.win_id AND w.active
+    WHERE c.win_id = ANY (p_win_ids)
+    ORDER BY c.created_at;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.add_win_comment(p_win_id BIGINT, p_body TEXT)
+RETURNS TABLE (id BIGINT, win_id BIGINT, author_email TEXT, author_name TEXT, body TEXT, created_at TIMESTAMPTZ, is_mine BOOLEAN)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(auth.jwt() ->> 'email');
+  v_name TEXT;
+  v_body TEXT := btrim(COALESCE(p_body, ''));
+BEGIN
+  IF NOT public._can_use_win_comments() THEN
+    RAISE EXCEPTION 'Not allowed.';
+  END IF;
+  IF char_length(v_body) = 0 THEN
+    RAISE EXCEPTION 'Write a comment first.';
+  END IF;
+  IF char_length(v_body) > 500 THEN
+    RAISE EXCEPTION 'Comments can be up to 500 characters.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.community_wins w WHERE w.id = p_win_id AND w.active) THEN
+    RAISE EXCEPTION 'That win is no longer up.';
+  END IF;
+  SELECT NULLIF(btrim(mp.full_name), '') INTO v_name FROM public.member_profiles mp WHERE mp.email = v_email;
+  v_name := COALESCE(v_name, split_part(v_email, '@', 1));
+  RETURN QUERY
+    INSERT INTO public.community_win_comments AS c (win_id, author_email, author_name, body)
+    VALUES (p_win_id, v_email, v_name, v_body)
+    RETURNING c.id, c.win_id, c.author_email, c.author_name, c.body, c.created_at, true;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.delete_win_comment(p_id BIGINT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  DELETE FROM public.community_win_comments c
+  WHERE c.id = p_id
+    AND (c.author_email = lower(auth.jwt() ->> 'email') OR public.is_admin(auth.uid()));
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'You can only delete your own comments.';
+  END IF;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_win_comments(BIGINT[]) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.add_win_comment(BIGINT, TEXT) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.delete_win_comment(BIGINT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_win_comments(BIGINT[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.add_win_comment(BIGINT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_win_comment(BIGINT) TO authenticated;
+
+-- "HOW THE COMMUNITY CELEBRATED YOUR WIN" EMAIL (2026-11-06) - once a day
+-- the win-comments-email function emails the founder one email per win that
+-- has new comments since its last email, listing every comment so far and
+-- written to the member, so the founder can forward it. Never sent to the
+-- member directly. comments_emailed_upto is the highest comment id already
+-- included for that win; it is raised only after the email has gone out.
+-- Both functions are for the service role only.
+ALTER TABLE public.community_wins ADD COLUMN IF NOT EXISTS comments_emailed_upto BIGINT NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION public.win_comments_email_due()
+RETURNS JSONB
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'win_id', w.id,
+    'member_name', w.member_name,
+    'member_email', w.member_email,
+    'achievement', w.achievement,
+    'achieved_date', w.achieved_date,
+    'emailed_upto', w.comments_emailed_upto,
+    'comments', (
+      SELECT jsonb_agg(jsonb_build_object('id', c.id, 'author_name', c.author_name, 'body', c.body, 'created_at', c.created_at) ORDER BY c.created_at)
+      FROM public.community_win_comments c WHERE c.win_id = w.id
+    )
+  ) ORDER BY w.id), '[]'::jsonb)
+  FROM public.community_wins w
+  WHERE w.active
+    AND EXISTS (SELECT 1 FROM public.community_win_comments c WHERE c.win_id = w.id AND c.id > w.comments_emailed_upto);
+$$;
+
+CREATE OR REPLACE FUNCTION public.mark_win_comments_emailed(p_win_id BIGINT, p_upto BIGINT)
+RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  UPDATE public.community_wins
+  SET comments_emailed_upto = GREATEST(comments_emailed_upto, p_upto)
+  WHERE id = p_win_id;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.win_comments_email_due() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.mark_win_comments_emailed(BIGINT, BIGINT) FROM PUBLIC, anon, authenticated;
+
+-- Every day at 16:00 UTC = 18:00 SAST. Same template trick as
+-- 111_inactive_member_removal.sql: built from the already-scheduled
+-- overdue-1on1-digest-daily job with only the function name swapped, so the
+-- cron secret is reused and never pasted here. Run only after
+-- win-comments-email has been deployed.
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+DO $$
+DECLARE
+  v_template TEXT;
+BEGIN
+  SELECT command INTO v_template FROM cron.job WHERE jobname = 'overdue-1on1-digest-daily';
+  IF v_template IS NULL OR position('/functions/v1/overdue-1on1-digest' in v_template) = 0 THEN
+    RAISE EXCEPTION 'overdue-1on1-digest-daily cron job not found (or its URL changed) - schedule 072 first, or write this job by hand.';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'win-comments-email-daily') THEN
+    PERFORM cron.unschedule('win-comments-email-daily');
+  END IF;
+
+  PERFORM cron.schedule(
+    'win-comments-email-daily',
+    '0 16 * * *', -- 16:00 UTC every day = 18:00 SAST
+    replace(v_template, '/functions/v1/overdue-1on1-digest', '/functions/v1/win-comments-email')
+  );
+END $$;
