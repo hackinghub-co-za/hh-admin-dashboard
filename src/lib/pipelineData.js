@@ -182,3 +182,14 @@ export async function deleteProspectNote(id) {
   const { error } = await supabase.from('pipeline_notes').delete().eq('id', id);
   if (error) throw error;
 }
+
+/** Every recorded column move (pipeline_phase_changes), oldest first. Only
+ * covers cards from 8 November 2026, when recording started. */
+export async function fetchPhaseChanges() {
+  const { data, error } = await supabase
+    .from('pipeline_phase_changes')
+    .select('prospect_id, from_phase, to_phase, changed_at')
+    .order('changed_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((r) => ({ prospectId: r.prospect_id, fromPhase: r.from_phase, toPhase: r.to_phase, changedAt: r.changed_at }));
+}

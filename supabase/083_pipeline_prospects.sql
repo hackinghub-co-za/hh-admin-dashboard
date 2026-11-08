@@ -250,3 +250,43 @@ UPDATE public.pipeline_prospects
 SET linkedin_url = public._extract_linkedin_url(notes)
 WHERE NULLIF(btrim(linkedin_url), '') IS NULL
   AND public._extract_linkedin_url(notes) IS NOT NULL;
+
+-- 2026-11-08: COLUMN-MOVE HISTORY, for the Sales Pipeline stats (time to
+-- first contact, lead to join). Every new card and every change of phase is
+-- recorded by the trigger below, whoever or whatever made it (a drag, the
+-- edit form, the lead intake). A same-column reorder isn't a change. Nothing
+-- was recorded before this, so timings only cover cards from 8 November 2026
+-- onwards; counts and conversion use the cards themselves. Admin only.
+CREATE TABLE IF NOT EXISTS public.pipeline_phase_changes (
+  id BIGSERIAL PRIMARY KEY,
+  prospect_id BIGINT NOT NULL REFERENCES public.pipeline_prospects(id) ON DELETE CASCADE,
+  from_phase TEXT,
+  to_phase TEXT NOT NULL,
+  changed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS pipeline_phase_changes_prospect_idx ON public.pipeline_phase_changes (prospect_id, changed_at);
+ALTER TABLE public.pipeline_phase_changes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "admins read pipeline phase changes" ON public.pipeline_phase_changes;
+CREATE POLICY "admins read pipeline phase changes"
+  ON public.pipeline_phase_changes FOR SELECT
+  USING (public.is_admin(auth.uid()));
+
+CREATE OR REPLACE FUNCTION public._pipeline_record_phase_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO public.pipeline_phase_changes (prospect_id, from_phase, to_phase, changed_at)
+    VALUES (NEW.id, NULL, NEW.phase, NEW.created_at);
+  ELSIF NEW.phase IS DISTINCT FROM OLD.phase THEN
+    INSERT INTO public.pipeline_phase_changes (prospect_id, from_phase, to_phase)
+    VALUES (NEW.id, OLD.phase, NEW.phase);
+  END IF;
+  RETURN NULL;
+END;
+$$;
+DROP TRIGGER IF EXISTS pipeline_record_phase_change ON public.pipeline_prospects;
+CREATE TRIGGER pipeline_record_phase_change
+  AFTER INSERT OR UPDATE OF phase ON public.pipeline_prospects
+  FOR EACH ROW EXECUTE FUNCTION public._pipeline_record_phase_change();

@@ -4,7 +4,8 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, X, Pencil, Trash2, Mail, Phone, Tag, Clock, ChevronLeft, ChevronRight, MessageSquare, RotateCcw, Archive, BellRing, Link2 } from 'lucide-react';
 import { isSafeUrl } from '../lib/safeUrl';
-import { fetchProspects, addProspect, updateProspect, updateProspectPhase, deleteProspect, restoreProspect, fetchAllProspectNotes, addProspectNote, deleteProspectNote, daysUntilRemoved, STALE_AFTER_DAYS, FOLLOW_UP_PHASES, followUpStatus, sastToday } from '../lib/pipelineData';
+import PipelineStats from './PipelineStats';
+import { fetchProspects, addProspect, updateProspect, updateProspectPhase, deleteProspect, restoreProspect, fetchAllProspectNotes, addProspectNote, deleteProspectNote, daysUntilRemoved, STALE_AFTER_DAYS, FOLLOW_UP_PHASES, followUpStatus, sastToday, fetchPhaseChanges } from '../lib/pipelineData';
 import { friendlyErrorMessage } from '../lib/errorMessages';
 
 const PHASES = ['Lead', 'Contacted', 'Ready to Join', 'Joined', 'Not Interested', 'Not Qualified'];
@@ -22,11 +23,11 @@ const PHASE_COLORS = {
 // fallback every other admin feature uses (MOCK_FOCUS_FIVE, etc.). Drag,
 // add, edit, and delete all work against this local state only.
 const MOCK_PROSPECTS = [
-  { id: 'mock-1', fullName: 'Naledi Mokoena', email: 'naledi@example.com', phone: '', phase: 'Lead', source: 'Instagram DM', notes: '', sortOrder: 0, updatedAt: new Date().toISOString(), leadChannel: 'Instagram' },
-  { id: 'mock-2', fullName: 'Karabo Sithole', email: '', phone: '071 234 5678', phase: 'Contacted', source: 'Referral - Sizwe Zwane', notes: 'Following up next week.', sortOrder: 0, updatedAt: new Date().toISOString(), leadChannel: 'Referral', followUpOn: sastToday(new Date(Date.now() - 2 * 86400000)) },
-  { id: 'mock-3', fullName: 'Refilwe Dlamini', email: 'refilwe@example.com', phone: '', phase: 'Ready to Join', source: 'BSides JHB', notes: '', sortOrder: 1, updatedAt: new Date().toISOString(), leadChannel: 'Event', followUpOn: sastToday(), linkedinUrl: 'https://www.linkedin.com/in/example' },
-  { id: 'mock-4', fullName: 'Blessing Mahlangu', email: '', phone: '', phase: 'Ready to Join', source: 'Referral - Lesoko', notes: 'Just needs to confirm a payment method.', sortOrder: 0, updatedAt: new Date(Date.now() - 17 * 86400000).toISOString() },
-  { id: 'mock-5', fullName: 'Thato Molefe', email: 'thato@example.com', phone: '', phase: 'Contacted', source: 'TikTok', notes: '', sortOrder: 1, updatedAt: new Date(Date.now() - 30 * 86400000).toISOString(), archivedAt: new Date(Date.now() - 9 * 86400000).toISOString() },
+  { id: 'mock-1', fullName: 'Naledi Mokoena', email: 'naledi@example.com', phone: '', phase: 'Lead', source: 'Instagram DM', notes: '', sortOrder: 0, createdAt: new Date(Date.now() - 3 * 86400000).toISOString(), updatedAt: new Date().toISOString(), leadChannel: 'Instagram' },
+  { id: 'mock-2', fullName: 'Karabo Sithole', email: '', phone: '071 234 5678', phase: 'Contacted', source: 'Referral - Sizwe Zwane', notes: 'Following up next week.', sortOrder: 0, createdAt: new Date(Date.now() - 8 * 86400000).toISOString(), updatedAt: new Date().toISOString(), leadChannel: 'Referral', followUpOn: sastToday(new Date(Date.now() - 2 * 86400000)) },
+  { id: 'mock-3', fullName: 'Refilwe Dlamini', email: 'refilwe@example.com', phone: '', phase: 'Ready to Join', source: 'BSides JHB', notes: '', sortOrder: 1, createdAt: new Date(Date.now() - 12 * 86400000).toISOString(), updatedAt: new Date().toISOString(), leadChannel: 'Event', followUpOn: sastToday(), linkedinUrl: 'https://www.linkedin.com/in/example' },
+  { id: 'mock-4', fullName: 'Blessing Mahlangu', email: '', phone: '', phase: 'Ready to Join', source: 'Referral - Lesoko', notes: 'Just needs to confirm a payment method.', sortOrder: 0, createdAt: new Date(Date.now() - 20 * 86400000).toISOString(), updatedAt: new Date(Date.now() - 17 * 86400000).toISOString() },
+  { id: 'mock-5', fullName: 'Thato Molefe', email: 'thato@example.com', phone: '', phase: 'Contacted', source: 'TikTok', notes: '', sortOrder: 1, createdAt: new Date(Date.now() - 34 * 86400000).toISOString(), leadChannel: 'TikTok', updatedAt: new Date(Date.now() - 30 * 86400000).toISOString(), archivedAt: new Date(Date.now() - 9 * 86400000).toISOString() },
 ];
 const MOCK_NOTES = {
   'mock-2': [
@@ -230,6 +231,7 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
   const [noteDraft, setNoteDraft] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [showRemoved, setShowRemoved] = useState(false);
+  const [phaseChanges, setPhaseChanges] = useState([]);
   const [channelFilter, setChannelFilter] = useState('All');
   const [dueOnly, setDueOnly] = useState(false);
   // Cards that have been off the board's 21-day clock are kept but hidden.
@@ -246,6 +248,9 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
       .finally(() => !cancelled && setLoading(false));
     fetchAllProspectNotes()
       .then((byId) => !cancelled && setNotesById(byId))
+      .catch(() => {});
+    fetchPhaseChanges()
+      .then((rows) => !cancelled && setPhaseChanges(rows))
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isMockSession]);
@@ -265,7 +270,7 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
     const columnCount = onBoard.filter((p) => p.phase === form.phase).length;
     try {
       if (isMockSession) {
-        setProspects((prev) => [...prev, { id: `mock-${Date.now()}`, ...form, sortOrder: columnCount, updatedAt: new Date().toISOString() }]);
+        setProspects((prev) => [...prev, { id: `mock-${Date.now()}`, ...form, sortOrder: columnCount, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
       } else {
         const created = await addProspect(form, user?.email);
         setProspects((prev) => [...prev, created]);
@@ -449,6 +454,8 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
           </button>
         </div>
       </div>
+
+      {!loading && <PipelineStats prospects={prospects} changes={phaseChanges} />}
 
       {showRemoved && (
         <div className="glass-card" style={{ marginBottom: '20px', padding: '18px' }}>

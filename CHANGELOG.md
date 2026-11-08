@@ -44,6 +44,16 @@ saved in their browser's `localStorage`.
 ## 2026.11.08
 
 ### Added
+- **Sales Pipeline: Sales stats panel.** At the top of the board, for the last
+  30 days, 90 days or all time: new leads, joined (and the share of new leads
+  that joined), median time from lead to first contact, median time from lead
+  to joined, the top channel, and how many are still open with reach-outs
+  due. Two rankings show where leads heard about us (the channel tag) and how
+  they came in (the source), with leads, joins and share for each. Counts
+  include cards taken off the board. Timings come from a new column-move
+  history (`pipeline_phase_changes`, recorded by a trigger on every new card
+  and phase change), so they cover cards from 8 November 2026 onwards
+  (`PipelineStats.jsx`, `lib/pipelineStats.js`).
 - **Sales Pipeline: stale cards come off the board after 21 days.** A card
   not updated for 21 days is removed every night at 05:15 SAST
   (`archive_stale_pipeline_prospects()`), kept rather than deleted, and listed
@@ -79,7 +89,9 @@ saved in their browser's `localStorage`.
   Elite Operative application becomes a new Sales Pipeline card, the applicant
   is emailed from siya@hackinghub.co.za: thanks, a review within 2 working
   days, a "Book your call with Siya" button (cal.com/siya-gladile-yabcoe/15min),
-  five questions to think about and tips for the call, four free resources,
+  five questions to think about and tips for the call, two free resources
+  (Cisco Networking Academy's Cybersecurity career path and Immersive Labs
+  Cyber Million),
   and YouTube and TikTok buttons. Applicants who go straight to Not Qualified
   get a short version: thanks, the resources and the socials, with no call.
   Once per card (`application_email_sent_at`); applying again doesn't resend.

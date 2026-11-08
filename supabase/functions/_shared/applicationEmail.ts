@@ -20,10 +20,8 @@ const YOUTUBE_URL = 'https://www.youtube.com/@Siya-cybersecurity';
 const TIKTOK_URL = 'https://www.tiktok.com/@siya.gladile';
 
 const RESOURCES = [
-  { title: 'TryHackMe Pre-Security', blurb: 'Networking, the web and Linux basics, hands-on in your browser', url: 'https://tryhackme.com/path/outline/presecurity' },
-  { title: 'TryHackMe Cyber Security 101', blurb: 'The next step: security fundamentals and your first tools', url: 'https://tryhackme.com/path/outline/cybersecurity101' },
+  { title: 'Cisco Networking Academy: Cybersecurity career path', blurb: 'Free courses from Cisco that take you from the basics towards a first cyber role', url: 'https://www.netacad.com/career-paths/cybersecurity?courseLang=en-US' },
   { title: 'Immersive Labs Cyber Million', blurb: 'Free hands-on labs for people starting a cyber career', url: 'https://www.immersivelabs.com/resources/cybermillion' },
-  { title: 'Microsoft Learn: AZ-900', blurb: 'Free study path for the Azure Fundamentals certification', url: 'https://learn.microsoft.com/en-us/credentials/certifications/azure-fundamentals/' },
 ];
 
 const QUESTIONS = [
