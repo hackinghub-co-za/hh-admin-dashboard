@@ -41,6 +41,51 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.08
+
+### Added
+- **Sales Pipeline: stale cards come off the board after 21 days.** A card
+  not updated for 21 days is removed every night at 05:15 SAST
+  (`archive_stale_pipeline_prospects()`), kept rather than deleted, and listed
+  under a new **Removed (N)** button where it can be opened or put back. Any
+  real activity brings a removed card back on its own: an edit, a phase
+  change, a progress note, or the person booking or applying again through
+  the lead intake (`pipeline_unarchive_on_activity` trigger). A same-column
+  reorder doesn't count. Cards within 7 days of removal say so.
+- **Sales Pipeline: progress notes with timestamps.** Open a card to add a
+  note; each is saved with the date, time and who wrote it, newest first, and
+  can be deleted. Adding a note counts as an update. Cards show how many
+  notes they have. The old free-text notes field stays as it was
+  (`pipeline_notes`, `083_pipeline_prospects.sql`).
+- **Sales Pipeline: "Where did they hear about us?" tag.** Pick one of TikTok,
+  YouTube, LinkedIn, Instagram, Facebook, X (Twitter), WhatsApp, Referral,
+  Event, Google search, Website or Other when adding or editing a card. It
+  shows as a label on the card, and a filter row above the board shows how
+  many cards came from each channel. Stored in `lead_channel`, separate from
+  the Source details box (which still says how they came in, e.g. the Elite
+  application form). The 3 cards whose source said TikTok were tagged TikTok.
+- **Sales Pipeline: reach-out date.** Contacted and Ready to Join cards can
+  have a "Reach out on" date (`follow_up_on`). The card shows it, amber on the
+  day and red once overdue; a **Reach out due (N)** button filters the board
+  to those cards; and your 06:00 daily report lists everyone due under "Needs
+  you" (`pipeline_followups_due()`, `daily-report-email`). A card with a
+  reach-out date isn't taken off the board until 21 days after that date.
+- **Sales Pipeline: LinkedIn link.** Type or paste a LinkedIn profile link on
+  any card; it shows as a "LinkedIn profile" link. Elite applications fill it
+  in automatically from the form's "Linkedin Profile URL" answer (only real
+  linkedin.com links); 9 existing cards were filled in this way
+  (`linkedin_url`, `pipeline_fill_linkedin` trigger).
+- **"Application received" email to Elite applicants.** Straight after an
+  Elite Operative application becomes a new Sales Pipeline card, the applicant
+  is emailed from siya@hackinghub.co.za: thanks, a review within 2 working
+  days, a "Book your call with Siya" button (cal.com/siya-gladile-yabcoe/15min),
+  five questions to think about and tips for the call, four free resources,
+  and YouTube and TikTok buttons. Applicants who go straight to Not Qualified
+  get a short version: thanks, the resources and the socials, with no call.
+  Once per card (`application_email_sent_at`); applying again doesn't resend.
+  A failed send never blocks the lead (`_shared/applicationEmail.ts`,
+  `pipeline-lead-intake`).
+
 ## 2026.11.07
 
 ### Added

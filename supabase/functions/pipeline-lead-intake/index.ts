@@ -13,8 +13,15 @@
 // cal-booking-webhook instead. Anything that is not a POST with
 // the shared secret in the x-intake-secret header is refused, so the public
 // function URL cannot be used to fill the pipeline with junk.
+//
+// A brand-new card with an email address also gets the "Application
+// received" email (_shared/applicationEmail.ts): the full version with the
+// booking link, or a short one when the card went straight to Not Qualified.
+// Uses the RESEND_API_KEY secret; if it's missing or the send fails, the lead
+// is still saved.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendApplicationEmail } from '../_shared/applicationEmail.ts';
 
 const SOURCES: Record<string, { label: string; skipMembers: boolean }> = {
   elite_application: { label: 'Elite Operative application', skipMembers: false },
@@ -96,5 +103,18 @@ Deno.serve(async (req) => {
     console.error('pipeline-lead-intake: intake failed', error.message);
     return json({ error: 'Intake failed' }, 500);
   }
-  return json(data);
+
+  let emailed = false;
+  const resendKey = Deno.env.get('RESEND_API_KEY');
+  if (data?.action === 'created' && email && resendKey) {
+    emailed = await sendApplicationEmail(adminClient, resendKey, {
+      id: data.id,
+      name: name || null,
+      email,
+      qualified: data.phase !== 'Not Qualified',
+    });
+  } else if (data?.action === 'created' && email && !resendKey) {
+    console.error('pipeline-lead-intake: RESEND_API_KEY missing, application email not sent');
+  }
+  return json({ ...data, emailed });
 });

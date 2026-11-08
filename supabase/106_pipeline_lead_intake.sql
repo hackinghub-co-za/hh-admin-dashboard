@@ -122,3 +122,7 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public._intake_pipeline_lead(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._intake_pipeline_lead(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN) TO service_role;
+
+-- 2026-11-08: when the "Application received" email went to this person
+-- (_shared/applicationEmail.ts, sent by pipeline-lead-intake for a new card).
+ALTER TABLE public.pipeline_prospects ADD COLUMN IF NOT EXISTS application_email_sent_at TIMESTAMP WITH TIME ZONE;

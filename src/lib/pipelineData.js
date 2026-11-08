@@ -19,6 +19,10 @@ function mapProspectRow(row) {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: row.archived_at || null,
+    leadChannel: row.lead_channel || '',
+    followUpOn: row.follow_up_on || '',
+    linkedinUrl: row.linkedin_url || '',
   };
 }
 
@@ -28,7 +32,7 @@ function mapProspectRow(row) {
 export async function fetchProspects() {
   const { data, error } = await supabase
     .from('pipeline_prospects')
-    .select('id, full_name, email, phone, phase, source, notes, sort_order, created_by, created_at, updated_at')
+    .select('id, full_name, email, phone, phase, source, notes, sort_order, created_by, created_at, updated_at, archived_at, lead_channel, follow_up_on, linkedin_url')
     .order('sort_order', { ascending: true });
   if (error) throw error;
   return (data || []).map(mapProspectRow);
@@ -38,7 +42,7 @@ export async function fetchProspects() {
  * (sort_order = current max + 1 in that phase, computed client-side from
  * the board's own already-loaded state - cheap, and avoids a round trip
  * just to find the next number). */
-export async function addProspect({ fullName, email, phone, phase, source, notes, sortOrder }, createdBy) {
+export async function addProspect({ fullName, email, phone, phase, source, notes, sortOrder, leadChannel, followUpOn, linkedinUrl }, createdBy) {
   const { data, error } = await supabase
     .from('pipeline_prospects')
     .insert({
@@ -48,10 +52,13 @@ export async function addProspect({ fullName, email, phone, phase, source, notes
       phase: phase || 'Lead',
       source: source?.trim() || null,
       notes: notes?.trim() || null,
+      lead_channel: leadChannel || null,
+      follow_up_on: followUpOn || null,
+      linkedin_url: normaliseLinkedIn(linkedinUrl),
       sort_order: sortOrder ?? 0,
       created_by: createdBy || null,
     })
-    .select('id, full_name, email, phone, phase, source, notes, sort_order, created_by, created_at, updated_at')
+    .select('id, full_name, email, phone, phase, source, notes, sort_order, created_by, created_at, updated_at, archived_at, lead_channel, follow_up_on, linkedin_url')
     .single();
   if (error) throw error;
   return mapProspectRow(data);
@@ -61,7 +68,7 @@ export async function addProspect({ fullName, email, phone, phase, source, notes
  * touch phase/sort_order, which move independently via
  * updateProspectPhase (a drag) so the two concerns never fight over the
  * same call. */
-export async function updateProspect(id, { fullName, email, phone, source, notes }) {
+export async function updateProspect(id, { fullName, email, phone, source, notes, leadChannel, followUpOn, linkedinUrl }) {
   const { error } = await supabase
     .from('pipeline_prospects')
     .update({
@@ -70,6 +77,9 @@ export async function updateProspect(id, { fullName, email, phone, source, notes
       phone: phone?.trim() || null,
       source: source?.trim() || null,
       notes: notes?.trim() || null,
+      lead_channel: leadChannel || null,
+      follow_up_on: followUpOn || null,
+      linkedin_url: normaliseLinkedIn(linkedinUrl),
       updated_at: new Date().toISOString(),
     })
     .eq('id', id);
@@ -92,5 +102,83 @@ export async function updateProspectPhase(id, phase, sortOrder, phaseChanged) {
  * so there's no consent story to preserve by keeping the row around. */
 export async function deleteProspect(id) {
   const { error } = await supabase.from('pipeline_prospects').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** A typed LinkedIn link, with https:// added if it was left off; null when blank. */
+export function normaliseLinkedIn(value) {
+  const v = (value || '').trim();
+  if (!v) return null;
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
+
+// The two phases a reach-out date applies to (follow_up_on).
+export const FOLLOW_UP_PHASES = ['Contacted', 'Ready to Join'];
+
+/** Today in South Africa, 'YYYY-MM-DD'. */
+export function sastToday(now = new Date()) {
+  return now.toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+}
+
+/** 'overdue' | 'today' | 'upcoming' | null for a card's reach-out date. */
+export function followUpStatus(prospect, today = sastToday()) {
+  if (!prospect?.followUpOn || !FOLLOW_UP_PHASES.includes(prospect.phase)) return null;
+  if (prospect.followUpOn < today) return 'overdue';
+  if (prospect.followUpOn === today) return 'today';
+  return 'upcoming';
+}
+
+// Cards not updated for 21 days come off the board on their own
+// (archive_stale_pipeline_prospects(), 083_pipeline_prospects.sql) but are
+// kept; any real update brings one back automatically.
+export const STALE_AFTER_DAYS = 21;
+
+/** Days left before an untouched card comes off the board (0 = due). */
+export function daysUntilRemoved(updatedAt, now = Date.now()) {
+  if (!updatedAt) return STALE_AFTER_DAYS;
+  const idle = Math.floor((now - new Date(updatedAt).getTime()) / 86400000);
+  return Math.max(0, STALE_AFTER_DAYS - idle);
+}
+
+/** Puts a removed card back on the board, as if it had just been updated. */
+export async function restoreProspect(id) {
+  const { error } = await supabase
+    .from('pipeline_prospects')
+    .update({ archived_at: null, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+function mapNoteRow(row) {
+  return { id: row.id, prospectId: row.prospect_id, body: row.body, authorEmail: row.author_email || '', createdAt: row.created_at };
+}
+
+/** Every progress note, grouped by card id, newest first within each. */
+export async function fetchAllProspectNotes() {
+  const { data, error } = await supabase
+    .from('pipeline_notes')
+    .select('id, prospect_id, body, author_email, created_at')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapNoteRow).reduce((acc, n) => {
+    (acc[n.prospectId] ||= []).push(n);
+    return acc;
+  }, {});
+}
+
+/** Adds a timestamped progress note. The database also marks the card as
+ * updated, which resets its 21 days and brings it back if it was removed. */
+export async function addProspectNote(prospectId, body, authorEmail) {
+  const { data, error } = await supabase
+    .from('pipeline_notes')
+    .insert({ prospect_id: prospectId, body: body.trim(), author_email: authorEmail || null })
+    .select('id, prospect_id, body, author_email, created_at')
+    .single();
+  if (error) throw error;
+  return mapNoteRow(data);
+}
+
+export async function deleteProspectNote(id) {
+  const { error } = await supabase.from('pipeline_notes').delete().eq('id', id);
   if (error) throw error;
 }

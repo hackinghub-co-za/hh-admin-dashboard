@@ -98,7 +98,7 @@ function weeklySection(w: Row | null): string {
     + (achievements.length ? list(achievements, 'blue', 'Achievement') : ''));
 }
 
-function buildEmail(r: Report, weekly: Row | null = null): { subject: string; html: string; needs: number } {
+function buildEmail(r: Report, weekly: Row | null = null, followUps: Row[] = []): { subject: string; html: string; needs: number } {
   const day: string = r.day;
   const longDay = dayFmt(day, { weekday: 'long', day: 'numeric', month: 'long' });
   const money = r.money;
@@ -114,6 +114,14 @@ function buildEmail(r: Report, weekly: Row | null = null): { subject: string; ht
   if (Number(r.pending_score_reviews)) needs.push({ main: `${plural(r.pending_score_reviews, 'Hub Score review request')}`, tag: chip('Review', 'amber') });
   if (Number(r.exams_unmarked)) needs.push({ main: `${plural(r.exams_unmarked, 'exam')} on Cert Calendar with no result entered`, tag: chip('Enter result', 'amber') });
   if (Number(r.welcome_unsent)) needs.push({ main: `${plural(r.welcome_unsent, 'new member')} without a welcome email`, sub: 'Use "Send welcome email" on their profile', tag: chip('Send', 'red') });
+  // Sales Pipeline reach-out dates due today or earlier (pipeline_followups_due()).
+  if (followUps.length) {
+    const who = followUps.map((f) => {
+      const late = Number(f.days_overdue);
+      return `${esc(f.name)} (${esc(f.phase)}${late > 0 ? `, ${plural(late, 'day')} overdue` : ', today'})`;
+    }).join('; ');
+    needs.push({ main: `${plural(followUps.length, 'person', 'people')} to reach out to`, sub: who, tag: chip('Reach out', followUps.some((f) => Number(f.days_overdue) > 0) ? 'red' : 'blue') });
+  }
   if (Number(r.pipeline_ready)) needs.push({ main: `${r.pipeline_ready} in the pipeline are ready to join`, tag: chip('Follow up', 'blue') });
   const overdueTasks: Report[] = r.tasks_overdue || [];
   if (overdueTasks.length) {
@@ -234,7 +242,14 @@ Deno.serve(async (req) => {
       else weekly = w;
     }
 
-    const { subject, html, needs } = buildEmail(data as Report, weekly);
+    // Reach-outs are about today (the morning the email lands), not the
+    // reported day. A failure here never stops the report.
+    let followUps: Row[] = [];
+    const { data: f, error: fErr } = await admin.rpc('pipeline_followups_due', { p_day: data.today });
+    if (fErr) console.error('pipeline_followups_due failed:', fErr.message);
+    else followUps = f || [];
+
+    const { subject, html, needs } = buildEmail(data as Report, weekly, followUps);
     if (body.preview) {
       return new Response(JSON.stringify({ preview: true, subject, needs, html }), { headers: { 'Content-Type': 'application/json' } });
     }
