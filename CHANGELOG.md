@@ -41,6 +41,18 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.10
+
+### Added
+- **Focus 5 reminder after 3 days away.** Every morning at 08:00 SAST, any
+  Focus 5 member who hasn't signed in to the portal for 3 full days gets a
+  friendly "We miss you in the portal" email from Siya (replies go to
+  siya@hackinghub.co.za), and the founder gets one email listing who was
+  reminded. Once per absence: a member can only be reminded again after they
+  sign in and go quiet again. Leaving and Left members are skipped
+  (`focus-five-absence-email`, `focus_five_absent_due()`,
+  `focus_five_mark_nudged()`, `038_focus_five.sql`).
+
 ## 2026.11.08
 
 ### Added
