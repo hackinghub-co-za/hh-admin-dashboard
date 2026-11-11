@@ -79,7 +79,8 @@ import { fetchPortalActiveMemberCount, fetchPortalTabEngagement, fetchPortalWeek
 import { fetchAllExamReadiness, computeReadinessPercent } from '../../lib/examReadinessData';
 import { fetchPayfastPayments } from '../../lib/payfastPaymentsData';
 import { fetchTeamMembers, setMemberRole } from '../../lib/teamData';
-import { fetchOrgChartMembers, addOrgChartMember, updateOrgChartMember, archiveOrgChartMember } from '../../lib/orgChartData';
+import { fetchOrgChartMembers, addOrgChartMember, updateOrgChartMember, archiveOrgChartMember, fetchOrgChartDocuments } from '../../lib/orgChartData';
+import StaffDocumentsModal from '../../components/StaffDocumentsModal';
 import AddOrgChartMemberModal from '../../components/AddOrgChartMemberModal';
 import {
   Calendar,
@@ -135,6 +136,7 @@ import {
   ClipboardList,
   Compass,
   Coffee,
+  FileText,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -2954,6 +2956,10 @@ Pick new people to present next Sunday`;
   const [expandedOrgChartIds, setExpandedOrgChartIds] = useState({});
   const [showAddOrgChartModal, setShowAddOrgChartModal] = useState(false);
   const [editingOrgChartMember, setEditingOrgChartMember] = useState(null);
+  // Staff documents (contracts etc.), by org chart member id, and whose
+  // Documents window is open.
+  const [orgChartDocs, setOrgChartDocs] = useState({});
+  const [docsMember, setDocsMember] = useState(null);
 
   const loadOrgChartMembers = () => {
     if (isMockSession) return;
@@ -2961,6 +2967,7 @@ Pick new people to present next Sunday`;
       .then(setOrgChartMembers)
       .catch((err) => setOrgChartError(friendlyErrorMessage(err)))
       .finally(() => setLoadingOrgChart(false));
+    fetchOrgChartDocuments().then(setOrgChartDocs).catch(() => {});
   };
 
   useEffect(() => {
@@ -8787,6 +8794,14 @@ Pick new people to present next Sunday`;
                   {formatComp(member.monthlyCompensation)}
                 </span>
                 <button
+                  onClick={() => setDocsMember(member)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: (orgChartDocs[member.id] || []).length ? 'var(--accent-cyan)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.75rem', fontWeight: 600 }}
+                  aria-label={`Documents for ${member.fullName}`}
+                  title="Documents"
+                >
+                  <FileText size={14} />{(orgChartDocs[member.id] || []).length || ''}
+                </button>
+                <button
                   onClick={() => { setEditingOrgChartMember(member); setShowAddOrgChartModal(true); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
                   aria-label="Edit"
@@ -8851,6 +8866,17 @@ Pick new people to present next Sunday`;
               isMockSession={isMockSession}
               onSave={handleSaveOrgChartMember}
               onClose={() => { setShowAddOrgChartModal(false); setEditingOrgChartMember(null); }}
+            />
+          )}
+
+          {docsMember && (
+            <StaffDocumentsModal
+              member={docsMember}
+              documents={orgChartDocs[docsMember.id] || []}
+              isMockSession={isMockSession}
+              user={user}
+              onChange={(docs) => setOrgChartDocs((prev) => ({ ...prev, [docsMember.id]: docs }))}
+              onClose={() => setDocsMember(null)}
             />
           )}
         </div>

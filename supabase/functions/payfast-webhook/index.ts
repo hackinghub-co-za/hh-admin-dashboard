@@ -165,6 +165,66 @@ Deno.serve(async (req) => {
       return new Response('OK', { status: 200 });
     }
 
+    // A paid 30-minute consultation (consultation-checkout, 113_consultations.sql)
+    // is not a membership either: recorded in consultation_payments only, never
+    // in payfast_transactions (which feeds the member roster), and never grants
+    // portal access or sends the welcome email. Siya is emailed so he can match
+    // the payment to the Cal.com booking.
+    if (mPaymentId.startsWith('CONSULT-')) {
+      const consultPfId = params.get('pf_payment_id') || '';
+      if (!consultPfId) return new Response('OK', { status: 200 });
+      const status = params.get('payment_status') || 'UNKNOWN';
+      const consultName = [params.get('name_first'), params.get('name_last')].filter(Boolean).join(' ') || null;
+      const consultEmail = (params.get('email_address') || '').toLowerCase() || null;
+      const amount = parseFloat(params.get('amount_gross') || '0') || 0;
+      const { data: inserted, error: consultError } = await adminClient
+        .from('consultation_payments')
+        .upsert(
+          {
+            pf_payment_id: consultPfId,
+            m_payment_id: mPaymentId,
+            full_name: consultName,
+            email: consultEmail,
+            amount,
+            fee: Math.abs(parseFloat(params.get('amount_fee') || '0') || 0),
+            net: parseFloat(params.get('amount_net') || '0') || 0,
+            payment_status: status,
+          },
+          { onConflict: 'pf_payment_id', ignoreDuplicates: true }
+        )
+        .select('id');
+      if (consultError) {
+        console.error('payfast-webhook: consultation insert failed', consultError.message);
+        return new Response('Error', { status: 500 });
+      }
+      // Only on the first delivery of a completed payment (a resent ITN inserts nothing).
+      const resendKey = Deno.env.get('RESEND_API_KEY');
+      if (status === 'COMPLETE' && inserted && inserted.length && resendKey) {
+        const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        try {
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from: 'Hacking Hub <siya@hackinghub.co.za>',
+              to: ['siya@hackinghub.co.za'],
+              subject: `Paid consultation: ${consultName || consultEmail} (R${amount.toFixed(0)})`,
+              html: `<div style="font-family:Helvetica,Arial,sans-serif;color:#1b1d3a;line-height:1.5;padding:20px;max-width:560px">
+                <p style="margin:0;font-family:Menlo,Consolas,monospace;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#6b7096">30-minute consultation</p>
+                <h1 style="font-size:20px;color:#17183c;margin:6px 0 12px">${esc(consultName || 'Someone')} paid R${amount.toFixed(2)} for a consultation</h1>
+                <p style="margin:0 0 6px"><b>Email:</b> ${esc(consultEmail || 'not given')}</p>
+                <p style="margin:0 0 6px"><b>PayFast reference:</b> ${esc(consultPfId)}</p>
+                <p style="margin:14px 0 0;font-size:13px;color:#6b7096">PayFast sent them to the Cal.com booking page to pick a time. If no booking appears from this email within a day, reach out to them.</p>
+              </div>`,
+            }),
+          });
+        } catch (mailErr) {
+          console.error('payfast-webhook: consultation email failed', mailErr);
+        }
+      }
+      return new Response('OK', { status: 200 });
+    }
+
     const pfPaymentId = params.get('pf_payment_id') || '';
     if (!pfPaymentId) {
       console.error('payfast-webhook: missing pf_payment_id, cannot record');

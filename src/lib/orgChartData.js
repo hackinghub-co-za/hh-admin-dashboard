@@ -107,3 +107,55 @@ export async function deleteOrgChartMember(id) {
   const { error } = await supabase.from('org_chart_members').delete().eq('id', id);
   if (error) throw error;
 }
+
+// Staff documents (org_chart_documents + the private 'staff-documents'
+// bucket, 098_org_chart.sql) - contracts and the like, per org chart person.
+// Admin only. Files are private: opened through a signed link that expires
+// after a minute, never a public URL.
+const STAFF_DOCS_BUCKET = 'staff-documents';
+
+function mapDocRow(row) {
+  return { id: row.id, memberId: row.member_id, name: row.name, storagePath: row.storage_path, uploadedBy: row.uploaded_by || '', createdAt: row.created_at };
+}
+
+/** Every staff document, grouped by org chart member id, newest first. */
+export async function fetchOrgChartDocuments() {
+  const { data, error } = await supabase.from('org_chart_documents').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapDocRow).reduce((acc, d) => {
+    (acc[d.memberId] ||= []).push(d);
+    return acc;
+  }, {});
+}
+
+/** Uploads a file to this person's folder and records it. */
+export async function uploadOrgChartDocument(memberId, file, uploadedBy) {
+  const safeName = file.name.replace(/[^\w.\- ]+/g, '').trim() || 'document';
+  const path = `${memberId}/${Date.now()}-${safeName.replace(/\s+/g, '-')}`;
+  const { error: upErr } = await supabase.storage.from(STAFF_DOCS_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream' });
+  if (upErr) throw upErr;
+  const { data, error } = await supabase
+    .from('org_chart_documents')
+    .insert({ member_id: memberId, name: safeName, storage_path: path, uploaded_by: uploadedBy || null })
+    .select()
+    .single();
+  if (error) {
+    await supabase.storage.from(STAFF_DOCS_BUCKET).remove([path]);
+    throw error;
+  }
+  return mapDocRow(data);
+}
+
+/** A link that opens the document for the next 60 seconds. */
+export async function getOrgChartDocumentUrl(storagePath) {
+  const { data, error } = await supabase.storage.from(STAFF_DOCS_BUCKET).createSignedUrl(storagePath, 60);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+export async function deleteOrgChartDocument(doc) {
+  const { error: rmErr } = await supabase.storage.from(STAFF_DOCS_BUCKET).remove([doc.storagePath]);
+  if (rmErr) throw rmErr;
+  const { error } = await supabase.from('org_chart_documents').delete().eq('id', doc.id);
+  if (error) throw error;
+}

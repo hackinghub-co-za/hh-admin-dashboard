@@ -66,3 +66,36 @@ ALTER TABLE public.org_chart_members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins manage org_chart_members" ON public.org_chart_members;
 CREATE POLICY "Admins manage org_chart_members" ON public.org_chart_members
     FOR ALL USING (public.is_admin(auth.uid()));
+
+-- 2026-11-10: STAFF DOCUMENTS. Each org chart person can have documents
+-- (employment contracts and the like), opened from the Documents button on
+-- their row. Files live in a PRIVATE storage bucket, readable and writable
+-- by the admin only, opened through short-lived signed links; the table
+-- records what belongs to whom. Admin only, like the rest of the org chart.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('staff-documents', 'staff-documents', false, 20971520,
+        ARRAY['application/pdf', 'image/png', 'image/jpeg',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'])
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = EXCLUDED.file_size_limit, allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "admin manages staff documents" ON storage.objects;
+CREATE POLICY "admin manages staff documents"
+  ON storage.objects FOR ALL
+  TO authenticated
+  USING (bucket_id = 'staff-documents' AND public.is_admin(auth.uid()))
+  WITH CHECK (bucket_id = 'staff-documents' AND public.is_admin(auth.uid()));
+
+CREATE TABLE IF NOT EXISTS public.org_chart_documents (
+  id BIGSERIAL PRIMARY KEY,
+  member_id BIGINT NOT NULL REFERENCES public.org_chart_members(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  storage_path TEXT NOT NULL UNIQUE,
+  uploaded_by TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS org_chart_documents_member_idx ON public.org_chart_documents (member_id, created_at);
+ALTER TABLE public.org_chart_documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "admins manage org chart documents" ON public.org_chart_documents;
+CREATE POLICY "admins manage org chart documents"
+  ON public.org_chart_documents FOR ALL
+  USING (public.is_admin(auth.uid()));

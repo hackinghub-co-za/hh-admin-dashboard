@@ -41,9 +41,26 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.11
+
+### Added
+- **Paid 30-minute consultation (R200).** hackinghub.co.za now sells a
+  one-off call with Siya. The visitor enters a name and email, pays through
+  PayFast (`consultation-checkout`, price fixed server-side), then lands on
+  the Cal.com booking page with their details filled in. `payfast-webhook`
+  spots the `CONSULT-` payment reference and records it in
+  `consultation_payments` (`113_consultations.sql`), emails Siya, and never
+  grants portal access or sends the welcome email.
+
 ## 2026.11.10
 
 ### Added
+- **Org Chart: staff documents.** Each person on the Org Chart has a Documents
+  button (with a count) to upload, open and delete contracts and other files
+  (PDF, Word or images, up to 20 MB). Files sit in a private
+  `staff-documents` storage bucket that only the admin can read or write, and
+  open through a link that expires after a minute (`org_chart_documents`,
+  `StaffDocumentsModal.jsx`, `098_org_chart.sql`).
 - **Focus 5 reminder after 3 days away.** Every morning at 08:00 SAST, any
   Focus 5 member who hasn't signed in to the portal for 3 full days gets a
   friendly "We miss you in the portal" email from Siya (replies go to
