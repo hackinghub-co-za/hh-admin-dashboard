@@ -6,6 +6,32 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.11.15',
+    date: '2026-11-15',
+    headline: 'A daily quote, and deadlines for your next steps.',
+    intro: 'Your dashboard now greets you with a fresh motivational quote each day, and your next 2 roadmap items get a finish date.',
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '💬',
+            title: 'Daily motivation',
+            body: "Under \"Welcome back\" you'll find a new quote every day, changing at midnight. Some are from people you know, some are from us. Everyone in the community sees the same one, so feel free to talk about it.",
+            where: 'Dashboard',
+          },
+          {
+            icon: '📅',
+            title: 'Deadlines for your next steps',
+            body: "Your next 2 roadmap items now need a finish date. If one is missing, the portal asks you to pick one when you sign in. You can move the dates any time on My Roadmap.",
+            where: 'When you sign in',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.11.07',
     date: '2026-11-07',
     headline: 'Weekly Updates start this Sunday.',

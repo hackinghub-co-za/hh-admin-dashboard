@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPayfastCheckoutUrl } from '../../lib/payfast';
+import { quoteForDate } from '../../lib/dailyQuote';
+import { nextItemsMissingDeadline } from '../../lib/roadmapDeadlines';
+import RoadmapDeadlinesModal from '../../components/RoadmapDeadlinesModal';
 import CertDetailsModal from '../../components/CertDetailsModal';
 import ExamReadinessModal from '../../components/ExamReadinessModal';
 import QuizModal from '../../components/QuizModal';
@@ -1967,6 +1970,50 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [switchingCloud, setSwitchingCloud] = useState(false);
   const [roadmapFoundationsApproved, setRoadmapFoundationsApproved] = useState(isMockSession);
   const [loadingRoadmap, setLoadingRoadmap] = useState(!isMockSession);
+
+  // Roadmap phase unlocks - shared by the My Roadmap tab and the deadlines
+  // popup (RoadmapDeadlinesModal), so both agree on what the member can see.
+  const roadmapUnlocks = useMemo(() => {
+    // How many of the 7 standard Core Foundations certs are done, against
+    // the 4-of-8 minimum every assigned roadmap uses.
+    const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
+    const coreFoundationsDone = roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.slotTitle) && i.completed).length;
+    const coreFoundationsMet = coreFoundationsDone >= CORE_FOUNDATIONS_MIN_REQUIRED;
+    // Specialization stays hidden until a higher bar than the plain
+    // "foundations met" minimum - it should read as earned, not available
+    // from day one. Hitting that count alone still isn't enough, though -
+    // a member can toggle their own items done, so reaching 5/8 only
+    // makes them eligible; an admin still has to approve before it
+    // actually unlocks, so self-reported completion can't be used to rush
+    // or cheat past this checkpoint.
+    const specializationEligible = coreFoundationsDone >= SPECIALIZATION_UNLOCK_MIN;
+    const specializationUnlocked = specializationEligible && roadmapFoundationsApproved;
+
+    // Projects unlocks at a percentage (not a fixed count) of the member's
+    // own track's Specialization catalog, since those catalogs range from
+    // 4 to 10 items - a fixed count wouldn't be a fair bar across tracks
+    // the way it is for the single, universal Core Foundations catalog.
+    const specializationCatalogForTrack = SPECIALIZATION_CATALOGS[roadmapTrack] || null;
+    const specializationCatalogTitles = new Set((specializationCatalogForTrack?.items || []).map((c) => c.title));
+    // On AWS several Microsoft security certs share one AWS equivalent, so the
+    // track has fewer distinct items than the catalog has rows.
+    const specializationCatalogTotal = new Set((specializationCatalogForTrack?.items || []).map((c) => displayTitleFor(c.title, cloudPlatform))).size;
+    const specializationCatalogDone = Math.min(specializationCatalogTotal, roadmapItems.filter((i) => i.phase === 'Specialization' && specializationCatalogTitles.has(i.slotTitle) && i.completed).length);
+    const specializationPercent = specializationCatalogTotal > 0 ? Math.round((specializationCatalogDone / specializationCatalogTotal) * 100) : 0;
+    const projectsUnlocked = specializationCatalogTotal > 0 && specializationPercent >= PROJECTS_UNLOCK_PERCENT;
+
+    // Advanced unlocks off actual Projects completion, not another
+    // Specialization-style percentage of Specialization - real project
+    // work is the proof of readiness for Tier 1 -> Tier 2/senior content,
+    // so the bar is the member's own track's Projects checklist itself.
+    const projectsCatalogForTrack = PROJECT_CATALOGS[roadmapTrack] || null;
+    const projectsCatalogTitles = new Set((projectsCatalogForTrack?.items || []).map((c) => c.title));
+    const projectsCatalogTotal = projectsCatalogForTrack?.items.length || 0;
+    const projectsCatalogDone = roadmapItems.filter((i) => i.phase === 'Projects' && projectsCatalogTitles.has(i.slotTitle) && i.completed).length;
+    const projectsCompletePercent = projectsCatalogTotal > 0 ? Math.round((projectsCatalogDone / projectsCatalogTotal) * 100) : 0;
+    const advancedUnlocked = projectsCatalogTotal > 0 && projectsCompletePercent >= ADVANCED_UNLOCK_PERCENT;
+    return { catalogTitles, coreFoundationsDone, coreFoundationsMet, specializationEligible, specializationUnlocked, specializationCatalogForTrack, specializationCatalogTitles, specializationCatalogTotal, specializationCatalogDone, specializationPercent, projectsUnlocked, projectsCatalogForTrack, projectsCatalogTitles, projectsCatalogTotal, projectsCatalogDone, projectsCompletePercent, advancedUnlocked };
+  }, [roadmapItems, roadmapFoundationsApproved, roadmapTrack, cloudPlatform]);
   const [roadmapError, setRoadmapError] = useState(null);
   // Ticked Core Foundations subtasks (088_roadmap_subtasks.sql), shaped
   // { [itemTitle]: Set(subtaskKey) }. Drives each item's progress bar and
@@ -2246,6 +2293,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   };
 
+  // Deadlines popup (RoadmapDeadlinesModal) - saves every date before
+  // closing, so a half-saved set just asks again for what's still missing.
+  const handleSaveRoadmapDeadlines = async (datesById) => {
+    const items = roadmapItems.filter((i) => datesById[i.id]);
+    if (!isMockSession) {
+      for (const item of items) {
+        await updateMyRoadmapItemProgress(item.id, { detail: item.detail, dueDate: datesById[item.id] });
+      }
+    }
+    const now = new Date().toISOString();
+    setRoadmapItems((prev) => prev.map((i) => (datesById[i.id] ? { ...i, dueDate: datesById[i.id], updatedAt: now } : i)));
+  };
+
   // Projects proof submission - unlike a cert, a Project has no external
   // body that can confirm it happened, so completion only ever flips on
   // admin approval (review_project_submission). This just moves the item
@@ -2400,6 +2460,18 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // comparison works fine for ISO dates.
   const todaySast = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
   const isOnBreak = !!breakUntil && breakUntil >= todaySast;
+
+  // The next 2 unfinished roadmap items (in unlocked phases) must have a
+  // deadline - RoadmapDeadlinesModal asks until they do. Not while the
+  // roadmap is still loading, hidden for this member, or they're on a break.
+  const roadmapDeadlineItems = useMemo(() => {
+    if (loadingRoadmap || roadmapExcluded || isOnBreak || !onboardingComplete) return [];
+    const visiblePhases = new Set(['Core Foundations']);
+    if (roadmapUnlocks.specializationUnlocked) visiblePhases.add('Specialization');
+    if (roadmapUnlocks.projectsUnlocked) visiblePhases.add('Projects');
+    if (roadmapUnlocks.advancedUnlocked) visiblePhases.add('Advanced');
+    return nextItemsMissingDeadline(roadmapItems, visiblePhases);
+  }, [loadingRoadmap, roadmapExcluded, isOnBreak, onboardingComplete, roadmapUnlocks, roadmapItems]);
 
   const handleStartBreak = async (days) => {
     setStartingBreak(true);
@@ -5181,44 +5253,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         })),
       })).filter((g) => g.categories.length > 0);
 
-      // How many of the 7 standard Core Foundations certs are done, against
-      // the 4-of-8 minimum every assigned roadmap uses.
-      const catalogTitles = new Set(CORE_FOUNDATIONS_CATALOG.map((c) => c.title));
-      const coreFoundationsDone = roadmapItems.filter((i) => i.phase === 'Core Foundations' && i.category === 'Certifications' && catalogTitles.has(i.slotTitle) && i.completed).length;
-      const coreFoundationsMet = coreFoundationsDone >= CORE_FOUNDATIONS_MIN_REQUIRED;
-      // Specialization stays hidden until a higher bar than the plain
-      // "foundations met" minimum - it should read as earned, not available
-      // from day one. Hitting that count alone still isn't enough, though -
-      // a member can toggle their own items done, so reaching 5/8 only
-      // makes them eligible; an admin still has to approve before it
-      // actually unlocks, so self-reported completion can't be used to rush
-      // or cheat past this checkpoint.
-      const specializationEligible = coreFoundationsDone >= SPECIALIZATION_UNLOCK_MIN;
-      const specializationUnlocked = specializationEligible && roadmapFoundationsApproved;
-
-      // Projects unlocks at a percentage (not a fixed count) of the member's
-      // own track's Specialization catalog, since those catalogs range from
-      // 4 to 10 items - a fixed count wouldn't be a fair bar across tracks
-      // the way it is for the single, universal Core Foundations catalog.
-      const specializationCatalogForTrack = SPECIALIZATION_CATALOGS[roadmapTrack] || null;
-      const specializationCatalogTitles = new Set((specializationCatalogForTrack?.items || []).map((c) => c.title));
-      // On AWS several Microsoft security certs share one AWS equivalent, so the
-      // track has fewer distinct items than the catalog has rows.
-      const specializationCatalogTotal = new Set((specializationCatalogForTrack?.items || []).map((c) => displayTitleFor(c.title, cloudPlatform))).size;
-      const specializationCatalogDone = Math.min(specializationCatalogTotal, roadmapItems.filter((i) => i.phase === 'Specialization' && specializationCatalogTitles.has(i.slotTitle) && i.completed).length);
-      const specializationPercent = specializationCatalogTotal > 0 ? Math.round((specializationCatalogDone / specializationCatalogTotal) * 100) : 0;
-      const projectsUnlocked = specializationCatalogTotal > 0 && specializationPercent >= PROJECTS_UNLOCK_PERCENT;
-
-      // Advanced unlocks off actual Projects completion, not another
-      // Specialization-style percentage of Specialization - real project
-      // work is the proof of readiness for Tier 1 -> Tier 2/senior content,
-      // so the bar is the member's own track's Projects checklist itself.
-      const projectsCatalogForTrack = PROJECT_CATALOGS[roadmapTrack] || null;
-      const projectsCatalogTitles = new Set((projectsCatalogForTrack?.items || []).map((c) => c.title));
-      const projectsCatalogTotal = projectsCatalogForTrack?.items.length || 0;
-      const projectsCatalogDone = roadmapItems.filter((i) => i.phase === 'Projects' && projectsCatalogTitles.has(i.slotTitle) && i.completed).length;
-      const projectsCompletePercent = projectsCatalogTotal > 0 ? Math.round((projectsCatalogDone / projectsCatalogTotal) * 100) : 0;
-      const advancedUnlocked = projectsCatalogTotal > 0 && projectsCompletePercent >= ADVANCED_UNLOCK_PERCENT;
+      const { catalogTitles, coreFoundationsDone, coreFoundationsMet, specializationEligible, specializationUnlocked, specializationCatalogTitles, specializationCatalogTotal, specializationCatalogDone, specializationPercent, projectsUnlocked, projectsCatalogTotal, projectsCatalogDone, projectsCompletePercent, advancedUnlocked } = roadmapUnlocks;
 
       const visiblePhaseGroups = roadmapPhaseGroups.filter((g) =>
         (g.phase !== 'Specialization' || specializationUnlocked)
@@ -6271,7 +6306,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '32px' }}>
             <div>
               <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Welcome back, {firstName}!</h1>
-              <p>Here is your current cybersecurity progression overview.</p>
+              {(() => {
+                const quote = quoteForDate();
+                return (
+                  <p style={{ fontStyle: 'italic', maxWidth: '640px' }}>
+                    “{quote.text}”{quote.author && <span style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}> — {quote.author}</span>}
+                  </p>
+                );
+              })()}
               {myStartDate && (
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Member since {formatDate(myStartDate)}</p>
               )}
@@ -6908,6 +6950,15 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               submitting={submittingDailyQuestion}
               onAnswer={handleAnswerDailyQuestion}
               onClose={() => setDailyQuestionModalOpen(false)}
+            />
+          )}
+
+          {roadmapDeadlineItems.length > 0 && !dailyQuestionModalOpen && newWinsToShow.length === 0 && !showMonthlyRecap && (
+            <RoadmapDeadlinesModal
+              key={roadmapDeadlineItems.map((i) => i.id).join('-')}
+              items={roadmapDeadlineItems}
+              today={todaySast}
+              onSave={handleSaveRoadmapDeadlines}
             />
           )}
 

@@ -41,6 +41,23 @@ saved in their browser's `localStorage`.
   members stay on the price they joined at. The Elite Operative guide, the
   Elite Guarantee guide and the Parent Guide decks were updated to match.
 
+## 2026.11.15
+
+### Added
+- **Daily motivational quote on the member dashboard.** The line under
+  "Welcome back, <name>!" is now a quote that changes at midnight SAST, the
+  same for every member, cycling through the whole list before repeating
+  (`src/lib/dailyQuote.js`). Attributions only where the source is solid.
+- **Deadlines required on the next 2 roadmap items.** After sign-in (once
+  Cyber Question of the Day, Recent Wins and the monthly recap are out of the
+  way), members whose next 2 unfinished items in their unlocked phases have no
+  due date get a popup with no close button until each has a date from today
+  on (`RoadmapDeadlinesModal.jsx`, `src/lib/roadmapDeadlines.js`). Skipped
+  while onboarding is unfinished, the roadmap is excluded, or they're on a
+  break. Saves through the existing `update_my_roadmap_item_progress` RPC.
+  Phase unlock rules moved into a shared `roadmapUnlocks` memo in
+  MemberPortal so the tab and the popup agree.
+
 ## 2026.11.11
 
 ### Added
