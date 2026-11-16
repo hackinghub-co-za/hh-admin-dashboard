@@ -10,6 +10,14 @@ export async function checkOffboardingPending(email) {
   return data === true;
 }
 
+/** Staff: emails a leaving member a thank-you with the exit feedback form
+ * (supabase/functions/goodbye-email). Does not change their status. */
+export async function sendMemberGoodbyeEmail(email) {
+  const { data, error } = await supabase.functions.invoke('goodbye-email', { body: { email } });
+  if (error) throw error;
+  return data || {};
+}
+
 /** Submits the current member's exit feedback (or blank fields to skip it) and
  * finalizes their own row to status = 'Left'. */
 export async function submitExitFeedback({ rating, feedback }) {

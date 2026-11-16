@@ -5,6 +5,7 @@ import { formatDate } from '../lib/dateFormat';
 import { fetchMemberInterviews } from '../lib/memberInterviewsData';
 import { fetchMemberLinkedInPostStatus } from '../lib/linkedInPostData';
 import { sendMemberWelcomeEmail } from '../lib/onboardingData';
+import { sendMemberGoodbyeEmail } from '../lib/offboardingData';
 import { friendlyErrorMessage } from '../lib/errorMessages';
 
 export default function MemberProfileModal({ member, profile, onSave, onDelete, onSetExpectedTotalPayment, savingExpectedTotalPayment, onClose, today, isMockSession }) {
@@ -21,6 +22,21 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
     } catch (err) {
       setWelcomeError(friendlyErrorMessage(err));
       setWelcomeState('error');
+    }
+  };
+  // Goodbye email (supabase/functions/goodbye-email): same two-step button.
+  // A thank-you with the exit feedback form; it leaves status and access alone.
+  const [goodbyeState, setGoodbyeState] = useState('idle'); // idle | confirm | sending | sent | error
+  const [goodbyeError, setGoodbyeError] = useState(null);
+  const handleSendGoodbye = async () => {
+    setGoodbyeState('sending');
+    setGoodbyeError(null);
+    try {
+      if (!isMockSession) await sendMemberGoodbyeEmail(member.email);
+      setGoodbyeState('sent');
+    } catch (err) {
+      setGoodbyeError(friendlyErrorMessage(err));
+      setGoodbyeState('error');
     }
   };
   const [form, setForm] = useState({
@@ -537,6 +553,26 @@ export default function MemberProfileModal({ member, profile, onSave, onDelete, 
               ) : (
                 <button type="button" className="btn btn-secondary" disabled={welcomeState === 'sending'} style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => setWelcomeState('confirm')}>
                   {welcomeState === 'sending' ? 'Sending...' : welcomeState === 'sent' ? 'Send again' : 'Send welcome email'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {member?.email && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-md)' }}>
+              <LogOut size={16} color="var(--text-muted)" />
+              <span style={{ flex: '1 1 220px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {goodbyeState === 'sent' ? `Goodbye email sent to ${member.email}.` : 'Goodbye email: a thank-you and the exit feedback form. Status and access stay as they are.'}
+                {goodbyeState === 'error' && <span style={{ display: 'block', color: 'var(--danger)' }}>{goodbyeError}</span>}
+              </span>
+              {goodbyeState === 'confirm' ? (
+                <span style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={handleSendGoodbye}>Send to {member.email}</button>
+                  <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => setGoodbyeState('idle')}>Cancel</button>
+                </span>
+              ) : (
+                <button type="button" className="btn btn-secondary" disabled={goodbyeState === 'sending' || goodbyeState === 'sent'} style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => setGoodbyeState('confirm')}>
+                  {goodbyeState === 'sending' ? 'Sending...' : goodbyeState === 'sent' ? 'Sent' : 'Send goodbye email'}
                 </button>
               )}
             </div>
