@@ -11,6 +11,7 @@ import NewMembersOnboarding from '../../components/NewMembersOnboarding';
 import LabReviews from '../../components/LabReviews';
 import TalentPoolAdmin from '../../components/TalentPoolAdmin';
 import WeeklyUpdatesAdmin from '../../components/WeeklyUpdatesAdmin';
+import IntakeWaitingList from '../../components/IntakeWaitingList';
 import GemmaAdmin from '../../components/GemmaAdmin';
 import TaskBoard from '../../components/TaskBoard';
 import MyOpenTasks from '../../components/MyOpenTasks';
@@ -4636,6 +4637,10 @@ Pick new people to present next Sunday`;
 
     case 'pipeline':
       return <SalesPipelineBoard isMockSession={isMockSession} user={user} />;
+
+    case 'intakes':
+      // Names, emails and phone numbers of people paying deposits: founder only.
+      return isFounder ? <IntakeWaitingList isMockSession={isMockSession} user={user} /> : null;
 
     case 'accountability':
       return <AccountabilityCheckins isMockSession={isMockSession} user={user} />;

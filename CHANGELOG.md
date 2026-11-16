@@ -18,6 +18,24 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+## 2026.11.16
+
+### Added
+- **Intakes & Deposits page** (founder only, `116_intake_reservations.sql`).
+  The running intake and the next two, each with spots left and editable
+  capacity, and a waiting list of people who paid the R300 deposit
+  (Reserved / Joined / Cancelled, move between intakes). Completed R300
+  PayFast or EFT payments not yet on a list show up with a one-click add.
+  The public "N spots left" counter (`get_current_intake`) now counts
+  Reserved and Joined entries for the intake they're for, plus first payers
+  without one, each person once.
+
+### Changed
+- Intakes are sold mid-month (`115_intake_midmonth_windows.sql`): each
+  intake's sign-up window runs from the 16th of the month before to the
+  15th of its own month, and a window with no stored row is worked out
+  automatically using the latest capacity.
+
 ## 2026.10.30
 
 ### Added
