@@ -49,7 +49,7 @@ import { applyProgress, parseStepLines } from '../../lib/resourceHelpers';
 import ResourceProgress from '../../components/ResourceProgress';
 import { fetchMyJobApplications, addJobApplication, updateJobApplication, deleteJobApplication } from '../../lib/jobApplicationsData';
 import { fetchCompetitionStandings, rsvpForCompetition, optOutOfCompetition, fetchCurrentCompetition } from '../../lib/competitionData';
-import { fetchStudyLeaderboard, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
+import { fetchStudyLeaderboard, fetchStudyWeekMinutes, joinStudyHours, optOutOfStudyHours, logStudySession } from '../../lib/studyHoursData';
 import { fetchMyRoadmap, toggleMyRoadmapItem, updateMyRoadmapItemProgress, fetchMyRoadmapTrack, fetchMyRoadmapFoundationsApproved, assignMyCoreFoundations, submitMyProjectProof, fetchMyCloudPlatform, setMyCloudPlatform } from '../../lib/roadmapData';
 import TalentOptIn from '../../components/TalentOptIn';
 import { CLOUD_PLATFORMS, applyCloudPlatform, displayTitleFor, isCloudVariantTitle, switchItemsPlatform } from '../../lib/cloudPlatform';
@@ -265,6 +265,13 @@ const MOCK_DIRECTORY = [];
 // The TryHackMe competition is paused while the Study Marathon runs
 // (Competitions tab). Its data and logging stay in place for next time.
 const SHOW_TRYHACKME_COMPETITION = false;
+
+// Study Marathon: 5 hours a week, checked from the week of 23 November
+// (eliminate_study_marathon_week, 081_study_sessions.sql).
+const STUDY_WEEKLY_MINIMUM_MINUTES = 300;
+const STUDY_ELIMINATIONS_FROM = '2026-11-23';
+const STUDY_LAST_CHECKED_WEEK = '2026-12-07';
+const formatStudyMinutes = (mins) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
 
 const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Cybersecurity Analyst', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Cybersecurity Analyst', whyReasons: ['Financial Freedom', 'A Movie, Show, or Game'], whyStory: 'I watched Mr. Robot at 19 and never looked at my laptop the same way again.' };
 const DEMO_MATCHMAKER_GROUP = { id: 99, activityType: 'Project', memberEmails: ['teammate@example.com'], status: 'Active', dueDate: '2026-09-23' };
@@ -3603,8 +3610,9 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   // competition RSVP pattern exactly (join/opt-out, soft - stats persist
   // across an opt-out/rejoin).
   const MOCK_STUDY_LEADERBOARD = [
-    { email: 'teammate@example.com', member: 'Test Teammate', minutes: 175, sessions: 5, streak: 3 },
+    { email: 'teammate@example.com', member: 'Test Teammate', minutes: 175, sessions: 5, streak: 3, eliminated: false },
   ];
+  const [studyWeekMinutes, setStudyWeekMinutes] = useState(isMockSession ? { 'teammate@example.com': 175 } : {});
   const [studyLeaderboard, setStudyLeaderboard] = useState(isMockSession ? MOCK_STUDY_LEADERBOARD : []);
   const [loadingStudyLeaderboard, setLoadingStudyLeaderboard] = useState(!isMockSession);
   const [studyError, setStudyError] = useState(null);
@@ -3651,10 +3659,14 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
       .then((data) => !cancelled && setStudyLeaderboard(data))
       .catch((err) => !cancelled && setStudyError(friendlyMemberErrorMessage(err)))
       .finally(() => !cancelled && setLoadingStudyLeaderboard(false));
+    fetchStudyWeekMinutes()
+      .then((data) => !cancelled && setStudyWeekMinutes(data))
+      .catch(() => {}); // the leaderboard still works without this column
     return () => { cancelled = true; };
   }, [isMockSession]);
 
   const hasJoinedStudyHours = studyLeaderboard.some((row) => row.email === user?.email);
+  const isEliminatedFromStudyMarathon = studyLeaderboard.some((row) => row.email === user?.email && row.eliminated);
 
   const handleStudyHoursJoinToggle = async () => {
     const displayName = user?.user_metadata?.full_name || user?.email || 'You';
@@ -3678,6 +3690,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         await joinStudyHours(displayName);
       }
       setStudyLeaderboard(await fetchStudyLeaderboard());
+      fetchStudyWeekMinutes().then(setStudyWeekMinutes).catch(() => {});
     } catch (err) {
       setStudyError(friendlyMemberErrorMessage(err));
     } finally {
@@ -3733,11 +3746,13 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         ? { ...row, minutes: row.minutes + studyDurationMinutes, sessions: row.sessions + 1, streak: row.streak + 1 }
         : row
       ));
+      setStudyWeekMinutes((prev) => ({ ...prev, [(user?.email || '').toLowerCase()]: (prev[(user?.email || '').toLowerCase()] || 0) + studyDurationMinutes }));
       return;
     }
     try {
       await logStudySession(studyCert || null, studyDurationMinutes);
       setStudyLeaderboard(await fetchStudyLeaderboard());
+      fetchStudyWeekMinutes().then(setStudyWeekMinutes).catch(() => {});
     } catch (err) {
       setStudyError(friendlyMemberErrorMessage(err));
     }
@@ -8794,7 +8809,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Competitions</h1>
-            <p>The Study Marathon is on. Every focused session you finish counts.</p>
+            <p>The Study Marathon runs until Friday 18 December. From 23 November, log at least 5 hours a week to stay in. The top 3 win free merch.</p>
           </div>
 
           {/* Study Hours (081_study_sessions.sql) - Phase 1 of the
@@ -8808,7 +8823,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                 <Timer size={24} color="var(--accent-cyan)" />
                 <div>
                   <h3 style={{ margin: 0 }}>Study Marathon</h3>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Counting from Monday 16 November</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Monday 16 November to Friday 18 December</p>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -8819,7 +8834,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              Pick a session length, start the timer and study. When it reaches zero, the session logs itself and counts towards the leaderboard. Switching tabs or windows is fine: the timer keeps running.
+              Pick a session length, start the timer and study. When it reaches zero, the session logs itself and counts towards the leaderboard. Switching tabs or windows is fine: the timer keeps running. From Monday 23 November, log at least <strong>5 hours every week</strong> (Monday to Sunday) or you're eliminated. The top 3 win <strong>free Hacking Hub merch</strong>.
             </p>
 
             {!hasJoinedStudyHours ? (
@@ -8836,6 +8851,11 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
               </div>
             ) : (
               <>
+                {isEliminatedFromStudyMarathon ? (
+                  <div style={{ padding: '14px 16px', marginBottom: '24px', borderRadius: 'var(--border-radius-sm)', background: 'rgba(var(--danger-rgb), 0.08)', border: '1px solid rgba(var(--danger-rgb), 0.25)', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                    <strong style={{ color: 'var(--danger)' }}>You've been eliminated from the Study Marathon.</strong> You logged under 5 hours in a week, so new sessions no longer count. Your hours stay on the leaderboard below.
+                  </div>
+                ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 220px) 1fr', gap: '24px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
                     <div className="mono" style={{ fontFamily: 'var(--font-mono)', fontSize: '2.4rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{studyTimerDisplay}</div>
@@ -8970,16 +8990,19 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                     {studyError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{studyError}</span>}
                   </div>
                 </div>
+                )}
 
                 {loadingStudyLeaderboard && <p style={{ color: 'var(--text-muted)' }}>Loading standings...</p>}
                 {!loadingStudyLeaderboard && studyLeaderboard.length > 0 && (
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Rank</th>
                         <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
                         <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Clock size={13} /> Total Time</span>
                         </th>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>This Week</th>
                         <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Sessions</th>
                         <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> Streak</span>
@@ -8987,12 +9010,35 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                       </tr>
                     </thead>
                     <tbody>
-                      {[...studyLeaderboard].sort((a, b) => b.minutes - a.minutes).map((row) => {
+                      {(() => {
+                        // Still-in members rank by total time (top 3 win merch);
+                        // eliminated members drop to the bottom, unranked.
+                        const weekStart = (() => {
+                          const d = new Date(`${todaySast}T00:00:00Z`);
+                          d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+                          return d.toISOString().slice(0, 10);
+                        })();
+                        const weekIsChecked = weekStart >= STUDY_ELIMINATIONS_FROM && weekStart <= STUDY_LAST_CHECKED_WEEK;
+                        const sortedStudy = [...studyLeaderboard].sort((a, b) => (a.eliminated - b.eliminated) || (b.minutes - a.minutes));
+                        let studyRank = 0;
+                        return sortedStudy.map((row, i) => {
+                        if (!row.eliminated && (i === 0 || row.minutes !== sortedStudy[i - 1].minutes)) studyRank = i + 1;
+                        const rank = row.eliminated ? null : studyRank;
+                        const medalColor = rank && rank <= 3 && row.minutes > 0
+                          ? ['var(--medal-gold)', 'var(--medal-silver)', 'var(--medal-bronze)'][rank - 1]
+                          : null;
+                        const weekMins = studyWeekMinutes[(row.email || '').toLowerCase()] || 0;
+                        const weekShort = !row.eliminated && weekIsChecked && weekMins < STUDY_WEEKLY_MINIMUM_MINUTES;
                         // Same headshot + clickable-profile pattern as the
                         // TryHackMe Current Standings table above.
                         const directoryMatch = row.email ? directory.find((m) => m.email.toLowerCase() === row.email.toLowerCase()) : null;
                         return (
-                        <tr key={row.email || row.member} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
+                        <tr key={row.email || row.member} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)', opacity: row.eliminated ? 0.55 : 1 }}>
+                          <td style={{ padding: '14px 12px', fontWeight: 700, color: medalColor || 'var(--text-secondary)' }}>
+                            {rank ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>{medalColor && <Trophy size={15} />} #{rank}</span>
+                            ) : '—'}
+                          </td>
                           <td style={{ padding: '14px 12px', fontWeight: 600 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <div style={{ width: '28px', height: '28px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -9015,14 +9061,24 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
                               )}
                             </div>
                           </td>
-                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{Math.floor(row.minutes / 60)}h {row.minutes % 60}m</td>
+                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{formatStudyMinutes(row.minutes)}</td>
+                          <td style={{ padding: '14px 12px' }}>
+                            {row.eliminated ? (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', background: 'rgba(var(--danger-rgb), 0.15)', border: '1px solid var(--danger)', color: 'var(--danger)' }}>Eliminated</span>
+                            ) : (
+                              <span style={{ color: weekShort ? 'var(--warning)' : weekMins >= STUDY_WEEKLY_MINIMUM_MINUTES ? 'var(--success)' : 'var(--text-secondary)', fontWeight: 600 }}>
+                                {formatStudyMinutes(weekMins)} / 5h
+                              </span>
+                            )}
+                          </td>
                           <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.sessions}</td>
                           <td style={{ padding: '14px 12px', fontWeight: 700, color: row.streak > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
                             {row.streak > 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> {row.streak}</span> : '—'}
                           </td>
                         </tr>
                         );
-                      })}
+                      });
+                      })()}
                     </tbody>
                   </table>
                 )}

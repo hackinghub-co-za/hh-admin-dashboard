@@ -18,7 +18,7 @@ export const RELEASE_NOTES = [
           {
             icon: '⏱️',
             title: 'Study Marathon',
-            body: 'The Study Marathon sits at the top of Competitions, counting sessions from Monday 16 November. Tap Learn More to see how it works.',
+            body: 'The Study Marathon sits at the top of Competitions and runs from Monday 16 November to Friday 18 December. From 23 November, log at least 5 hours every week to stay in. The top 3 win free Hacking Hub merch. Tap Learn More for the full rules.',
             where: 'Competitions',
           },
         ],

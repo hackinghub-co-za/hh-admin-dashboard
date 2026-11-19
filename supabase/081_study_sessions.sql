@@ -186,6 +186,10 @@ BEGIN
     RAISE EXCEPTION 'Join Study Hours before logging a session.';
   END IF;
 
+  IF EXISTS (SELECT 1 FROM public.study_leaderboard WHERE email = v_email AND eliminated_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'You have been eliminated from the Study Marathon, so new sessions no longer count.';
+  END IF;
+
   -- A session needs its full length to have passed since the previous one
   -- was logged (30 seconds of slack). Without this the timer could be
   -- restarted at 00:00 and log a fresh session instantly, every click, and
@@ -215,3 +219,69 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.log_study_session(TEXT, INTEGER) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.log_study_session(TEXT, INTEGER) FROM PUBLIC, anon;
+
+-- ---------------------------------------------------------------------------
+-- Study Marathon (16 November - 18 December 2026): eliminations.
+-- Members must log at least 5 hours (300 minutes) of finished sessions each
+-- Monday-to-Sunday week, South African time. Checked for the weeks starting
+-- 23 November, 30 November and 7 December; the first week (16-22 Nov) was a
+-- warm-up and the last (14-18 Dec) ends with the marathon itself, so neither
+-- eliminates anyone. A member who joined after a week began is not checked
+-- for that week. Eliminated members stay on the leaderboard, marked out, and
+-- log_study_session above refuses their new sessions.
+ALTER TABLE public.study_leaderboard ADD COLUMN IF NOT EXISTS eliminated_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.study_leaderboard ADD COLUMN IF NOT EXISTS eliminated_week DATE;
+
+-- Minutes each member has logged in the current week, for the leaderboard's
+-- "This week" column. Session rows stay private; only the totals come back.
+CREATE OR REPLACE FUNCTION public.study_marathon_week_minutes()
+RETURNS TABLE (email TEXT, minutes INTEGER)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT ss.member_email, sum(ss.planned_minutes)::int
+  FROM public.study_sessions ss
+  WHERE public.is_member_allowed(auth.jwt() ->> 'email')
+    AND ss.logged_at >= (date_trunc('week', now() AT TIME ZONE 'Africa/Johannesburg') AT TIME ZONE 'Africa/Johannesburg')
+  GROUP BY ss.member_email;
+$$;
+GRANT EXECUTE ON FUNCTION public.study_marathon_week_minutes() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.study_marathon_week_minutes() FROM PUBLIC, anon;
+
+-- Run by pg_cron just after midnight every Monday: eliminates anyone in the
+-- marathon who logged under 300 minutes in the week that just ended.
+CREATE OR REPLACE FUNCTION public.eliminate_study_marathon_week()
+RETURNS INTEGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_week_start DATE := (date_trunc('week', now() AT TIME ZONE 'Africa/Johannesburg') - interval '7 days')::date;
+  v_from TIMESTAMPTZ := v_week_start::timestamp AT TIME ZONE 'Africa/Johannesburg';
+  v_to TIMESTAMPTZ := (v_week_start + 7)::timestamp AT TIME ZONE 'Africa/Johannesburg';
+  v_count INTEGER;
+BEGIN
+  IF v_week_start NOT IN (DATE '2026-11-23', DATE '2026-11-30', DATE '2026-12-07') THEN
+    RETURN 0;
+  END IF;
+
+  UPDATE public.study_leaderboard l
+  SET eliminated_at = now(), eliminated_week = v_week_start
+  WHERE l.opted_out = false
+    AND l.eliminated_at IS NULL
+    AND l.joined_at < v_from
+    AND COALESCE((
+      SELECT sum(ss.planned_minutes) FROM public.study_sessions ss
+      WHERE lower(ss.member_email) = lower(l.email) AND ss.logged_at >= v_from AND ss.logged_at < v_to
+    ), 0) < 300;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.eliminate_study_marathon_week() FROM PUBLIC, anon, authenticated;
+
+-- Sunday 22:05 UTC = Monday 00:05 SAST.
+DO $$
+BEGIN
+  PERFORM cron.unschedule('study-marathon-eliminations')
+  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'study-marathon-eliminations');
+  PERFORM cron.schedule('study-marathon-eliminations', '5 22 * * 0', 'SELECT public.eliminate_study_marathon_week();');
+END $$;

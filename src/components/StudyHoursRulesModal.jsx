@@ -6,7 +6,16 @@ import { X, ShieldCheck, Ban } from 'lucide-react';
 const SECTIONS = [
   {
     heading: 'What the Study Marathon is',
-    body: 'A community-wide push to put in real study hours. It started on Monday 16 November, and only sessions from that day onward count. Join, run focused sessions with the timer, and climb the leaderboard alongside everyone else.',
+    body: 'A community-wide push to put in real study hours. It runs from Monday 16 November to Friday 18 December, and only sessions from Monday 16 November onward count. Join, run focused sessions with the timer, and climb the leaderboard alongside everyone else.',
+  },
+  {
+    heading: 'The prize',
+    body: 'The top 3 win free Hacking Hub merch. Rankings are by total study time on the leaderboard when the marathon ends on Friday 18 December. Eliminated members can’t place.',
+  },
+  {
+    heading: '5 hours a week, or you are out',
+    body: 'Log at least 5 hours of finished sessions every week (Monday to Sunday) to stay in the marathon. Eliminations start with the week of Monday 23 November: just after midnight each Monday, anyone under 5 hours for the week before is out. The final week (14 to 18 December) has no minimum, since the marathon ends that Friday. The “This Week” column on the leaderboard shows where you stand. About 45 minutes a day gets you there.',
+    danger: true,
   },
   {
     heading: 'What counts',

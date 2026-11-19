@@ -10,7 +10,7 @@ import { supabase } from './supabase';
 export async function fetchStudyLeaderboard() {
   const { data, error } = await supabase
     .from('study_leaderboard')
-    .select('email, member_name, total_minutes, sessions_count, current_streak')
+    .select('email, member_name, total_minutes, sessions_count, current_streak, eliminated_at')
     .eq('opted_out', false)
     .order('total_minutes', { ascending: false });
   if (error) throw error;
@@ -20,7 +20,16 @@ export async function fetchStudyLeaderboard() {
     minutes: row.total_minutes,
     sessions: row.sessions_count,
     streak: row.current_streak,
+    eliminated: !!row.eliminated_at,
   }));
+}
+
+/** Study Marathon: minutes each member has logged this week (Monday to
+ * Sunday, South African time), keyed by lowercased email. */
+export async function fetchStudyWeekMinutes() {
+  const { data, error } = await supabase.rpc('study_marathon_week_minutes');
+  if (error) throw error;
+  return Object.fromEntries((data || []).map((row) => [String(row.email).toLowerCase(), row.minutes]));
 }
 
 /** Joins (or rejoins after opting out) the current member for Study Hours.

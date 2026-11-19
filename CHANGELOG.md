@@ -23,6 +23,7 @@ saved in their browser's `localStorage`.
 
 ### Changed
 - Competitions tab leads with the Study Marathon (the Study Hours timer and leaderboard) with a Learn More guide. The TryHackMe competition is hidden behind `SHOW_TRYHACKME_COMPETITION` in MemberPortal.jsx.
+- Study Marathon eliminations (081_study_sessions.sql): `eliminated_at`/`eliminated_week` on study_leaderboard, `study_marathon_week_minutes()` for the new This Week column, and `eliminate_study_marathon_week()` run by the `study-marathon-eliminations` pg_cron job (Mondays 00:05 SAST) for the weeks starting 23 Nov, 30 Nov and 7 Dec. Members under 300 minutes are eliminated and can't log new sessions. The leaderboard now ranks members and marks the top 3.
 - study_leaderboard totals, session counts and streaks were rebuilt from sessions logged since Monday 16 November (live data edit). Older study_sessions rows are kept, so Hub Scores are unchanged.
 
 ### Fixed
