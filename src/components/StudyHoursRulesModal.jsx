@@ -1,29 +1,32 @@
 import { X, ShieldCheck, Ban } from 'lucide-react';
 
-// In-app Study Hours rules for the "Learn More" button next to the timer -
-// same move CompetitionRulesModal already made over an external doc: a
-// real, always-in-sync guide instead of paraphrased copy someone forgets
-// to update.
+// "Learn More" for the Study Marathon on the Competitions tab (the Study
+// Hours timer and leaderboard, 081_study_sessions.sql). Same in-app guide
+// pattern as CompetitionRulesModal, so the rules never drift from the app.
 const SECTIONS = [
   {
+    heading: 'What the Study Marathon is',
+    body: 'A community-wide push to put in real study hours. It started on Monday 16 November, and only sessions from that day onward count. Join, run focused sessions with the timer, and climb the leaderboard alongside everyone else.',
+  },
+  {
     heading: 'What counts',
-    body: 'A session started and run to completion right here in the portal - the timer counting down to zero is the proof. Closing the tab or navigating away mid-session doesn\'t log anything.',
+    body: 'A session you start here and let run to zero. The moment it finishes, it logs itself. You can switch tabs, open your study material in another window or minimise the browser: the timer keeps running. Even if you close the portal, it finishes on time and logs the next time you open it.',
   },
   {
     heading: 'Session lengths',
-    body: 'Pick 25, 45, or 60 minutes when you start. Whatever you picked is what gets logged the moment it completes - there\'s no partial credit for stopping early.',
+    body: 'Pick 25, 45 or 60 minutes, or set your own between 5 and 180. The length you picked is what gets logged. Stopping early with Reset logs nothing, and Pause holds the time you have left.',
   },
   {
     heading: 'Streaks',
-    body: 'Finishing at least one session today keeps your streak alive. Finishing three today doesn\'t triple it - a streak counts days, not sessions. Miss a day entirely and it resets to 1 on your next session.',
+    body: 'Finish at least one session a day to keep your streak going. Three sessions in one day still count as one day. Miss a day and your streak starts again at 1 on your next session.',
   },
   {
-    heading: 'Opt in, opt out any time',
-    body: 'Joining is what puts you on the leaderboard - nothing you do before clicking "Track My Study Hours" is logged. Opt out any time and your stats are kept, just hidden, so rejoining later picks up exactly where you left off.',
+    heading: 'Joining and leaving',
+    body: 'Click "Join the Study Marathon" to appear on the leaderboard. You can leave any time; your hours are kept, so rejoining picks up where you left off.',
   },
   {
-    heading: 'Honest by design, not policed',
-    body: 'This is Phase 1 of a bigger plan - there\'s no admin approval queue like Room Logs, because the timer itself is the verification. It doesn\'t know if you were actually focused the whole time, only that the tab was open for the full length you chose. Treat it the same way you\'d treat any honor system: it only works if you don\'t game it.',
+    heading: 'Play fair',
+    body: 'There is no approval queue: the timer is the record. It knows the session ran, not whether you were studying, so only start it when you are actually putting the work in.',
     danger: true,
   },
 ];
@@ -82,10 +85,10 @@ export default function StudyHoursRulesModal({ onClose }) {
 
         <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ShieldCheck size={22} color="var(--accent-cyan)" />
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff' }}>Study Hours Rules</h2>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff' }}>The Study Marathon</h2>
         </div>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '24px' }}>
-          How sessions get logged, streaks work, and what this can and can't verify - read this before you start.
+          What it is, how sessions count, and how the leaderboard works.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>

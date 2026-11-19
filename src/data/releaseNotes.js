@@ -6,6 +6,38 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.11.19',
+    date: '2026-11-19',
+    headline: 'The Study Marathon is on.',
+    intro: 'Competitions now opens on the Study Marathon, and the study timer keeps running when you switch tabs.',
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '⏱️',
+            title: 'Study Marathon',
+            body: 'The Study Marathon sits at the top of Competitions, counting sessions from Monday 16 November. Tap Learn More to see how it works.',
+            where: 'Competitions',
+          },
+        ],
+      },
+      {
+        label: 'Fixed',
+        color: '#60a5fa',
+        items: [
+          {
+            icon: '🗂️',
+            title: 'Switch tabs while you study',
+            body: 'The study timer no longer stops or falls behind when you switch tabs or windows. It also carries on if you reload the page.',
+            where: 'Competitions',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.11.15',
     date: '2026-11-15',
     headline: 'A daily quote, and deadlines for your next steps.',

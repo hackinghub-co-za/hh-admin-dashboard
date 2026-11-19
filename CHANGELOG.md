@@ -18,6 +18,15 @@ Artifact link nobody would think to check. A member sees an unread-badge
 dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
+
+## 2026.11.19
+
+### Changed
+- Competitions tab leads with the Study Marathon (the Study Hours timer and leaderboard) with a Learn More guide. The TryHackMe competition is hidden behind `SHOW_TRYHACKME_COMPETITION` in MemberPortal.jsx.
+- study_leaderboard totals, session counts and streaks were rebuilt from sessions logged since Monday 16 November (live data edit). Older study_sessions rows are kept, so Hub Scores are unchanged.
+
+### Fixed
+- The study timer runs off a stored end time instead of a one-second countdown, so background-tab throttling no longer stalls it. A running or paused session is saved in localStorage and resumes after a reload.
 ## 2026.11.16
 
 ### Added

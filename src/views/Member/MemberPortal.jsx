@@ -262,6 +262,10 @@ const MOCK_DIRECTORY = [];
 // shows under Mock Member for a Matchmaker preview. Not a permanent
 // restoration of MOCK_DIRECTORY's fake entries (see comment above, which
 // stays true) - remove this block once the preview's done.
+// The TryHackMe competition is paused while the Study Marathon runs
+// (Competitions tab). Its data and logging stay in place for next time.
+const SHOW_TRYHACKME_COMPETITION = false;
+
 const DEMO_TEAMMATE = { email: 'teammate@example.com', fullName: 'Test Teammate', about: 'Loves red teaming.', location: 'Cape Town', specialty: 'Cybersecurity Analyst', jobReadiness: 'In Progress', employmentStatus: 'Student', jobTitle: '', yearsExperience: 2, certifications: 'Security+', funFact: 'Once found a bug in production.', linkedin: '', githubUrl: '', tiktokUrl: '', websiteUrl: '', tryhackmeUsername: '', headshotUrl: '', roadmapTrack: 'Cybersecurity Analyst', whyReasons: ['Financial Freedom', 'A Movie, Show, or Game'], whyStory: 'I watched Mr. Robot at 19 and never looked at my laptop the same way again.' };
 const DEMO_MATCHMAKER_GROUP = { id: 99, activityType: 'Project', memberEmails: ['teammate@example.com'], status: 'Active', dueDate: '2026-09-23' };
 // Two already-presented groups so Mock Member can preview the showcase +
@@ -3606,20 +3610,37 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
   const [studyError, setStudyError] = useState(null);
   const [joiningStudyHours, setJoiningStudyHours] = useState(false);
   const [showStudyHoursRules, setShowStudyHoursRules] = useState(false);
-  const [studyDurationMinutes, setStudyDurationMinutes] = useState(25);
+  // A session saved by the timer below (running or paused), read once.
+  const studyTimerStorageKey = `hh-study-timer:${user?.email || 'guest'}`;
+  const [savedStudyTimer] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(studyTimerStorageKey) || 'null');
+      return saved && saved.durationMinutes ? saved : null;
+    } catch {
+      return null;
+    }
+  });
+  const [studyDurationMinutes, setStudyDurationMinutes] = useState(savedStudyTimer?.durationMinutes || 25);
   // Raw text of the custom-minutes input, kept separate from
   // studyDurationMinutes so someone can freely type/backspace (e.g. clearing
   // the field, or building up "18" one digit at a time) without every
   // keystroke being clamped mid-edit. Empty whenever a preset is selected.
-  const [customDurationInput, setCustomDurationInput] = useState('');
+  const [customDurationInput, setCustomDurationInput] = useState(
+    savedStudyTimer && ![25, 45, 60].includes(savedStudyTimer.durationMinutes) ? String(savedStudyTimer.durationMinutes) : ''
+  );
   // Same two-step vendor-then-cert picker Cert Calendar uses
   // (CERT_CATALOG_BY_VENDOR, memberOptions.js) - studyCertVendor picks the
   // group first (a real vendor, or '__other__' for free text), studyCert is
   // what actually gets logged.
-  const [studyCertVendor, setStudyCertVendor] = useState('');
-  const [studyCert, setStudyCert] = useState('');
-  const [studySecondsLeft, setStudySecondsLeft] = useState(25 * 60);
-  const [studyRunning, setStudyRunning] = useState(false);
+  const [studyCertVendor, setStudyCertVendor] = useState(savedStudyTimer?.certVendor || '');
+  const [studyCert, setStudyCert] = useState(savedStudyTimer?.cert || '');
+  const [studySecondsLeft, setStudySecondsLeft] = useState(() => {
+    if (savedStudyTimer?.endsAt) return Math.max(0, Math.ceil((savedStudyTimer.endsAt - Date.now()) / 1000));
+    if (savedStudyTimer?.pausedSecondsLeft) return savedStudyTimer.pausedSecondsLeft;
+    return (savedStudyTimer?.durationMinutes || 25) * 60;
+  });
+  const [studyRunning, setStudyRunning] = useState(!!savedStudyTimer?.endsAt);
+  const [studyEndsAt, setStudyEndsAt] = useState(savedStudyTimer?.endsAt || null);
   const [justCompletedStudySession, setJustCompletedStudySession] = useState(false);
   const studyIntervalRef = useRef(null);
 
@@ -3722,30 +3743,65 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     }
   }, [isMockSession, studyDurationMinutes, studyCert, user?.email]);
 
-  // The remaining seconds are mirrored in a ref so the one-second tick can
-  // finish the session itself, exactly once, when it reaches zero. (It used
-  // to call the completion from inside a state updater, and left the clock
-  // at 00:00 afterwards, so every further Start logged another session.)
-  const studySecondsRef = useRef(studySecondsLeft);
-  useEffect(() => { studySecondsRef.current = studySecondsLeft; }, [studySecondsLeft]);
+  // The timer runs off a fixed end time, not a one-second countdown, so
+  // switching tabs or windows never slows, stops or resets it: browsers
+  // throttle timers in background tabs, and each tick now just works out
+  // the time left from the clock. The running (or paused) session is also
+  // kept in localStorage, so a reload or a fresh sign-in picks it up again,
+  // and a session that finished while the portal was closed logs on return.
+  const studyCompletingRef = useRef(false);
+  const saveStudyTimer = useCallback((value) => {
+    try {
+      if (value) localStorage.setItem(studyTimerStorageKey, JSON.stringify(value));
+      else localStorage.removeItem(studyTimerStorageKey);
+    } catch { /* storage blocked: the timer still works for this page view */ }
+  }, [studyTimerStorageKey]);
+
   useEffect(() => {
-    if (!studyRunning) return undefined;
-    const id = setInterval(() => {
-      const next = Math.max(0, studySecondsRef.current - 1);
-      studySecondsRef.current = next;
-      setStudySecondsLeft(next);
-      if (next === 0) {
-        clearInterval(id);
-        handleCompleteStudySession();
+    if (!studyRunning || !studyEndsAt) return undefined;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((studyEndsAt - Date.now()) / 1000));
+      setStudySecondsLeft(left);
+      if (left === 0 && !studyCompletingRef.current) {
+        studyCompletingRef.current = true;
+        setStudyEndsAt(null);
+        saveStudyTimer(null);
+        Promise.resolve(handleCompleteStudySession()).finally(() => { studyCompletingRef.current = false; });
       }
-    }, 1000);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
     studyIntervalRef.current = id;
-    return () => clearInterval(id);
-  }, [studyRunning, handleCompleteStudySession]);
+    // Catch up straight away when the member comes back to the tab.
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [studyRunning, studyEndsAt, handleCompleteStudySession, saveStudyTimer]);
+
+  const handleStudyStartPause = () => {
+    if (studyRunning) {
+      const left = studyEndsAt ? Math.max(1, Math.ceil((studyEndsAt - Date.now()) / 1000)) : studySecondsLeft;
+      setStudyRunning(false);
+      setStudyEndsAt(null);
+      setStudySecondsLeft(left);
+      saveStudyTimer({ pausedSecondsLeft: left, durationMinutes: studyDurationMinutes, cert: studyCert, certVendor: studyCertVendor });
+      return;
+    }
+    const seconds = studySecondsLeft > 0 ? studySecondsLeft : studyDurationMinutes * 60;
+    const endsAt = Date.now() + seconds * 1000;
+    setStudySecondsLeft(seconds);
+    setStudyEndsAt(endsAt);
+    setStudyRunning(true);
+    saveStudyTimer({ endsAt, durationMinutes: studyDurationMinutes, cert: studyCert, certVendor: studyCertVendor });
+  };
 
   const handleStudyTimerReset = () => {
     setStudyRunning(false);
+    setStudyEndsAt(null);
     setStudySecondsLeft(studyDurationMinutes * 60);
+    saveStudyTimer(null);
   };
   const studyTimerDisplay = `${String(Math.floor(studySecondsLeft / 60)).padStart(2, '0')}:${String(studySecondsLeft % 60).padStart(2, '0')}`;
 
@@ -8738,9 +8794,246 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
         <div>
           <div style={{ marginBottom: '32px' }}>
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Competitions</h1>
-            <p>Our quarterly TryHackMe competition — standings and how to get involved.</p>
+            <p>The Study Marathon is on. Every focused session you finish counts.</p>
           </div>
 
+          {/* Study Hours (081_study_sessions.sql) - Phase 1 of the
+              Competitive Study Mode plan, shown right under the TryHackMe
+              leaderboard per that request. Opt-in: the timer and
+              leaderboard both stay hidden behind a join step, same "Yes
+              I'm In" pattern the competition above uses. */}
+          <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--accent-cyan)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Timer size={24} color="var(--accent-cyan)" />
+                <div>
+                  <h3 style={{ margin: 0 }}>Study Marathon</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Counting from Monday 16 November</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span className="badge badge-success">Live</span>
+                <button type="button" className="btn btn-secondary" style={{ justifyContent: 'center' }} onClick={() => setShowStudyHoursRules(true)}>
+                  <BookOpen size={14} /> Learn More
+                </button>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              Pick a session length, start the timer and study. When it reaches zero, the session logs itself and counts towards the leaderboard. Switching tabs or windows is fine: the timer keeps running.
+            </p>
+
+            {!hasJoinedStudyHours ? (
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleStudyHoursJoinToggle}
+                  disabled={joiningStudyHours}
+                  style={{ justifyContent: 'center' }}
+                >
+                  {joiningStudyHours ? 'Joining...' : "Join the Study Marathon"}
+                </button>
+                {studyError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{studyError}</span>}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 220px) 1fr', gap: '24px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
+                    <div className="mono" style={{ fontFamily: 'var(--font-mono)', fontSize: '2.4rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{studyTimerDisplay}</div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleStudyStartPause}
+                        style={{ justifyContent: 'center' }}
+                      >
+                        {studyRunning ? <><Pause size={14} /> Pause</> : <><PlayCircle size={14} /> Start</>}
+                      </button>
+                      <button className="btn btn-secondary" onClick={handleStudyTimerReset} title="Reset" style={{ justifyContent: 'center' }}>
+                        <RotateCcw size={14} />
+                      </button>
+                    </div>
+                    {justCompletedStudySession && (
+                      <span style={{ fontSize: '0.78rem', color: 'var(--accent-green, var(--accent-cyan))', fontWeight: 600 }}>Session logged!</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Session length</label>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {[25, 45, 60].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            disabled={studyRunning}
+                            onClick={() => handleSelectStudyDuration(mins)}
+                            className={`btn ${customDurationInput === '' && studyDurationMinutes === mins ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ fontSize: '0.8rem', padding: '8px 14px', opacity: studyRunning ? 0.6 : 1 }}
+                          >
+                            {mins} min
+                          </button>
+                        ))}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={STUDY_MIN_MINUTES}
+                            max={STUDY_MAX_MINUTES}
+                            disabled={studyRunning}
+                            value={customDurationInput}
+                            onChange={(e) => handleCustomDurationChange(e.target.value)}
+                            onBlur={handleCustomDurationBlur}
+                            placeholder="Custom"
+                            className="form-input"
+                            style={{ width: '96px', fontSize: '0.8rem', padding: '8px 10px', opacity: studyRunning ? 0.6 : 1 }}
+                          />
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>min</span>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                        {STUDY_MIN_MINUTES}–{STUDY_MAX_MINUTES} minutes if you set your own.
+                      </p>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Studying for (optional)</label>
+                      {/* Same two-step vendor-then-cert picker as Cert
+                          Calendar's Add form - a plain <select> can't
+                          render a logo inside an <option>. */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px', maxHeight: '160px', overflowY: 'auto', padding: '2px', opacity: studyRunning ? 0.6 : 1, pointerEvents: studyRunning ? 'none' : 'auto' }}>
+                        {CERT_CATALOG_BY_VENDOR.map((group) => (
+                          <button
+                            key={group.vendor}
+                            type="button"
+                            onClick={() => { setStudyCertVendor(group.vendor); setStudyCert(''); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 9px', borderRadius: 'var(--border-radius-sm)',
+                              border: studyCertVendor === group.vendor ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                              background: studyCertVendor === group.vendor ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
+                              cursor: 'pointer', textAlign: 'left', fontSize: '0.76rem', color: 'var(--text-primary)',
+                            }}
+                          >
+                            <VendorLogo title={group.vendor} size={16} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.vendor}</span>
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => { setStudyCertVendor('__other__'); setStudyCert(''); }}
+                          style={{
+                            display: 'flex', alignItems: 'center', padding: '7px 9px', borderRadius: 'var(--border-radius-sm)',
+                            border: studyCertVendor === '__other__' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                            background: studyCertVendor === '__other__' ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
+                            cursor: 'pointer', textAlign: 'left', fontSize: '0.76rem', color: 'var(--text-primary)',
+                          }}
+                        >
+                          Other / not sure yet
+                        </button>
+                      </div>
+
+                      {studyCertVendor && studyCertVendor !== '__other__' && (
+                        <select
+                          className="form-input"
+                          value={studyCert}
+                          disabled={studyRunning}
+                          onChange={(e) => setStudyCert(e.target.value)}
+                          style={{ marginTop: '8px', maxWidth: '260px' }}
+                        >
+                          <option value="" disabled>Select a certification...</option>
+                          {CERT_CATALOG_BY_VENDOR.find((g) => g.vendor === studyCertVendor)?.certs.map((certName) => (
+                            <option key={certName} value={certName}>{certName}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {studyCertVendor === '__other__' && (
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. CISSP"
+                          value={studyCert}
+                          disabled={studyRunning}
+                          onChange={(e) => setStudyCert(e.target.value)}
+                          style={{ marginTop: '8px', maxWidth: '260px' }}
+                        />
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={handleStudyHoursJoinToggle}
+                        disabled={joiningStudyHours || studyRunning}
+                        title={studyRunning ? "Finish or reset your current session first" : "Leave the Study Marathon"}
+                        style={{ background: 'none', border: 'none', cursor: studyRunning ? 'not-allowed' : 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem', textDecoration: 'underline' }}
+                      >
+                        {joiningStudyHours ? 'Leaving...' : 'Leave the Study Marathon'}
+                      </button>
+                    </div>
+                    {studyError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{studyError}</span>}
+                  </div>
+                </div>
+
+                {loadingStudyLeaderboard && <p style={{ color: 'var(--text-muted)' }}>Loading standings...</p>}
+                {!loadingStudyLeaderboard && studyLeaderboard.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Clock size={13} /> Total Time</span>
+                        </th>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Sessions</th>
+                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> Streak</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...studyLeaderboard].sort((a, b) => b.minutes - a.minutes).map((row) => {
+                        // Same headshot + clickable-profile pattern as the
+                        // TryHackMe Current Standings table above.
+                        const directoryMatch = row.email ? directory.find((m) => m.email.toLowerCase() === row.email.toLowerCase()) : null;
+                        return (
+                        <tr key={row.email || row.member} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
+                          <td style={{ padding: '14px 12px', fontWeight: 600 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {directoryMatch?.headshotUrl ? (
+                                  <img src={directoryMatch.headshotUrl} alt={row.member} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <User size={14} color="var(--text-muted)" />
+                                )}
+                              </div>
+                              {directoryMatch ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDirectoryMember(directoryMatch)}
+                                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--accent-cyan)', textDecoration: 'underline', cursor: 'pointer' }}
+                                >
+                                  {row.member}{row.email === user?.email ? ' (you)' : ''}
+                                </button>
+                              ) : (
+                                <span>{row.member}{row.email === user?.email ? ' (you)' : ''}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{Math.floor(row.minutes / 60)}h {row.minutes % 60}m</td>
+                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.sessions}</td>
+                          <td style={{ padding: '14px 12px', fontWeight: 700, color: row.streak > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
+                            {row.streak > 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> {row.streak}</span> : '—'}
+                          </td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
+          </div>
+
+
+          {/* TryHackMe competition - switched off while the Study Marathon
+              runs. Flip SHOW_TRYHACKME_COMPETITION to bring it back. */}
+          {SHOW_TRYHACKME_COMPETITION && (<>
           <div className="glass-card" style={{ marginBottom: '32px', border: '1px solid var(--accent-cyan)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -9074,234 +9367,7 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             </table>
             )}
           </div>
-
-          {/* Study Hours (081_study_sessions.sql) - Phase 1 of the
-              Competitive Study Mode plan, shown right under the TryHackMe
-              leaderboard per that request. Opt-in: the timer and
-              leaderboard both stay hidden behind a join step, same "Yes
-              I'm In" pattern the competition above uses. */}
-          <div className="glass-card" style={{ marginTop: '32px', marginBottom: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <Timer size={20} color="var(--accent-cyan)" />
-              <h3 style={{ margin: 0 }}>Study Hours</h3>
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              A Pomodoro focus timer with its own leaderboard and streaks - pick a length, run it to completion, and it logs itself. No admin approval needed, the timer is the proof.
-            </p>
-
-            {!hasJoinedStudyHours ? (
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleStudyHoursJoinToggle}
-                  disabled={joiningStudyHours}
-                  style={{ justifyContent: 'center' }}
-                >
-                  {joiningStudyHours ? 'Joining...' : 'Track My Study Hours'}
-                </button>
-                <button type="button" className="btn btn-secondary" style={{ justifyContent: 'center' }} onClick={() => setShowStudyHoursRules(true)}>
-                  <BookOpen size={14} /> Learn More
-                </button>
-                {studyError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{studyError}</span>}
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 220px) 1fr', gap: '24px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '20px', borderRadius: 'var(--border-radius-md)', background: 'rgba(var(--overlay-rgb), 0.02)', border: '1px solid var(--border-color)' }}>
-                    <div className="mono" style={{ fontFamily: 'var(--font-mono)', fontSize: '2.4rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{studyTimerDisplay}</div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => { if (!studyRunning && studySecondsLeft <= 0) setStudySecondsLeft(studyDurationMinutes * 60); setStudyRunning((r) => !r); }}
-                        style={{ justifyContent: 'center' }}
-                      >
-                        {studyRunning ? <><Pause size={14} /> Pause</> : <><PlayCircle size={14} /> Start</>}
-                      </button>
-                      <button className="btn btn-secondary" onClick={handleStudyTimerReset} title="Reset" style={{ justifyContent: 'center' }}>
-                        <RotateCcw size={14} />
-                      </button>
-                    </div>
-                    {justCompletedStudySession && (
-                      <span style={{ fontSize: '0.78rem', color: 'var(--accent-green, var(--accent-cyan))', fontWeight: 600 }}>Session logged!</span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Session length</label>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {[25, 45, 60].map((mins) => (
-                          <button
-                            key={mins}
-                            type="button"
-                            disabled={studyRunning}
-                            onClick={() => handleSelectStudyDuration(mins)}
-                            className={`btn ${customDurationInput === '' && studyDurationMinutes === mins ? 'btn-primary' : 'btn-secondary'}`}
-                            style={{ fontSize: '0.8rem', padding: '8px 14px', opacity: studyRunning ? 0.6 : 1 }}
-                          >
-                            {mins} min
-                          </button>
-                        ))}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={STUDY_MIN_MINUTES}
-                            max={STUDY_MAX_MINUTES}
-                            disabled={studyRunning}
-                            value={customDurationInput}
-                            onChange={(e) => handleCustomDurationChange(e.target.value)}
-                            onBlur={handleCustomDurationBlur}
-                            placeholder="Custom"
-                            className="form-input"
-                            style={{ width: '96px', fontSize: '0.8rem', padding: '8px 10px', opacity: studyRunning ? 0.6 : 1 }}
-                          />
-                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>min</span>
-                        </div>
-                      </div>
-                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
-                        {STUDY_MIN_MINUTES}–{STUDY_MAX_MINUTES} minutes if you set your own.
-                      </p>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Studying for (optional)</label>
-                      {/* Same two-step vendor-then-cert picker as Cert
-                          Calendar's Add form - a plain <select> can't
-                          render a logo inside an <option>. */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px', maxHeight: '160px', overflowY: 'auto', padding: '2px', opacity: studyRunning ? 0.6 : 1, pointerEvents: studyRunning ? 'none' : 'auto' }}>
-                        {CERT_CATALOG_BY_VENDOR.map((group) => (
-                          <button
-                            key={group.vendor}
-                            type="button"
-                            onClick={() => { setStudyCertVendor(group.vendor); setStudyCert(''); }}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 9px', borderRadius: 'var(--border-radius-sm)',
-                              border: studyCertVendor === group.vendor ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
-                              background: studyCertVendor === group.vendor ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
-                              cursor: 'pointer', textAlign: 'left', fontSize: '0.76rem', color: 'var(--text-primary)',
-                            }}
-                          >
-                            <VendorLogo title={group.vendor} size={16} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.vendor}</span>
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => { setStudyCertVendor('__other__'); setStudyCert(''); }}
-                          style={{
-                            display: 'flex', alignItems: 'center', padding: '7px 9px', borderRadius: 'var(--border-radius-sm)',
-                            border: studyCertVendor === '__other__' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
-                            background: studyCertVendor === '__other__' ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
-                            cursor: 'pointer', textAlign: 'left', fontSize: '0.76rem', color: 'var(--text-primary)',
-                          }}
-                        >
-                          Other / not sure yet
-                        </button>
-                      </div>
-
-                      {studyCertVendor && studyCertVendor !== '__other__' && (
-                        <select
-                          className="form-input"
-                          value={studyCert}
-                          disabled={studyRunning}
-                          onChange={(e) => setStudyCert(e.target.value)}
-                          style={{ marginTop: '8px', maxWidth: '260px' }}
-                        >
-                          <option value="" disabled>Select a certification...</option>
-                          {CERT_CATALOG_BY_VENDOR.find((g) => g.vendor === studyCertVendor)?.certs.map((certName) => (
-                            <option key={certName} value={certName}>{certName}</option>
-                          ))}
-                        </select>
-                      )}
-
-                      {studyCertVendor === '__other__' && (
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="e.g. CISSP"
-                          value={studyCert}
-                          disabled={studyRunning}
-                          onChange={(e) => setStudyCert(e.target.value)}
-                          style={{ marginTop: '8px', maxWidth: '260px' }}
-                        />
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem' }} onClick={() => setShowStudyHoursRules(true)}>
-                        <BookOpen size={14} /> Learn More
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleStudyHoursJoinToggle}
-                        disabled={joiningStudyHours || studyRunning}
-                        title={studyRunning ? "Finish or reset your current session first" : "Opt out of Study Hours"}
-                        style={{ background: 'none', border: 'none', cursor: studyRunning ? 'not-allowed' : 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem', textDecoration: 'underline' }}
-                      >
-                        {joiningStudyHours ? 'Opting out...' : 'Opt out of Study Hours'}
-                      </button>
-                    </div>
-                    {studyError && <span style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{studyError}</span>}
-                  </div>
-                </div>
-
-                {loadingStudyLeaderboard && <p style={{ color: 'var(--text-muted)' }}>Loading standings...</p>}
-                {!loadingStudyLeaderboard && studyLeaderboard.length > 0 && (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Member</th>
-                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Clock size={13} /> Total Time</span>
-                        </th>
-                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>Sessions</th>
-                        <th style={{ padding: '12px', color: 'var(--text-muted)' }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> Streak</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...studyLeaderboard].sort((a, b) => b.minutes - a.minutes).map((row) => {
-                        // Same headshot + clickable-profile pattern as the
-                        // TryHackMe Current Standings table above.
-                        const directoryMatch = row.email ? directory.find((m) => m.email.toLowerCase() === row.email.toLowerCase()) : null;
-                        return (
-                        <tr key={row.email || row.member} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
-                          <td style={{ padding: '14px 12px', fontWeight: 600 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {directoryMatch?.headshotUrl ? (
-                                  <img src={directoryMatch.headshotUrl} alt={row.member} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                  <User size={14} color="var(--text-muted)" />
-                                )}
-                              </div>
-                              {directoryMatch ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedDirectoryMember(directoryMatch)}
-                                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--accent-cyan)', textDecoration: 'underline', cursor: 'pointer' }}
-                                >
-                                  {row.member}{row.email === user?.email ? ' (you)' : ''}
-                                </button>
-                              ) : (
-                                <span>{row.member}{row.email === user?.email ? ' (you)' : ''}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{Math.floor(row.minutes / 60)}h {row.minutes % 60}m</td>
-                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{row.sessions}</td>
-                          <td style={{ padding: '14px 12px', fontWeight: 700, color: row.streak > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
-                            {row.streak > 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Flame size={13} /> {row.streak}</span> : '—'}
-                          </td>
-                        </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </>
-            )}
-          </div>
+          </>)}
 
           {/* Hub Score Leaderboard (094_hub_score_leaderboard_and_claims.sql) -
               third nested glass-card in this tab, same convention as the
