@@ -247,8 +247,9 @@ const MENTORS = [
     photo: '/mentors/tshepo-mentor-headshot.jpeg',
     badge: 'COMMUNITY MENTOR',
     badgeClass: 'badge-warning',
-    sideNote: 'Synced via Siya',
+    sideNote: 'Book Directly',
     bio: 'Cyber Security Supervisor at KPMG.',
+    bookingUrl: 'https://calendly.com/tshepo-nchabeng36/30min',
     linkedinUrl: 'https://www.linkedin.com/in/tsheponchabeng/',
   },
 ];
