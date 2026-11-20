@@ -48,3 +48,28 @@ ALTER TABLE public.expenses ADD CONSTRAINT expenses_category_check
 -- spotted by matching last month's expenses to this month's by category and
 -- the first word of the description (src/lib/financeForecast.js).
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_one_off BOOLEAN NOT NULL DEFAULT false;
+
+-- ---------------------------------------------------------------------------
+-- Other income (2026-11-20): money in that isn't a member payment, such as a
+-- referral fee or a sponsorship. Kept apart from eft_payments on purpose:
+-- those rows count as membership revenue, can grant portal access and fill
+-- intake spots (116_intake_reservations.sql), none of which fits here.
+-- Admin-only, same as expenses above. Shown on the Finances tab.
+CREATE TABLE IF NOT EXISTS public.other_income (
+  id BIGSERIAL PRIMARY KEY,
+  category TEXT NOT NULL CHECK (category IN ('Referral fee', 'Sponsorship', 'Consulting / Services', 'Other')),
+  source TEXT NOT NULL,
+  description TEXT,
+  amount NUMERIC NOT NULL CHECK (amount > 0),
+  received_on DATE NOT NULL,
+  created_by TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.other_income ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "admins manage other income" ON public.other_income;
+CREATE POLICY "admins manage other income"
+  ON public.other_income FOR ALL
+  USING (public.is_admin(auth.uid()))
+  WITH CHECK (public.is_admin(auth.uid()));

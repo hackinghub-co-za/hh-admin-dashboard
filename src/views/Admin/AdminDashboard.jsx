@@ -47,6 +47,7 @@ import { isSafeUrl } from '../../lib/safeUrl';
 import { fetchCertCalendar, addCertCalendarEntry, updateCertCalendarResult, updateCertCalendarEntry, deleteCertCalendarEntry, sendCertPassEmail, sendCertFailEmail } from '../../lib/certCalendarData';
 import MemberHoverCard from '../../components/MemberHoverCard';
 import { fetchExpenses, addExpense, updateExpense, deleteExpense } from '../../lib/expensesData';
+import { fetchOtherIncome, addOtherIncome, deleteOtherIncome, OTHER_INCOME_CATEGORIES } from '../../lib/otherIncomeData';
 import { forecastExpenses } from '../../lib/financeForecast';
 
 // Current month in South African time, as "YYYY-MM". Module scope so the
@@ -1488,6 +1489,59 @@ export default function AdminDashboard({ activeTab, setActiveTab, providerToken,
       .finally(() => !cancelled && setLoadingExpenses(false));
     return () => { cancelled = true; };
   }, [isMockSession, dataRefreshKey]);
+
+  // Other income (otherIncomeData.js): referral fees, sponsorships and other
+  // money in that isn't a member payment.
+  const [otherIncome, setOtherIncome] = useState(isMockSession ? [
+    { id: 1, category: 'Referral fee', source: 'Example recruiter', description: 'Placement referral', amount: 6000, date: '2026-11-19' },
+  ] : []);
+  const [loadingOtherIncome, setLoadingOtherIncome] = useState(!isMockSession);
+  const [otherIncomeError, setOtherIncomeError] = useState(null);
+  const emptyOtherIncome = { category: OTHER_INCOME_CATEGORIES[0], source: '', description: '', amount: '', date: '' };
+  const [newOtherIncome, setNewOtherIncome] = useState(emptyOtherIncome);
+
+  useEffect(() => {
+    if (isMockSession) return;
+    let cancelled = false;
+    fetchOtherIncome()
+      .then((data) => !cancelled && setOtherIncome(data))
+      .catch((err) => !cancelled && setOtherIncomeError(friendlyErrorMessage(err)))
+      .finally(() => !cancelled && setLoadingOtherIncome(false));
+    return () => { cancelled = true; };
+  }, [isMockSession, dataRefreshKey]);
+
+  const handleAddOtherIncome = async (e) => {
+    e.preventDefault();
+    if (!newOtherIncome.source.trim() || !newOtherIncome.amount || !newOtherIncome.date) {
+      setOtherIncomeError('Add who it came from, the amount and the date.');
+      return;
+    }
+    setOtherIncomeError(null);
+    const entry = { ...newOtherIncome, source: newOtherIncome.source.trim(), description: newOtherIncome.description.trim(), amount: Number(newOtherIncome.amount) };
+    if (isMockSession) {
+      setOtherIncome([{ id: Math.max(0, ...otherIncome.map((x) => x.id)) + 1, ...entry }, ...otherIncome]);
+    } else {
+      try {
+        const added = await addOtherIncome({ ...entry, createdBy: user?.email });
+        setOtherIncome([added, ...otherIncome].sort((a, b) => (b.date || '').localeCompare(a.date || '')));
+      } catch (err) {
+        setOtherIncomeError(friendlyErrorMessage(err));
+        return;
+      }
+    }
+    setNewOtherIncome(emptyOtherIncome);
+  };
+
+  const handleDeleteOtherIncome = async (entry) => {
+    setOtherIncome((prev) => prev.filter((x) => x.id !== entry.id));
+    if (isMockSession) return;
+    try {
+      await deleteOtherIncome(entry.id);
+    } catch (err) {
+      setOtherIncomeError(friendlyErrorMessage(err));
+      setOtherIncome((prev) => [entry, ...prev]);
+    }
+  };
 
   const EXPENSE_CATEGORIES = ['Tools & Software', 'Staff', 'Marketing', 'Hosting / Infrastructure', 'Events', 'Training & Certifications', 'Other'];
   const [newExpense, setNewExpense] = useState({ category: EXPENSE_CATEGORIES[0], description: '', amount: '', date: '', isOneOff: false });
@@ -8481,6 +8535,78 @@ Pick new people to present next Sunday`;
                       </tr>
                     )
                   )}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Other income (otherIncomeData.js) - money in that isn't a member
+              payment, so it stays out of the membership revenue figures above. */}
+          <div className="glass-card" style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <DollarSign size={20} color="var(--success)" />
+                <h3 style={{ margin: 0 }}>Other Income</h3>
+              </div>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--success)' }}>
+                Total: R {otherIncome.reduce((acc, x) => acc + x.amount, 0).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 16px' }}>
+              Referral fees, sponsorships and other money that isn't a member payment. It isn't counted in membership revenue or intake spots.
+            </p>
+
+            {otherIncomeError && (
+              <div style={{ padding: '12px 16px', marginBottom: '16px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
+                {otherIncomeError}
+              </div>
+            )}
+
+            <form onSubmit={handleAddOtherIncome} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+              <select className="form-input" aria-label="Category" value={newOtherIncome.category} onChange={(e) => setNewOtherIncome({ ...newOtherIncome, category: e.target.value })}>
+                {OTHER_INCOME_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input className="form-input" aria-label="From" value={newOtherIncome.source} onChange={(e) => setNewOtherIncome({ ...newOtherIncome, source: e.target.value })} placeholder="From (person or company)" />
+              <input className="form-input" aria-label="Description" value={newOtherIncome.description} onChange={(e) => setNewOtherIncome({ ...newOtherIncome, description: e.target.value })} placeholder="Description (optional)" />
+              <input type="number" step="0.01" min="0" className="form-input" aria-label="Amount" value={newOtherIncome.amount} onChange={(e) => setNewOtherIncome({ ...newOtherIncome, amount: e.target.value })} placeholder="Amount (R)" />
+              <input type="date" className="form-input" aria-label="Date received" value={newOtherIncome.date} onChange={(e) => setNewOtherIncome({ ...newOtherIncome, date: e.target.value })} />
+              <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', padding: '10px 16px' }}>
+                <Plus size={14} /> Add
+              </button>
+            </form>
+
+            {loadingOtherIncome ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading other income...</p>
+            ) : otherIncome.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No other income recorded yet.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Date</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Category</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>From</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}>Amount</th>
+                    <th style={{ padding: '10px 8px', color: 'var(--text-muted)' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {otherIncome.map((x) => (
+                    <tr key={x.id} style={{ borderBottom: '1px solid rgba(var(--overlay-rgb), 0.02)' }}>
+                      <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{x.date}</td>
+                      <td style={{ padding: '12px 8px' }}><span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{x.category}</span></td>
+                      <td style={{ padding: '12px 8px' }}>
+                        {x.source}
+                        {x.description && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{x.description}</div>}
+                      </td>
+                      <td style={{ padding: '12px 8px', fontWeight: 700 }}>R {x.amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <button onClick={() => handleDeleteOtherIncome(x)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex' }} aria-label="Delete other income entry">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}
