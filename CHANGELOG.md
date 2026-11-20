@@ -19,6 +19,15 @@ dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
 
+## 2026.11.20
+
+### Added
+- Intakes & Deposits: each waiting-list entry records the plan, monthly amount, months and start date (116_intake_reservations.sql), with a Plan column, an edit button, a per-intake "in plans signed up" total and a "Due to start" flag. "Start membership" runs `start_reserved_membership()`: portal access, start date, expected total without the deposit, and Joined, then sends the welcome email.
+- Other Income on the Finances tab (`other_income`, 037_expenses.sql).
+
+### Removed
+- The Reviews & feedback tab from the member and admin portals. Existing reviews stay in the `reviews` table. Gemma's tab list and knowledge no longer mention it, and her competitions entry now describes the Study Marathon.
+
 ## 2026.11.19
 
 ### Changed

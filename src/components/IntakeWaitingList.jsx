@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Hourglass, Plus, Check, X, Undo2, Trash2, Pencil } from 'lucide-react';
+import { Hourglass, Plus, Check, X, Undo2, Trash2, Pencil, Rocket } from 'lucide-react';
 import {
-  DEPOSIT_AMOUNT, DEPOSIT_METHODS,
+  DEPOSIT_AMOUNT, DEPOSIT_METHODS, RESERVATION_PLANS, planTotal, rand,
   fetchIntakeSchedule, setIntakeCapacity, fetchReservations, addReservation,
-  updateReservation, deleteReservation, fetchUnlinkedDeposits, shortDate,
+  updateReservation, editReservation, startReservedMembership, deleteReservation, fetchUnlinkedDeposits, shortDate,
 } from '../lib/intakeData';
+import { sendMemberWelcomeEmail } from '../lib/onboardingData';
 import { friendlyErrorMessage } from '../lib/errorMessages';
 
 // Founder-only Intakes & Deposits page (116_intake_reservations.sql): the
@@ -20,7 +21,7 @@ const MOCK_SCHEDULE = [
   { name: 'February', opensOn: '2027-01-16', closesOn: '2027-02-15', capacity: 10, stored: false, reserved: 0, paidWithoutReservation: 0, spotsLeft: 10, isCurrent: false },
 ];
 const MOCK_RESERVATIONS = [
-  { id: 1, intakeOpensOn: '2026-11-16', intakeName: 'December', fullName: 'Example member A', email: 'a@example.com', phone: '082 000 0001', depositAmount: 300, paidOn: '2026-11-16', method: 'EFT', paymentRef: '', status: 'Reserved', notes: '' },
+  { id: 1, intakeOpensOn: '2026-11-16', intakeName: 'December', fullName: 'Example member A', email: 'a@example.com', phone: '082 000 0001', depositAmount: 300, paidOn: '2026-11-16', method: 'EFT', paymentRef: '', status: 'Reserved', notes: '', plan: 'Elite Operative', monthlyAmount: 2500, months: 12, startDate: '2026-12-01' },
   { id: 2, intakeOpensOn: '2026-11-16', intakeName: 'December', fullName: 'Example member B', email: 'b@example.com', phone: '', depositAmount: 300, paidOn: '2026-11-17', method: 'PayFast', paymentRef: '', status: 'Joined', notes: '' },
   { id: 3, intakeOpensOn: '2026-12-16', intakeName: 'January', fullName: 'Example member C', email: 'c@example.com', phone: '', depositAmount: 300, paidOn: '2026-11-18', method: 'EFT', paymentRef: '', status: 'Reserved', notes: 'Starts after exams' },
 ];
@@ -31,7 +32,15 @@ const emptyForm = (intake) => ({
   intakeName: intake?.name || '',
   fullName: '', email: '', phone: '',
   depositAmount: DEPOSIT_AMOUNT, paidOn: today(), method: 'EFT', paymentRef: '', notes: '',
+  plan: '', monthlyAmount: '', months: '', startDate: '',
 });
+
+// Plan, price and start date in one line, e.g. "Elite Operative · R2,500 × 12 = R30,000".
+const planSummary = (r) => {
+  const total = planTotal(r);
+  const price = total ? `${rand(r.monthlyAmount)} × ${r.months} = ${rand(total)}` : '';
+  return [r.plan, price].filter(Boolean).join(' · ');
+};
 
 const label = { display: 'block', fontSize: '0.8rem', marginBottom: '6px', color: 'var(--text-secondary)' };
 const STATUS_COLORS = { Reserved: 'var(--warning)', Joined: 'var(--success)', Cancelled: 'var(--text-muted)' };
@@ -42,7 +51,9 @@ export default function IntakeWaitingList({ isMockSession, user }) {
   const [unlinked, setUnlinked] = useState(isMockSession ? MOCK_UNLINKED : []);
   const [selected, setSelected] = useState(isMockSession ? MOCK_SCHEDULE[0].opensOn : null);
   const [error, setError] = useState('');
-  const [form, setForm] = useState(null); // null = closed
+  const [form, setForm] = useState(null); // null = closed; has an id when editing
+  const [starting, setStarting] = useState(null); // { id, step: 'confirm' | 'busy' }
+  const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingCapacity, setEditingCapacity] = useState(null); // { opensOn, value }
   const [reloadKey, setReloadKey] = useState(0); // bumped after every save
@@ -86,12 +97,14 @@ export default function IntakeWaitingList({ isMockSession, user }) {
     const entry = { ...form, intakeName: target?.name || form.intakeName };
     setSaving(true);
     if (isMockSession) {
-      setReservations((prev) => [...prev, { ...entry, id: Date.now(), status: 'Reserved' }]);
+      setReservations((prev) => (form.id
+        ? prev.map((x) => (x.id === form.id ? { ...x, ...entry } : x))
+        : [...prev, { ...entry, id: Date.now(), status: 'Reserved' }]));
       setForm(null);
       setSaving(false);
       return;
     }
-    await run(() => addReservation(entry, user?.email));
+    await run(() => (form.id ? editReservation(form.id, entry) : addReservation(entry, user?.email)));
     setSaving(false);
     setForm(null);
   };
@@ -122,6 +135,41 @@ export default function IntakeWaitingList({ isMockSession, user }) {
     await run(() => setIntakeCapacity(target, value));
   };
 
+  const pickPlan = (name) => {
+    const preset = RESERVATION_PLANS.find((p) => p.name === name);
+    setForm({ ...form, plan: name, monthlyAmount: preset ? preset.monthlyAmount : form.monthlyAmount, months: preset ? preset.months : form.months });
+  };
+
+  // Start membership: portal access, start date, expected total (deposit
+  // left out) and Joined, then the welcome email. Two clicks, like the
+  // welcome-email button on a member's profile.
+  const startMembership = async (r) => {
+    setError('');
+    setNotice('');
+    setStarting({ id: r.id, step: 'busy' });
+    if (isMockSession) {
+      setReservations((prev) => prev.map((x) => (x.id === r.id ? { ...x, status: 'Joined', startedAt: new Date().toISOString() } : x)));
+      setNotice(`${r.fullName} started (mock).`);
+      setStarting(null);
+      return;
+    }
+    try {
+      const result = await startReservedMembership(r.id);
+      let emailNote = ' and sent the welcome email';
+      try {
+        await sendMemberWelcomeEmail(result.email);
+      } catch {
+        emailNote = ', but the welcome email did not send. Use "Send welcome email" on their profile';
+      }
+      const owed = result.expectedTotal !== null ? ` They owe ${rand(planTotal(r))}.` : ' No plan price was set, so set their expected total on their profile.';
+      setNotice(`Started ${result.fullName || r.fullName}: portal access is on${emailNote}.${owed}`);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      setError(friendlyErrorMessage(err));
+    }
+    setStarting(null);
+  };
+
   const addFromDeposit = (d) => {
     setForm({ ...emptyForm(intake), fullName: d.name, email: d.email, depositAmount: d.amount, paidOn: d.paidOn, method: d.source === 'PayFast' ? 'PayFast' : 'EFT', paymentRef: d.ref });
   };
@@ -137,6 +185,7 @@ export default function IntakeWaitingList({ isMockSession, user }) {
       </div>
 
       {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '16px' }}>{error}</p>}
+      {notice && <p style={{ color: 'var(--success)', fontSize: '0.85rem', marginBottom: '16px' }}>{notice}</p>}
       {!schedule && !error && <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>}
 
       {schedule && (
@@ -166,6 +215,14 @@ export default function IntakeWaitingList({ isMockSession, user }) {
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                     {i.reserved} on the waiting list · {i.paidWithoutReservation} joined without a deposit
                   </div>
+                  {(() => {
+                    const committed = reservations
+                      .filter((r) => r.intakeOpensOn === i.opensOn && r.status !== 'Cancelled')
+                      .reduce((sum, r) => sum + (planTotal(r) || 0), 0);
+                    return committed > 0 ? (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--success)', marginTop: '4px', fontWeight: 600 }}>{rand(committed)} in plans signed up</div>
+                    ) : null;
+                  })()}
                   <div style={{ marginTop: '10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                     {editing ? (
                       <>
@@ -226,9 +283,24 @@ export default function IntakeWaitingList({ isMockSession, user }) {
                     {DEPOSIT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label style={label} htmlFor="wl-plan">Joining on</label>
+                  <select id="wl-plan" className="form-input" value={form.plan} onChange={(e) => pickPlan(e.target.value)}>
+                    <option value="">Not decided yet</option>
+                    {RESERVATION_PLANS.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div><label style={label} htmlFor="wl-monthly">Monthly (R)</label><input id="wl-monthly" type="number" min={0} className="form-input" value={form.monthlyAmount} onChange={(e) => setForm({ ...form, monthlyAmount: e.target.value })} /></div>
+                <div><label style={label} htmlFor="wl-months">Months</label><input id="wl-months" type="number" min={1} max={36} className="form-input" value={form.months} onChange={(e) => setForm({ ...form, months: e.target.value })} /></div>
+                <div><label style={label} htmlFor="wl-start">Starts on</label><input id="wl-start" type="date" className="form-input" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
+                {planTotal(form) && (
+                  <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    Plan total {rand(planTotal(form))}. The deposit is separate, so they&apos;ll owe {rand(planTotal(form))} once started.
+                  </p>
+                )}
                 <div style={{ gridColumn: '1 / -1' }}><label style={label} htmlFor="wl-notes">Notes</label><input id="wl-notes" className="form-input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
                 <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px' }}>
-                  <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                  <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : form.id ? 'Save changes' : 'Save'}</button>
                   <button type="button" className="btn btn-secondary" onClick={() => setForm(null)}>Cancel</button>
                 </div>
               </form>
@@ -241,7 +313,7 @@ export default function IntakeWaitingList({ isMockSession, user }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                   <thead>
                     <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                      <th style={{ padding: '8px' }}>Name</th><th style={{ padding: '8px' }}>Contact</th><th style={{ padding: '8px' }}>Deposit</th><th style={{ padding: '8px' }}>Status</th><th style={{ padding: '8px' }}>Actions</th>
+                      <th style={{ padding: '8px' }}>Name</th><th style={{ padding: '8px' }}>Contact</th><th style={{ padding: '8px' }}>Deposit</th><th style={{ padding: '8px' }}>Plan</th><th style={{ padding: '8px' }}>Status</th><th style={{ padding: '8px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -250,10 +322,39 @@ export default function IntakeWaitingList({ isMockSession, user }) {
                         <td style={{ padding: '8px' }}><strong>{r.fullName}</strong>{r.notes && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{r.notes}</div>}</td>
                         <td style={{ padding: '8px', overflowWrap: 'anywhere' }}>{r.email}{r.phone && <div style={{ color: 'var(--text-secondary)' }}>{r.phone}</div>}</td>
                         <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>R{r.depositAmount} · {r.method}<div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{shortDate(r.paidOn)}</div></td>
-                        <td style={{ padding: '8px', fontWeight: 700, color: STATUS_COLORS[r.status] }}>{r.status}</td>
+                        <td style={{ padding: '8px', minWidth: '160px' }}>
+                          {planSummary(r) || <span style={{ color: 'var(--text-muted)' }}>Not set</span>}
+                          {r.startDate && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Starts {shortDate(r.startDate)}</div>}
+                        </td>
+                        <td style={{ padding: '8px', fontWeight: 700, color: STATUS_COLORS[r.status] }}>
+                          {r.status}
+                          {r.status === 'Reserved' && r.startDate && r.startDate <= today() && (
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--danger)' }}>Due to start</div>
+                          )}
+                        </td>
                         <td style={{ padding: '8px' }}>
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            {r.status === 'Reserved' && <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.78rem' }} onClick={() => setStatus(r, 'Joined')}><Check size={13} /> Joined</button>}
+                            {r.status === 'Reserved' && (starting?.id === r.id && starting.step === 'confirm' ? (
+                              <>
+                                <button type="button" className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '0.78rem' }} onClick={() => startMembership(r)}>
+                                  Give access{planTotal(r) ? `, owes ${rand(planTotal(r))}` : ''}
+                                </button>
+                                <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.78rem' }} onClick={() => setStarting(null)}>Not yet</button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                                disabled={!r.email || starting?.step === 'busy'}
+                                title={r.email ? 'Portal access, welcome email, expected total and Joined, in one go' : 'Add an email first'}
+                                onClick={() => setStarting({ id: r.id, step: 'confirm' })}
+                              >
+                                <Rocket size={13} /> {starting?.id === r.id ? 'Starting...' : 'Start membership'}
+                              </button>
+                            ))}
+                            {r.status === 'Reserved' && <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.78rem' }} onClick={() => setStatus(r, 'Joined')} title="Mark Joined without giving access (if you already started them another way)"><Check size={13} /> Joined</button>}
+                            <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px' }} onClick={() => setForm({ ...r })} aria-label={`Edit ${r.fullName}`}><Pencil size={13} /></button>
                             {r.status !== 'Cancelled' && <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.78rem' }} onClick={() => setStatus(r, 'Cancelled')}><X size={13} /> Cancel</button>}
                             {r.status !== 'Reserved' && <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.78rem' }} onClick={() => setStatus(r, 'Reserved')}><Undo2 size={13} /> Reserved</button>}
                             <select className="form-input" style={{ padding: '4px 8px', fontSize: '0.78rem', width: 'auto' }} value="" onChange={(e) => moveTo(r, e.target.value)} aria-label={`Move ${r.fullName} to another intake`}>

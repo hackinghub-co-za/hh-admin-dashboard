@@ -19,7 +19,6 @@ import {
   Briefcase,
   ShoppingBag,
   Library,
-  Star,
   Terminal,
   Milestone,
   Handshake,
@@ -453,7 +452,6 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'payments', label: 'Payments & Subs', icon: CreditCard },
         { id: 'certifications', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'finances', label: 'Finances', icon: DollarSign },
-        { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'insights', label: 'Insights', icon: BarChart3 },
         { id: 'community-content', label: 'Community Content', icon: Megaphone },
         { id: 'team', label: 'Team & Org Chart', icon: UserCog },
@@ -493,7 +491,6 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'labs', label: 'Labs', icon: FlaskConical },
         { id: 'certs', label: 'Cert Calendar', icon: GraduationCap },
         { id: 'competitions', label: 'Competitions', icon: Trophy },
-        { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'billing', label: 'My Subscription', icon: CreditCard },
       ];
 

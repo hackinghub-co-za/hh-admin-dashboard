@@ -143,9 +143,19 @@ INSERT INTO public.gemma_knowledge (slug, title, body, sort_order, updated_by) V
   ('resources', 'Resources', 'Cert prep material, role roadmaps, podcasts, books, interview playbooks, CV templates and LinkedIn strategy. The AI CV and LinkedIn review (three a week) also lives here.', 80, 'migration'),
   ('certs', 'Cert Calendar', 'Community-wide target exam dates and cohorts, so members can see who is writing what and when. Members add their own exam dates.', 90, 'migration'),
   ('competitions', 'Competitions and study hours', 'A quarterly TryHackMe competition: members log up to 3 rooms a day (2 on weekends) with proof, and staff approve them. There is a weekly pace check. Study sessions can be logged with a timer and count towards a study leaderboard.', 100, 'migration'),
-  ('billing', 'Membership and billing', 'Tiers include Basic Access, Monthly Operative, Permanent Access, Custom Plan and Maintenance Fee. Gemma does not quote prices or balances: billing questions go to an admin, and members can see their own subscription in My Subscription.', 110, 'migration'),
-  ('reviews', 'Reviews', 'Members can leave feedback, criticism or recommendations, marked Public (visible community-wide) or Private (admin-only).', 120, 'migration')
+  ('billing', 'Membership and billing', 'Tiers include Basic Access, Monthly Operative, Permanent Access, Custom Plan and Maintenance Fee. Gemma does not quote prices or balances: billing questions go to an admin, and members can see their own subscription in My Subscription.', 110, 'migration')
 ON CONFLICT (slug) DO NOTHING;
+
+-- 2026-11-20: the Reviews tab was removed from both portals, and the
+-- Competitions tab now runs the Study Marathon instead of the TryHackMe
+-- competition. Seeds above use ON CONFLICT DO NOTHING, so live rows are
+-- changed here.
+DELETE FROM public.gemma_knowledge WHERE slug = 'reviews';
+UPDATE public.gemma_knowledge
+SET title = 'Competitions: the Study Marathon',
+    body = 'The Competitions tab runs the Study Marathon, from Monday 16 November to Friday 18 December 2026. Members join, then use the study timer: a session logs itself when the timer reaches zero, and switching tabs does not stop it. From the week of 23 November, members must log at least 5 hours each Monday-to-Sunday week or they are eliminated (checked just after midnight each Monday). The top 3 by total study time win free Hacking Hub merch. The TryHackMe competition is paused.',
+    updated_at = now()
+WHERE slug = 'competitions';
 
 -- =========================================================================
 -- PROGRESS SNAPSHOT (service role only, called by the edge functions)

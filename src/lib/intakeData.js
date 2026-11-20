@@ -9,6 +9,27 @@ export const DEPOSIT_AMOUNT = 300;
 export const RESERVATION_STATUSES = ['Reserved', 'Joined', 'Cancelled'];
 export const DEPOSIT_METHODS = ['PayFast', 'EFT', 'Cash', 'Other'];
 
+// Plans someone on the waiting list can be joining on, with the usual price
+// filled in when picked (still editable for a custom deal).
+export const RESERVATION_PLANS = [
+  { name: 'Elite Operative', monthlyAmount: 2500, months: 12 },
+  { name: 'Elite with Job Guarantee', monthlyAmount: '', months: 12 },
+  { name: 'Permanent Access', monthlyAmount: 1250, months: 12 },
+  { name: 'Custom Plan', monthlyAmount: '', months: '' },
+];
+
+/** monthly x months, or null when either is missing. */
+export function planTotal(r) {
+  const monthly = Number(r.monthlyAmount);
+  const months = Number(r.months);
+  return monthly > 0 && months > 0 ? monthly * months : null;
+}
+
+/** 30000 -> 'R30,000' */
+export function rand(n) {
+  return `R${Number(n || 0).toLocaleString('en-ZA', { maximumFractionDigits: 2 })}`;
+}
+
 /** The running intake and the next ones, with spots taken and left. */
 export async function fetchIntakeSchedule(count = 3) {
   const { data, error } = await supabase.rpc('get_intake_schedule', { p_count: count });
@@ -53,6 +74,19 @@ const fromRow = (r) => ({
   paymentRef: r.payment_ref || '',
   status: r.status,
   notes: r.notes || '',
+  plan: r.plan || '',
+  monthlyAmount: r.monthly_amount === null || r.monthly_amount === undefined ? '' : Number(r.monthly_amount),
+  months: r.months ?? '',
+  startDate: r.start_date || '',
+  startedAt: r.started_at || null,
+});
+
+// The plan fields as database columns ('' becomes null).
+const planColumns = (r) => ({
+  plan: r.plan || null,
+  monthly_amount: r.monthlyAmount === '' || r.monthlyAmount === undefined ? null : Number(r.monthlyAmount),
+  months: r.months === '' || r.months === undefined ? null : Number(r.months),
+  start_date: r.startDate || null,
 });
 
 /** Every waiting-list entry for the given intakes (by opens_on). */
@@ -80,6 +114,7 @@ export async function addReservation(r, createdBy) {
       method: r.method,
       payment_ref: r.paymentRef || null,
       notes: r.notes.trim() || null,
+      ...planColumns(r),
       created_by: createdBy || null,
     })
     .select()
@@ -97,6 +132,37 @@ export async function updateReservation(id, changes) {
   }
   const { error } = await supabase.from('intake_reservations').update(patch).eq('id', id);
   if (error) throw error;
+}
+
+/** Edits an entry's details (everything the Add form sets). */
+export async function editReservation(id, r) {
+  const { error } = await supabase
+    .from('intake_reservations')
+    .update({
+      intake_opens_on: r.intakeOpensOn,
+      intake_name: r.intakeName,
+      full_name: r.fullName.trim(),
+      email: r.email.trim().toLowerCase() || null,
+      phone: r.phone.trim() || null,
+      deposit_amount: Number(r.depositAmount) || 0,
+      paid_on: r.paidOn,
+      method: r.method,
+      notes: r.notes.trim() || null,
+      ...planColumns(r),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+/** Starts someone's membership (start_reserved_membership, 116): portal
+ * access, start date, expected total without the deposit, and Joined.
+ * Returns { email, fullName, expectedTotal }. */
+export async function startReservedMembership(id) {
+  const { data, error } = await supabase.rpc('start_reserved_membership', { p_reservation_id: id });
+  if (error) throw error;
+  const row = data?.[0] || {};
+  return { email: row.email, fullName: row.full_name, expectedTotal: row.expected_total === null ? null : Number(row.expected_total) };
 }
 
 export async function deleteReservation(id) {

@@ -209,3 +209,69 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_unlinked_deposits() TO authenticated;
+
+-- =========================================================================
+-- PLAN AND START (2026-11-20)
+-- =========================================================================
+-- What each person on the waiting list is joining on, and when, so the
+-- Intakes page can show what an intake is worth and start them in one step.
+-- The plan total is monthly_amount x months; the deposit is separate.
+ALTER TABLE public.intake_reservations ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE public.intake_reservations ADD COLUMN IF NOT EXISTS monthly_amount NUMERIC CHECK (monthly_amount IS NULL OR monthly_amount >= 0);
+ALTER TABLE public.intake_reservations ADD COLUMN IF NOT EXISTS months INTEGER CHECK (months IS NULL OR months BETWEEN 1 AND 36);
+ALTER TABLE public.intake_reservations ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE public.intake_reservations ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE;
+
+-- "Start membership": gives portal access, sets the member's start date and
+-- their expected total, and marks the entry Joined. The expected total is the
+-- plan total plus whatever they had paid by the day of the deposit, so the
+-- deposit never counts towards the plan and they start owing exactly the
+-- plan total. The welcome email is sent by the caller (welcome-email).
+CREATE OR REPLACE FUNCTION public.start_reserved_membership(p_reservation_id BIGINT)
+RETURNS TABLE (email TEXT, full_name TEXT, expected_total NUMERIC)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  r public.intake_reservations%ROWTYPE;
+  v_email TEXT;
+  v_paid_before NUMERIC;
+  v_expected NUMERIC;
+BEGIN
+  IF NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Only admins can start a membership.';
+  END IF;
+
+  SELECT * INTO r FROM public.intake_reservations WHERE id = p_reservation_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'That waiting-list entry no longer exists.'; END IF;
+  IF r.status = 'Cancelled' THEN RAISE EXCEPTION 'This entry is cancelled. Set it back to Reserved first.'; END IF;
+  IF r.email IS NULL OR r.email = '' THEN RAISE EXCEPTION 'Add an email to this entry first, so they can sign in.'; END IF;
+  v_email := lower(r.email);
+
+  PERFORM public.grant_member_portal_access(v_email, r.full_name);
+
+  UPDATE public.member_profiles
+  SET manual_start_date = COALESCE(r.start_date, (now() AT TIME ZONE 'Africa/Johannesburg')::date)
+  WHERE email = v_email AND manual_start_date IS NULL;
+
+  IF r.monthly_amount IS NOT NULL AND r.months IS NOT NULL THEN
+    SELECT
+      COALESCE((SELECT sum(amount) FROM public.payfast_transactions
+                WHERE lower(email) = v_email AND payment_status = 'COMPLETE'
+                  AND (paid_at AT TIME ZONE 'Africa/Johannesburg')::date <= r.paid_on), 0)
+      + COALESCE((SELECT sum(amount) FROM public.eft_payments
+                  WHERE lower(email) = v_email AND status = 'COMPLETE'
+                    AND (date AT TIME ZONE 'Africa/Johannesburg')::date <= r.paid_on), 0)
+    INTO v_paid_before;
+    v_expected := r.monthly_amount * r.months + v_paid_before;
+    PERFORM public.set_member_expected_total_payment(v_email, v_expected);
+  END IF;
+
+  UPDATE public.intake_reservations
+  SET status = 'Joined', started_at = now(), updated_at = now()
+  WHERE id = p_reservation_id;
+
+  RETURN QUERY SELECT v_email, r.full_name, v_expected;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.start_reserved_membership(BIGINT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.start_reserved_membership(BIGINT) FROM PUBLIC, anon;

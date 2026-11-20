@@ -36,7 +36,6 @@ import SpecializationUnlockedModal from '../../components/SpecializationUnlocked
 import CoreFoundationInfoModal from '../../components/CoreFoundationInfoModal';
 import RoadmapPathway from '../../components/RoadmapPathway';
 import { buildTrackConfig } from '../../lib/trackPathway';
-import { fetchReviews, submitReview } from '../../lib/reviewsData';
 import { fetchMemberDirectory, updateMyDirectoryProfile, uploadHeadshot, fetchMyAgeAndGender, fetchMyQualification, saveMyQualification } from '../../lib/memberDirectoryData';
 import { fetchMyReferrals, addReferral } from '../../lib/referralsData';
 import { fetchEventRsvps, rsvpForEvent, unrsvpFromEvent, fetchCommunityEvents, createCommunityEvent } from '../../lib/eventsData';
@@ -162,39 +161,12 @@ import {
   Cloud,
 } from 'lucide-react';
 
-const REVIEW_CATEGORIES = ['Praise', 'Criticism', 'Recommendation', 'Feature Request', 'General'];
-
 // A couple of steps pre-checked so the Mock Member demo shows both states at
 // once (done vs. still open) instead of either an empty or a fully-ticked list.
 const MOCK_ONBOARDING_STEPS = {
   join_whatsapp: '2026-08-01T09:00:00Z',
   install_calendar: '2026-08-01T09:05:00Z',
 };
-
-const MOCK_REVIEWS = [
-  {
-    id: 'mock-1',
-    email: 'nonhlanhla@example.com',
-    memberName: 'Nonhlanhla Sindane',
-    rating: 5,
-    category: 'Praise',
-    title: 'The 1on1 coaching changed my trajectory',
-    body: "Six months ago I didn't know what OSCP even stood for. Siya's coaching sessions made the roadmap actually feel achievable.",
-    visibility: 'Public',
-    createdAt: '2026-07-28T10:00:00Z',
-  },
-  {
-    id: 'mock-2',
-    email: 'you@example.com',
-    memberName: 'You',
-    rating: 3,
-    category: 'Recommendation',
-    title: 'More beginner-friendly cloud content',
-    body: 'Most of the cloud security resources assume AWS/Azure familiarity already. Would love a true zero-to-hero track.',
-    visibility: 'Private',
-    createdAt: '2026-08-02T14:30:00Z',
-  },
-];
 
 // Mentor photos live in public/mentors/ (not src/assets/) so they can be dropped
 // in or swapped at any time without a rebuild-breaking import - a missing file
@@ -1143,55 +1115,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
     return () => { cancelled = true; };
   }, [isMockSession, providerToken]);
 
-  // Reviews / feedback - real Supabase data for a real session (RLS scopes what
-  // comes back: public reviews + this member's own private ones), local mock data
-  // under Mock Member since there's no real session for RLS to key off.
-  const [reviews, setReviews] = useState(isMockSession ? MOCK_REVIEWS : []);
-  const [loadingReviews, setLoadingReviews] = useState(!isMockSession);
-  const [reviewsError, setReviewsError] = useState(null);
-  const [reviewForm, setReviewForm] = useState({ rating: '', category: 'General', title: '', body: '', visibility: 'Private' });
-  const [submittingReview, setSubmittingReview] = useState(false);
-
-  useEffect(() => {
-    if (isMockSession) return;
-    let cancelled = false;
-    fetchReviews()
-      .then((data) => !cancelled && setReviews(data))
-      .catch((err) => !cancelled && setReviewsError(friendlyMemberErrorMessage(err)))
-      .finally(() => !cancelled && setLoadingReviews(false));
-    return () => { cancelled = true; };
-  }, [isMockSession]);
-
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    if (!reviewForm.body.trim()) return;
-
-    const payload = {
-      email: user?.email || 'unknown@example.com',
-      memberName: user?.user_metadata?.full_name || 'Member',
-      rating: reviewForm.rating ? Number(reviewForm.rating) : null,
-      category: reviewForm.category,
-      title: reviewForm.title,
-      body: reviewForm.body,
-      visibility: reviewForm.visibility,
-    };
-
-    setSubmittingReview(true);
-    setReviewsError(null);
-    try {
-      if (isMockSession) {
-        setReviews([{ ...payload, id: `mock-${Date.now()}`, memberName: 'You', createdAt: new Date().toISOString() }, ...reviews]);
-      } else {
-        const saved = await submitReview(payload);
-        setReviews([saved, ...reviews]);
-      }
-      setReviewForm({ rating: '', category: 'General', title: '', body: '', visibility: 'Private' });
-    } catch (err) {
-      setReviewsError(friendlyMemberErrorMessage(err));
-    } finally {
-      setSubmittingReview(false);
-    }
-  };
   // Onboarding checklist - real Supabase data for a real session, local demo
   // progress under Mock Member (a couple of steps pre-checked, the rest open)
   // since there's no real session to persist against.
@@ -9530,138 +9453,6 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
           {showStudyHoursRules && <StudyHoursRulesModal onClose={() => setShowStudyHoursRules(false)} />}
 
           {renderMemberProfileModal()}
-        </div>
-      );
-
-    case 'reviews':
-      return (
-        <div>
-          <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Star size={28} color="var(--accent-cyan)" /> Reviews & Feedback
-            </h1>
-            <p>Praise, criticism, recommendations — whatever's on your mind. Choose whether to share it with the community or keep it private to admins.</p>
-          </div>
-
-          {isMockSession && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', marginBottom: '24px', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--warning-rgb), 0.2)', fontSize: '0.85rem' }}>
-              You're using Mock Member — reviews here are local only and won't be saved. Sign in with Google to submit for real.
-            </div>
-          )}
-          {!isMockSession && reviewsError && (
-            <div style={{ padding: '12px 16px', marginBottom: '24px', color: 'var(--danger)', background: 'rgba(var(--danger-rgb), 0.1)', borderRadius: 'var(--border-radius-sm)', border: '1px solid rgba(var(--danger-rgb), 0.2)', fontSize: '0.85rem' }}>
-              {reviewsError}
-            </div>
-          )}
-
-          <div className="glass-card" style={{ marginBottom: '32px' }}>
-            <h3 style={{ marginBottom: '20px' }}>Leave a Review</h3>
-            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Rating (optional)</label>
-                  <select className="form-input" value={reviewForm.rating} onChange={(e) => setReviewForm({ ...reviewForm, rating: e.target.value })}>
-                    <option value="">No rating</option>
-                    {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} {n === 1 ? 'star' : 'stars'}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Category</label>
-                  <select className="form-input" value={reviewForm.category} onChange={(e) => setReviewForm({ ...reviewForm, category: e.target.value })}>
-                    {REVIEW_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Title (optional)</label>
-                <input type="text" className="form-input" placeholder="Sum it up in a few words" value={reviewForm.title} onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })} />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Your feedback *</label>
-                <textarea
-                  className="form-input"
-                  rows={4}
-                  placeholder="What's working, what isn't, what you'd like to see..."
-                  value={reviewForm.body}
-                  onChange={(e) => setReviewForm({ ...reviewForm, body: e.target.value })}
-                  style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>Who can see this?</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setReviewForm({ ...reviewForm, visibility: 'Private' })}
-                    className={`btn ${reviewForm.visibility === 'Private' ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem' }}
-                  >
-                    Private to admins only
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReviewForm({ ...reviewForm, visibility: 'Public' })}
-                    className={`btn ${reviewForm.visibility === 'Public' ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem' }}
-                  >
-                    Share with the community
-                  </button>
-                </div>
-              </div>
-
-              <button type="submit" className="btn btn-primary" disabled={submittingReview || !reviewForm.body.trim()} style={{ justifyContent: 'center', marginTop: '4px' }}>
-                {submittingReview ? 'Submitting...' : 'Submit Review'}
-              </button>
-            </form>
-          </div>
-
-          <h3 style={{ marginBottom: '16px' }}>
-            {loadingReviews ? 'Loading reviews...' : `${reviews.length} Review${reviews.length === 1 ? '' : 's'} Visible to You`}
-          </h3>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {reviews.map((r) => {
-              const isOwn = user?.email && r.email?.toLowerCase() === user.email.toLowerCase();
-              return (
-                <div key={r.id} className="glass-card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{r.category}</span>
-                      <span
-                        className={`badge ${r.visibility === 'Public' ? 'badge-success' : 'badge-warning'}`}
-                        style={{ fontSize: '0.65rem' }}
-                      >
-                        {r.visibility === 'Public' ? 'Public' : 'Private'}
-                      </span>
-                      {r.rating && (
-                        <span style={{ display: 'flex', gap: '2px' }}>
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} size={13} fill={i < r.rating ? 'var(--warning)' : 'none'} color="var(--warning)" />
-                          ))}
-                        </span>
-                      )}
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      {formatDate(r.createdAt)}
-                    </span>
-                  </div>
-                  {r.title && <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px' }}>{r.title}</h4>}
-                  <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>{r.body}</p>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                    {isOwn ? 'You' : r.memberName}
-                  </div>
-                </div>
-              );
-            })}
-            {!loadingReviews && reviews.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                No reviews yet — be the first to share your thoughts.
-              </div>
-            )}
-          </div>
         </div>
       );
 

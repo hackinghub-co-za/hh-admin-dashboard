@@ -39,7 +39,7 @@ export const SOURCE_LABELS = {
 export const TAB_LABELS = {
   dashboard: 'Dashboard', roadmap: 'My Roadmap', matchmaker: 'Matchmaker', members: 'Members', meetings: '1on1 Meetings',
   events: 'Events', jobs: 'Job Board', resources: 'Resources', labs: 'Labs', certs: 'Cert Calendar',
-  competitions: 'Competitions', reviews: 'Reviews', billing: 'My Subscription', gemma: 'Gemma',
+  competitions: 'Competitions', billing: 'My Subscription', gemma: 'Gemma',
 };
 
 const BASE_PROMPTS = ['How am I doing this week?', 'What should I focus on next?'];
