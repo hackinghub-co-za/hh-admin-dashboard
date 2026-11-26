@@ -9,6 +9,8 @@
 // sign-in, hence --no-verify-jwt). Emails the CV to the founder as an
 // attachment, with reply-to set to the visitor, and adds them to the Sales
 // Pipeline through _intake_pipeline_lead() (106) as a "Free CV review" lead.
+// Since 2026-11-26 it also saves a row in career_service_requests (117), so
+// the request shows on the admin portal's Career Services tab.
 // The page then sends the visitor to Cal.com to book the 15-minute results
 // call - the Cal.com booking itself arrives through cal-booking-webhook as
 // usual.
@@ -180,6 +182,16 @@ Deno.serve(async (req) => {
     p_skip_existing_members: true,
   });
   if (leadErr) console.error('cv-review-intake: pipeline intake failed', leadErr.message);
+
+  const { error: careerErr } = await admin.from('career_service_requests').insert({
+    service: 'CV review',
+    full_name: name,
+    email,
+    target_role: targetRole || null,
+    situation: situation || null,
+    ip_hash: ipHash,
+  });
+  if (careerErr) console.error('cv-review-intake: career services row failed', careerErr.message);
 
   return json({ ok: true });
 });

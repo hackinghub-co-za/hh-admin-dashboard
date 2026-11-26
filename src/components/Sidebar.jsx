@@ -38,6 +38,7 @@ import {
   UserPlus,
   CalendarCheck,
   Hourglass,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import logo from '../assets/hacking-hub-logo-sm.png';
 import ReleaseNotesModal from './ReleaseNotesModal';
@@ -436,6 +437,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'members', label: 'Members', icon: Contact },
         { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban },
         { id: 'intakes', label: 'Intakes & Deposits', icon: Hourglass },
+        { id: 'careerservices', label: 'Career Services', icon: BriefcaseBusiness },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
         { id: 'accountability', label: 'Accountability Check-ins', icon: UserCheck },
         { id: 'weeklyupdates', label: 'Weekly Updates', icon: CalendarCheck },

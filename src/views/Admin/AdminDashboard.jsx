@@ -12,6 +12,7 @@ import LabReviews from '../../components/LabReviews';
 import TalentPoolAdmin from '../../components/TalentPoolAdmin';
 import WeeklyUpdatesAdmin from '../../components/WeeklyUpdatesAdmin';
 import IntakeWaitingList from '../../components/IntakeWaitingList';
+import CareerServicesAdmin from '../../components/CareerServicesAdmin';
 import GemmaAdmin from '../../components/GemmaAdmin';
 import TaskBoard from '../../components/TaskBoard';
 import MyOpenTasks from '../../components/MyOpenTasks';
@@ -4677,6 +4678,10 @@ Pick new people to present next Sunday`;
     case 'intakes':
       // Names, emails and phone numbers of people paying deposits: founder only.
       return isFounder ? <IntakeWaitingList isMockSession={isMockSession} user={user} /> : null;
+
+    case 'careerservices':
+      // Names, emails, phone numbers and LinkedIn profiles: founder only.
+      return isFounder ? <CareerServicesAdmin isMockSession={isMockSession} /> : null;
 
     case 'accountability':
       return <AccountabilityCheckins isMockSession={isMockSession} user={user} />;
