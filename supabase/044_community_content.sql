@@ -289,10 +289,11 @@ GRANT EXECUTE ON FUNCTION public.add_win_comment(BIGINT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_win_comment(BIGINT) TO authenticated;
 
 -- "HOW THE COMMUNITY CELEBRATED YOUR WIN" EMAIL (2026-11-06) - once a day
--- the win-comments-email function emails the founder one email per win that
--- has new comments since its last email, listing every comment so far and
--- written to the member, so the founder can forward it. Never sent to the
--- member directly. comments_emailed_upto is the highest comment id already
+-- the win-comments-email function sends one email per win that has new
+-- comments since its last email, listing every comment so far. Since
+-- 2026-11-26 it goes straight to the member (member_email, or a member
+-- matched by name, which is then saved on the win); only an unmatched win
+-- goes to the founder to forward. comments_emailed_upto is the highest comment id already
 -- included for that win; it is raised only after the email has gone out.
 -- Both functions are for the service role only.
 ALTER TABLE public.community_wins ADD COLUMN IF NOT EXISTS comments_emailed_upto BIGINT NOT NULL DEFAULT 0;

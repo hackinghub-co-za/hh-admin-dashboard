@@ -299,9 +299,22 @@ export default function App() {
         }
       }
 
+      // Google sends its own account name on every sign-in, so a name
+      // corrected by an admin on profiles.full_name would otherwise be
+      // overwritten in the sidebar, greetings and check-ins. Prefer the
+      // profiles row; fall back to Google's name if it can't be read.
+      let userMetadata = session.user.user_metadata;
+      try {
+        const { data: ownProfile } = await supabase.from('profiles').select('full_name').eq('id', session.user.id).maybeSingle();
+        const profileName = (ownProfile?.full_name || '').trim();
+        if (profileName) userMetadata = { ...userMetadata, full_name: profileName };
+      } catch (err) {
+        console.error('Could not load profile name - using the Google name:', err.message);
+      }
+
       setUser({
         email,
-        user_metadata: session.user.user_metadata,
+        user_metadata: userMetadata,
         role,
       });
       setProviderToken(session.provider_token || null);

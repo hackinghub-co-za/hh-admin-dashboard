@@ -19,6 +19,15 @@ dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
 
+## 2026.11.26
+
+### Added
+- Sales Pipeline: an "Email results" panel lists Free CV Review and Role Quiz leads still in Lead, with checkboxes. Sending emails each one from siya@hackinghub.co.za (new `pipeline-followup-email` function, templates in `_shared/leadResultsEmail.ts`), asking them to book a 15-minute results call. Role quiz emails are tailored to the matched role and mention the runner-up. Each card that sends moves to Contacted with a progress note; cards not in Lead are skipped, so nobody is emailed twice.
+
+### Changed
+- The daily "How the community celebrated your achievement" email (`win-comments-email`) now goes straight to the member instead of to the founder to forward. A win with no email on file is matched to a member by name and the email is saved on the win; only an unmatched win still goes to the founder.
+- The portal shows the name on the member's `profiles` row in place of their Google account name (sidebar, greetings, check-ins), so an admin-corrected name isn't overwritten on every sign-in.
+
 ## 2026.11.20
 
 ### Added

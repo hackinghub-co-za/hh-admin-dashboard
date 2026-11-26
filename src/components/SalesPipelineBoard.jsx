@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { DndContext, closestCorners, PointerSensor, useSensor, useSensors, DragOverlay, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, X, Pencil, Trash2, Mail, Phone, Tag, Clock, ChevronLeft, ChevronRight, MessageSquare, RotateCcw, Archive, BellRing, Link2 } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, Mail, Phone, Tag, Clock, ChevronLeft, ChevronRight, MessageSquare, RotateCcw, Archive, BellRing, Link2, Send } from 'lucide-react';
 import { isSafeUrl } from '../lib/safeUrl';
 import PipelineStats from './PipelineStats';
-import { fetchProspects, addProspect, updateProspect, updateProspectPhase, deleteProspect, restoreProspect, fetchAllProspectNotes, addProspectNote, deleteProspectNote, daysUntilRemoved, STALE_AFTER_DAYS, FOLLOW_UP_PHASES, followUpStatus, sastToday, fetchPhaseChanges } from '../lib/pipelineData';
+import { fetchProspects, addProspect, updateProspect, updateProspectPhase, deleteProspect, restoreProspect, fetchAllProspectNotes, addProspectNote, deleteProspectNote, daysUntilRemoved, STALE_AFTER_DAYS, FOLLOW_UP_PHASES, followUpStatus, sastToday, fetchPhaseChanges, RESULTS_EMAIL_SOURCES, sendLeadResultsEmails } from '../lib/pipelineData';
 import { friendlyErrorMessage } from '../lib/errorMessages';
 
 const PHASES = ['Lead', 'Contacted', 'Ready to Join', 'Joined', 'Not Interested', 'Not Qualified'];
@@ -234,10 +234,18 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
   const [phaseChanges, setPhaseChanges] = useState([]);
   const [channelFilter, setChannelFilter] = useState('All');
   const [dueOnly, setDueOnly] = useState(false);
+  // "Email results" panel: CV review / role quiz cards still in Lead.
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const [resultsUnticked, setResultsUnticked] = useState(() => new Set());
+  const [resultsConfirm, setResultsConfirm] = useState(false);
+  const [resultsSending, setResultsSending] = useState(false);
+  const [resultsNotice, setResultsNotice] = useState(null);
   // Cards that have been off the board's 21-day clock are kept but hidden.
   const onBoard = prospects.filter((p) => !p.archivedAt);
   const removed = prospects.filter((p) => p.archivedAt).sort((a, b) => new Date(b.archivedAt) - new Date(a.archivedAt));
   const dueCount = onBoard.filter((p) => ['overdue', 'today'].includes(followUpStatus(p))).length;
+  const resultsLeads = onBoard.filter((p) => p.phase === 'Lead' && p.email && RESULTS_EMAIL_SOURCES.includes(p.source));
+  const resultsPicked = resultsLeads.filter((p) => !resultsUnticked.has(p.id));
 
   useEffect(() => {
     if (isMockSession) return;
@@ -414,6 +422,37 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
     }
   };
 
+  const toggleResultsLead = (id) => {
+    setResultsConfirm(false);
+    setResultsUnticked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSendResultsEmails = async () => {
+    if (!resultsConfirm) { setResultsConfirm(true); return; }
+    setResultsSending(true);
+    setResultsNotice(null);
+    setError(null);
+    try {
+      const ids = resultsPicked.map((p) => p.id);
+      const { sent = 0, results = [] } = isMockSession ? { sent: ids.length, results: [] } : await sendLeadResultsEmails(ids);
+      const failed = results.filter((r) => !r.sent);
+      setResultsNotice(`Sent ${sent} email${sent === 1 ? '' : 's'} and moved ${sent === 1 ? 'that card' : 'those cards'} to Contacted.${failed.length ? ` ${failed.length} not sent: ${failed.map((r) => prospects.find((p) => p.id === r.id)?.fullName || r.id).join(', ')}.` : ''}`);
+      if (!isMockSession) {
+        setProspects(await fetchProspects());
+        fetchAllProspectNotes().then(setNotesById).catch(() => {});
+      }
+      setResultsConfirm(false);
+    } catch (err) {
+      setError(friendlyErrorMessage(err));
+    } finally {
+      setResultsSending(false);
+    }
+  };
+
   // The board (6 phase columns, 260px each) is wider than most laptop
   // screens fit - overflow-x: auto alone technically supports scrolling it,
   // but on a trackpad/mouse a plain vertical wheel gesture does nothing
@@ -446,6 +485,9 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
           <button className="btn btn-secondary" onClick={() => setDueOnly((v) => !v)} aria-pressed={dueOnly} style={dueOnly ? { borderColor: 'var(--warning)', color: 'var(--warning)' } : undefined}>
             <BellRing size={16} /> {dueOnly ? 'Showing reach-outs due' : `Reach out due (${dueCount})`}
           </button>
+          <button className="btn btn-secondary" onClick={() => { setResultsOpen((v) => !v); setResultsConfirm(false); setResultsNotice(null); }} aria-pressed={resultsOpen}>
+            <Send size={16} /> Email results ({resultsLeads.length})
+          </button>
           <button className="btn btn-secondary" onClick={() => setShowRemoved((v) => !v)} aria-pressed={showRemoved}>
             <Archive size={16} /> Removed ({removed.length})
           </button>
@@ -456,6 +498,37 @@ export default function SalesPipelineBoard({ isMockSession, user }) {
       </div>
 
       {!loading && <PipelineStats prospects={prospects} changes={phaseChanges} />}
+
+      {resultsOpen && (
+        <div className="glass-card" style={{ marginBottom: '20px', padding: '18px' }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: '1rem' }}>Email results</h3>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 12px' }}>Free CV Review and Role Quiz leads still in Lead. Each gets an email from siya@hackinghub.co.za asking them to book a 15-minute call for their results (role quiz emails are tailored to their matched role). Cards that send move to Contacted with a note. Untick anyone who shouldn't get it.</p>
+          {resultsNotice && <p style={{ fontSize: '0.85rem', color: 'var(--success)', margin: '0 0 12px' }}>{resultsNotice}</p>}
+          {resultsLeads.length === 0 ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>No CV review or role quiz leads are waiting in Lead.</p>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '4px 16px', marginBottom: '14px' }}>
+                {resultsLeads.map((p) => (
+                  <label key={p.id} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '0.85rem', padding: '4px 0', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!resultsUnticked.has(p.id)} onChange={() => toggleResultsLead(p.id)} disabled={resultsSending} style={{ marginTop: '3px' }} />
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 600 }}>{p.fullName}</span>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.source}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="button" className="btn btn-primary" disabled={resultsSending || resultsPicked.length === 0} onClick={handleSendResultsEmails}>
+                  <Send size={14} /> {resultsSending ? 'Sending...' : resultsConfirm ? `Yes, email ${resultsPicked.length} now` : `Email ${resultsPicked.length} lead${resultsPicked.length === 1 ? '' : 's'}`}
+                </button>
+                {resultsConfirm && !resultsSending && <button type="button" className="btn btn-secondary" onClick={() => setResultsConfirm(false)}>Not yet</button>}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {showRemoved && (
         <div className="glass-card" style={{ marginBottom: '20px', padding: '18px' }}>

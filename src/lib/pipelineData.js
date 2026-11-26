@@ -193,3 +193,15 @@ export async function fetchPhaseChanges() {
   if (error) throw error;
   return (data || []).map((r) => ({ prospectId: r.prospect_id, fromPhase: r.from_phase, toPhase: r.to_phase, changedAt: r.changed_at }));
 }
+
+/** Sources whose leads can get the "your results are ready" email. */
+export const RESULTS_EMAIL_SOURCES = ['Free CV review', 'Role quiz'];
+
+/** Admin: emails these Lead cards a "book a call for your results" email
+ * from siya@hackinghub.co.za (supabase/functions/pipeline-followup-email)
+ * and moves each one that sends to Contacted with a note. */
+export async function sendLeadResultsEmails(prospectIds) {
+  const { data, error } = await supabase.functions.invoke('pipeline-followup-email', { body: { prospect_ids: prospectIds } });
+  if (error) throw error;
+  return data || { sent: 0, results: [] };
+}
