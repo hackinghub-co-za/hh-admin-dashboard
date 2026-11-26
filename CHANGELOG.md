@@ -23,6 +23,8 @@ saved in their browser's `localStorage`.
 
 ### Added
 - Sales Pipeline: an "Email results" panel lists Free CV Review and Role Quiz leads still in Lead, with checkboxes. Sending emails each one from siya@hackinghub.co.za (new `pipeline-followup-email` function, templates in `_shared/leadResultsEmail.ts`), asking them to book a 15-minute results call. Role quiz emails are tailored to the matched role and mention the runner-up. Each card that sends moves to Contacted with a progress note; cards not in Lead are skipped, so nobody is emailed twice.
+- The same email now also goes out automatically: the `pipeline-results-email-daily` cron (09:00 SAST, 083_pipeline_prospects.sql) emails Role Quiz leads on the next run and Free CV Review leads once they are 2 days old. `pipeline_prospects.results_email_sent_at` keeps it to once per card; current members and cards off the board are skipped.
+- Every Elite Operative Google Form submission now emails the founder at siya@hackinghub.co.za with all the answers, reply-to the applicant (`sendFounderApplicationAlert` in `_shared/applicationEmail.ts`, called from `pipeline-lead-intake`).
 
 ### Changed
 - The daily "How the community celebrated your achievement" email (`win-comments-email`) now goes straight to the member instead of to the founder to forward. A win with no email on file is matched to a member by name and the email is saved on the win; only an unmatched win still goes to the founder.

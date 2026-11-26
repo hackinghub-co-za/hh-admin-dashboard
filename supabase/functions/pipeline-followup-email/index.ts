@@ -11,9 +11,16 @@
 // progress note saying what was sent. Cards that aren't in Lead, or aren't
 // from one of those two sources, are skipped, so sending twice is harmless.
 //
-// Body: { prospect_ids: number[] } (at most 50 at a time).
-// Caller must be an admin (signed-in JWT, checked with get_my_role) or send
-// the x-cron-secret header, for sends run from the database.
+// Two ways in:
+// - The "Email results" panel on the Sales Pipeline: { prospect_ids: number[] }
+//   (at most 50 at a time), from a signed-in admin (checked with get_my_role).
+// - The daily pipeline-results-email-daily cron (083_pipeline_prospects.sql),
+//   which sends the x-cron-secret header and no ids. It picks every eligible
+//   card itself: Role Quiz leads on the next run, Free CV Review leads once
+//   they are 2 days old (time to actually review the CV first).
+// Either way a card is emailed at most once: results_email_sent_at is set on
+// send, and cards with it set, cards not in Lead, cards taken off the board
+// and current members are skipped.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { BOOKING_URL, FROM_ADDRESS, buildLeadResultsEmail } from '../_shared/leadResultsEmail.ts';
@@ -24,6 +31,7 @@ const CORS_HEADERS = {
 };
 const JSON_HEADERS = { ...CORS_HEADERS, 'Content-Type': 'application/json' };
 const MAX_IDS = 50;
+const CV_REVIEW_WAIT_MS = 2 * 24 * 60 * 60 * 1000;
 
 function respond(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
@@ -56,19 +64,48 @@ Deno.serve(async (req) => {
       sentBy = userData.user.email.toLowerCase();
     }
 
-    const { prospect_ids } = await req.json();
-    const ids = Array.isArray(prospect_ids)
-      ? [...new Set(prospect_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
-      : [];
-    if (ids.length === 0) return respond({ error: 'Missing prospect_ids.' }, 400);
-    if (ids.length > MAX_IDS) return respond({ error: `At most ${MAX_IDS} at a time.` }, 400);
-
+    // deno-lint-ignore no-explicit-any
+    let body: any = {};
+    try { body = await req.json(); } catch { /* the cron may send no body */ }
     const admin = createClient(supabaseUrl, serviceRoleKey);
-    const { data: cards, error: loadError } = await admin
-      .from('pipeline_prospects')
-      .select('id, full_name, email, phase, source, notes')
-      .in('id', ids);
-    if (loadError) return respond({ error: 'Could not load those cards.' }, 500);
+    const columns = 'id, full_name, email, phase, source, notes, created_at, archived_at, results_email_sent_at';
+
+    let ids: number[];
+    // deno-lint-ignore no-explicit-any
+    let cards: any[] | null;
+    if (Array.isArray(body.prospect_ids)) {
+      ids = [...new Set(body.prospect_ids.map(Number).filter((n: number) => Number.isInteger(n) && n > 0))] as number[];
+      if (ids.length === 0) return respond({ error: 'Missing prospect_ids.' }, 400);
+      if (ids.length > MAX_IDS) return respond({ error: `At most ${MAX_IDS} at a time.` }, 400);
+      const { data, error } = await admin.from('pipeline_prospects').select(columns).in('id', ids);
+      if (error) return respond({ error: 'Could not load those cards.' }, 500);
+      cards = data;
+    } else if (viaCron) {
+      const { data, error } = await admin
+        .from('pipeline_prospects')
+        .select(columns)
+        .eq('phase', 'Lead')
+        .in('source', ['Free CV review', 'Role quiz'])
+        .not('email', 'is', null)
+        .is('archived_at', null)
+        .is('results_email_sent_at', null)
+        .order('created_at', { ascending: true })
+        .limit(MAX_IDS);
+      if (error) return respond({ error: 'Could not load the leads.' }, 500);
+      const cutoff = Date.now() - CV_REVIEW_WAIT_MS;
+      cards = (data || []).filter((c) => c.source !== 'Free CV review' || new Date(c.created_at).getTime() <= cutoff);
+      ids = cards.map((c) => c.id);
+      if (body.dryRun) return respond({ dryRun: true, would_email: cards.map((c) => ({ id: c.id, name: c.full_name, source: c.source })) });
+    } else {
+      return respond({ error: 'Missing prospect_ids.' }, 400);
+    }
+
+    // Anyone who has since become a member doesn't need a sales email.
+    const emails = (cards || []).map((c) => String(c.email || '').toLowerCase()).filter(Boolean);
+    const { data: memberRows } = emails.length
+      ? await admin.from('member_profiles').select('email').in('email', emails).neq('status', 'Left')
+      : { data: [] };
+    const memberEmails = new Set((memberRows || []).map((m: { email: string }) => m.email.toLowerCase()));
 
     const { data: lastContacted } = await admin
       .from('pipeline_prospects')
@@ -82,8 +119,14 @@ Deno.serve(async (req) => {
     const results: Record<string, unknown>[] = [];
     for (const card of cards || []) {
       const email = buildLeadResultsEmail(card);
-      if (card.phase !== 'Lead' || !email || !card.email) {
-        results.push({ id: card.id, sent: false, reason: card.phase !== 'Lead' ? `In ${card.phase}, not Lead` : 'Not a CV review or role quiz lead' });
+      const skip = card.phase !== 'Lead' ? `In ${card.phase}, not Lead`
+        : !email || !card.email ? 'Not a CV review or role quiz lead'
+        : card.results_email_sent_at ? 'Already emailed'
+        : card.archived_at ? 'Taken off the board'
+        : memberEmails.has(String(card.email).toLowerCase()) ? 'Already a member'
+        : null;
+      if (skip) {
+        results.push({ id: card.id, sent: false, reason: skip });
         continue;
       }
 
@@ -102,7 +145,7 @@ Deno.serve(async (req) => {
       const what = email.kind === 'cv_review' ? 'CV review results email' : `role quiz results email (${email.role || 'no role'})`;
       const { error: moveError } = await admin
         .from('pipeline_prospects')
-        .update({ phase: 'Contacted', sort_order: nextSort++, updated_at: new Date().toISOString() })
+        .update({ phase: 'Contacted', sort_order: nextSort++, updated_at: new Date().toISOString(), results_email_sent_at: new Date().toISOString() })
         .eq('id', card.id);
       await admin.from('pipeline_notes').insert({
         prospect_id: card.id,

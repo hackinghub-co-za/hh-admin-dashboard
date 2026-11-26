@@ -128,3 +128,55 @@ export async function sendApplicationEmail(
     return false;
   }
 }
+
+const FOUNDER_ADDRESS = 'siya@hackinghub.co.za';
+const PORTAL_URL = 'https://portal.hackinghub.co.za';
+
+/** Emails the founder every time the Elite Operative Google Form is
+ * submitted (new card or a repeat application on an existing one), with
+ * every answer. Never throws; a failed alert never loses the lead. */
+export async function sendFounderApplicationAlert(
+  resendKey: string,
+  app: { name: string | null; email: string | null; phone: string | null; answers: [string, string][]; phase: string | null; repeat: boolean; applicantEmailed: boolean },
+): Promise<boolean> {
+  try {
+    const who = app.name || app.email || 'Someone';
+    const rows = app.answers.map(([q, a]) => `
+      <tr>
+        <td style="padding:8px 10px;border-top:1px solid ${C.line};font-size:13px;color:${C.ink3};vertical-align:top;width:40%;">${esc(q)}</td>
+        <td style="padding:8px 10px;border-top:1px solid ${C.line};font-size:14px;color:${C.ink};vertical-align:top;">${esc(a || '-')}</td>
+      </tr>`).join('');
+    const status = app.repeat
+      ? 'They had already applied, so their existing card was updated with these answers.'
+      : app.phase === 'Not Qualified'
+        ? 'Outside the target profile, so the card went straight to <strong>Not Qualified</strong> and they got the short thank-you email (no call link).'
+        : `New card in <strong>${esc(app.phase || 'Lead')}</strong>.${app.applicantEmailed ? ' They were sent the application email with your booking link.' : ''}`;
+    const html = `<div style="font-family:Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;color:${C.ink};line-height:1.55;padding:24px;">
+      <p style="margin:0;font-family:Menlo,Consolas,monospace;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:${C.green};">New Elite Operative application</p>
+      <h2 style="font-size:22px;line-height:1.25;color:${C.navy};margin:6px 0 10px;">${esc(who)} applied</h2>
+      <p style="margin:0 0 6px;font-size:14px;">${app.email ? esc(app.email) : 'No email given'}${app.phone ? ` · ${esc(app.phone)}` : ''}</p>
+      <p style="margin:0 0 16px;font-size:14px;">${status}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-bottom:1px solid ${C.line};">${rows}</table>
+      <p style="margin:18px 0 0;">${button(PORTAL_URL, 'Open the Sales Pipeline', C.navy)}</p>
+    </div>`;
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: FROM_ADDRESS,
+        to: [FOUNDER_ADDRESS],
+        ...(app.email ? { reply_to: app.email } : {}),
+        subject: `New Elite application: ${who}${app.repeat ? ' (applied again)' : ''}`,
+        html,
+      }),
+    });
+    if (!res.ok) {
+      console.error(`founder application alert not sent (${res.status}): ${await res.text()}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('founder application alert failed:', err);
+    return false;
+  }
+}

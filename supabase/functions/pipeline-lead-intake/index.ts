@@ -17,11 +17,14 @@
 // A brand-new card with an email address also gets the "Application
 // received" email (_shared/applicationEmail.ts): the full version with the
 // booking link, or a short one when the card went straight to Not Qualified.
-// Uses the RESEND_API_KEY secret; if it's missing or the send fails, the lead
+// Every submission that adds or updates a card (not an exact repeat of the
+// same form response) also emails the founder at siya@hackinghub.co.za with
+// all the answers (sendFounderApplicationAlert), reply-to the applicant.
+// Uses the RESEND_API_KEY secret; if it's missing or a send fails, the lead
 // is still saved.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { sendApplicationEmail } from '../_shared/applicationEmail.ts';
+import { sendApplicationEmail, sendFounderApplicationAlert } from '../_shared/applicationEmail.ts';
 
 const SOURCES: Record<string, { label: string; skipMembers: boolean }> = {
   elite_application: { label: 'Elite Operative application', skipMembers: false },
@@ -82,11 +85,11 @@ Deno.serve(async (req) => {
   const phone = clean(body.phone, 60);
 
   let notes = '';
+  let answerPairs: [string, string][] = [];
   if (body.answers && typeof body.answers === 'object') {
-    notes = Object.entries(body.answers as Record<string, unknown>)
-      .map(([q, a]) => `${clean(q, 120)}: ${clean(Array.isArray(a) ? a.join(', ') : a, 400)}`)
-      .join('\n')
-      .slice(0, 2500);
+    answerPairs = Object.entries(body.answers as Record<string, unknown>)
+      .map(([q, a]) => [clean(q, 120), clean(Array.isArray(a) ? a.join(', ') : a, 400)] as [string, string]);
+    notes = answerPairs.map(([q, a]) => `${q}: ${a}`).join('\n').slice(0, 2500);
   }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
@@ -116,5 +119,17 @@ Deno.serve(async (req) => {
   } else if (data?.action === 'created' && email && !resendKey) {
     console.error('pipeline-lead-intake: RESEND_API_KEY missing, application email not sent');
   }
-  return json({ ...data, emailed });
+  let founderAlerted = false;
+  if ((data?.action === 'created' || data?.action === 'updated') && resendKey) {
+    founderAlerted = await sendFounderApplicationAlert(resendKey, {
+      name: name || null,
+      email: email || null,
+      phone: phone || null,
+      answers: answerPairs,
+      phase: data.phase || null,
+      repeat: data.action === 'updated',
+      applicantEmailed: emailed,
+    });
+  }
+  return json({ ...data, emailed, founderAlerted });
 });

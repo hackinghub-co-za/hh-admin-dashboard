@@ -290,3 +290,41 @@ DROP TRIGGER IF EXISTS pipeline_record_phase_change ON public.pipeline_prospects
 CREATE TRIGGER pipeline_record_phase_change
   AFTER INSERT OR UPDATE OF phase ON public.pipeline_prospects
   FOR EACH ROW EXECUTE FUNCTION public._pipeline_record_phase_change();
+
+-- 2026-11-26: AUTOMATIC "YOUR RESULTS ARE READY" EMAILS.
+--
+-- pipeline-followup-email emails Free CV Review and Role Quiz leads a link
+-- to book a 15-minute results call, then moves the card to Contacted. The
+-- Sales Pipeline's "Email results" panel sends it on demand; this daily job
+-- sends it automatically: Role Quiz leads on the next run, Free CV Review
+-- leads once they are 2 days old. results_email_sent_at makes it once per
+-- card, even if the card is later moved back to Lead.
+ALTER TABLE public.pipeline_prospects ADD COLUMN IF NOT EXISTS results_email_sent_at TIMESTAMP WITH TIME ZONE;
+
+-- Every day at 07:00 UTC = 09:00 SAST. Same template trick as
+-- 044_community_content.sql: built from the already-scheduled
+-- overdue-1on1-digest-daily job with only the function name swapped, so the
+-- cron secret is reused and never pasted here. Run only after
+-- pipeline-followup-email has been deployed.
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+DO $$
+DECLARE
+  v_template TEXT;
+BEGIN
+  SELECT command INTO v_template FROM cron.job WHERE jobname = 'overdue-1on1-digest-daily';
+  IF v_template IS NULL OR position('/functions/v1/overdue-1on1-digest' in v_template) = 0 THEN
+    RAISE EXCEPTION 'overdue-1on1-digest-daily cron job not found (or its URL changed) - schedule 072 first, or write this job by hand.';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'pipeline-results-email-daily') THEN
+    PERFORM cron.unschedule('pipeline-results-email-daily');
+  END IF;
+
+  PERFORM cron.schedule(
+    'pipeline-results-email-daily',
+    '0 7 * * *', -- 07:00 UTC every day = 09:00 SAST
+    replace(v_template, '/functions/v1/overdue-1on1-digest', '/functions/v1/pipeline-followup-email')
+  );
+END $$;
