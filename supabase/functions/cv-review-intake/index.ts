@@ -192,6 +192,8 @@ Deno.serve(async (req) => {
     ip_hash: ipHash,
   });
   if (careerErr) console.error('cv-review-intake: career services row failed', careerErr.message);
+  // The privacy policy promises the hashed network address is kept 90 days.
+  await admin.from('career_service_requests').update({ ip_hash: null }).lt('created_at', since(90)).not('ip_hash', 'is', null);
 
   return json({ ok: true });
 });

@@ -13,7 +13,8 @@
 -- itself is still only emailed to the founder, never stored.
 --
 -- ip_hash (SHA-256 of IP + salt, never the raw IP) lets linkedin-review-intake
--- refuse more than 3 requests a day from one network. Admin only; the intake
+-- refuse more than 3 requests a day from one network. Both intakes clear it
+-- on rows older than 90 days, as the site's privacy policy says. Admin only; the intake
 -- functions use the service role.
 
 CREATE TABLE IF NOT EXISTS public.career_service_requests (

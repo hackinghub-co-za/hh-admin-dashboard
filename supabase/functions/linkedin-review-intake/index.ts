@@ -149,6 +149,8 @@ Deno.serve(async (req) => {
     console.error('linkedin-review-intake: saving request failed', saveErr.message);
     return json({ error: unavailable }, 500);
   }
+  // The privacy policy promises the hashed network address is kept 90 days.
+  await admin.from('career_service_requests').update({ ip_hash: null }).lt('created_at', since(90)).not('ip_hash', 'is', null);
 
   const notes = [`LinkedIn: ${linkedin}`, targetRole && `Target role: ${targetRole}`, situation && `Situation: ${situation}`, 'Agreed their review may be used for content.']
     .filter(Boolean).join('\n');
