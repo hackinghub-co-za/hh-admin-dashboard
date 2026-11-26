@@ -214,3 +214,82 @@ DELETE FROM public.cert_calendar WHERE id IN (1, 2, 3, 4, 5, 6, 7);
 -- after 024 was re-run the same day it originally shipped, to add
 -- update_my_cert_calendar_entry() below.
 SELECT setval(pg_get_serial_sequence('public.cert_calendar', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM public.cert_calendar), 9), true);
+
+-- 2026-11-26: THE PASS AND FAIL EMAILS GO OUT HOWEVER A CERT IS MARKED.
+--
+-- The congratulations email (cert-pass-email) used to be sent only when
+-- staff marked a cert Passed on the admin side, so a member marking their
+-- own pass never got one. passed_at is set by the trigger below the moment
+-- result becomes Passed (by anyone), and the cert-pass-email-15min cron
+-- emails every entry passed in the last 7 days whose pass_email_sent_at is
+-- still empty. Entries passed before this existed have no passed_at, so no
+-- old passes are emailed. Staff marking a pass still sends it straight away,
+-- which sets pass_email_sent_at, so the cron skips it.
+--
+-- The fail email (cert-fail-email, a fixed encouraging message from Siya)
+-- works the same way: failed_at is set when result becomes Failed, the
+-- cert-fail-email-15min cron emails fails from the last 7 days, and
+-- fail_email_sent_at keeps it to once per entry.
+ALTER TABLE public.cert_calendar ADD COLUMN IF NOT EXISTS passed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.cert_calendar ADD COLUMN IF NOT EXISTS failed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.cert_calendar ADD COLUMN IF NOT EXISTS fail_email_sent_at TIMESTAMP WITH TIME ZONE;
+
+CREATE OR REPLACE FUNCTION public._cert_calendar_stamp_passed_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.result = 'Passed' AND (TG_OP = 'INSERT' OR OLD.result IS DISTINCT FROM 'Passed') THEN
+    NEW.passed_at := now();
+  ELSIF NEW.result IS DISTINCT FROM 'Passed' THEN
+    NEW.passed_at := NULL;
+  END IF;
+  IF NEW.result = 'Failed' AND (TG_OP = 'INSERT' OR OLD.result IS DISTINCT FROM 'Failed') THEN
+    NEW.failed_at := now();
+  ELSIF NEW.result IS DISTINCT FROM 'Failed' THEN
+    NEW.failed_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS cert_calendar_stamp_passed_at ON public.cert_calendar;
+CREATE TRIGGER cert_calendar_stamp_passed_at
+  BEFORE INSERT OR UPDATE OF result ON public.cert_calendar
+  FOR EACH ROW EXECUTE FUNCTION public._cert_calendar_stamp_passed_at();
+
+-- Every 15 minutes. Same template trick as 044_community_content.sql: built
+-- from the already-scheduled overdue-1on1-digest-daily job with only the
+-- function name swapped, so the cron secret is never pasted here. Run only
+-- after cert-pass-email and cert-fail-email have been deployed.
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+DO $$
+DECLARE
+  v_template TEXT;
+BEGIN
+  SELECT command INTO v_template FROM cron.job WHERE jobname = 'overdue-1on1-digest-daily';
+  IF v_template IS NULL OR position('/functions/v1/overdue-1on1-digest' in v_template) = 0 THEN
+    RAISE EXCEPTION 'overdue-1on1-digest-daily cron job not found (or its URL changed) - schedule 072 first, or write this job by hand.';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'cert-pass-email-15min') THEN
+    PERFORM cron.unschedule('cert-pass-email-15min');
+  END IF;
+
+  PERFORM cron.schedule(
+    'cert-pass-email-15min',
+    '*/15 * * * *',
+    replace(v_template, '/functions/v1/overdue-1on1-digest', '/functions/v1/cert-pass-email')
+  );
+
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'cert-fail-email-15min') THEN
+    PERFORM cron.unschedule('cert-fail-email-15min');
+  END IF;
+
+  PERFORM cron.schedule(
+    'cert-fail-email-15min',
+    '*/15 * * * *',
+    replace(v_template, '/functions/v1/overdue-1on1-digest', '/functions/v1/cert-fail-email')
+  );
+END $$;

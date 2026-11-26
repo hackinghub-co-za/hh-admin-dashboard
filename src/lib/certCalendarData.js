@@ -123,8 +123,8 @@ export async function sendCertPassEmail(certId) {
   return data;
 }
 
-/** Admin/community_manager/mentor: sends the member a Gemma-written
- * encouraging email for one specific cert calendar entry
+/** Admin/community_manager/mentor: sends the member the encouraging
+ * "didn't go your way" email from Siya for one cert calendar entry
  * (supabase/functions/cert-fail-email) - a no-op server-side (returns
  * { skipped: true, reason }) if it isn't actually marked Failed or has no
  * member_email on file. Meant to be called right after

@@ -1,6 +1,7 @@
 // Hacking Hub Admin Dashboard - Cert Pass Congratulations Email
 //
-// Deploy with: supabase functions deploy cert-pass-email
+// Deploy with: supabase functions deploy cert-pass-email --no-verify-jwt
+// (the cron sends no JWT; staff calls are still checked with get_my_role)
 // Requires this secret set first (shared with every other Resend-based
 // function, no separate key needed):
 //   supabase secrets set RESEND_API_KEY=<your Resend API key>
@@ -30,6 +31,13 @@
 // email every cert ever marked Passed before this feature existed the first
 // time this runs. pass_email_sent_at (024_cert_calendar.sql) is purely a
 // re-click/retry guard for that one row, never a backlog to work through.
+//
+// 2026-11-26: members can mark their own cert Passed, which never reached
+// this function. So the cert-pass-email-15min cron (024_cert_calendar.sql)
+// now also calls it with the x-cron-secret header and no certId: it emails
+// every entry whose passed_at (set by a trigger the moment result becomes
+// Passed) is in the last 7 days and has no pass_email_sent_at yet. Entries
+// passed before passed_at existed have none, so there's still no backlog.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -38,8 +46,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // welcome-email), or the browser drops the call before it arrives.
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
+const CRON_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const JSON_HEADERS = { ...CORS_HEADERS, 'Content-Type': 'application/json' };
 
 const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
@@ -93,6 +102,33 @@ Deno.serve(async (req) => {
         status: 500,
         headers: JSON_HEADERS,
       });
+    }
+
+    const cronSecret = Deno.env.get('CRON_SECRET');
+    if (cronSecret && req.headers.get('x-cron-secret') === cronSecret) {
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+      const { data: due, error: dueError } = await admin
+        .from('cert_calendar')
+        .select('id, member, cert_name, member_email')
+        .eq('result', 'Passed')
+        .is('pass_email_sent_at', null)
+        .not('member_email', 'is', null)
+        .gte('passed_at', new Date(Date.now() - CRON_LOOKBACK_MS).toISOString());
+      if (dueError) throw new Error(`loading due passes failed: ${dueError.message}`);
+      let sent = 0;
+      const failed: number[] = [];
+      for (const cert of due || []) {
+        try {
+          const firstName = (cert.member || '').trim().split(' ')[0] || 'there';
+          await sendEmail(resendKey, cert.member_email, `🎉 You passed ${cert.cert_name}!`, certPassEmailHtml(firstName, cert.cert_name));
+          await admin.from('cert_calendar').update({ pass_email_sent_at: new Date().toISOString() }).eq('id', cert.id);
+          sent++;
+        } catch (err) {
+          console.error(`cert-pass-email: cron send for cert ${cert.id} failed`, err);
+          failed.push(cert.id);
+        }
+      }
+      return new Response(JSON.stringify({ sent, failed }), { status: 200, headers: JSON_HEADERS });
     }
 
     const callerClient = createClient(supabaseUrl, anonKey, {

@@ -1,28 +1,26 @@
 // Hacking Hub Admin Dashboard - Cert Fail Encouragement Email
 //
-// Deploy with: supabase functions deploy cert-fail-email
-// Requires these secrets set first (both already exist for other
-// functions - no new ones needed):
-//   supabase secrets set GEMINI_API_KEY=<same key gemma-chat already uses>
-//   supabase secrets set RESEND_API_KEY=<your Resend API key>
-// (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
+// Deploy with: supabase functions deploy cert-fail-email --no-verify-jwt
+// (the cron sends no JWT; staff calls are still checked with get_my_role)
+// Requires RESEND_API_KEY and CRON_SECRET, both shared with the other email
+// functions. (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected.)
 //
-// Called directly by an admin/staff session (AdminDashboard.jsx's
-// handleUpdateCertResult/handleSaveCertEdit, right when a Cert Calendar
-// entry is marked Failed) - same auth pattern as cert-pass-email
-// (get_my_role() via the caller's real JWT), since a real caller session
-// exists here too.
+// A short, fixed message from Siya to a member who didn't pass an exam:
+// acknowledge it, a reminder that failing a cert is normal, three concrete
+// next steps (note the hard topics, book a 1-on-1, set a new date), and a
+// link back to the portal. Until 2026-11-26 Gemma wrote the body fresh each
+// time with Gemini; it is now the same message every time.
 //
-// Unlike cert-pass-email, this doesn't mark anything "sent" on the
-// cert_calendar row. A failed attempt used to be deleted from the calendar
-// right after this fired; since 2026-10-15 it stays and moves to the
-// "Failed Certifications" section instead, so the client only calls this on
-// the transition to Failed (not on every save), which is what keeps it from
-// re-sending.
-//
-// Gemma writes every word of the email body (same Gemini prompt pattern
-// roadmap-reminder-email/gemma-chat use) - genuinely encouraging, never
-// generic, and never implies the attempt was wasted.
+// Two ways in, same as cert-pass-email:
+// - Staff marking an entry Failed on the admin side (AdminDashboard.jsx)
+//   calls it with { certId } and their JWT, checked with get_my_role().
+// - The cert-fail-email-15min cron (024_cert_calendar.sql) calls it with the
+//   x-cron-secret header and no certId. It emails every entry whose
+//   failed_at (set by a trigger the moment result becomes Failed, by anyone,
+//   members included) is in the last 7 days. Entries failed before
+//   failed_at existed have none, so no old fails are emailed.
+// fail_email_sent_at is set on send, so each entry gets it once whichever
+// way it went out.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -31,174 +29,137 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // welcome-email), or the browser drops the call before it arrives.
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
 const JSON_HEADERS = { ...CORS_HEADERS, 'Content-Type': 'application/json' };
 
-const GEMINI_MODEL = 'gemini-3.6-flash'; // same pin as every other Gemma function - see gemma-chat's own comment for why this exact version
-const FROM_ADDRESS = 'Gemma at Hacking Hub <siya@hackinghub.co.za>'; // update once a sending domain is verified in Resend
+const FROM_ADDRESS = 'Siya from Hacking Hub <siya@hackinghub.co.za>';
 const PORTAL_URL = 'https://portal.hackinghub.co.za';
+const CRON_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
-function buildPrompt(firstName: string, certName: string): string {
-  return `You are Gemma, a friendly, sharp AI assistant embedded in the Hacking Hub member portal - a cybersecurity coaching community. Your voice is warm, a little playful, never corporate.
+const C = { navy: '#17183c', ink: '#1b1d3a', green: '#17a856' };
 
-Write a short, genuinely encouraging email body to a member named ${firstName} who just found out they did not pass their ${certName} exam.
-
-Hard rules:
-- Encouraging and warm, never dismissive of how much this sucks to hear - acknowledge it briefly, then move forward.
-- Never implies the attempt or the studying was wasted - failing an exam is a normal, common part of the process, not a setback that erases progress.
-- End with one concrete, low-pressure next step (e.g. rebooking the exam once they're ready, or reviewing the weak areas from the exam report) - don't be pushy about timing.
-- Plain text, 3-4 sentences. No subject line, no "Hi ${firstName}," greeting, no sign-off - all three are added separately by the template.
-- Write in Gemma's own voice, not a generic corporate consolation email.`;
+function esc(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-async function callGemini(apiKey: string, prompt: string): Promise<string> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    }
-  );
-  if (!res.ok) throw new Error(`Gemini request failed: ${res.status}`);
-  const json = await res.json();
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned no text');
-  return text.trim();
+function respond(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+}
+
+export function certFailEmail(memberName: string | null, certName: string): { subject: string; html: string } {
+  const first = (memberName || '').trim().split(/\s+/)[0] || '';
+  const cert = esc(certName);
+  const p = (html: string) => `<p style="margin:0 0 12px;font-size:15px;">${html}</p>`;
+  const html = `<div style="font-family:Helvetica,Arial,sans-serif;max-width:620px;margin:0 auto;color:${C.ink};line-height:1.6;padding:26px;">
+    ${p(first ? `Hi ${esc(first)},` : 'Hi there,')}
+    ${p(`I saw that ${cert} didn’t go your way this time. I know that stings, especially after all the hours you put in. Take a day if you need it.`)}
+    ${p('Failing an exam doesn’t mean you’re not cut out for cyber. Plenty of people in this field, including members of this community, failed a cert before they passed it. What matters is what you do next.')}
+    ${p('Your score report is now the best study guide you have. It shows exactly where to focus. This week:')}
+    <ol style="margin:0 0 12px;padding-left:22px;font-size:15px;">
+      <li style="margin-bottom:6px;">Write down the topics that felt hardest, while they’re still fresh.</li>
+      <li style="margin-bottom:6px;">Book a 1-on-1 with a mentor to plan your retake.</li>
+      <li style="margin-bottom:6px;">Pick a new exam date and add it to the Cert Calendar, so you have something to aim for.</li>
+    </ol>
+    ${p('You’ve already done one of the hardest parts: you sat the exam. Now you know what it looks like, and next time you’ll walk in ready.')}
+    ${p('We’re behind you.')}
+    <p style="margin:0 0 22px;font-size:15px;">Siya<br>Founder, Hacking Hub</p>
+    <p style="margin:0;"><a href="${PORTAL_URL}" style="display:inline-block;background:${C.green};color:#ffffff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;">Back to your portal</a></p>
+  </div>`;
+  return {
+    subject: first ? `${certName} didn’t go your way this time, ${first}` : `${certName} didn’t go your way this time`,
+    html,
+  };
 }
 
 async function sendEmail(resendApiKey: string, toEmail: string, subject: string, html: string): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from: FROM_ADDRESS, to: toEmail, subject, html }),
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Resend request failed: ${res.status} ${text}`);
-  }
+  if (!res.ok) throw new Error(`Resend request failed: ${res.status} ${await res.text()}`);
 }
 
-function certFailEmailHtml(firstName: string, body: string): string {
-  return `
-    <p>Hi ${firstName},</p>
-    <p>${body.replace(/\n/g, '<br>')}</p>
-    <p>— Gemma</p>
-    <p style="margin:22px 0;">
-      <a href="${PORTAL_URL}" style="display:inline-block;background:#17954f;color:#ffffff;padding:11px 22px;border-radius:6px;text-decoration:none;font-weight:600;">Back to your portal</a>
-    </p>
-  `;
+// deno-lint-ignore no-explicit-any
+async function sendFor(admin: any, resendKey: string, cert: { id: number; member: string | null; cert_name: string; member_email: string }) {
+  const mail = certFailEmail(cert.member, cert.cert_name);
+  await sendEmail(resendKey, cert.member_email, mail.subject, mail.html);
+  const { error } = await admin.from('cert_calendar').update({ fail_email_sent_at: new Date().toISOString() }).eq('id', cert.id);
+  // The email already went out; a failed stamp risks a duplicate on the next
+  // cron run, but isn't worth failing the request over.
+  if (error) console.error(`cert-fail-email: marking cert ${cert.id} sent failed`, error.message);
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
-  }
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
 
   try {
-    const authHeader = req.headers.get('Authorization') || '';
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const geminiKey = Deno.env.get('GEMINI_API_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const resendKey = Deno.env.get('RESEND_API_KEY');
+    if (!resendKey) return respond({ error: 'Not configured - missing RESEND_API_KEY secret.' }, 500);
+    const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    if (!geminiKey || !resendKey) {
-      return new Response(JSON.stringify({ error: 'Not configured - missing GEMINI_API_KEY or RESEND_API_KEY secret.' }), {
-        status: 500,
-        headers: JSON_HEADERS,
-      });
+    const cronSecret = Deno.env.get('CRON_SECRET');
+    if (cronSecret && req.headers.get('x-cron-secret') === cronSecret) {
+      const { data: due, error: dueError } = await admin
+        .from('cert_calendar')
+        .select('id, member, cert_name, member_email')
+        .eq('result', 'Failed')
+        .is('fail_email_sent_at', null)
+        .not('member_email', 'is', null)
+        .gte('failed_at', new Date(Date.now() - CRON_LOOKBACK_MS).toISOString());
+      if (dueError) throw new Error(`loading due fails failed: ${dueError.message}`);
+      let sent = 0;
+      const failed: number[] = [];
+      for (const cert of due || []) {
+        try {
+          await sendFor(admin, resendKey, cert);
+          sent++;
+        } catch (err) {
+          console.error(`cert-fail-email: cron send for cert ${cert.id} failed`, err);
+          failed.push(cert.id);
+        }
+      }
+      return respond({ sent, failed });
     }
 
     const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
+      global: { headers: { Authorization: req.headers.get('Authorization') || '' } },
     });
     const { data: userData, error: authError } = await callerClient.auth.getUser();
-    const callerEmail = (userData?.user?.email || '').toLowerCase();
-    if (authError || !callerEmail) {
-      return new Response(JSON.stringify({ error: 'Admins only.' }), {
-        status: 403,
-        headers: JSON_HEADERS,
-      });
-    }
+    if (authError || !userData?.user?.email) return respond({ error: 'Admins only.' }, 403);
     const { data: callerRole, error: roleError } = await callerClient.rpc('get_my_role');
     if (roleError || !['admin', 'community_manager', 'mentor'].includes(callerRole)) {
-      return new Response(JSON.stringify({ error: 'Admins only.' }), {
-        status: 403,
-        headers: JSON_HEADERS,
-      });
+      return respond({ error: 'Admins only.' }, 403);
     }
 
     const { certId } = await req.json();
-    if (!certId) {
-      return new Response(JSON.stringify({ error: 'Missing certId.' }), {
-        status: 400,
-        headers: JSON_HEADERS,
-      });
-    }
+    if (!certId) return respond({ error: 'Missing certId.' }, 400);
 
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
-    const { data: cert, error: certError } = await adminClient
+    const { data: cert, error: certError } = await admin
       .from('cert_calendar')
-      .select('id, member, cert_name, result, member_email')
+      .select('id, member, cert_name, result, member_email, fail_email_sent_at')
       .eq('id', certId)
       .maybeSingle();
-
     if (certError) {
       console.error('cert-fail-email: fetching cert failed', certError.message);
-      return new Response(JSON.stringify({ error: 'Could not load that cert entry.' }), {
-        status: 500,
-        headers: JSON_HEADERS,
-      });
+      return respond({ error: 'Could not load that cert entry.' }, 500);
     }
-    if (!cert) {
-      return new Response(JSON.stringify({ error: 'Cert entry not found.' }), {
-        status: 404,
-        headers: JSON_HEADERS,
-      });
-    }
-    // Not an error - a stale client call (result changed again since this
-    // was queued) is a real, expected no-op.
-    if (cert.result !== 'Failed') {
-      return new Response(JSON.stringify({ skipped: true, reason: 'not marked Failed' }), {
-        status: 200,
-        headers: JSON_HEADERS,
-      });
-    }
-    if (!cert.member_email) {
-      return new Response(JSON.stringify({ skipped: true, reason: 'no member email on file' }), {
-        status: 200,
-        headers: JSON_HEADERS,
-      });
-    }
+    if (!cert) return respond({ error: 'Cert entry not found.' }, 404);
+    // Not errors - a stale client call, a re-click, or an entry with no
+    // email on file are all expected no-ops.
+    if (cert.result !== 'Failed') return respond({ skipped: true, reason: 'not marked Failed' });
+    if (!cert.member_email) return respond({ skipped: true, reason: 'no member email on file' });
+    if (cert.fail_email_sent_at) return respond({ skipped: true, reason: 'already sent' });
 
-    const firstName = (cert.member || '').trim().split(' ')[0] || 'there';
-    const body = await callGemini(geminiKey, buildPrompt(firstName, cert.cert_name));
-
-    await sendEmail(
-      resendKey,
-      cert.member_email,
-      `About your ${cert.cert_name} attempt`,
-      certFailEmailHtml(firstName, body)
-    );
-
-    return new Response(JSON.stringify({ sent: true }), {
-      status: 200,
-      headers: JSON_HEADERS,
-    });
+    await sendFor(admin, resendKey, cert);
+    return respond({ sent: true });
   } catch (err) {
     console.error('cert-fail-email error:', err);
-    return new Response(JSON.stringify({ error: 'Something went wrong.' }), {
-      status: 500,
-      headers: JSON_HEADERS,
-    });
+    return respond({ error: 'Something went wrong.' }, 500);
   }
 });

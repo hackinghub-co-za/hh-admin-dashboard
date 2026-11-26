@@ -27,6 +27,8 @@ saved in their browser's `localStorage`.
 - Every Elite Operative Google Form submission now emails the founder at siya@hackinghub.co.za with all the answers, reply-to the applicant (`sendFounderApplicationAlert` in `_shared/applicationEmail.ts`, called from `pipeline-lead-intake`).
 
 ### Changed
+- The cert pass congratulations email now goes out however a cert is marked Passed, including by the member themselves. A trigger sets `cert_calendar.passed_at` when result becomes Passed, and the `cert-pass-email-15min` cron (024_cert_calendar.sql) emails every pass from the last 7 days with no `pass_email_sent_at`. Older passes have no `passed_at`, so none are emailed retroactively. `cert-pass-email` is now deployed with `--no-verify-jwt` (it still checks staff callers itself).
+- The cert fail email (`cert-fail-email`) is now a fixed, encouraging message from Siya instead of a Gemma-written one: acknowledge it, failing is normal, three next steps (note the hard topics, book a 1-on-1, set a new date). It goes out the same way as the pass email: `failed_at` stamped by the same trigger, the `cert-fail-email-15min` cron, and `fail_email_sent_at` for once per entry. No longer needs GEMINI_API_KEY.
 - The daily "How the community celebrated your achievement" email (`win-comments-email`) now goes straight to the member instead of to the founder to forward. A win with no email on file is matched to a member by name and the email is saved on the win; only an unmatched win still goes to the founder.
 - The portal shows the name on the member's `profiles` row in place of their Google account name (sidebar, greetings, check-ins), so an admin-corrected name isn't overwritten on every sign-in.
 
