@@ -130,18 +130,39 @@ $$;
 REVOKE EXECUTE ON FUNCTION public._intake_window(DATE) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public._intake_taken(DATE, DATE) FROM PUBLIC, anon, authenticated;
 
--- Public: the running intake and spots left. Counts only, no member data.
+-- Public: the intake to advertise and its spots left. Counts only, no
+-- member data. Since 2026-11-27 it never advertises a full intake: if the
+-- running one has no spots left it moves on to the next (up to 6 ahead), so
+-- the website says "January intake: 10 spots left" instead of "December
+-- intake is full". If every one of them is full it returns nothing and the
+-- site hides the counter.
 CREATE OR REPLACE FUNCTION public.get_current_intake()
 RETURNS TABLE (name TEXT, closes_on DATE, capacity INTEGER, spots_left INTEGER)
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 STABLE
 AS $$
-  SELECT w.name, w.closes_on, w.capacity, GREATEST(0, w.capacity - t.taken)::int
-  FROM public._intake_window((now() AT TIME ZONE 'Africa/Johannesburg')::date) w,
-       public._intake_taken(w.opens_on, w.closes_on) t
-  WHERE w.capacity > 0;
+#variable_conflict use_column
+DECLARE
+  v_day DATE := (now() AT TIME ZONE 'Africa/Johannesburg')::date;
+  w RECORD;
+  v_left INTEGER;
+BEGIN
+  FOR i IN 1..6 LOOP
+    SELECT * INTO w FROM public._intake_window(v_day);
+    EXIT WHEN NOT FOUND;
+    IF w.capacity > 0 THEN
+      SELECT GREATEST(0, w.capacity - t.taken)::int INTO v_left FROM public._intake_taken(w.opens_on, w.closes_on) t;
+      IF v_left > 0 THEN
+        name := w.name; closes_on := w.closes_on; capacity := w.capacity; spots_left := v_left;
+        RETURN NEXT;
+        RETURN;
+      END IF;
+    END IF;
+    v_day := w.closes_on + 1;
+  END LOOP;
+END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_current_intake() TO anon, authenticated;
@@ -204,6 +225,10 @@ BEGIN
   SELECT d.source, d.ref, d.name, d.email, d.amount, d.paid_on FROM deposits d
   WHERE d.paid_on >= (now() AT TIME ZONE 'Africa/Johannesburg')::date - 90
     AND NOT EXISTS (SELECT 1 FROM public.intake_reservations r WHERE lower(r.email) = d.email)
+    -- 2026-11-27: an R300 payment from someone who is, or was, a member is a
+    -- monthly fee, not a deposit, so it isn't listed. (A former member who
+    -- comes back with a deposit is added to the waiting list by hand.)
+    AND NOT EXISTS (SELECT 1 FROM public.member_profiles m WHERE m.email = d.email)
   ORDER BY d.paid_on DESC;
 END;
 $$;
