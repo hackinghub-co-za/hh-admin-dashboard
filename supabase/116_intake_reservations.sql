@@ -300,3 +300,61 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.start_reserved_membership(BIGINT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.start_reserved_membership(BIGINT) FROM PUBLIC, anon;
+
+-- =========================================================================
+-- DEPOSIT PAID = JOINED ON THE SALES PIPELINE (2026-11-27)
+-- =========================================================================
+-- Anyone on a waiting list (Reserved or Joined, for any intake) has paid
+-- their deposit, so their Sales Pipeline card belongs in Joined. The trigger
+-- moves the card (matched by email) to the bottom of Joined with a note
+-- whenever an entry is added, or its email or status changes, unless it is
+-- Cancelled. A card taken off the board comes back. The backfill below does
+-- the same for everyone already on a waiting list.
+CREATE OR REPLACE FUNCTION public._reservation_marks_pipeline_joined()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_sort INTEGER;
+BEGIN
+  IF NEW.status = 'Cancelled' OR NEW.email IS NULL OR btrim(NEW.email) = '' THEN
+    RETURN NULL;
+  END IF;
+  SELECT COALESCE(MAX(sort_order), -1) + 1 INTO v_sort FROM public.pipeline_prospects WHERE phase = 'Joined';
+  WITH moved AS (
+    UPDATE public.pipeline_prospects
+    SET phase = 'Joined', sort_order = v_sort, archived_at = NULL, updated_at = now()
+    WHERE lower(email) = lower(NEW.email) AND phase <> 'Joined'
+    RETURNING id
+  )
+  INSERT INTO public.pipeline_notes (prospect_id, body, author_email)
+  SELECT id, 'Paid the deposit for the ' || NEW.intake_name || ' intake, so moved to Joined.', 'system' FROM moved;
+  RETURN NULL;
+END;
+$$;
+DROP TRIGGER IF EXISTS reservation_marks_pipeline_joined ON public.intake_reservations;
+CREATE TRIGGER reservation_marks_pipeline_joined
+  AFTER INSERT OR UPDATE OF email, status ON public.intake_reservations
+  FOR EACH ROW EXECUTE FUNCTION public._reservation_marks_pipeline_joined();
+
+-- Backfill: everyone already on a waiting list.
+WITH base AS (SELECT COALESCE(MAX(sort_order), -1) AS n FROM public.pipeline_prospects WHERE phase = 'Joined'),
+targets AS (
+  SELECT p.id, r.intake_name, row_number() OVER (ORDER BY p.id) AS rn
+  FROM public.pipeline_prospects p
+  JOIN LATERAL (
+    SELECT intake_name FROM public.intake_reservations r
+    WHERE lower(r.email) = lower(p.email) AND r.status <> 'Cancelled'
+    ORDER BY r.id DESC LIMIT 1
+  ) r ON true
+  WHERE p.phase <> 'Joined'
+),
+moved AS (
+  UPDATE public.pipeline_prospects p
+  SET phase = 'Joined', sort_order = base.n + t.rn, archived_at = NULL, updated_at = now()
+  FROM targets t, base
+  WHERE p.id = t.id
+  RETURNING p.id, t.intake_name
+)
+INSERT INTO public.pipeline_notes (prospect_id, body, author_email)
+SELECT id, 'Paid the deposit for the ' || intake_name || ' intake, so moved to Joined.', 'system' FROM moved;
