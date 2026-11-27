@@ -6,6 +6,26 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '2026.11.27',
+    date: '2026-11-27',
+    headline: 'The HH Year-End Awards are coming.',
+    intro: 'Vote for the members who made this year special, from 1 to 14 December.',
+    groups: [
+      {
+        label: 'New',
+        color: '#5ee37a',
+        items: [
+          {
+            icon: '🏆',
+            title: 'HH Year-End Awards',
+            body: 'Vote once in each of 13 categories, from Best Newcomer and Class Clown to Mentor of the Year. Six more awards, like Cert Machine and Longest Streak, are worked out from the portal. Voting runs from Tuesday 1 to Monday 14 December, your votes are private, and the winners are announced on Friday 18 December.',
+            where: 'Competitions',
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: '2026.11.19',
     date: '2026-11-19',
     headline: 'The Study Marathon is on.',

@@ -19,6 +19,15 @@ dot on that icon whenever `LATEST_RELEASE_VERSION` is newer than what's
 saved in their browser's `localStorage`.
 
 
+## 2026.11.27
+
+### Added
+- HH Year-End Awards (119_year_end_awards.sql): a card at the top of Competitions where members vote once per category in 13 voted categories (changeable, skippable, never for themselves), plus 6 awards worked out from portal data (certs passed, Study Marathon hours, Hub Score, longest study streak, interviews, event RSVPs). Votes go through `cast_award_vote()`/`remove_award_vote()` and are only open between the dates in `award_settings` (1 to 14 December by default). Staff can't vote or be voted for, except the four mentors for Mentor of the Year. The founder-only Year-End Awards admin tab sets the dates, shows turnout, live totals with reasons and the data leaders, and publishes the winners to members.
+
+### Changed
+- Paying a deposit (being added to any intake's waiting list) moves that person's Sales Pipeline card to Joined (116_intake_reservations.sql).
+- The website's spots counter advertises the next intake with spots left instead of a full one, and the Intakes page no longer lists members' R300 monthly fees as unlinked deposits.
+
 ## 2026.11.26
 
 ### Added

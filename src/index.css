@@ -482,3 +482,9 @@ p {
 .gemma-hintbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(var(--accent-rgb), 0.25); background: rgba(var(--accent-rgb), 0.06); font-size: 0.8rem; }
 .gemma-hint { border-left: 3px solid var(--accent-cyan); background: var(--bg-tertiary); border-radius: 0 8px 8px 0; padding: 10px 12px; font-size: 0.85rem; display: flex; gap: 10px; align-items: flex-start; }
 @media (max-width: 900px) { .gemma-side { display: none; } }
+
+/* Year-End Awards ballot (YearEndAwards.jsx): stack the vote panel and the
+   progress list on narrow screens. */
+@media (max-width: 760px) {
+  .hh-awards-ballot { grid-template-columns: minmax(0, 1fr) !important; }
+}

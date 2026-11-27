@@ -27,6 +27,7 @@ import KodeKloudGuideModal from '../../components/KodeKloudGuideModal';
 import MatchmakerWheelModal from '../../components/MatchmakerWheelModal';
 import CompetitionRulesModal from '../../components/CompetitionRulesModal';
 import StudyHoursRulesModal from '../../components/StudyHoursRulesModal';
+import YearEndAwards from '../../components/YearEndAwards';
 import PortalTourModal from '../../components/PortalTourModal';
 import GroupedMemberDirectory from '../../components/GroupedMemberDirectory';
 import SecurityPanel from '../../components/SecurityPanel';
@@ -8735,6 +8736,8 @@ export default function MemberPortal({ activeTab, setActiveTab, user, providerTo
             <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Competitions</h1>
             <p>The Study Marathon runs until Friday 18 December. From 23 November, log at least 5 hours a week to stay in. The top 3 win free merch.</p>
           </div>
+
+          <YearEndAwards isMockSession={isMockSession} />
 
           {/* Study Hours (081_study_sessions.sql) - Phase 1 of the
               Competitive Study Mode plan, shown right under the TryHackMe

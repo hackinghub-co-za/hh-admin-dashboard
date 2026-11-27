@@ -438,6 +438,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, onRep
         { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban },
         { id: 'intakes', label: 'Intakes & Deposits', icon: Hourglass },
         { id: 'careerservices', label: 'Career Services', icon: BriefcaseBusiness },
+        { id: 'awards', label: 'Year-End Awards', icon: Trophy },
         { id: 'roadmaps', label: 'Roadmaps', icon: Milestone },
         { id: 'accountability', label: 'Accountability Check-ins', icon: UserCheck },
         { id: 'weeklyupdates', label: 'Weekly Updates', icon: CalendarCheck },
